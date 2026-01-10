@@ -1,10 +1,33 @@
 import express from 'express';
 import { query } from '../db';
-import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { addRedPacketCredits } from '../utils/rewards';
 import TelegramAPI from '../utils/telegram';
 
 const router = express.Router();
+
+// Create screenshot (for bot)
+router.post('/', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, group_id, message_id, file_id } = req.body;
+
+    if (!user_id || !file_id) {
+      return res.status(400).json({ error: 'User ID and file ID required' });
+    }
+
+    const result = await query(
+      `INSERT INTO earnings_screenshots (user_id, bot_id, group_id, message_id, file_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [user_id, req.botId, group_id, message_id, file_id]
+    );
+
+    res.json({ screenshot: result.rows[0] });
+  } catch (error) {
+    console.error('Create screenshot error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Get all screenshots
 router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {

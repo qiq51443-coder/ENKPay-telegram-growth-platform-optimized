@@ -1,6 +1,6 @@
 import express from 'express';
 import { query } from '../db';
-import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -63,6 +63,80 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     });
   } catch (error) {
     console.error('Get users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user by telegram ID (for bot)
+router.get('/telegram/:telegramId', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { telegramId } = req.params;
+
+    const result = await query(
+      `SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2`,
+      [telegramId, req.botId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Get user by telegram ID error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create user (for bot)
+router.post('/', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { telegram_id, username, first_name, last_name, language_code, invite_code_used } = req.body;
+
+    if (!telegram_id) {
+      return res.status(400).json({ error: 'Telegram ID required' });
+    }
+
+    // Check if user already exists
+    const existing = await query(
+      'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2',
+      [telegram_id, req.botId]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.json({ user: existing.rows[0] });
+    }
+
+    // Handle invite code
+    let invitedBy = null;
+    if (invite_code_used) {
+      const inviterResult = await query(
+        'SELECT id FROM users WHERE invite_code = $1',
+        [invite_code_used]
+      );
+      if (inviterResult.rows.length > 0) {
+        invitedBy = inviterResult.rows[0].id;
+      }
+    }
+
+    // Get bot settings for initial credits
+    const settingsResult = await query(
+      'SELECT new_user_credits FROM bot_settings WHERE bot_id = $1',
+      [req.botId]
+    );
+    const initialCredits = settingsResult.rows[0]?.new_user_credits || 3;
+
+    // Create user
+    const result = await query(
+      `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_credits)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [req.botId, telegram_id, username, first_name, last_name, language_code || 'en', invitedBy, initialCredits]
+    );
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Create user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -146,6 +220,41 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Update user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user transactions
+router.get('/:id/transactions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 10 } = req.query;
+
+    const result = await query(
+      `SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [id, limit]
+    );
+
+    res.json({ transactions: result.rows });
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user invite stats
+router.get('/:id/invites', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT COUNT(*) as total FROM invitations WHERE inviter_id = $1`,
+      [id]
+    );
+
+    res.json({ total: parseInt(result.rows[0].total) });
+  } catch (error) {
+    console.error('Get invite stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

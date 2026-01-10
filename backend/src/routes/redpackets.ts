@@ -104,6 +104,135 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// Get red packet by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      'SELECT * FROM red_packets WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Red packet not found' });
+    }
+
+    res.json({ redPacket: result.rows[0] });
+  } catch (error) {
+    console.error('Get red packet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Claim red packet
+router.post('/:id/claim', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+
+    // Get red packet
+    const rpResult = await query(
+      'SELECT * FROM red_packets WHERE id = $1',
+      [id]
+    );
+
+    if (rpResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Red packet not found' });
+    }
+
+    const redPacket = rpResult.rows[0];
+
+    // Check if finished
+    if (redPacket.claimed_count >= redPacket.total_count) {
+      return res.status(400).json({ error: 'Red packet finished' });
+    }
+
+    // Check if already claimed
+    const claimedResult = await query(
+      'SELECT * FROM red_packet_claims WHERE red_packet_id = $1 AND user_id = $2',
+      [id, user_id]
+    );
+
+    if (claimedResult.rows.length > 0) {
+      return res.status(400).json({ error: 'Already claimed' });
+    }
+
+    // Check user credits
+    const userResult = await query(
+      'SELECT red_packet_credits FROM users WHERE id = $1',
+      [user_id]
+    );
+
+    if (userResult.rows.length === 0 || userResult.rows[0].red_packet_credits <= 0) {
+      return res.status(400).json({ error: 'Insufficient credits' });
+    }
+
+    // Calculate claim amount (random distribution)
+    const remainingAmount = redPacket.total_amount - redPacket.claimed_amount;
+    const remainingCount = redPacket.total_count - redPacket.claimed_count;
+    
+    let claimAmount;
+    if (remainingCount === 1) {
+      claimAmount = remainingAmount;
+    } else {
+      const maxClaim = (remainingAmount / remainingCount) * 2;
+      claimAmount = Math.random() * maxClaim;
+      claimAmount = Math.max(0.01, Math.min(claimAmount, remainingAmount));
+    }
+    claimAmount = Math.round(claimAmount * 100) / 100;
+
+    // Use transaction
+    const { transaction } = await import('../db');
+    const result = await transaction(async (client) => {
+      // Deduct credit
+      await client.query(
+        'UPDATE users SET red_packet_credits = red_packet_credits - 1 WHERE id = $1',
+        [user_id]
+      );
+
+      // Add balance
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE id = $2',
+        [claimAmount, user_id]
+      );
+
+      // Record claim
+      await client.query(
+        'INSERT INTO red_packet_claims (red_packet_id, user_id, amount) VALUES ($1, $2, $3)',
+        [id, user_id, claimAmount]
+      );
+
+      // Update red packet
+      await client.query(
+        `UPDATE red_packets 
+         SET claimed_count = claimed_count + 1, claimed_amount = claimed_amount + $1
+         WHERE id = $2`,
+        [claimAmount, id]
+      );
+
+      // Record transaction
+      const userBalanceResult = await client.query('SELECT balance FROM users WHERE id = $1', [user_id]);
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [user_id, 'red_packet', claimAmount, userBalanceResult.rows[0].balance, 'Red packet claim']
+      );
+
+      return { amount: claimAmount, claimed_count: redPacket.claimed_count + 1 };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Claim red packet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get red packet claims
 router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
