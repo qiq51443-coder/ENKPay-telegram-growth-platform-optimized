@@ -237,7 +237,7 @@ class ApiClient {
   }
 
   // File upload helper
-  async getFileUrl(fileId: string, botToken: string): string {
+  getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;
   }
 }

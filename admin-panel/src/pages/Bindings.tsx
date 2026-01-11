@@ -82,7 +82,7 @@ export const Bindings: React.FC = () => {
     {
       key: 'screenshot',
       title: '截图',
-      render: (binding: Binding) => (
+      render: () => (
         <Button
           variant="secondary"
           className="text-xs py-1 px-2"

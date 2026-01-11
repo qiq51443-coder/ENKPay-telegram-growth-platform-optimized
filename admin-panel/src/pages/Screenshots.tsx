@@ -82,7 +82,7 @@ export const Screenshots: React.FC = () => {
     {
       key: 'screenshot',
       title: '截图',
-      render: (ss: Screenshot) => (
+      render: () => (
         <Button
           variant="secondary"
           className="text-xs py-1 px-2"

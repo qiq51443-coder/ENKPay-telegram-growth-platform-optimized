@@ -46,3 +46,4 @@ admin-panel/node_modules/
 admin-panel/dist/
 admin-panel/.next/
 admin-panel/.nuxt/
+admin-panel/package-lock.json
