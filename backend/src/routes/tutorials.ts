@@ -146,7 +146,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       `INSERT INTO tutorials (exchange_id, category_id, title, title_zh, description, description_zh, is_active, order_index)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [exchange_id, category_id, title, title_zh, description, description_zh, is_active !== false, order_index || 0]
+      [exchange_id, category_id, title, title_zh, description, description_zh, is_active ?? true, order_index || 0]
     );
 
     const tutorial = tutorialResult.rows[0];

@@ -1,5 +1,7 @@
 -- Migration: Enhance tutorials and admin management
 -- Date: 2026-01-11
+-- Prerequisites: This migration requires the base schema to be applied first (schema.sql)
+--                which includes the update_updated_at() function
 
 -- ============================================
 -- Part 1: Tutorial Categories

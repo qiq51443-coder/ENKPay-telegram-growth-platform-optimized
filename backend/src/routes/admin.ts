@@ -25,7 +25,7 @@ router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
 // Create bot
 router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { name, token, country, defaultLanguage } = req.body;
+    const { name, token } = req.body;
 
     if (!name || !token) {
       return res.status(400).json({ error: 'Name and token required' });
