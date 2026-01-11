@@ -14,6 +14,7 @@ import screenshotRoutes from './routes/screenshots';
 import exchangeRoutes from './routes/exchanges';
 import settingsRoutes from './routes/settings';
 import webhookRoutes from './routes/webhook';
+import tutorialsRoutes from './routes/tutorials';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/broadcasts', broadcastRoutes);
 app.use('/api/screenshots', screenshotRoutes);
 app.use('/api/exchanges', exchangeRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/tutorials', tutorialsRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Error handling
