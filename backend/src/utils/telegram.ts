@@ -122,6 +122,16 @@ export class TelegramAPI {
       throw error;
     }
   }
+
+  async getMe() {
+    try {
+      const response = await axios.get(`${this.baseUrl}/getMe`);
+      return response.data.result;
+    } catch (error: any) {
+      console.error('Telegram getMe error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
 }
 
 export default TelegramAPI;

@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -30,29 +31,71 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Name and token required' });
     }
 
-    // Verify token with Telegram
+    // 1. Verify token with Telegram API
     const telegram = new TelegramAPI(token);
+    let botInfo;
     try {
-      const info = await telegram.getWebhookInfo();
+      botInfo = await telegram.getMe();
       
-      const result = await query(
-        `INSERT INTO bots (name, token, is_active)
-         VALUES ($1, $2, true)
-         RETURNING id, name, username, is_active, created_at`,
-        [name, token]
-      );
-
-      // Initialize bot settings
-      await query(
-        `INSERT INTO bot_settings (bot_id)
-         VALUES ($1)`,
-        [result.rows[0].id]
-      );
-
-      res.json({ bot: result.rows[0] });
-    } catch (error) {
-      return res.status(400).json({ error: 'Invalid bot token' });
+      if (!botInfo || !botInfo.is_bot) {
+        return res.status(400).json({ error: 'Invalid bot token or not a bot' });
+      }
+    } catch (error: any) {
+      console.error('Bot verification error:', error);
+      return res.status(400).json({ error: 'Invalid bot token or unable to connect to Telegram' });
     }
+
+    // 2. Check if bot already exists
+    const existingBot = await query(
+      'SELECT id FROM bots WHERE token = $1',
+      [token]
+    );
+
+    if (existingBot.rows.length > 0) {
+      return res.status(400).json({ error: 'Bot already exists' });
+    }
+
+    // 3. Set webhook if BACKEND_URL is configured
+    const backendUrl = process.env.BACKEND_URL || process.env.BOT_WEBHOOK_URL;
+    let webhookUrl = '';
+    
+    if (backendUrl) {
+      try {
+        webhookUrl = `${backendUrl}/webhook/${token}`;
+        const webhookResult = await telegram.setWebhook(
+          webhookUrl,
+          process.env.BOT_WEBHOOK_SECRET
+        );
+        
+        if (!webhookResult.ok) {
+          console.warn('Failed to set webhook:', webhookResult);
+          // Continue anyway - webhook can be set later
+        }
+      } catch (webhookError) {
+        console.error('Webhook setup error:', webhookError);
+        // Continue anyway - webhook can be set later
+      }
+    }
+
+    // 4. Save bot to database
+    const result = await query(
+      `INSERT INTO bots (name, token, username, is_active, webhook_url)
+       VALUES ($1, $2, $3, true, $4)
+       RETURNING id, name, username, is_active, webhook_url, created_at`,
+      [name, token, botInfo.username, webhookUrl]
+    );
+
+    // 5. Initialize bot settings
+    await query(
+      `INSERT INTO bot_settings (bot_id)
+       VALUES ($1)`,
+      [result.rows[0].id]
+    );
+
+    res.json({ 
+      bot: result.rows[0],
+      message: 'Bot created successfully'
+    });
   } catch (error) {
     console.error('Create bot error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -98,6 +141,72 @@ router.put('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     res.json({ bot: result.rows[0] });
   } catch (error) {
     console.error('Update bot error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete bot
+router.delete('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Get bot token
+    const botResult = await query('SELECT token FROM bots WHERE id = $1', [id]);
+    
+    if (botResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+
+    const botToken = botResult.rows[0].token;
+
+    // 2. Try to delete Telegram webhook
+    try {
+      const telegram = new TelegramAPI(botToken);
+      await telegram.deleteWebhook();
+    } catch (webhookError) {
+      console.error('Failed to delete webhook:', webhookError);
+      // Continue with deletion even if webhook removal fails
+    }
+
+    // 3. Delete bot from database (cascade will handle related data)
+    await query('DELETE FROM bots WHERE id = $1', [id]);
+
+    // 4. Return success
+    res.json({ 
+      success: true, 
+      message: 'Bot deleted successfully' 
+    });
+  } catch (error) {
+    console.error('Delete bot error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update bot status (enable/disable)
+router.patch('/bots/:id/status', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (is_active === undefined) {
+      return res.status(400).json({ error: 'is_active field is required' });
+    }
+
+    const result = await query(
+      'UPDATE bots SET is_active = $1 WHERE id = $2 RETURNING *',
+      [is_active, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+
+    res.json({ 
+      bot: result.rows[0],
+      message: `Bot ${is_active ? 'enabled' : 'disabled'} successfully`
+    });
+  } catch (error) {
+    console.error('Update bot status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -159,6 +268,237 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
     });
   } catch (error) {
     console.error('Get dashboard stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Admin User Management
+// ============================================
+
+// Get all admin users
+router.get('/admins', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Check if requester is super_admin
+    if (req.user?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can manage admin users' });
+    }
+
+    const result = await query(
+      `SELECT id, username, email, role, full_name, is_active, last_login_at, created_at, created_by
+       FROM admin_users
+       ORDER BY created_at DESC`
+    );
+
+    res.json({ admins: result.rows });
+  } catch (error) {
+    console.error('Get admins error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create admin user
+router.post('/admins', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Check if requester is super_admin
+    if (req.user?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can create admin users' });
+    }
+
+    const { username, password, email, role, full_name } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    // Validate role
+    const validRoles = ['super_admin', 'admin', 'reviewer'];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Check if username already exists
+    const existingUser = await query(
+      'SELECT id FROM admin_users WHERE username = $1',
+      [username]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Create admin user
+    const result = await query(
+      `INSERT INTO admin_users (username, password_hash, email, role, full_name, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, username, email, role, full_name, is_active, created_at`,
+      [username, password_hash, email, role || 'admin', full_name, req.user?.id]
+    );
+
+    res.json({ 
+      admin: result.rows[0],
+      message: 'Admin user created successfully'
+    });
+  } catch (error) {
+    console.error('Create admin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update admin user
+router.put('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Check if requester is super_admin or updating their own profile
+    if (req.user?.role !== 'super_admin' && req.user?.id !== req.params.id) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { id } = req.params;
+    const { username, email, role, full_name, is_active } = req.body;
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (username !== undefined) {
+      params.push(username);
+      updates.push(`username = $${params.length}`);
+    }
+    if (email !== undefined) {
+      params.push(email);
+      updates.push(`email = $${params.length}`);
+    }
+    if (full_name !== undefined) {
+      params.push(full_name);
+      updates.push(`full_name = $${params.length}`);
+    }
+
+    // Only super_admin can change role and is_active
+    if (req.user?.role === 'super_admin') {
+      if (role !== undefined) {
+        const validRoles = ['super_admin', 'admin', 'reviewer'];
+        if (!validRoles.includes(role)) {
+          return res.status(400).json({ error: 'Invalid role' });
+        }
+        params.push(role);
+        updates.push(`role = $${params.length}`);
+      }
+      if (is_active !== undefined) {
+        params.push(is_active);
+        updates.push(`is_active = $${params.length}`);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    params.push(id);
+    const result = await query(
+      `UPDATE admin_users SET ${updates.join(', ')} WHERE id = $${params.length}
+       RETURNING id, username, email, role, full_name, is_active, created_at`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    res.json({ 
+      admin: result.rows[0],
+      message: 'Admin user updated successfully'
+    });
+  } catch (error) {
+    console.error('Update admin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change password
+router.patch('/admins/:id/password', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { current_password, new_password } = req.body;
+
+    // Can only change own password or super_admin can change anyone's
+    if (req.user?.role !== 'super_admin' && req.user?.id !== id) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    if (!new_password) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+
+    // If not super_admin, verify current password
+    if (req.user?.role !== 'super_admin' || current_password) {
+      const userResult = await query(
+        'SELECT password_hash FROM admin_users WHERE id = $1',
+        [id]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Admin user not found' });
+      }
+
+      if (current_password) {
+        const isValid = await bcrypt.compare(current_password, userResult.rows[0].password_hash);
+        if (!isValid) {
+          return res.status(400).json({ error: 'Current password is incorrect' });
+        }
+      }
+    }
+
+    // Hash new password
+    const password_hash = await bcrypt.hash(new_password, 10);
+
+    // Update password
+    await query(
+      'UPDATE admin_users SET password_hash = $1 WHERE id = $2',
+      [password_hash, id]
+    );
+
+    res.json({ 
+      success: true,
+      message: 'Password updated successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete admin user
+router.delete('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Only super_admin can delete admin users
+    if (req.user?.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can delete admin users' });
+    }
+
+    const { id } = req.params;
+
+    // Cannot delete self
+    if (req.user?.id === id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    const result = await query(
+      'DELETE FROM admin_users WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Admin user deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete admin error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

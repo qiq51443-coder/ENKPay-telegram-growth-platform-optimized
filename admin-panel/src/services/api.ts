@@ -193,6 +193,16 @@ class ApiClient {
     return response.data;
   }
 
+  async getTutorial(id: string) {
+    const response = await this.client.get(`/tutorials/${id}`);
+    return response.data;
+  }
+
+  async getTutorialCategories() {
+    const response = await this.client.get('/tutorials/categories');
+    return response.data;
+  }
+
   async createTutorial(data: any) {
     const response = await this.client.post('/tutorials', data);
     return response.data;
@@ -227,6 +237,32 @@ class ApiClient {
 
   async updateSettings(botId: string, data: any) {
     const response = await this.client.put(`/settings/${botId}`, data);
+    return response.data;
+  }
+
+  // Admin Management
+  async getAdmins() {
+    const response = await this.client.get('/admin/admins');
+    return response.data;
+  }
+
+  async createAdmin(data: any) {
+    const response = await this.client.post('/admin/admins', data);
+    return response.data;
+  }
+
+  async updateAdmin(id: string, data: any) {
+    const response = await this.client.put(`/admin/admins/${id}`, data);
+    return response.data;
+  }
+
+  async deleteAdmin(id: string) {
+    const response = await this.client.delete(`/admin/admins/${id}`);
+    return response.data;
+  }
+
+  async changeAdminPassword(id: string, data: { current_password?: string; new_password: string }) {
+    const response = await this.client.patch(`/admin/admins/${id}/password`, data);
     return response.data;
   }
 
