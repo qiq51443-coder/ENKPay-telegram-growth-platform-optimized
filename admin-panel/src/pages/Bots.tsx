@@ -62,25 +62,34 @@ export const Bots: React.FC = () => {
     try {
       if (editingBot) {
         await apiClient.updateBot(editingBot.id, formData);
+        alert('Bot 更新成功');
       } else {
         await apiClient.createBot(formData);
+        alert('Bot 创建成功');
       }
       setModalOpen(false);
       fetchBots();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save bot:', error);
-      alert('保存失败');
+      const errorMessage = error.response?.data?.error || '操作失败，请重试';
+      alert(errorMessage);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个 Bot 吗？')) return;
+    if (!confirm('确定要删除这个 Bot 吗？这将删除 Bot 的 Webhook 并清除所有相关数据。')) return;
+    
     try {
+      setLoading(true);
       await apiClient.deleteBot(id);
+      alert('Bot 删除成功');
       fetchBots();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete bot:', error);
-      alert('删除失败');
+      const errorMessage = error.response?.data?.error || '删除失败，请重试';
+      alert(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
