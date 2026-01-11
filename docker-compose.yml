@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: telegram-growth-db
+    environment:
+      POSTGRES_USER: telegram
+      POSTGRES_PASSWORD: telegram123
+      POSTGRES_DB: telegram_growth
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: telegram-growth-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: telegram-growth-backend
+    environment:
+      - DATABASE_URL=postgresql://telegram:telegram123@postgres:5432/telegram_growth
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: telegram-growth-bot
+    environment:
+      - BACKEND_URL=http://backend:3000
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - backend
+      - redis
+    volumes:
+      - ./bot:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
