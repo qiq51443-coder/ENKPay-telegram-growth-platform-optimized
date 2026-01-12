@@ -1,9 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Wallet, Gift, CheckCircle, TrendingUp, Clock } from 'lucide-react';
-import { Layout } from '../components/Layout/Layout';
-import { Loading } from '../components/Common/Loading';
-import apiClient from '../services/api';
-import { DashboardStats } from '../services/types';
+import { Card, Row, Col, Statistic, Spin, Typography, List, Tag } from 'antd';
+import {
+  UserOutlined,
+  WalletOutlined,
+  GiftOutlined,
+  CheckCircleOutlined,
+  RiseOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons';
+import axios from 'axios';
+
+const { Title } = Typography;
+
+interface DashboardStats {
+  users: {
+    total_users: number;
+    bound_users: number;
+    new_today: number;
+    active_today: number;
+  };
+  bindings: {
+    pending_bindings: number;
+    approved_bindings: number;
+  };
+  redPackets: {
+    active_red_packets: number;
+    total_red_packets: number;
+    total_claimed_amount: number;
+  };
+  transactions: {
+    total_rewards: number;
+    rewards_today: number;
+  };
+  recent_activities?: Array<{
+    id: string;
+    type: string;
+    description: string;
+    created_at: string;
+  }>;
+}
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -15,8 +50,8 @@ export const Dashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const data = await apiClient.getDashboardStats();
-      setStats(data);
+      const response = await axios.get('/admin/dashboard/overview');
+      setStats(response.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -26,142 +61,123 @@ export const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Layout>
-        <Loading />
-      </Layout>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
     );
   }
 
-  const statCards = [
-    {
-      title: '总用户数',
-      value: stats?.users.total_users || 0,
-      icon: Users,
-      color: 'bg-blue-500',
-      detail: `已绑定: ${stats?.users.bound_users || 0}`,
-    },
-    {
-      title: '今日新增',
-      value: stats?.users.new_today || 0,
-      icon: TrendingUp,
-      color: 'bg-green-500',
-      detail: `活跃: ${stats?.users.active_today || 0}`,
-    },
-    {
-      title: '待审核绑定',
-      value: stats?.bindings.pending_bindings || 0,
-      icon: Clock,
-      color: 'bg-yellow-500',
-      detail: `已通过: ${stats?.bindings.approved_bindings || 0}`,
-    },
-    {
-      title: '活跃红包',
-      value: stats?.redPackets.active_red_packets || 0,
-      icon: Gift,
-      color: 'bg-red-500',
-      detail: `已发送: ${stats?.redPackets.total_red_packets || 0}`,
-    },
-    {
-      title: '总奖励发放',
-      value: `$${(stats?.transactions.total_rewards || 0).toFixed(2)}`,
-      icon: Wallet,
-      color: 'bg-purple-500',
-      detail: `今日: $${(stats?.transactions.rewards_today || 0).toFixed(2)}`,
-    },
-    {
-      title: '红包已领取',
-      value: `$${(stats?.redPackets.total_claimed_amount || 0).toFixed(2)}`,
-      icon: CheckCircle,
-      color: 'bg-indigo-500',
-      detail: `总红包: ${stats?.redPackets.total_red_packets || 0}`,
-    },
-  ];
-
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">仪表盘</h1>
-          <p className="text-gray-600 mt-1">系统概览与统计数据</p>
-        </div>
+    <div>
+      <Title level={2}>仪表盘</Title>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {statCards.map((card, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{card.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {card.value}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">{card.detail}</p>
-                </div>
-                <div className={`${card.color} p-3 rounded-lg`}>
-                  <card.icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="总用户数"
+              value={stats?.users.total_users || 0}
+              prefix={<UserOutlined />}
+              valueStyle={{ color: '#3f8600' }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              已绑定: {stats?.users.bound_users || 0}
             </div>
-          ))}
-        </div>
+          </Card>
+        </Col>
 
-        {stats?.withdrawals && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">提现统计</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">待处理提现</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">
-                  {stats.withdrawals.pending_withdrawals}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">总提现金额</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">
-                  ${stats.withdrawals.total_withdrawn.toFixed(2)}
-                </p>
-              </div>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="今日新增"
+              value={stats?.users.new_today || 0}
+              prefix={<RiseOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              活跃: {stats?.users.active_today || 0}
             </div>
-          </div>
-        )}
+          </Card>
+        </Col>
 
-        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg shadow-lg p-6 text-white">
-          <h2 className="text-xl font-semibold mb-2">快捷操作</h2>
-          <p className="text-purple-100 mb-4">常用管理功能入口</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <a
-              href="/bindings"
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 text-center transition-all"
-            >
-              <CheckCircle className="w-8 h-8 mx-auto mb-2" />
-              <span className="text-sm">审核绑定</span>
-            </a>
-            <a
-              href="/screenshots"
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 text-center transition-all"
-            >
-              <CheckCircle className="w-8 h-8 mx-auto mb-2" />
-              <span className="text-sm">审核截图</span>
-            </a>
-            <a
-              href="/red-packets"
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 text-center transition-all"
-            >
-              <Gift className="w-8 h-8 mx-auto mb-2" />
-              <span className="text-sm">发红包</span>
-            </a>
-            <a
-              href="/broadcasts"
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 text-center transition-all"
-            >
-              <TrendingUp className="w-8 h-8 mx-auto mb-2" />
-              <span className="text-sm">发广播</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </Layout>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="待审核绑定"
+              value={stats?.bindings.pending_bindings || 0}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#faad14' }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              已通过: {stats?.bindings.approved_bindings || 0}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="活跃红包"
+              value={stats?.redPackets.active_red_packets || 0}
+              prefix={<GiftOutlined />}
+              valueStyle={{ color: '#cf1322' }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              已发送: {stats?.redPackets.total_red_packets || 0}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="总奖励发放"
+              value={(stats?.transactions.total_rewards || 0).toFixed(2)}
+              prefix={<WalletOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+              suffix="$"
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              今日: ${(stats?.transactions.rewards_today || 0).toFixed(2)}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="红包已领取"
+              value={(stats?.redPackets.total_claimed_amount || 0).toFixed(2)}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#eb2f96' }}
+              suffix="$"
+            />
+            <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+              总红包: {stats?.redPackets.total_red_packets || 0}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {stats?.recent_activities && stats.recent_activities.length > 0 && (
+        <Card title="最近活动" style={{ marginTop: '24px' }}>
+          <List
+            dataSource={stats.recent_activities}
+            renderItem={(item) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={
+                    <div>
+                      <Tag>{item.type}</Tag> {item.description}
+                    </div>
+                  }
+                  description={new Date(item.created_at).toLocaleString('zh-CN')}
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+    </div>
   );
 };

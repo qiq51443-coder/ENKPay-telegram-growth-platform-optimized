@@ -1,25 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import { Layout } from '../components/Layout/Layout';
-import { Table } from '../components/Common/Table';
-import { Modal } from '../components/Common/Modal';
-import { Button } from '../components/Forms/Button';
-import { Input } from '../components/Forms/Input';
-import { Select } from '../components/Forms/Select';
-import apiClient from '../services/api';
-import { Bot } from '../services/types';
+import { Table, Button, Modal, Form, Input, Space, Tag, message, Popconfirm } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import axios from 'axios';
+
+interface Bot {
+  id: string;
+  name: string;
+  token: string;
+  username?: string;
+  is_active: boolean;
+  webhook_url?: string;
+  created_at: string;
+}
 
 export const Bots: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    token: '',
-    language: 'en',
-    webhook_url: '',
-  });
+  const [form] = Form.useForm();
 
   useEffect(() => {
     fetchBots();
@@ -28,10 +27,11 @@ export const Bots: React.FC = () => {
   const fetchBots = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.getBots();
-      setBots(response.bots || []);
+      const response = await axios.get('/admin/bots');
+      setBots(response.data.bots || []);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
+      message.error('获取 Bot 列表失败');
     } finally {
       setLoading(false);
     }
@@ -40,198 +40,208 @@ export const Bots: React.FC = () => {
   const handleOpenModal = (bot?: Bot) => {
     if (bot) {
       setEditingBot(bot);
-      setFormData({
+      form.setFieldsValue({
         name: bot.name,
         token: bot.token,
-        language: bot.language,
         webhook_url: bot.webhook_url || '',
       });
     } else {
       setEditingBot(null);
-      setFormData({
-        name: '',
-        token: '',
-        language: 'en',
-        webhook_url: '',
-      });
+      form.resetFields();
     }
     setModalOpen(true);
   };
 
   const handleSave = async () => {
     try {
+      const values = await form.validateFields();
+      
       if (editingBot) {
-        await apiClient.updateBot(editingBot.id, formData);
-        alert('Bot 更新成功');
+        await axios.put(`/admin/bots/${editingBot.id}`, values);
+        message.success('Bot 更新成功');
       } else {
-        await apiClient.createBot(formData);
-        alert('Bot 创建成功');
+        await axios.post('/admin/bots', values);
+        message.success('Bot 创建成功');
       }
+      
       setModalOpen(false);
       fetchBots();
     } catch (error: any) {
       console.error('Failed to save bot:', error);
-      const errorMessage = error.response?.data?.error || '操作失败，请重试';
-      alert(errorMessage);
+      message.error(error.response?.data?.error || '操作失败，请重试');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个 Bot 吗？这将删除 Bot 的 Webhook 并清除所有相关数据。')) return;
-    
     try {
-      setLoading(true);
-      await apiClient.deleteBot(id);
-      alert('Bot 删除成功');
+      await axios.delete(`/admin/bots/${id}`);
+      message.success('Bot 删除成功');
       fetchBots();
     } catch (error: any) {
       console.error('Failed to delete bot:', error);
-      const errorMessage = error.response?.data?.error || '删除失败，请重试';
-      alert(errorMessage);
-    } finally {
-      setLoading(false);
+      message.error(error.response?.data?.error || '删除失败');
+    }
+  };
+
+  const handleToggleStatus = async (bot: Bot) => {
+    try {
+      await axios.patch(`/admin/bots/${bot.id}/status`, {
+        is_active: !bot.is_active,
+      });
+      message.success(bot.is_active ? 'Bot 已停用' : 'Bot 已启用');
+      fetchBots();
+    } catch (error: any) {
+      console.error('Failed to toggle bot status:', error);
+      message.error('状态切换失败');
     }
   };
 
   const columns = [
     {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 100,
+      render: (id: string) => id.substring(0, 8),
+    },
+    {
+      title: 'Bot 名称',
+      dataIndex: 'name',
       key: 'name',
-      title: '名称',
-      render: (bot: Bot) => bot.name,
     },
     {
-      key: 'username',
       title: '用户名',
-      render: (bot: Bot) => bot.username ? `@${bot.username}` : '-',
+      dataIndex: 'username',
+      key: 'username',
+      render: (username?: string) => username ? `@${username}` : '-',
     },
     {
-      key: 'language',
-      title: '语言',
-      render: (bot: Bot) => bot.language.toUpperCase(),
-    },
-    {
-      key: 'is_active',
       title: '状态',
-      render: (bot: Bot) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs ${
-            bot.is_active
-              ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-800'
-          }`}
-        >
-          {bot.is_active ? '活跃' : '禁用'}
-        </span>
-      ),
+      dataIndex: 'is_active',
+      key: 'is_active',
+      render: (is_active: boolean) =>
+        is_active ? (
+          <Tag icon={<CheckCircleOutlined />} color="success">
+            运行中
+          </Tag>
+        ) : (
+          <Tag icon={<CloseCircleOutlined />} color="default">
+            已停用
+          </Tag>
+        ),
     },
     {
+      title: 'Webhook URL',
+      dataIndex: 'webhook_url',
       key: 'webhook_url',
-      title: 'Webhook',
-      render: (bot: Bot) => (
-        <span className="text-xs font-mono">
-          {bot.webhook_url ? '已配置' : '未配置'}
-        </span>
-      ),
+      ellipsis: true,
+      render: (url?: string) => url || '-',
     },
     {
-      key: 'created_at',
       title: '创建时间',
-      render: (bot: Bot) => new Date(bot.created_at).toLocaleDateString('zh-CN'),
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
     },
     {
-      key: 'actions',
       title: '操作',
-      render: (bot: Bot) => (
-        <div className="flex gap-2">
+      key: 'actions',
+      fixed: 'right' as const,
+      width: 200,
+      render: (_: any, record: Bot) => (
+        <Space>
           <Button
-            variant="secondary"
-            className="text-xs py-1 px-2"
-            onClick={() => handleOpenModal(bot)}
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleOpenModal(record)}
           >
-            <Edit className="w-3 h-3" />
+            编辑
           </Button>
           <Button
-            variant="danger"
-            className="text-xs py-1 px-2"
-            onClick={() => handleDelete(bot.id)}
+            type="text"
+            size="small"
+            onClick={() => handleToggleStatus(record)}
           >
-            <Trash2 className="w-3 h-3" />
+            {record.is_active ? '停用' : '启用'}
           </Button>
-        </div>
+          <Popconfirm
+            title="确定要删除这个 Bot 吗？"
+            description="这将删除 Bot 的 Webhook 并清除所有相关数据"
+            onConfirm={() => handleDelete(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Bot 管理</h1>
-            <p className="text-gray-600 mt-1">管理 Telegram Bot 配置</p>
-          </div>
-          <Button variant="primary" onClick={() => handleOpenModal()}>
-            <Plus className="w-4 h-4 mr-2" />
-            添加 Bot
-          </Button>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <Table columns={columns} data={bots} loading={loading} />
-        </div>
-
-        <Modal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          title={editingBot ? '编辑 Bot' : '添加 Bot'}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setModalOpen(false)}>
-                取消
-              </Button>
-              <Button variant="primary" onClick={handleSave}>
-                保存
-              </Button>
-            </>
-          }
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Bot 管理</h2>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => handleOpenModal()}
         >
-          <div className="space-y-4">
-            <Input
-              label="Bot 名称"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="例如: MyBot"
-              required
-            />
-            <Input
-              label="Bot Token"
-              value={formData.token}
-              onChange={(e) => setFormData({ ...formData, token: e.target.value })}
-              placeholder="123456:ABC-DEF..."
-              required
-              disabled={!!editingBot}
-            />
-            <Select
-              label="语言"
-              value={formData.language}
-              onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-              options={[
-                { value: 'en', label: 'English' },
-                { value: 'zh', label: '中文' },
-                { value: 'ru', label: 'Русский' },
-              ]}
-            />
-            <Input
-              label="Webhook URL (可选)"
-              value={formData.webhook_url}
-              onChange={(e) =>
-                setFormData({ ...formData, webhook_url: e.target.value })
-              }
-              placeholder="https://your-domain.com/webhook"
-            />
-          </div>
-        </Modal>
+          添加 Bot
+        </Button>
       </div>
-    </Layout>
+
+      <Table
+        columns={columns}
+        dataSource={bots}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 1000 }}
+      />
+
+      <Modal
+        title={editingBot ? '编辑 Bot' : '添加 Bot'}
+        open={modalOpen}
+        onOk={handleSave}
+        onCancel={() => setModalOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
+          <Form.Item
+            name="name"
+            label="Bot 名称"
+            rules={[{ required: true, message: '请输入 Bot 名称' }]}
+          >
+            <Input placeholder="例如：主要 Bot" />
+          </Form.Item>
+
+          <Form.Item
+            name="token"
+            label="Bot Token"
+            rules={[{ required: true, message: '请输入 Bot Token' }]}
+          >
+            <Input.Password placeholder="从 @BotFather 获取的 Token" />
+          </Form.Item>
+
+          <Form.Item
+            name="webhook_url"
+            label="Webhook URL"
+          >
+            <Input placeholder="https://your-domain.com/webhook" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 };

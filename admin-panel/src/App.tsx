@@ -19,7 +19,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   FileTextOutlined,
-  ClusterOutlined,
   DatabaseOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';

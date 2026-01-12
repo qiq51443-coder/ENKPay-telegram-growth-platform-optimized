@@ -1,209 +1,157 @@
-import React, { useState, useEffect } from 'react';
-import { Check, X, Eye } from 'lucide-react';
-import { Layout } from '../components/Layout/Layout';
-import { Table } from '../components/Common/Table';
-import { Pagination } from '../components/Common/Pagination';
-import { Modal } from '../components/Common/Modal';
-import { Button } from '../components/Forms/Button';
-import { ImagePreview } from '../components/Common/ImagePreview';
-import apiClient from '../services/api';
-import { Binding } from '../services/types';
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Space, Tag, message, Popconfirm, Modal, Image } from 'antd';
+import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import axios from 'axios';
+
+interface Binding {
+  id: string;
+  user_id: string;
+  platform_username: string;
+  screenshot_file_id?: string;
+  status: string;
+  created_at: string;
+  user?: {
+    telegram_id: number;
+    username?: string;
+    first_name?: string;
+  };
+}
 
 export const Bindings: React.FC = () => {
   const [bindings, setBindings] = useState<Binding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [selectedBinding, setSelectedBinding] = useState<Binding | null>(null);
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [imagePreviewSrc, setImagePreviewSrc] = useState<string | null>(null);
-  const [adminNote, setAdminNote] = useState('');
-  const limit = 20;
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBindings();
-  }, [currentPage]);
+  }, []);
 
   const fetchBindings = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.getBindings({
-        page: currentPage,
-        limit,
-        status: 'pending',
-      });
-      setBindings(response.bindings || []);
-      setTotalPages(response.pagination?.pages || 1);
+      const response = await axios.get('/admin/bindings');
+      setBindings(response.data.bindings || []);
     } catch (error) {
       console.error('Failed to fetch bindings:', error);
+      message.error('获取绑定列表失败');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleReview = async (status: 'approved' | 'rejected') => {
-    if (!selectedBinding) return;
+  const handleApprove = async (id: string) => {
     try {
-      await apiClient.reviewBinding(selectedBinding.id, {
-        status,
-        admin_note: adminNote,
-      });
-      setReviewModalOpen(false);
-      setSelectedBinding(null);
-      setAdminNote('');
+      await axios.post(`/admin/bindings/${id}/approve`);
+      message.success('审核通过');
       fetchBindings();
-    } catch (error) {
-      console.error('Failed to review binding:', error);
-      alert('审核失败');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '操作失败');
     }
   };
 
-  const openReviewModal = (binding: Binding) => {
-    setSelectedBinding(binding);
-    setReviewModalOpen(true);
+  const handleReject = async (id: string) => {
+    try {
+      await axios.post(`/admin/bindings/${id}/reject`);
+      message.success('已拒绝');
+      fetchBindings();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '操作失败');
+    }
   };
 
   const columns = [
     {
-      key: 'user',
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 100,
+      render: (id: string) => id.substring(0, 8),
+    },
+    {
       title: '用户',
-      render: (binding: Binding) => (
+      key: 'user',
+      render: (_: any, record: Binding) => (
         <div>
-          <p className="font-medium">{binding.user?.username || '未知'}</p>
-          <p className="text-xs text-gray-500">ID: {binding.user?.telegram_id}</p>
+          {record.user?.first_name || 'Unknown'}
+          {record.user?.username && ` (@${record.user.username})`}
         </div>
       ),
     },
     {
-      key: 'platform_username',
       title: '平台用户名',
-      render: (binding: Binding) => binding.platform_username,
+      dataIndex: 'platform_username',
+      key: 'platform_username',
     },
     {
-      key: 'screenshot',
-      title: '截图',
-      render: () => (
-        <Button
-          variant="secondary"
-          className="text-xs py-1 px-2"
-          onClick={() => {
-            // In a real app, you'd get the actual image URL from Telegram
-            setImagePreviewSrc(`https://via.placeholder.com/800x600?text=Screenshot`);
-          }}
-        >
-          <Eye className="w-3 h-3 mr-1" />
-          查看
-        </Button>
-      ),
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => {
+        const colorMap: { [key: string]: string } = {
+          pending: 'warning',
+          approved: 'success',
+          rejected: 'error',
+        };
+        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+      },
     },
     {
-      key: 'created_at',
       title: '提交时间',
-      render: (binding: Binding) =>
-        new Date(binding.created_at).toLocaleString('zh-CN'),
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
     },
     {
-      key: 'actions',
       title: '操作',
-      render: (binding: Binding) => (
-        <Button
-          variant="primary"
-          className="text-xs py-1 px-2"
-          onClick={() => openReviewModal(binding)}
-        >
-          审核
-        </Button>
+      key: 'actions',
+      fixed: 'right' as const,
+      width: 150,
+      render: (_: any, record: Binding) => (
+        <Space>
+          {record.status === 'pending' && (
+            <>
+              <Popconfirm
+                title="确定通过审核？"
+                onConfirm={() => handleApprove(record.id)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button type="link" size="small" icon={<CheckOutlined />}>
+                  通过
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title="确定拒绝？"
+                onConfirm={() => handleReject(record.id)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button type="link" danger size="small" icon={<CloseOutlined />}>
+                  拒绝
+                </Button>
+              </Popconfirm>
+            </>
+          )}
+        </Space>
       ),
     },
   ];
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">绑定审核</h1>
-          <p className="text-gray-600 mt-1">审核用户平台绑定申请</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <Table columns={columns} data={bindings} loading={loading} />
-          {totalPages > 1 && (
-            <div className="p-4 border-t">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Review Modal */}
-        <Modal
-          isOpen={reviewModalOpen}
-          onClose={() => {
-            setReviewModalOpen(false);
-            setSelectedBinding(null);
-            setAdminNote('');
-          }}
-          title="审核绑定申请"
-          footer={
-            <>
-              <Button
-                variant="danger"
-                onClick={() => handleReview('rejected')}
-              >
-                <X className="w-4 h-4 mr-2" />
-                拒绝
-              </Button>
-              <Button
-                variant="success"
-                onClick={() => handleReview('approved')}
-              >
-                <Check className="w-4 h-4 mr-2" />
-                通过
-              </Button>
-            </>
-          }
-        >
-          {selectedBinding && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm text-gray-600">用户</label>
-                <p className="font-medium">
-                  {selectedBinding.user?.username || '未知'} (
-                  {selectedBinding.user?.telegram_id})
-                </p>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">平台用户名</label>
-                <p className="font-medium">{selectedBinding.platform_username}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  审核备注 (可选)
-                </label>
-                <textarea
-                  value={adminNote}
-                  onChange={(e) => setAdminNote(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  rows={3}
-                  placeholder="输入审核备注..."
-                />
-              </div>
-            </div>
-          )}
+    <div>
+      <h2>绑定审核</h2>
+      <Table
+        columns={columns}
+        dataSource={bindings}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
+      {previewImage && (
+        <Modal open={!!previewImage} footer={null} onCancel={() => setPreviewImage(null)}>
+          <Image src={previewImage} alt="截图" />
         </Modal>
-
-        {/* Image Preview */}
-        {imagePreviewSrc && (
-          <ImagePreview
-            src={imagePreviewSrc}
-            alt="Binding Screenshot"
-            onClose={() => setImagePreviewSrc(null)}
-          />
-        )}
-      </div>
-    </Layout>
+      )}
+    </div>
   );
 };
