@@ -57,7 +57,7 @@ export const Bots: React.FC = () => {
       const values = await form.validateFields();
       
       if (editingBot) {
-        await axios.put(`/admin/bots/${editingBot.id}`, values);
+        await axios.put(`/api/admin/bots/${editingBot.id}`, values);
         message.success('Bot 更新成功');
       } else {
         await axios.post('/api/admin/bots', values);
@@ -74,7 +74,7 @@ export const Bots: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`/admin/bots/${id}`);
+      await axios.delete(`/api/admin/bots/${id}`);
       message.success('Bot 删除成功');
       fetchBots();
     } catch (error: any) {
@@ -85,7 +85,7 @@ export const Bots: React.FC = () => {
 
   const handleToggleStatus = async (bot: Bot) => {
     try {
-      await axios.patch(`/admin/bots/${bot.id}/status`, {
+      await axios.patch(`/api/admin/bots/${bot.id}/status`, {
         is_active: !bot.is_active,
       });
       message.success(bot.is_active ? 'Bot 已停用' : 'Bot 已启用');

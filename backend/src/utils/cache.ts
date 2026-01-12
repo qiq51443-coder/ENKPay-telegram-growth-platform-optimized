@@ -136,8 +136,12 @@ export async function invalidateTutorialsCache() {
 }
 
 // Pub/Sub for real-time synchronization
-export const publishSettingsUpdate = async (botId?: string) => {
+export const publishSettingsUpdate = async (botId: string) => {
   await redis.publish('settings:update', JSON.stringify({ botId, timestamp: Date.now() }));
+};
+
+export const publishGlobalSettingsUpdate = async () => {
+  await redis.publish('settings:update', JSON.stringify({ botId: null, timestamp: Date.now() }));
 };
 
 export async function subscribeSettingsUpdate(callback: () => void) {

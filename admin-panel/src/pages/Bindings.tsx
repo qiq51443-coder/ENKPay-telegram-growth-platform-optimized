@@ -41,7 +41,7 @@ export const Bindings: React.FC = () => {
 
   const handleApprove = async (id: string) => {
     try {
-      await axios.post(`/admin/bindings/${id}/approve`);
+      await axios.post(`/api/admin/bindings/${id}/approve`);
       message.success('审核通过');
       fetchBindings();
     } catch (error: any) {
@@ -51,7 +51,7 @@ export const Bindings: React.FC = () => {
 
   const handleReject = async (id: string) => {
     try {
-      await axios.post(`/admin/bindings/${id}/reject`);
+      await axios.post(`/api/admin/bindings/${id}/reject`);
       message.success('已拒绝');
       fetchBindings();
     } catch (error: any) {

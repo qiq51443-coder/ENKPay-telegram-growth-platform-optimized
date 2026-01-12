@@ -10,8 +10,7 @@ export const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-ignore - Redis store accepts sendCommand
-    sendCommand: (...args: string[]) => redis.sendCommand(args),
+    sendCommand: (...args: string[]) => (redis as any).sendCommand(args),
   }),
 });
 
@@ -23,8 +22,7 @@ export const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-ignore - Redis store accepts sendCommand
-    sendCommand: (...args: string[]) => redis.sendCommand(args),
+    sendCommand: (...args: string[]) => (redis as any).sendCommand(args),
   }),
 });
 
@@ -36,8 +34,7 @@ export const webhookLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-ignore - Redis store accepts sendCommand
-    sendCommand: (...args: string[]) => redis.sendCommand(args),
+    sendCommand: (...args: string[]) => (redis as any).sendCommand(args),
   }),
 });
 
@@ -49,8 +46,7 @@ export const adminLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    // @ts-ignore - Redis store accepts sendCommand
-    sendCommand: (...args: string[]) => redis.sendCommand(args),
+    sendCommand: (...args: string[]) => (redis as any).sendCommand(args),
   }),
 });
 
