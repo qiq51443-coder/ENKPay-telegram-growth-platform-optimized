@@ -140,13 +140,11 @@ export const publishSettingsUpdate = async (botId?: string) => {
   await redis.publish('settings:update', JSON.stringify({ botId, timestamp: Date.now() }));
 };
 
-export function subscribeSettingsUpdate(callback: () => void) {
+export async function subscribeSettingsUpdate(callback: () => void) {
   const subscriber = redis.duplicate();
-  subscriber.connect().then(() => {
-    subscriber.subscribe('settings:update');
-    subscriber.on('message', () => {
-      callback();
-    });
+  await subscriber.connect();
+  await subscriber.subscribe('settings:update', () => {
+    callback();
   });
   return subscriber;
 }

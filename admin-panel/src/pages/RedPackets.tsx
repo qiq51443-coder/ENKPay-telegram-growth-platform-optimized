@@ -13,7 +13,7 @@ export const RedPackets: React.FC = () => {
   const fetchRedPackets = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/redpackets');
+      const response = await axios.get('/api/admin/redpackets');
       setRedPackets(response.data.redPackets || []);
     } catch (error) {
       console.error('Failed to fetch red packets:', error);

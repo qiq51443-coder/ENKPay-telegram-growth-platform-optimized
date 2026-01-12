@@ -13,7 +13,7 @@ export const Screenshots: React.FC = () => {
   const fetchScreenshots = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/screenshots');
+      const response = await axios.get('/api/admin/screenshots');
       setScreenshots(response.data.screenshots || []);
     } catch (error) {
       console.error('Failed to fetch screenshots:', error);

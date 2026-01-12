@@ -13,7 +13,7 @@ export const Broadcasts: React.FC = () => {
   const fetchBroadcasts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/broadcasts');
+      const response = await axios.get('/api/admin/broadcasts');
       setBroadcasts(response.data.broadcasts || []);
     } catch (error) {
       console.error('Failed to fetch broadcasts:', error);

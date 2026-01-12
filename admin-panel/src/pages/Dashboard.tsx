@@ -50,7 +50,7 @@ export const Dashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/admin/dashboard/overview');
+      const response = await axios.get('/api/admin/dashboard/stats');
       setStats(response.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);

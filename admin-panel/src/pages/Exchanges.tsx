@@ -13,7 +13,7 @@ export const Exchanges: React.FC = () => {
   const fetchExchanges = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/exchanges');
+      const response = await axios.get('/api/admin/exchanges');
       setExchanges(response.data.exchanges || []);
     } catch (error) {
       console.error('Failed to fetch exchanges:', error);

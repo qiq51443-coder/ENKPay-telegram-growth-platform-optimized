@@ -14,7 +14,7 @@ export const Login: React.FC = () => {
   const handleSubmit = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      const response = await axios.post('/auth/login', {
+      const response = await axios.post('/api/auth/login', {
         username: values.username,
         password: values.password,
       });

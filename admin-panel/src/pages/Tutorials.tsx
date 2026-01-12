@@ -13,7 +13,7 @@ export const Tutorials: React.FC = () => {
   const fetchTutorials = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/tutorials');
+      const response = await axios.get('/api/admin/tutorials');
       setTutorials(response.data.tutorials || []);
     } catch (error) {
       console.error('Failed to fetch tutorials:', error);

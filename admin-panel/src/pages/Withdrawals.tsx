@@ -13,7 +13,7 @@ export const Withdrawals: React.FC = () => {
   const fetchWithdrawals = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/withdrawals');
+      const response = await axios.get('/api/admin/withdrawals');
       setWithdrawals(response.data.withdrawals || []);
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);

@@ -29,7 +29,7 @@ export const Bindings: React.FC = () => {
   const fetchBindings = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/bindings');
+      const response = await axios.get('/api/admin/bindings');
       setBindings(response.data.bindings || []);
     } catch (error) {
       console.error('Failed to fetch bindings:', error);

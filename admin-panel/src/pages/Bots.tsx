@@ -27,7 +27,7 @@ export const Bots: React.FC = () => {
   const fetchBots = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/admin/bots');
+      const response = await axios.get('/api/admin/bots');
       setBots(response.data.bots || []);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
@@ -60,7 +60,7 @@ export const Bots: React.FC = () => {
         await axios.put(`/admin/bots/${editingBot.id}`, values);
         message.success('Bot 更新成功');
       } else {
-        await axios.post('/admin/bots', values);
+        await axios.post('/api/admin/bots', values);
         message.success('Bot 创建成功');
       }
       
