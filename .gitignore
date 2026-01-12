@@ -47,3 +47,7 @@ admin-panel/dist/
 admin-panel/.next/
 admin-panel/.nuxt/
 admin-panel/package-lock.json
+
+# Old backup files
+*-old.*
+_old_*

@@ -5,14 +5,30 @@ dotenv.config();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  // Connection pool configuration
+  max: 20,                      // Maximum number of connections in the pool
+  min: 5,                       // Minimum number of connections in the pool
+  idleTimeoutMillis: 30000,     // Close idle connections after 30 seconds
+  connectionTimeoutMillis: 5000, // Connection timeout (5 seconds)
+  // Statement timeout
+  statement_timeout: 30000,      // Max execution time per statement (30 seconds)
+  query_timeout: 30000,          // Query timeout
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Unexpected database pool error:', err);
+});
+
+pool.on('connect', (client) => {
+  console.log('New database connection established');
+});
+
+pool.on('acquire', (client) => {
+  console.log('Database connection acquired from pool');
+});
+
+pool.on('remove', (client) => {
+  console.log('Database connection removed from pool');
 });
 
 export const query = async (text: string, params?: any[]) => {
@@ -47,5 +63,31 @@ export const transaction = async (callback: (client: PoolClient) => Promise<any>
     client.release();
   }
 };
+
+// Health check function
+export async function healthCheck(): Promise<boolean> {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    return true;
+  } catch (err) {
+    console.error('Database health check failed:', err);
+    return false;
+  }
+}
+
+// Get pool statistics
+export function getPoolStats() {
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  };
+}
+
+export function getPool() {
+  return pool;
+}
 
 export default pool;
