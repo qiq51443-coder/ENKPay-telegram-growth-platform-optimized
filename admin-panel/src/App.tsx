@@ -36,6 +36,12 @@ import { Exchanges } from './pages/Exchanges';
 import { Tutorials } from './pages/Tutorials';
 import { Withdrawals } from './pages/Withdrawals';
 import { Settings } from './pages/Settings';
+import { Groups } from './pages/Groups';
+import { Channels } from './pages/Channels';
+import { RewardRules } from './pages/RewardRules';
+import { BotContents } from './pages/BotContents';
+import { AdminUsers } from './pages/AdminUsers';
+import { AuditLogs } from './pages/AuditLogs';
 
 const { Header, Sider, Content } = Layout;
 
@@ -333,7 +339,7 @@ function App() {
         path="/channels"
         element={
           <ProtectedRoute>
-            <Settings />
+            <Channels />
           </ProtectedRoute>
         }
       />
@@ -341,7 +347,7 @@ function App() {
         path="/groups"
         element={
           <ProtectedRoute>
-            <Settings />
+            <Groups />
           </ProtectedRoute>
         }
       />
@@ -381,7 +387,7 @@ function App() {
         path="/reward-rules"
         element={
           <ProtectedRoute>
-            <Settings />
+            <RewardRules />
           </ProtectedRoute>
         }
       />
@@ -389,7 +395,7 @@ function App() {
         path="/bot-contents"
         element={
           <ProtectedRoute>
-            <Settings />
+            <BotContents />
           </ProtectedRoute>
         }
       />
@@ -397,7 +403,7 @@ function App() {
         path="/admin-users"
         element={
           <ProtectedRoute>
-            <Settings />
+            <AdminUsers />
           </ProtectedRoute>
         }
       />
@@ -405,7 +411,7 @@ function App() {
         path="/audit-logs"
         element={
           <ProtectedRoute>
-            <Settings />
+            <AuditLogs />
           </ProtectedRoute>
         }
       />
