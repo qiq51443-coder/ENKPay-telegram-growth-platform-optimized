@@ -1,20 +1,53 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message } from 'antd';
+import { Table, Tag, message, Input, Button, Space, Select } from 'antd';
+import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 
+const { Search } = Input;
+
+interface User {
+  id: string;
+  telegram_id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  robot_user_id?: string;
+  balance: number;
+  red_packet_credits: number;
+  binding_status: string;
+  account_status: string;
+  registered_at: string;
+}
+
 export const Users: React.FC = () => {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [bindingFilter, setBindingFilter] = useState<string>('');
+  const [accountFilter, setAccountFilter] = useState<string>('');
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [currentPage, bindingFilter, accountFilter]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/users');
+      const params: any = {
+        page: currentPage,
+        limit: 20,
+      };
+      
+      if (search) params.search = search;
+      if (bindingFilter) params.binding_status = bindingFilter;
+      if (accountFilter) params.account_status = accountFilter;
+
+      const response = await axios.get('/api/admin/users', { params });
       setUsers(response.data.users || []);
+      setTotal(response.data.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       message.error('获取用户列表失败');
@@ -23,53 +56,155 @@ export const Users: React.FC = () => {
     }
   };
 
+  const handleSearch = () => {
+    setCurrentPage(1);
+    fetchUsers();
+  };
+
   const columns = [
     {
       title: 'Telegram ID',
       dataIndex: 'telegram_id',
       key: 'telegram_id',
+      width: 120,
     },
     {
       title: '用户名',
-      dataIndex: 'username',
       key: 'username',
-      render: (username: string) => username || '-',
+      width: 150,
+      render: (_: any, record: User) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{record.username || '未设置'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>{record.first_name}</div>
+        </div>
+      ),
     },
     {
-      title: '姓名',
-      key: 'name',
-      render: (_: any, record: any) => 
-        `${record.first_name || ''} ${record.last_name || ''}`.trim() || '-',
+      title: 'Bot ID',
+      dataIndex: 'robot_user_id',
+      key: 'robot_user_id',
+      width: 120,
+      render: (id?: string) => id || '-',
     },
     {
       title: '余额',
       dataIndex: 'balance',
       key: 'balance',
-      render: (balance: number) => `$${balance?.toFixed(2) || '0.00'}`,
+      width: 100,
+      render: (balance: number) => <span style={{ fontFamily: 'monospace' }}>${balance?.toFixed(2) || '0.00'}</span>,
     },
     {
-      title: '状态',
+      title: '红包积分',
+      dataIndex: 'red_packet_credits',
+      key: 'red_packet_credits',
+      width: 100,
+    },
+    {
+      title: '绑定状态',
+      dataIndex: 'binding_status',
+      key: 'binding_status',
+      width: 100,
+      render: (status: string) => {
+        const statusMap: Record<string, { text: string; color: string }> = {
+          unbound: { text: '未绑定', color: 'default' },
+          pending: { text: '待审核', color: 'warning' },
+          bound: { text: '已绑定', color: 'success' },
+        };
+        const statusInfo = statusMap[status] || { text: status, color: 'default' };
+        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
+      },
+    },
+    {
+      title: '账号状态',
       dataIndex: 'account_status',
       key: 'account_status',
-      render: (status: string) => <Tag color={status === 'active' ? 'success' : 'default'}>{status}</Tag>,
+      width: 100,
+      render: (status: string) => {
+        const statusMap: Record<string, { text: string; color: string }> = {
+          active: { text: '正常', color: 'success' },
+          suspended: { text: '暂停', color: 'warning' },
+          banned: { text: '封禁', color: 'error' },
+        };
+        const statusInfo = statusMap[status] || { text: status, color: 'default' };
+        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
+      },
     },
     {
       title: '注册时间',
       dataIndex: 'registered_at',
       key: 'registered_at',
+      width: 160,
       render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      fixed: 'right' as const,
+      width: 80,
+      render: (_: any, record: User) => (
+        <Link to={`/users/${record.id}`}>
+          <Button type="text" size="small" icon={<EyeOutlined />}>
+            查看
+          </Button>
+        </Link>
+      ),
     },
   ];
 
   return (
     <div>
-      <h2>用户列表</h2>
+      <div style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>用户管理</h2>
+        <p style={{ color: '#666', marginTop: 4 }}>查看和管理所有用户</p>
+      </div>
+
+      <div style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8 }}>
+        <Space wrap style={{ width: '100%' }}>
+          <Search
+            placeholder="搜索用户名、Bot ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onSearch={handleSearch}
+            style={{ width: 250 }}
+            enterButton={<SearchOutlined />}
+          />
+          <Select
+            placeholder="绑定状态"
+            value={bindingFilter}
+            onChange={setBindingFilter}
+            style={{ width: 120 }}
+            allowClear
+          >
+            <Select.Option value="unbound">未绑定</Select.Option>
+            <Select.Option value="pending">待审核</Select.Option>
+            <Select.Option value="bound">已绑定</Select.Option>
+          </Select>
+          <Select
+            placeholder="账号状态"
+            value={accountFilter}
+            onChange={setAccountFilter}
+            style={{ width: 120 }}
+            allowClear
+          >
+            <Select.Option value="active">正常</Select.Option>
+            <Select.Option value="suspended">暂停</Select.Option>
+            <Select.Option value="banned">封禁</Select.Option>
+          </Select>
+        </Space>
+      </div>
+
       <Table
         columns={columns}
         dataSource={users}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{
+          current: currentPage,
+          pageSize: 20,
+          total: total,
+          onChange: setCurrentPage,
+        }}
+        scroll={{ x: 1200 }}
       />
     </div>
   );
