@@ -152,7 +152,7 @@ export const RedPackets: React.FC = () => {
       key: 'actions',
       fixed: 'right' as const,
       width: 100,
-      render: (_: any, record: RedPacket) => (
+      render: (_: any) => (
         <Button
           type="link"
           size="small"

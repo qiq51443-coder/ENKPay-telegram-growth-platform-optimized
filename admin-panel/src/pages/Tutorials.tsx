@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, Modal, Input, Button, Select, InputNumber, Popconfirm, Switch } from 'antd';
+import { Table, message, Modal, Input, Button, Select, InputNumber, Popconfirm, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
