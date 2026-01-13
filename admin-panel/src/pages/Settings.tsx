@@ -29,8 +29,8 @@ interface AdminUser {
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('platform');
-  const [settings, setSettings] = useState<Settings>({});
-  const [loading, setLoading] = useState(false);
+  const [_settings, setSettings] = useState<Settings>({});
+  const [_loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 

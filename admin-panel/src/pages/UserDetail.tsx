@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Table, Tag, Button, Space, message, Spin, Tabs, Modal, Form, InputNumber, Input } from 'antd';
+import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input } from 'antd';
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
