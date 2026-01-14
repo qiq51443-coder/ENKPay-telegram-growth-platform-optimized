@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+const BOT_ID = process.env.BOT_ID; // Bot ID from admin panel
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'X-Bot-Token': BOT_ID || '', // Use Bot ID for authentication
   },
 });
 

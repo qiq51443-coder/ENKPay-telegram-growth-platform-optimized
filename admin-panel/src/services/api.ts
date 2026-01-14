@@ -97,6 +97,11 @@ class ApiClient {
     return response.data;
   }
 
+  async updateBotStatus(id: string, is_active: boolean) {
+    const response = await this.client.patch(`/admin/bots/${id}/status`, { is_active });
+    return response.data;
+  }
+
   // Bindings
   async getBindings(params?: any) {
     const response = await this.client.get('/bindings', { params });
@@ -268,7 +273,74 @@ class ApiClient {
 
   // Dashboard
   async getDashboardStats() {
-    const response = await this.client.get('/admin/dashboard/stats');
+    const response = await this.client.get('/admin/dashboard/overview');
+    return response.data;
+  }
+
+  async getUserGrowth(params?: any) {
+    const response = await this.client.get('/admin/dashboard/user-growth', { params });
+    return response.data;
+  }
+
+  async getTransactionVolume(params?: any) {
+    const response = await this.client.get('/admin/dashboard/transaction-volume', { params });
+    return response.data;
+  }
+
+  async getActivitySummary(params?: any) {
+    const response = await this.client.get('/admin/dashboard/activity-summary', { params });
+    return response.data;
+  }
+
+  // Audit Logs
+  async getAuditLogs(params?: any) {
+    const response = await this.client.get('/admin/audit-logs', { params });
+    return response.data;
+  }
+
+  async getAuditActions() {
+    const response = await this.client.get('/admin/audit-logs/actions');
+    return response.data;
+  }
+
+  async getAuditResourceTypes() {
+    const response = await this.client.get('/admin/audit-logs/resource-types');
+    return response.data;
+  }
+
+  // System Settings
+  async getSystemSettings(params?: any) {
+    const response = await this.client.get('/admin/system-settings', { params });
+    return response.data;
+  }
+
+  async getSystemSetting(key: string) {
+    const response = await this.client.get(`/admin/system-settings/${key}`);
+    return response.data;
+  }
+
+  async updateSystemSetting(key: string, data: any) {
+    const response = await this.client.put(`/admin/system-settings/${key}`, data);
+    return response.data;
+  }
+
+  async createSystemSetting(data: any) {
+    const response = await this.client.post('/admin/system-settings', data);
+    return response.data;
+  }
+
+  async bulkUpdateSystemSettings(settings: any[]) {
+    const response = await this.client.post('/admin/system-settings/bulk-update', { settings });
+    return response.data;
+  }
+
+  async deleteSystemSetting(key: string) {
+    const response = await this.client.delete(`/admin/system-settings/${key}`);
+    return response.data;
+  }
+
+  async getSystemSettingCategories() {
+    const response = await this.client.get('/admin/system-settings/categories/list');
     return response.data;
   }
 

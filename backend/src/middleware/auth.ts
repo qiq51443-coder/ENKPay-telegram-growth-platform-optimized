@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { query } from '../db';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -8,6 +9,13 @@ export interface AuthRequest extends Request {
     role: string;
   };
   botId?: string;
+  bot?: {
+    id: string;
+    name: string;
+    username: string;
+    token: string;
+    is_active: boolean;
+  };
 }
 
 export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -32,19 +40,65 @@ export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFun
   }
 };
 
-export const authenticateBot = (req: AuthRequest, res: Response, next: NextFunction) => {
+/**
+ * Middleware to require specific roles
+ * Usage: requireRoles(['super_admin', 'admin'])
+ */
+export const requireRoles = (roles: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        error: `Access denied. Required roles: ${roles.join(', ')}` 
+      });
+    }
+    next();
+  };
+};
+
+export const authenticateBot = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const botToken = req.headers['x-bot-token'];
+    const botToken = req.headers['x-bot-token'] as string;
+
     if (!botToken) {
-      return res.status(401).json({ error: 'Bot token required' });
+      return res.status(401).json({ error: 'Bot token required in X-Bot-Token header' });
     }
 
-    // Verify bot token and set botId
-    // In production, verify this against database
-    req.botId = botToken as string;
+    // Determine if botToken is a UUID (Bot ID) or a token
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(botToken);
+    
+    let result;
+    if (isUUID) {
+      // Authenticate by Bot ID
+      result = await query(
+        `SELECT id, name, username, token, is_active 
+         FROM bots 
+         WHERE id::text = $1 AND is_active = true`,
+        [botToken]
+      );
+    } else {
+      // Authenticate by Token
+      result = await query(
+        `SELECT id, name, username, token, is_active 
+         FROM bots 
+         WHERE token = $1 AND is_active = true`,
+        [botToken]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or inactive bot token' });
+    }
+
+    const bot = result.rows[0];
+
+    // Set bot information in request
+    req.botId = bot.id;
+    req.bot = bot;
+
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid bot token' });
+    console.error('Bot authentication error:', error);
+    return res.status(500).json({ error: 'Authentication failed' });
   }
 };
 
