@@ -16,6 +16,9 @@ import settingsRoutes from './routes/settings';
 import webhookRoutes from './routes/webhook';
 import tutorialsRoutes from './routes/tutorials';
 import withdrawalRoutes from './routes/withdrawals';
+import auditLogsRoutes from './routes/audit-logs';
+import systemSettingsRoutes from './routes/system-settings';
+import dashboardRoutes from './routes/dashboard';
 
 dotenv.config();
 
@@ -44,6 +47,9 @@ app.use('/api/exchanges', exchangeRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tutorials', tutorialsRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
+app.use('/api/admin/audit-logs', auditLogsRoutes);
+app.use('/api/admin/system-settings', systemSettingsRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Error handling
