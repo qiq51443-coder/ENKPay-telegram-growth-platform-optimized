@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Tag, message, Button, Popconfirm, Modal, Input, Select } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 const { TextArea } = Input;
 
@@ -40,8 +40,8 @@ export const Withdrawals: React.FC = () => {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
       
-      const response = await axios.get('/api/admin/withdrawals', { params });
-      setWithdrawals(response.data.withdrawals || []);
+      const response = await apiClient.getWithdrawals(params);
+      setWithdrawals(response.withdrawals || []);
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);
       message.error('获取提现列表失败');
@@ -60,7 +60,8 @@ export const Withdrawals: React.FC = () => {
     if (!selectedWithdrawal) return;
 
     try {
-      await axios.post(`/api/admin/withdrawals/${selectedWithdrawal.id}/${status === 'approved' ? 'approve' : 'reject'}`, {
+      await apiClient.reviewWithdrawal(selectedWithdrawal.id, {
+        status,
         admin_note: adminNote,
       });
       message.success(status === 'approved' ? '审核通过' : '已拒绝');

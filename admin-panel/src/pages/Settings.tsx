@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, Button, Table, Space, message, Popconfirm, Modal, Select, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, SaveOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 const { TabPane } = Tabs;
 
@@ -50,12 +50,14 @@ export const Settings: React.FC = () => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/settings');
-      setSettings(response.data.settings || {});
-      form.setFieldsValue(response.data.settings || {});
+      // For now, we'll get settings for the first bot or use a default bot_id
+      // In a real scenario, you might want to select which bot's settings to load
+      const response = await apiClient.getSettings('default');
+      setSettings(response.settings || {});
+      form.setFieldsValue(response.settings || {});
     } catch (error) {
       console.error('Failed to fetch settings:', error);
-      message.error('获取设置失败');
+      message.warning('加载设置失败，使用默认值');
     } finally {
       setLoading(false);
     }
@@ -63,8 +65,8 @@ export const Settings: React.FC = () => {
 
   const fetchAdmins = async () => {
     try {
-      const response = await axios.get('/api/admin/admins');
-      setAdmins(response.data.admins || []);
+      const response = await apiClient.getAdmins();
+      setAdmins(response.admins || []);
     } catch (error) {
       console.error('Failed to fetch admins:', error);
     }
@@ -74,7 +76,7 @@ export const Settings: React.FC = () => {
     setSaving(true);
     try {
       const values = await form.validateFields();
-      await axios.put('/api/admin/settings', values);
+      await apiClient.updateSettings('default', values);
       message.success('设置保存成功');
       setSettings(values);
     } catch (error: any) {
@@ -106,10 +108,10 @@ export const Settings: React.FC = () => {
       const values = await adminForm.validateFields();
       
       if (editingAdmin) {
-        await axios.put(`/api/admin/admins/${editingAdmin.id}`, values);
+        await apiClient.updateAdmin(editingAdmin.id, values);
         message.success('管理员更新成功');
       } else {
-        await axios.post('/api/admin/admins', values);
+        await apiClient.createAdmin(values);
         message.success('管理员创建成功');
       }
       
@@ -123,7 +125,7 @@ export const Settings: React.FC = () => {
 
   const handleDeleteAdmin = async (id: string) => {
     try {
-      await axios.delete(`/api/admin/admins/${id}`);
+      await apiClient.deleteAdmin(id);
       message.success('管理员删除成功');
       fetchAdmins();
     } catch (error: any) {
@@ -149,7 +151,7 @@ export const Settings: React.FC = () => {
         return;
       }
 
-      await axios.post(`/api/admin/admins/${editingAdmin.id}/password`, {
+      await apiClient.changeAdminPassword(editingAdmin.id, {
         current_password: values.current_password,
         new_password: values.new_password,
       });
