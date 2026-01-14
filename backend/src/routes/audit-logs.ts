@@ -1,8 +1,12 @@
 import express from 'express';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { getAuditLogs } from '../utils/audit';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all audit log routes
+router.use(adminLimiter);
 
 /**
  * GET /admin/audit-logs

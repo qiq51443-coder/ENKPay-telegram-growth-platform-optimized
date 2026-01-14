@@ -2,8 +2,12 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth';
 import { logAuditAction, AuditActions } from '../utils/audit';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all system settings routes
+router.use(adminLimiter);
 
 /**
  * GET /admin/system-settings

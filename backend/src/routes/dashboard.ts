@@ -1,8 +1,12 @@
 import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all dashboard routes
+router.use(adminLimiter);
 
 /**
  * GET /admin/dashboard/overview
@@ -235,7 +239,7 @@ router.get('/activity-summary', authenticateAdmin, async (req: AuthRequest, res)
         u.telegram_id as user_telegram_id
       FROM transactions t
       JOIN users u ON t.user_id = u.id
-      ${whereClause.replace('u.bot_id', 'u.bot_id')}
+      ${whereClause}
       ORDER BY t.created_at DESC
       LIMIT $1
     `, params);
