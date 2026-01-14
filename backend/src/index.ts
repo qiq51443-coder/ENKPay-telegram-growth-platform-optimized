@@ -7,6 +7,7 @@ import { connectRedis } from './utils/cache';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
+import adminUsersRoutes from './routes/admin-users';
 import bindingRoutes from './routes/bindings';
 import redPacketRoutes from './routes/redpackets';
 import broadcastRoutes from './routes/broadcasts';
@@ -39,6 +40,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/admin-users', adminUsersRoutes);
 app.use('/api/bindings', bindingRoutes);
 app.use('/api/redpackets', redPacketRoutes);
 app.use('/api/broadcasts', broadcastRoutes);

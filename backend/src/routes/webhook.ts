@@ -1,26 +1,44 @@
-import express from 'express';
+import express, { Request } from 'express';
 import { query } from '../db';
 import { validateWebhook } from '../middleware/auth';
 
 const router = express.Router();
 
-// Webhook endpoint for bot updates
-router.post('/:botToken', validateWebhook, async (req, res) => {
+// Extend Request interface to include botId added by validateWebhook middleware
+interface WebhookRequest extends Request {
+  botId?: string;
+}
+
+// Webhook endpoint - Old format (backward compatibility)
+// Format: /webhook/:botToken
+router.post('/:botToken', validateWebhook, async (req: WebhookRequest, res) => {
   try {
-    const { botToken } = req.params;
+    const botId = req.botId;
     const update = req.body;
 
-    // Verify bot exists
-    const botResult = await query('SELECT id FROM bots WHERE token = $1 AND is_active = true', [botToken]);
+    console.log(`Received webhook update for bot ${botId}:`, JSON.stringify(update, null, 2));
+
+    // Webhook received successfully
+    // Actual bot logic should be handled by independent bot service
+    // This endpoint just receives and confirms
     
-    if (botResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Bot not found' });
-    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
-    // The actual bot logic will be handled by the bot service
-    // This endpoint is just for receiving webhooks and forwarding to the bot service
-    // In production, you might want to use a message queue here
+// Webhook endpoint - New secure format
+// Format: /webhook/:botId/:secret
+router.post('/:botId/:secret', validateWebhook, async (req: WebhookRequest, res) => {
+  try {
+    const botId = req.botId;
+    const update = req.body;
 
+    console.log(`Received webhook update for bot ${botId}:`, JSON.stringify(update, null, 2));
+
+    // Webhook received successfully
     res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Webhook error:', error);

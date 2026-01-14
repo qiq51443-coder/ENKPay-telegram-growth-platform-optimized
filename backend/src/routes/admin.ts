@@ -1,10 +1,14 @@
 import express from 'express';
 import { query } from '../db';
-import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
 import bcrypt from 'bcryptjs';
+import { logAuditAction } from '../utils/audit';
 
 const router = express.Router();
+
+// Configuration constants
+const DEFAULT_NEW_USER_CREDITS = parseInt(process.env.DEFAULT_NEW_USER_CREDITS || '3', 10);
 
 // Get all bots
 router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
@@ -85,16 +89,33 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
       [name, token, botInfo.username, webhookUrl]
     );
 
+    const bot = result.rows[0];
+
     // 5. Initialize bot settings
     await query(
-      `INSERT INTO bot_settings (bot_id)
-       VALUES ($1)`,
-      [result.rows[0].id]
+      `INSERT INTO bot_settings (bot_id, new_user_credits)
+       VALUES ($1, $2)
+       ON CONFLICT (bot_id) DO NOTHING`,
+      [bot.id, DEFAULT_NEW_USER_CREDITS]
     );
 
+    // 6. Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'create_bot',
+      resourceType: 'bot',
+      resourceId: bot.id,
+      details: { name, username: botInfo.username },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({ 
-      bot: result.rows[0],
-      message: 'Bot created successfully'
+      success: true,
+      bot: bot,
+      botId: bot.id,
+      webhookUrl: webhookUrl,
+      message: 'Bot authorized successfully. Configure your bot with this Bot ID.'
     });
   } catch (error) {
     console.error('Create bot error:', error);
@@ -138,6 +159,17 @@ router.put('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Bot not found' });
     }
 
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'update_bot',
+      resourceType: 'bot',
+      resourceId: id,
+      details: { updates: req.body },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({ bot: result.rows[0] });
   } catch (error) {
     console.error('Update bot error:', error);
@@ -151,13 +183,13 @@ router.delete('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     // 1. Get bot token
-    const botResult = await query('SELECT token FROM bots WHERE id = $1', [id]);
+    const botResult = await query('SELECT token, name FROM bots WHERE id = $1', [id]);
     
     if (botResult.rows.length === 0) {
       return res.status(404).json({ error: 'Bot not found' });
     }
 
-    const botToken = botResult.rows[0].token;
+    const { token: botToken, name: botName } = botResult.rows[0];
 
     // 2. Try to delete Telegram webhook
     try {
@@ -171,7 +203,18 @@ router.delete('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     // 3. Delete bot from database (cascade will handle related data)
     await query('DELETE FROM bots WHERE id = $1', [id]);
 
-    // 4. Return success
+    // 4. Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'delete_bot',
+      resourceType: 'bot',
+      resourceId: id,
+      details: { name: botName },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    // 5. Return success
     res.json({ 
       success: true, 
       message: 'Bot deleted successfully' 
@@ -200,6 +243,17 @@ router.patch('/bots/:id/status', authenticateAdmin, async (req: AuthRequest, res
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Bot not found' });
     }
+
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'toggle_bot_status',
+      resourceType: 'bot',
+      resourceId: id,
+      details: { is_active },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     res.json({ 
       bot: result.rows[0],
@@ -338,6 +392,17 @@ router.post('/admins', authenticateAdmin, async (req: AuthRequest, res) => {
       [username, password_hash, email, role || 'admin', full_name, req.user?.id]
     );
 
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'create_admin',
+      resourceType: 'admin_user',
+      resourceId: result.rows[0].id,
+      details: { username, role: role || 'admin' },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({ 
       admin: result.rows[0],
       message: 'Admin user created successfully'
@@ -406,6 +471,17 @@ router.put('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Admin user not found' });
     }
 
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'update_admin',
+      resourceType: 'admin_user',
+      resourceId: id,
+      details: { updates: req.body },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({ 
       admin: result.rows[0],
       message: 'Admin user updated successfully'
@@ -459,6 +535,17 @@ router.patch('/admins/:id/password', authenticateAdmin, async (req: AuthRequest,
       [password_hash, id]
     );
 
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'change_password',
+      resourceType: 'admin_user',
+      resourceId: id,
+      details: {},
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     res.json({ 
       success: true,
       message: 'Password updated successfully'
@@ -485,13 +572,24 @@ router.delete('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) =>
     }
 
     const result = await query(
-      'DELETE FROM admin_users WHERE id = $1 RETURNING id',
+      'DELETE FROM admin_users WHERE id = $1 RETURNING id, username',
       [id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Admin user not found' });
     }
+
+    // Log audit action
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'delete_admin',
+      resourceType: 'admin_user',
+      resourceId: id,
+      details: { username: result.rows[0].username },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     res.json({ 
       success: true,

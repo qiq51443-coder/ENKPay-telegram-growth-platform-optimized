@@ -102,13 +102,69 @@ export const authenticateBot = async (req: AuthRequest, res: Response, next: Nex
   }
 };
 
-export const validateWebhook = (req: Request, res: Response, next: NextFunction) => {
-  const secretToken = req.headers['x-telegram-bot-api-secret-token'];
-  const expectedSecret = process.env.BOT_WEBHOOK_SECRET;
+export const validateWebhook = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Webhook URL format: /webhook/:botId/:secret or /webhook/:botToken
+    const { botId, botToken, secret } = req.params;
+    
+    let bot;
+    
+    if (botId && secret) {
+      // New format: using Bot ID + Secret
+      const result = await query(
+        'SELECT id, webhook_secret, is_active FROM bots WHERE id = $1',
+        [botId]
+      );
 
-  if (expectedSecret && secretToken !== expectedSecret) {
-    return res.status(403).json({ error: 'Invalid webhook secret' });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Bot not found' });
+      }
+
+      bot = result.rows[0];
+
+      if (!bot.is_active) {
+        return res.status(403).json({ error: 'Bot is not active' });
+      }
+
+      // Verify webhook secret (if database has this field)
+      if (bot.webhook_secret && bot.webhook_secret !== secret) {
+        return res.status(403).json({ error: 'Invalid webhook secret' });
+      }
+
+      (req as any).botId = bot.id;
+    } else if (botToken) {
+      // Old format: using Bot Token (backward compatibility)
+      const result = await query(
+        'SELECT id, is_active FROM bots WHERE token = $1',
+        [botToken]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Bot not found' });
+      }
+
+      bot = result.rows[0];
+
+      if (!bot.is_active) {
+        return res.status(403).json({ error: 'Bot is not active' });
+      }
+
+      (req as any).botId = bot.id;
+    } else {
+      return res.status(400).json({ error: 'Invalid webhook URL format' });
+    }
+
+    // Also validate Telegram secret token if present
+    const secretToken = req.headers['x-telegram-bot-api-secret-token'];
+    const expectedSecret = process.env.BOT_WEBHOOK_SECRET;
+
+    if (expectedSecret && secretToken !== expectedSecret) {
+      return res.status(403).json({ error: 'Invalid Telegram webhook secret' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Webhook validation error:', error);
+    return res.status(500).json({ error: 'Validation failed' });
   }
-
-  next();
 };
