@@ -76,6 +76,14 @@ export const SystemSettings: React.FC = () => {
     if (typeof value === 'string') {
       try {
         const parsed = JSON.parse(value);
+        // Validate that parsed value is a primitive or simple object
+        if (parsed !== null && typeof parsed === 'object') {
+          // Check for prototype pollution attempts
+          if (parsed.__proto__ || parsed.constructor || parsed.prototype) {
+            console.warn('Suspicious JSON object detected, using raw value');
+            return value;
+          }
+        }
         return parsed;
       } catch {
         return value;

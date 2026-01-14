@@ -1,6 +1,6 @@
 import express from 'express';
 import { query } from '../db';
-import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth';
 import { logAuditAction, AuditActions } from '../utils/audit';
 
 const router = express.Router();
@@ -92,12 +92,8 @@ router.get('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
  * PUT /admin/system-settings/:key
  * Update a specific system setting
  */
-router.put('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
+router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), async (req: AuthRequest, res) => {
   try {
-    // Only super_admin can update system settings
-    if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only super admins and admins can update system settings' });
-    }
 
     const { key } = req.params;
     const { value, description, category, is_public } = req.body;
@@ -180,12 +176,8 @@ router.put('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
  * POST /admin/system-settings
  * Create a new system setting
  */
-router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/', authenticateAdmin, requireRoles(['super_admin']), async (req: AuthRequest, res) => {
   try {
-    // Only super_admin can create system settings
-    if (req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only super admins can create system settings' });
-    }
 
     const { key, value, description, category, is_public = false } = req.body;
 
@@ -242,12 +234,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
  * POST /admin/system-settings/bulk-update
  * Bulk update multiple system settings
  */
-router.post('/bulk-update', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/bulk-update', authenticateAdmin, requireRoles(['super_admin', 'admin']), async (req: AuthRequest, res) => {
   try {
-    // Only super_admin can bulk update system settings
-    if (req.user?.role !== 'super_admin' && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only super admins and admins can bulk update system settings' });
-    }
 
     const { settings } = req.body;
 
@@ -314,12 +302,8 @@ router.post('/bulk-update', authenticateAdmin, async (req: AuthRequest, res) => 
  * DELETE /admin/system-settings/:key
  * Delete a system setting
  */
-router.delete('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
+router.delete('/:key', authenticateAdmin, requireRoles(['super_admin']), async (req: AuthRequest, res) => {
   try {
-    // Only super_admin can delete system settings
-    if (req.user?.role !== 'super_admin') {
-      return res.status(403).json({ error: 'Only super admins can delete system settings' });
-    }
 
     const { key } = req.params;
 

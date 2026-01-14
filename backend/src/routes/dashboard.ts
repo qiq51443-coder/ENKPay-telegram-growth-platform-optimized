@@ -115,6 +115,11 @@ router.get('/user-growth', authenticateAdmin, async (req: AuthRequest, res) => {
     const { botId, days = 30 } = req.query;
     const daysNum = parseInt(days as string, 10);
 
+    // Validate days parameter
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 365) {
+      return res.status(400).json({ error: 'Days must be between 1 and 365' });
+    }
+
     let whereClause = '';
     const params: any[] = [daysNum];
     
@@ -150,6 +155,11 @@ router.get('/transaction-volume', authenticateAdmin, async (req: AuthRequest, re
   try {
     const { botId, days = 30 } = req.query;
     const daysNum = parseInt(days as string, 10);
+
+    // Validate days parameter
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 365) {
+      return res.status(400).json({ error: 'Days must be between 1 and 365' });
+    }
 
     let whereClause = '';
     const params: any[] = [daysNum];
