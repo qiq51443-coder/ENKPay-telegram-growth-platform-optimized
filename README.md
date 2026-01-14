@@ -95,24 +95,60 @@ This will start:
 - PostgreSQL database
 - Redis cache
 - Backend API server
-- Telegram bot
+- Admin panel (port 5173)
 
 ### 4. Initialize Database
 
-The database schema will be automatically created on first startup.
-
-### 5. Create Admin User
+The database schema will be automatically created on first startup. Run migrations:
 
 ```bash
-docker-compose exec backend npm run create-admin
+docker-compose exec backend npm run migrate
 ```
 
-Or manually insert into database:
+### 5. Access Admin Panel
 
-```sql
-INSERT INTO admin_users (username, password_hash, email)
-VALUES ('admin', '$2a$10$...', 'admin@example.com');
-```
+1. Open `http://localhost:5173` in your browser
+2. Login with default credentials:
+   - Username: `admin`
+   - Password: `admin123`
+   - ⚠️ **Change password immediately after first login!**
+
+### 6. Authorize Your Telegram Bot
+
+Before starting the bot, you need to authorize it through the admin panel:
+
+1. **Create a Bot via @BotFather**:
+   - Open [@BotFather](https://t.me/botfather) on Telegram
+   - Send `/newbot` and follow instructions
+   - Save the **Bot Token** you receive
+
+2. **Authorize Bot in Admin Panel**:
+   - Go to "Bot 管理" (Bot Management)
+   - Click "创建 Bot" (Create Bot)
+   - Enter Bot name and paste the Bot Token
+   - Click "确定" (OK)
+   - **Copy the Bot ID** displayed in the list
+
+3. **Configure Bot Environment**:
+   - Edit your `.env` file
+   - Set `BOT_TOKEN` to your Telegram bot token
+   - Set `BOT_ID` to the ID from the admin panel
+   - Example:
+     ```env
+     BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+     BOT_ID=550e8400-e29b-41d4-a716-446655440000
+     ```
+
+4. **Start the Bot**:
+   ```bash
+   docker-compose up -d bot
+   # or for development
+   cd bot && npm run dev
+   ```
+
+📖 **For detailed instructions, see [Bot Authorization Guide](./BOT_AUTHORIZATION_GUIDE.md)**
+
+### 7. Verify Everything Works
 
 ## 🏗️ Architecture
 
