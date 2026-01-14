@@ -247,27 +247,27 @@ class ApiClient {
 
   // Admin Management
   async getAdmins() {
-    const response = await this.client.get('/admin/admins');
+    const response = await this.client.get('/admin/admin-users');
     return response.data;
   }
 
   async createAdmin(data: any) {
-    const response = await this.client.post('/admin/admins', data);
+    const response = await this.client.post('/admin/admin-users', data);
     return response.data;
   }
 
   async updateAdmin(id: string, data: any) {
-    const response = await this.client.put(`/admin/admins/${id}`, data);
+    const response = await this.client.put(`/admin/admin-users/${id}`, data);
     return response.data;
   }
 
   async deleteAdmin(id: string) {
-    const response = await this.client.delete(`/admin/admins/${id}`);
+    const response = await this.client.delete(`/admin/admin-users/${id}`);
     return response.data;
   }
 
   async changeAdminPassword(id: string, data: { current_password?: string; new_password: string }) {
-    const response = await this.client.patch(`/admin/admins/${id}/password`, data);
+    const response = await this.client.patch(`/admin/admin-users/${id}/password`, data);
     return response.data;
   }
 
