@@ -173,8 +173,12 @@ router.patch('/:id/password', authenticateAdmin, async (req: AuthRequest, res) =
       return res.status(400).json({ error: 'New password must be at least 6 characters' });
     }
     
-    // If modifying own password, need to verify current password
-    if (id === req.user?.id && current_password) {
+    // If modifying own password, current password is required
+    if (id === req.user?.id) {
+      if (!current_password) {
+        return res.status(400).json({ error: 'Current password is required when changing your own password' });
+      }
+      
       const userResult = await query('SELECT password_hash FROM admin_users WHERE id = $1', [id]);
       if (userResult.rows.length === 0) {
         return res.status(404).json({ error: 'Admin not found' });
@@ -184,6 +188,9 @@ router.patch('/:id/password', authenticateAdmin, async (req: AuthRequest, res) =
       if (!valid) {
         return res.status(401).json({ error: 'Current password is incorrect' });
       }
+    } else if (req.user?.role !== 'super_admin') {
+      // If not modifying own password and not super_admin, deny access
+      return res.status(403).json({ error: 'Permission denied' });
     }
     
     const passwordHash = await bcrypt.hash(new_password, 10);

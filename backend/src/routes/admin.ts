@@ -7,6 +7,9 @@ import { logAuditAction } from '../utils/audit';
 
 const router = express.Router();
 
+// Configuration constants
+const DEFAULT_NEW_USER_CREDITS = parseInt(process.env.DEFAULT_NEW_USER_CREDITS || '3', 10);
+
 // Get all bots
 router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -91,9 +94,9 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
     // 5. Initialize bot settings
     await query(
       `INSERT INTO bot_settings (bot_id, new_user_credits)
-       VALUES ($1, 3)
+       VALUES ($1, $2)
        ON CONFLICT (bot_id) DO NOTHING`,
-      [bot.id]
+      [bot.id, DEFAULT_NEW_USER_CREDITS]
     );
 
     // 6. Log audit action
