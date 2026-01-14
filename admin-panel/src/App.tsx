@@ -36,6 +36,9 @@ import { Exchanges } from './pages/Exchanges';
 import { Tutorials } from './pages/Tutorials';
 import { Withdrawals } from './pages/Withdrawals';
 import { Settings } from './pages/Settings';
+import { AdminUserManager } from './pages/AdminUserManager';
+import { AuditLogs } from './pages/AuditLogs';
+import { SystemSettings } from './pages/SystemSettings';
 
 const { Header, Sider, Content } = Layout;
 
@@ -397,7 +400,7 @@ function App() {
         path="/admin-users"
         element={
           <ProtectedRoute>
-            <Settings />
+            <AdminUserManager />
           </ProtectedRoute>
         }
       />
@@ -405,7 +408,7 @@ function App() {
         path="/audit-logs"
         element={
           <ProtectedRoute>
-            <Settings />
+            <AuditLogs />
           </ProtectedRoute>
         }
       />
@@ -413,7 +416,7 @@ function App() {
         path="/settings"
         element={
           <ProtectedRoute>
-            <Settings />
+            <SystemSettings />
           </ProtectedRoute>
         }
       />
