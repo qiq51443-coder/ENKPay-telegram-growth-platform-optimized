@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 interface Bot {
   id: string;
@@ -27,8 +27,8 @@ export const Bots: React.FC = () => {
   const fetchBots = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/bots');
-      setBots(response.data.bots || []);
+      const response = await apiClient.getBots();
+      setBots(response.bots || []);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
       message.error('获取 Bot 列表失败');
@@ -57,10 +57,10 @@ export const Bots: React.FC = () => {
       const values = await form.validateFields();
       
       if (editingBot) {
-        await axios.put(`/api/admin/bots/${editingBot.id}`, values);
+        await apiClient.updateBot(editingBot.id, values);
         message.success('Bot 更新成功');
       } else {
-        await axios.post('/api/admin/bots', values);
+        await apiClient.createBot(values);
         message.success('Bot 创建成功');
       }
       
@@ -74,7 +74,7 @@ export const Bots: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`/api/admin/bots/${id}`);
+      await apiClient.deleteBot(id);
       message.success('Bot 删除成功');
       fetchBots();
     } catch (error: any) {
@@ -85,7 +85,7 @@ export const Bots: React.FC = () => {
 
   const handleToggleStatus = async (bot: Bot) => {
     try {
-      await axios.patch(`/api/admin/bots/${bot.id}/status`, {
+      await apiClient.updateBot(bot.id, {
         is_active: !bot.is_active,
       });
       message.success(bot.is_active ? 'Bot 已停用' : 'Bot 已启用');

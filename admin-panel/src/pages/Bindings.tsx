@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, Popconfirm, Modal, Image } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 interface Binding {
   id: string;
@@ -29,8 +29,8 @@ export const Bindings: React.FC = () => {
   const fetchBindings = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/bindings');
-      setBindings(response.data.bindings || []);
+      const response = await apiClient.getBindings();
+      setBindings(response.bindings || []);
     } catch (error) {
       console.error('Failed to fetch bindings:', error);
       message.error('获取绑定列表失败');
@@ -41,7 +41,7 @@ export const Bindings: React.FC = () => {
 
   const handleApprove = async (id: string) => {
     try {
-      await axios.post(`/api/admin/bindings/${id}/approve`);
+      await apiClient.reviewBinding(id, { status: 'approved' });
       message.success('审核通过');
       fetchBindings();
     } catch (error: any) {
@@ -51,7 +51,7 @@ export const Bindings: React.FC = () => {
 
   const handleReject = async (id: string) => {
     try {
-      await axios.post(`/api/admin/bindings/${id}/reject`);
+      await apiClient.reviewBinding(id, { status: 'rejected' });
       message.success('已拒绝');
       fetchBindings();
     } catch (error: any) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm } from 'antd';
 import { PlusOutlined, SendOutlined, DeleteOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 const { TextArea } = Input;
 
@@ -38,8 +38,8 @@ export const Broadcasts: React.FC = () => {
   const fetchBroadcasts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/broadcasts');
-      setBroadcasts(response.data.broadcasts || []);
+      const response = await apiClient.getBroadcasts();
+      setBroadcasts(response.broadcasts || []);
     } catch (error) {
       console.error('Failed to fetch broadcasts:', error);
       message.error('获取广播列表失败');
@@ -50,8 +50,8 @@ export const Broadcasts: React.FC = () => {
 
   const fetchBots = async () => {
     try {
-      const response = await axios.get('/api/admin/bots');
-      setBots(response.data.bots || []);
+      const response = await apiClient.getBots();
+      setBots(response.bots || []);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
     }
@@ -60,7 +60,7 @@ export const Broadcasts: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await axios.post('/api/admin/broadcasts', values);
+      await apiClient.createBroadcast(values);
       message.success('广播创建成功');
       setModalOpen(false);
       form.resetFields();
@@ -73,7 +73,7 @@ export const Broadcasts: React.FC = () => {
 
   const handleSend = async (id: string) => {
     try {
-      await axios.post(`/api/admin/broadcasts/${id}/send`);
+      await apiClient.sendBroadcast(id);
       message.success('广播发送中...');
       fetchBroadcasts();
     } catch (error: any) {
@@ -84,7 +84,7 @@ export const Broadcasts: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`/api/admin/broadcasts/${id}`);
+      await apiClient.deleteBroadcast(id);
       message.success('广播删除成功');
       fetchBroadcasts();
     } catch (error: any) {

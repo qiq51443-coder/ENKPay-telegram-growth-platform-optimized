@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag } from 'antd';
 import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 interface RedPacket {
   id: string;
@@ -40,8 +40,8 @@ export const RedPackets: React.FC = () => {
   const fetchRedPackets = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/red-packets');
-      setRedPackets(response.data.redPackets || []);
+      const response = await apiClient.getRedPackets();
+      setRedPackets(response.redPackets || []);
     } catch (error) {
       console.error('Failed to fetch red packets:', error);
       message.error('获取红包列表失败');
@@ -52,8 +52,8 @@ export const RedPackets: React.FC = () => {
 
   const fetchBots = async () => {
     try {
-      const response = await axios.get('/api/admin/bots');
-      setBots(response.data.bots || []);
+      const response = await apiClient.getBots();
+      setBots(response.bots || []);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
     }
@@ -61,8 +61,8 @@ export const RedPackets: React.FC = () => {
 
   const fetchClaims = async (redPacketId: string) => {
     try {
-      const response = await axios.get(`/api/admin/red-packets/${redPacketId}/claims`);
-      setClaims(response.data.claims || []);
+      const response = await apiClient.getRedPacketClaims(redPacketId);
+      setClaims(response.claims || []);
     } catch (error) {
       console.error('Failed to fetch claims:', error);
       message.error('获取领取记录失败');
@@ -72,7 +72,7 @@ export const RedPackets: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await axios.post('/api/admin/red-packets/send', values);
+      await apiClient.createRedPacket(values);
       message.success('红包创建成功');
       setModalOpen(false);
       form.resetFields();

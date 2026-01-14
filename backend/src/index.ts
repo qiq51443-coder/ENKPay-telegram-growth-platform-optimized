@@ -15,6 +15,7 @@ import exchangeRoutes from './routes/exchanges';
 import settingsRoutes from './routes/settings';
 import webhookRoutes from './routes/webhook';
 import tutorialsRoutes from './routes/tutorials';
+import withdrawalRoutes from './routes/withdrawals';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/screenshots', screenshotRoutes);
 app.use('/api/exchanges', exchangeRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tutorials', tutorialsRoutes);
+app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Error handling

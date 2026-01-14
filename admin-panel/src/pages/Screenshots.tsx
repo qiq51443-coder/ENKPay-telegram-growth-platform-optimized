@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, message, Button, Popconfirm, Modal, Input, Image } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 
 const { TextArea } = Input;
 
@@ -39,10 +39,10 @@ export const Screenshots: React.FC = () => {
   const fetchScreenshots = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/admin/screenshots', {
-        params: { status: 'pending' },
+      const response = await apiClient.getScreenshots({
+        status: 'pending',
       });
-      setScreenshots(response.data.screenshots || []);
+      setScreenshots(response.screenshots || []);
     } catch (error) {
       console.error('Failed to fetch screenshots:', error);
       message.error('获取截图列表失败');
@@ -61,7 +61,8 @@ export const Screenshots: React.FC = () => {
     if (!selectedScreenshot) return;
 
     try {
-      await axios.post(`/api/admin/screenshots/${selectedScreenshot.id}/${status === 'approved' ? 'approve' : 'reject'}`, {
+      await apiClient.reviewScreenshot(selectedScreenshot.id, {
+        status,
         admin_note: adminNote,
       });
       message.success(status === 'approved' ? '审核通过，已增加红包积分' : '已拒绝');
