@@ -31,6 +31,6 @@ export const handleInvite = async (ctx: Context, user: any) => {
     await ctx.reply(message);
   } catch (error) {
     console.error('Invite handler error:', error);
-    await ctx.reply(t('en', 'error'));
+    await ctx.reply(t(lang, 'error'));
   }
 };

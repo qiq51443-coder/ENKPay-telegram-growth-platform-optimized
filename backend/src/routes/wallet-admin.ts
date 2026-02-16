@@ -480,7 +480,8 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
 
     if (user_id) {
       params.push(user_id);
-      queryText += ` AND (tr.from_user_id = $${params.length} OR tr.to_user_id = $${params.length})`;
+      params.push(user_id);
+      queryText += ` AND (tr.from_user_id = $${params.length - 1} OR tr.to_user_id = $${params.length})`;
     }
 
     queryText += ` ORDER BY tr.created_at DESC`;

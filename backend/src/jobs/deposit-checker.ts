@@ -196,7 +196,8 @@ export async function checkDeposits(): Promise<void> {
 
     // Auto-confirm old pending deposits after configured time
     const configResult = await query(
-      `SELECT value FROM platform_config WHERE key = 'deposit_auto_confirm_minutes'`
+      `SELECT value FROM platform_config WHERE key = $1`,
+      ['deposit_auto_confirm_minutes']
     );
     const autoConfirmMinutes = configResult.rows.length > 0 
       ? parseInt(configResult.rows[0].value) 
@@ -206,9 +207,9 @@ export async function checkDeposits(): Promise<void> {
       `SELECT id, user_id, amount
        FROM deposit_records
        WHERE status = 'confirmed' 
-         AND created_at < NOW() - INTERVAL '${autoConfirmMinutes} minutes'
+         AND created_at < NOW() - INTERVAL '1 minute' * $1
          AND credited_at IS NULL`,
-      []
+      [autoConfirmMinutes]
     );
 
     for (const deposit of oldDepositsResult.rows) {

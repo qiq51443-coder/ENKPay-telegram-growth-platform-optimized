@@ -6,7 +6,14 @@ import { query } from '../db';
 // Then import: import { ethers } from 'ethers'; import TronWeb from 'tronweb';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || 'default-key-change-in-production-32b';
+
+// Validate encryption key
+if (!process.env.WALLET_ENCRYPTION_KEY || process.env.WALLET_ENCRYPTION_KEY.length < 32) {
+  console.error('FATAL: WALLET_ENCRYPTION_KEY must be set and at least 32 characters long');
+  process.exit(1);
+}
+
+const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY;
 
 /**
  * Encrypt sensitive data (private keys, mnemonics)

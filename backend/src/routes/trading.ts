@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
+import { getPairPrice, getKlineData, getCachedKlineData } from '../services/price.service';
 
 const router = express.Router();
 
@@ -37,27 +38,18 @@ router.get('/pairs/:id/price', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get pair details
-    const pairResult = await query(
-      'SELECT * FROM trading_pairs WHERE id = $1 AND is_active = true',
-      [id]
-    );
+    // Get price using price service
+    const priceData = await getPairPrice(parseInt(id));
 
-    if (pairResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Trading pair not found' });
-    }
-
-    const pair = pairResult.rows[0];
-
-    // TODO: Integrate with price.service.getPairPrice()
-    // For now, get latest price point
-    const priceResult = await query(
-      `SELECT price, timestamp 
-       FROM price_points 
-       WHERE pair_id = $1 
-       ORDER BY timestamp DESC 
-       LIMIT 1`,
-      [id]
+    res.json({
+      success: true,
+      data: priceData,
+    });
+  } catch (error: any) {
+    console.error('Get price error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
     );
 
     if (priceResult.rows.length === 0) {

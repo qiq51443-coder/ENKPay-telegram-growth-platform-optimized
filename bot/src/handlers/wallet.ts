@@ -38,6 +38,6 @@ export const handleWallet = async (ctx: Context, user: any) => {
     await ctx.reply(message);
   } catch (error) {
     console.error('Wallet handler error:', error);
-    await ctx.reply(t('en', 'error'));
+    await ctx.reply(t(lang, 'error'));
   }
 };

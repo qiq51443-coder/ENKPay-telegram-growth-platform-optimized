@@ -218,5 +218,15 @@ export async function getPlatformConfig(key: string): Promise<any> {
     `SELECT value FROM platform_config WHERE key = $1`,
     [key]
   );
-  return result.rows.length > 0 ? JSON.parse(result.rows[0].value) : null;
+  
+  if (result.rows.length === 0) {
+    return null;
+  }
+  
+  try {
+    return JSON.parse(result.rows[0].value);
+  } catch (error) {
+    // If JSON parsing fails, return raw value
+    return result.rows[0].value;
+  }
 }
