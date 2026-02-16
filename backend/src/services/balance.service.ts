@@ -1,0 +1,222 @@
+import { query } from '../db';
+
+interface UserBalance {
+  wallet_balance: number;
+  reward_balance: number;
+  frozen_balance: number;
+  total_recharged: number;
+  total_withdrawn: number;
+  total_traded: number;
+  total_transferred_out: number;
+  total_transferred_in: number;
+  reward_unlock_traded: number;
+  is_first_trade_done: boolean;
+  available_for_transfer: number;
+  available_for_withdrawal: number;
+  reward_unlock_progress: number; // Percentage (0-100)
+  reward_unlock_required: number; // Required trading volume to unlock all rewards
+}
+
+/**
+ * Get user balance details with unlock progress
+ */
+export async function getUserBalance(userId: number): Promise<UserBalance> {
+  const result = await query(
+    `SELECT 
+      wallet_balance,
+      reward_balance,
+      frozen_balance,
+      total_recharged,
+      total_withdrawn,
+      total_traded,
+      total_transferred_out,
+      total_transferred_in,
+      reward_unlock_traded,
+      is_first_trade_done
+    FROM users WHERE id = $1`,
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error('User not found');
+  }
+
+  const user = result.rows[0];
+
+  // Get reward_trade_ratio from platform_config (default to 1.0 = 100%)
+  const configResult = await query(
+    `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
+  );
+  const rewardTradeRatio = configResult.rows.length > 0 
+    ? parseFloat(configResult.rows[0].value) 
+    : 1.0;
+
+  // Calculate required trading volume to unlock all rewards
+  const rewardUnlockRequired = user.reward_balance * rewardTradeRatio;
+
+  // Calculate unlock progress percentage
+  const rewardUnlockProgress = rewardUnlockRequired > 0
+    ? Math.min(100, (user.reward_unlock_traded / rewardUnlockRequired) * 100)
+    : 100;
+
+  // wallet_balance can be transferred and withdrawn
+  // reward_balance cannot be transferred or withdrawn until trading requirement is met
+  const availableForTransfer = user.wallet_balance;
+
+  // For withdrawal, check if:
+  // 1. Total recharged >= 10 USDT
+  // 2. Reward unlock progress >= 100%
+  let availableForWithdrawal = user.wallet_balance;
+  
+  const minDeposit = 10; // From platform_config: deposit_min_amount
+  if (user.total_recharged < minDeposit) {
+    availableForWithdrawal = 0;
+  } else if (rewardUnlockProgress < 100) {
+    // If rewards not fully unlocked, cannot withdraw
+    availableForWithdrawal = 0;
+  }
+
+  return {
+    wallet_balance: parseFloat(user.wallet_balance) || 0,
+    reward_balance: parseFloat(user.reward_balance) || 0,
+    frozen_balance: parseFloat(user.frozen_balance) || 0,
+    total_recharged: parseFloat(user.total_recharged) || 0,
+    total_withdrawn: parseFloat(user.total_withdrawn) || 0,
+    total_traded: parseFloat(user.total_traded) || 0,
+    total_transferred_out: parseFloat(user.total_transferred_out) || 0,
+    total_transferred_in: parseFloat(user.total_transferred_in) || 0,
+    reward_unlock_traded: parseFloat(user.reward_unlock_traded) || 0,
+    is_first_trade_done: user.is_first_trade_done || false,
+    available_for_transfer: parseFloat(availableForTransfer) || 0,
+    available_for_withdrawal: parseFloat(availableForWithdrawal) || 0,
+    reward_unlock_progress: parseFloat(rewardUnlockProgress.toFixed(2)),
+    reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
+  };
+}
+
+/**
+ * Validate transfer request
+ * Rules:
+ * - Minimum 10 USDT
+ * - Fee 2%
+ * - Only wallet_balance can be transferred (not reward_balance)
+ * - Must have completed first trade
+ */
+export async function validateTransfer(
+  fromUserId: number,
+  amount: number
+): Promise<{ valid: boolean; error?: string }> {
+  // Get platform config
+  const configResult = await query(
+    `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate')`
+  );
+  const config: any = {};
+  configResult.rows.forEach((row) => {
+    config[row.key] = parseFloat(row.value);
+  });
+
+  const minAmount = config.transfer_min_amount || 10;
+  const feeRate = config.transfer_fee_rate || 0.02;
+
+  // Check minimum amount
+  if (amount < minAmount) {
+    return { valid: false, error: `Minimum transfer amount is ${minAmount} USDT` };
+  }
+
+  // Get user balance
+  const balance = await getUserBalance(fromUserId);
+
+  // Check if first trade is done
+  if (!balance.is_first_trade_done) {
+    return { valid: false, error: 'You must complete at least one trade before transferring' };
+  }
+
+  // Calculate total cost including fee
+  const fee = amount * feeRate;
+  const totalCost = amount + fee;
+
+  // Check if user has enough available balance (only wallet_balance)
+  if (balance.available_for_transfer < totalCost) {
+    return {
+      valid: false,
+      error: `Insufficient balance. Available: ${balance.available_for_transfer} USDT, Required: ${totalCost} USDT (including ${fee.toFixed(2)} USDT fee)`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate withdrawal request
+ * Rules:
+ * - Minimum 10 USDT
+ * - Fee 2%
+ * - Total recharged must be >= 10 USDT
+ * - Reward unlock progress must be 100%
+ */
+export async function validateWithdrawal(
+  userId: number,
+  amount: number
+): Promise<{ valid: boolean; error?: string }> {
+  // Get platform config
+  const configResult = await query(
+    `SELECT key, value FROM platform_config WHERE key IN ('withdraw_min_amount', 'withdraw_fee_rate', 'deposit_min_amount')`
+  );
+  const config: any = {};
+  configResult.rows.forEach((row) => {
+    config[row.key] = parseFloat(row.value);
+  });
+
+  const minAmount = config.withdraw_min_amount || 10;
+  const feeRate = config.withdraw_fee_rate || 0.02;
+  const minDeposit = config.deposit_min_amount || 10;
+
+  // Check minimum amount
+  if (amount < minAmount) {
+    return { valid: false, error: `Minimum withdrawal amount is ${minAmount} USDT` };
+  }
+
+  // Get user balance
+  const balance = await getUserBalance(userId);
+
+  // Check if total recharged >= minimum deposit
+  if (balance.total_recharged < minDeposit) {
+    return {
+      valid: false,
+      error: `You must deposit at least ${minDeposit} USDT before making a withdrawal`,
+    };
+  }
+
+  // Check reward unlock progress
+  if (balance.reward_unlock_progress < 100) {
+    return {
+      valid: false,
+      error: `You must complete trading volume to unlock rewards before withdrawal. Progress: ${balance.reward_unlock_progress}% (Required: ${balance.reward_unlock_required} USDT)`,
+    };
+  }
+
+  // Calculate total cost including fee
+  const fee = amount * feeRate;
+  const totalCost = amount + fee;
+
+  // Check if user has enough available balance
+  if (balance.available_for_withdrawal < totalCost) {
+    return {
+      valid: false,
+      error: `Insufficient balance. Available: ${balance.available_for_withdrawal} USDT, Required: ${totalCost} USDT (including ${fee.toFixed(2)} USDT fee)`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Get platform configuration value
+ */
+export async function getPlatformConfig(key: string): Promise<any> {
+  const result = await query(
+    `SELECT value FROM platform_config WHERE key = $1`,
+    [key]
+  );
+  return result.rows.length > 0 ? JSON.parse(result.rows[0].value) : null;
+}
