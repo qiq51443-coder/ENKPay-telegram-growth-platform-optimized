@@ -9,7 +9,24 @@ export const en = {
   menu_exchange: '🏦 Exchange',
   menu_help: '❓ Help',
 
-  // Welcome message
+  // New NFT platform buttons
+  btn_open_platform: '🎨 Open Platform',
+  btn_my_wallet: '💰 My Wallet',
+  btn_invite: '👥 Invite Friends',
+  btn_help: '❓ Help',
+
+  // Welcome message - NFT platform
+  welcome_nft_title: 'Welcome to NFT Digital Collectibles Platform',
+  welcome_nft_description: 'Explore, collect, and trade digital artworks, participate in auctions and charity',
+  welcome_features: 'Platform Features',
+  feature_nft_market: 'NFT Digital Collectibles',
+  feature_auctions: 'Multi-player Auctions',
+  feature_trading: 'Instant Trading',
+  feature_charity: 'Charity Projects',
+  feature_wallet: 'Wallet Deposit/Withdrawal/Transfer',
+  feature_invite: '2-Level Invite Rewards',
+
+  // Welcome message (legacy)
   welcome_title: '🎉 Welcome to the Growth Platform!',
   welcome_description: 'Complete tasks and earn rewards!',
   welcome_register_prompt: '📝 Please register on our platform first:',
@@ -19,6 +36,33 @@ export const en = {
   welcome_task_bind: '✓ Bind your platform account',
   welcome_rewards_locked: '🔒 Rewards are currently locked',
   welcome_unlock_rewards: 'Complete the tasks above to unlock your rewards!',
+
+  // Wallet
+  wallet_title: 'My Wallet',
+  wallet_balance: 'Available Balance',
+  reward_balance: 'Reward Balance',
+  frozen_balance: 'Frozen Balance',
+  wallet_stats: 'Statistics',
+  total_recharged: 'Total Deposited',
+  total_withdrawn: 'Total Withdrawn',
+  total_traded: 'Total Traded',
+  reward_unlock_progress: 'Reward Unlock Progress',
+  reward_unlock_required: 'Required Trading Volume',
+  available_for_transfer: 'Available for Transfer',
+  available_for_withdrawal: 'Available for Withdrawal',
+  error_fetch_balance: '❌ Failed to fetch balance, please try again later',
+
+  // Invite
+  invite_title: 'Invite Friends & Earn Rewards',
+  invite_description: 'Invite friends to use the platform and earn generous rewards!',
+  invite_rewards: 'Reward Rules',
+  invite_reward_follow: 'Friend follows Bot',
+  invite_reward_trade: 'Friend completes first trade',
+  invite_stats: 'Invitation Statistics',
+  invite_level1: 'Level 1 Invites',
+  invite_level2: 'Level 2 Invites',
+  your_invite_link: 'Your Invitation Link',
+  invite_share_hint: 'Share this link with friends, they will get rewards when they join through it',
 
   // Tasks
   tasks_title: '🎯 Available Tasks',

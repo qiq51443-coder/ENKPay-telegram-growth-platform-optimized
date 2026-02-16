@@ -1,7 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { getSettings } from '../services/settings';
-import { getMainKeyboard } from '../keyboards/main';
 import { t } from '../i18n';
 
 export const handleStart = async (ctx: Context) => {
@@ -20,28 +19,28 @@ export const handleStart = async (ctx: Context) => {
     const lang = getUserLanguage(user);
     const settings = await getSettings(botId);
 
-    // Build welcome message
-    let message = `${t(lang, 'welcome_title')}\n\n`;
-    message += `${t(lang, 'welcome_description')}\n\n`;
+    // Build welcome message for NFT platform
+    const message = `🎨 ${t(lang, 'welcome_nft_title')}\n\n` +
+      `${t(lang, 'welcome_nft_description')}\n\n` +
+      `✨ ${t(lang, 'welcome_features')}:\n` +
+      `🖼 ${t(lang, 'feature_nft_market')}\n` +
+      `🎯 ${t(lang, 'feature_auctions')}\n` +
+      `📈 ${t(lang, 'feature_trading')}\n` +
+      `❤️ ${t(lang, 'feature_charity')}\n` +
+      `💰 ${t(lang, 'feature_wallet')}\n\n` +
+      `👥 ${t(lang, 'feature_invite')}\n`;
 
-    // Show platform registration link if not bound
-    if (!user.platform_bound) {
-      message += `${t(lang, 'welcome_register_prompt')}\n`;
-      message += `🔗 ${settings.platform_register_url || 'https://platform.example.com'}\n\n`;
-      message += `${t(lang, 'welcome_after_register')}\n`;
-      message += `✓ ${t(lang, 'welcome_task_follow')}\n`;
-      message += `✓ ${t(lang, 'welcome_task_join')}\n`;
-      message += `✓ ${t(lang, 'welcome_task_bind')}\n\n`;
-    }
-
-    // Show rewards status
-    if (!user.follow_reward_unlocked || !user.bind_reward_unlocked) {
-      message += `${t(lang, 'welcome_rewards_locked')}\n`;
-      message += `${t(lang, 'welcome_unlock_rewards')}\n`;
-    }
-
-    // Send welcome message with main keyboard
-    await ctx.reply(message, getMainKeyboard(lang));
+    // Create Mini App WebApp button
+    const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
+    
+    await ctx.reply(message, Markup.keyboard([
+      [Markup.button.webApp(t(lang, 'btn_open_platform'), webAppUrl)],
+      [
+        Markup.button.text(t(lang, 'btn_my_wallet')),
+        Markup.button.text(t(lang, 'btn_invite'))
+      ],
+      [Markup.button.text(t(lang, 'btn_help'))]
+    ]).resize());
   } catch (error) {
     console.error('Start handler error:', error);
     await ctx.reply(t('en', 'error'));

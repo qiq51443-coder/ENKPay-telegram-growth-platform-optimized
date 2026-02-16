@@ -1,0 +1,485 @@
+import express from 'express';
+import { query, transaction } from '../db';
+import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
+
+const router = express.Router();
+
+/**
+ * GET /api/nft/categories
+ * List all NFT categories
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, name, description, icon_url, sort_order, is_active, created_at
+       FROM nft_categories
+       WHERE is_active = true
+       ORDER BY sort_order, id`
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/categories
+ * Create NFT category (admin)
+ */
+router.post('/categories', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { name, description, icon_url, sort_order = 0 } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+
+    const result = await query(
+      `INSERT INTO nft_categories (name, description, icon_url, sort_order)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [name, description, icon_url, sort_order]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Category created successfully',
+    });
+  } catch (error: any) {
+    console.error('Create category error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/products
+ * List NFT products with filters
+ */
+router.get('/products', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, category_id, status } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let queryText = `
+      SELECT 
+        p.*,
+        c.name as category_name
+      FROM nft_products p
+      LEFT JOIN nft_categories c ON p.category_id = c.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (category_id) {
+      params.push(category_id);
+      queryText += ` AND p.category_id = $${params.length}`;
+    }
+
+    if (status) {
+      params.push(status);
+      queryText += ` AND p.status = $${params.length}`;
+    } else {
+      queryText += ` AND p.status = 'active'`;
+    }
+
+    queryText += ` ORDER BY p.created_at DESC`;
+    params.push(Number(limit), offset);
+    queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+
+    const result = await query(queryText, params);
+
+    // Get total count
+    let countQuery = 'SELECT COUNT(*) FROM nft_products WHERE 1=1';
+    const countParams: any[] = [];
+    if (category_id) {
+      countParams.push(category_id);
+      countQuery += ` AND category_id = $${countParams.length}`;
+    }
+    if (status) {
+      countParams.push(status);
+      countQuery += ` AND status = $${countParams.length}`;
+    }
+
+    const countResult = await query(countQuery, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get products error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/products/:id
+ * Get product details
+ */
+router.get('/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT 
+         p.*,
+         c.name as category_name,
+         c.description as category_description
+       FROM nft_products p
+       LEFT JOIN nft_categories c ON p.category_id = c.id
+       WHERE p.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('Get product error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/products
+ * Create NFT product (admin)
+ */
+router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      category_id,
+      name,
+      description,
+      image_url,
+      price,
+      total_supply,
+      daily_trade_reward_rate,
+      max_trade_reward_days,
+      metadata,
+    } = req.body;
+
+    if (!name || !price || !total_supply) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const result = await query(
+      `INSERT INTO nft_products 
+       (category_id, name, description, image_url, price, total_supply,
+        daily_trade_reward_rate, max_trade_reward_days, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        category_id,
+        name,
+        description,
+        image_url,
+        parseFloat(price),
+        parseInt(total_supply),
+        daily_trade_reward_rate || 0.01,
+        max_trade_reward_days || 30,
+        metadata ? JSON.stringify(metadata) : null,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Product created successfully',
+    });
+  } catch (error: any) {
+    console.error('Create product error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/nft/products/:id
+ * Update NFT product (admin)
+ */
+router.put('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields: any = {};
+    const params: any[] = [];
+    let paramCount = 1;
+
+    const allowedFields = [
+      'category_id',
+      'name',
+      'description',
+      'image_url',
+      'price',
+      'total_supply',
+      'daily_trade_reward_rate',
+      'max_trade_reward_days',
+      'status',
+      'metadata',
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateFields[field] = `$${paramCount}`;
+        if (field === 'metadata' && req.body[field]) {
+          params.push(JSON.stringify(req.body[field]));
+        } else {
+          params.push(req.body[field]);
+        }
+        paramCount++;
+      }
+    }
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(id);
+    const setClause = Object.keys(updateFields)
+      .map((key) => `${key} = ${updateFields[key]}`)
+      .join(', ');
+
+    const result = await query(
+      `UPDATE nft_products 
+       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $${paramCount}
+       RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Product updated successfully',
+    });
+  } catch (error: any) {
+    console.error('Update product error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/nft/products/:id
+ * Delete NFT product (admin)
+ */
+router.delete('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    await query(
+      `UPDATE nft_products SET status = 'inactive' WHERE id = $1`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Product deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete product error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/purchase
+ * Purchase NFT product
+ */
+router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, product_id } = req.body;
+
+    if (!user_id || !product_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const result = await transaction(async (client) => {
+      // Get product details
+      const productResult = await client.query(
+        `SELECT * FROM nft_products WHERE id = $1 AND status = 'active'`,
+        [product_id]
+      );
+
+      if (productResult.rows.length === 0) {
+        throw new Error('Product not found or inactive');
+      }
+
+      const product = productResult.rows[0];
+
+      // Check if sold out
+      if (product.sold_count >= product.total_supply) {
+        throw new Error('Product is sold out');
+      }
+
+      // Get user balance
+      const userResult = await client.query(
+        'SELECT wallet_balance FROM users WHERE id = $1',
+        [user_id]
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      const user = userResult.rows[0];
+
+      if (user.wallet_balance < product.price) {
+        throw new Error('Insufficient balance');
+      }
+
+      // Deduct balance
+      await client.query(
+        `UPDATE users 
+         SET wallet_balance = wallet_balance - $1
+         WHERE id = $2`,
+        [product.price, user_id]
+      );
+
+      // Update product sold count
+      await client.query(
+        `UPDATE nft_products 
+         SET sold_count = sold_count + 1
+         WHERE id = $1`,
+        [product_id]
+      );
+
+      // Create holding
+      const holdingResult = await client.query(
+        `INSERT INTO nft_holdings 
+         (user_id, product_id, purchase_price, status)
+         VALUES ($1, $2, $3, 'active')
+         RETURNING *`,
+        [user_id, product_id, product.price]
+      );
+
+      // TODO: Trigger first trade reward if configured
+      // TODO: Mint NFT on blockchain if needed
+
+      return holdingResult.rows[0];
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'NFT purchased successfully',
+    });
+  } catch (error: any) {
+    console.error('Purchase error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/my-holdings
+ * Get user's NFT holdings
+ */
+router.get('/my-holdings', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const result = await query(
+      `SELECT 
+         h.*,
+         p.name as product_name,
+         p.description as product_description,
+         p.image_url,
+         p.daily_trade_reward_rate,
+         p.max_trade_reward_days,
+         c.name as category_name
+       FROM nft_holdings h
+       JOIN nft_products p ON h.product_id = p.id
+       LEFT JOIN nft_categories c ON p.category_id = c.id
+       WHERE h.user_id = $1
+       ORDER BY h.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [user_id, Number(limit), offset]
+    );
+
+    const countResult = await query(
+      'SELECT COUNT(*) FROM nft_holdings WHERE user_id = $1',
+      [user_id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get holdings error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/my-holdings/:id
+ * Get holding details
+ */
+router.get('/my-holdings/:id', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.query;
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const result = await query(
+      `SELECT 
+         h.*,
+         p.name as product_name,
+         p.description as product_description,
+         p.image_url,
+         p.daily_trade_reward_rate,
+         p.max_trade_reward_days,
+         p.metadata,
+         c.name as category_name
+       FROM nft_holdings h
+       JOIN nft_products p ON h.product_id = p.id
+       LEFT JOIN nft_categories c ON p.category_id = c.id
+       WHERE h.id = $1 AND h.user_id = $2`,
+      [id, user_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Holding not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('Get holding error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;

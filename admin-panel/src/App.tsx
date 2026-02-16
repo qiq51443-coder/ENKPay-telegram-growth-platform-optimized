@@ -28,12 +28,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
 import { Bots } from './pages/Bots';
-import { Bindings } from './pages/Bindings';
 import { RedPackets } from './pages/RedPackets';
 import { Broadcasts } from './pages/Broadcasts';
-import { Screenshots } from './pages/Screenshots';
-import { Exchanges } from './pages/Exchanges';
-import { Tutorials } from './pages/Tutorials';
 import { Withdrawals } from './pages/Withdrawals';
 import { Settings } from './pages/Settings';
 import { AdminUserManager } from './pages/AdminUserManager';
@@ -109,29 +105,9 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       label: <Link to="/users">用户列表</Link>,
     },
     {
-      key: 'bindings',
-      icon: <LinkOutlined />,
-      label: <Link to="/bindings">绑定审核</Link>,
-    },
-    {
       key: 'withdrawals',
       icon: <DollarOutlined />,
       label: <Link to="/withdrawals">提现审核</Link>,
-    },
-    {
-      key: 'screenshots',
-      icon: <PictureOutlined />,
-      label: <Link to="/screenshots">截图审核</Link>,
-    },
-    {
-      key: 'channels',
-      icon: <SoundOutlined />,
-      label: <Link to="/channels">频道管理</Link>,
-    },
-    {
-      key: 'groups',
-      icon: <TeamOutlined />,
-      label: <Link to="/groups">群组管理</Link>,
     },
     {
       key: 'red-packets',
@@ -142,26 +118,6 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'broadcasts',
       icon: <SoundOutlined />,
       label: <Link to="/broadcasts">广播管理</Link>,
-    },
-    {
-      key: 'tutorials',
-      icon: <BookOutlined />,
-      label: <Link to="/tutorials">教程管理</Link>,
-    },
-    {
-      key: 'exchanges',
-      icon: <ShopOutlined />,
-      label: <Link to="/exchanges">平台配置</Link>,
-    },
-    {
-      key: 'reward-rules',
-      icon: <DatabaseOutlined />,
-      label: <Link to="/reward-rules">奖励规则</Link>,
-    },
-    {
-      key: 'bot-contents',
-      icon: <FileTextOutlined />,
-      label: <Link to="/bot-contents">Bot 内容</Link>,
     },
     {
       key: 'admin-users',
@@ -309,42 +265,10 @@ function App() {
         }
       />
       <Route
-        path="/bindings"
-        element={
-          <ProtectedRoute>
-            <Bindings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/withdrawals"
         element={
           <ProtectedRoute>
             <Withdrawals />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/screenshots"
-        element={
-          <ProtectedRoute>
-            <Screenshots />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/channels"
-        element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/groups"
-        element={
-          <ProtectedRoute>
-            <Settings />
           </ProtectedRoute>
         }
       />
@@ -361,38 +285,6 @@ function App() {
         element={
           <ProtectedRoute>
             <Broadcasts />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tutorials"
-        element={
-          <ProtectedRoute>
-            <Tutorials />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/exchanges"
-        element={
-          <ProtectedRoute>
-            <Exchanges />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reward-rules"
-        element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/bot-contents"
-        element={
-          <ProtectedRoute>
-            <Settings />
           </ProtectedRoute>
         }
       />

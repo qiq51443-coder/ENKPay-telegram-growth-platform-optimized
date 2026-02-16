@@ -9,7 +9,24 @@ export const zh = {
   menu_exchange: '🏦 交易所',
   menu_help: '❓ 帮助',
 
-  // Welcome message
+  // New NFT platform buttons
+  btn_open_platform: '🎨 进入平台',
+  btn_my_wallet: '💰 我的钱包',
+  btn_invite: '👥 邀请好友',
+  btn_help: '❓ 帮助',
+
+  // Welcome message - NFT platform
+  welcome_nft_title: '欢迎来到 NFT 数字藏品平台',
+  welcome_nft_description: '探索、收藏、交易数字艺术品，参与竞拍和公益活动',
+  welcome_features: '平台功能',
+  feature_nft_market: 'NFT 数字藏品购买',
+  feature_auctions: '多人竞拍',
+  feature_trading: '即时交易',
+  feature_charity: '公益援助',
+  feature_wallet: '钱包充值提现转账',
+  feature_invite: '2级邀请奖励',
+
+  // Welcome message (legacy)
   welcome_title: '🎉 欢迎来到增长平台！',
   welcome_description: '完成任务，赚取奖励！',
   welcome_register_prompt: '📝 请先在我们的平台注册：',
@@ -19,6 +36,33 @@ export const zh = {
   welcome_task_bind: '✓ 绑定您的平台账户',
   welcome_rewards_locked: '🔒 奖励目前已锁定',
   welcome_unlock_rewards: '完成上述任务以解锁您的奖励！',
+
+  // Wallet
+  wallet_title: '我的钱包',
+  wallet_balance: '可用余额',
+  reward_balance: '奖励余额',
+  frozen_balance: '冻结余额',
+  wallet_stats: '统计数据',
+  total_recharged: '累计充值',
+  total_withdrawn: '累计提现',
+  total_traded: '累计交易',
+  reward_unlock_progress: '奖励解锁进度',
+  reward_unlock_required: '需要交易量',
+  available_for_transfer: '可转账',
+  available_for_withdrawal: '可提现',
+  error_fetch_balance: '❌ 获取余额失败，请稍后再试',
+
+  // Invite
+  invite_title: '邀请好友赚奖励',
+  invite_description: '邀请好友使用平台，获得丰厚奖励！',
+  invite_rewards: '奖励规则',
+  invite_reward_follow: '好友关注 Bot',
+  invite_reward_trade: '好友完成首笔交易',
+  invite_stats: '邀请统计',
+  invite_level1: '一级邀请',
+  invite_level2: '二级邀请',
+  your_invite_link: '您的邀请链接',
+  invite_share_hint: '分享此链接给好友，他们通过此链接加入即可获得奖励',
 
   // Tasks
   tasks_title: '🎯 可用任务',
