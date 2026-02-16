@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import dotenv from 'dotenv';
 import { connectRedis } from './utils/cache';
+import { startDepositChecker } from './jobs/deposit-checker';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -16,6 +18,15 @@ import withdrawalRoutes from './routes/withdrawals';
 import auditLogsRoutes from './routes/audit-logs';
 import systemSettingsRoutes from './routes/system-settings';
 import dashboardRoutes from './routes/dashboard';
+
+// New NFT platform routes
+import nftRoutes from './routes/nft';
+import auctionRoutes from './routes/auction';
+import tradingRoutes from './routes/trading';
+import tradingAdminRoutes from './routes/trading-admin';
+import charityRoutes from './routes/charity';
+import walletRoutes from './routes/wallet';
+import walletAdminRoutes from './routes/wallet-admin';
 
 dotenv.config();
 
@@ -32,6 +43,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Static file serving for NFT uploads
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -45,6 +59,15 @@ app.use('/api/admin/audit-logs', auditLogsRoutes);
 app.use('/api/admin/system-settings', systemSettingsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/webhook', webhookRoutes);
+
+// New NFT platform routes
+app.use('/api/nft', nftRoutes);
+app.use('/api/auctions', auctionRoutes);
+app.use('/api/trading', tradingRoutes);
+app.use('/api/admin/trading', tradingAdminRoutes);
+app.use('/api/charity', charityRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/admin/wallet', walletAdminRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -61,9 +84,13 @@ const startServer = async () => {
     await connectRedis();
     console.log('✓ Redis connected');
 
+    // Start deposit checker job
+    startDepositChecker();
+
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
       console.log(`✓ Health check: http://localhost:${PORT}/health`);
+      console.log(`✓ Static files: http://localhost:${PORT}/uploads`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
