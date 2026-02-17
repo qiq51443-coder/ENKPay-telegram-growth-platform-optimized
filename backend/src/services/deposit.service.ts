@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { query } from '../db';
+import { query, transaction } from '../db';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
@@ -275,8 +275,6 @@ export async function processDeposit(
   blockNumber: number,
   blockTimestamp: Date
 ): Promise<void> {
-  const { transaction } = require('../db');
-  
   await transaction(async (client: any) => {
     // Check if transaction already exists
     const existingResult = await client.query(

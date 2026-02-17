@@ -372,7 +372,7 @@ export async function getCachedKlineData(
     [pairId, interval, limit]
   );
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row: any) => ({
     timestamp: parseFloat(row.timestamp),
     open: parseFloat(row.open),
     high: parseFloat(row.high),

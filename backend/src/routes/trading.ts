@@ -51,26 +51,6 @@ router.get('/pairs/:id/price', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-    );
-
-    if (priceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No price data available' });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        pair_id: pair.id,
-        symbol: pair.symbol,
-        price: parseFloat(priceResult.rows[0].price),
-        timestamp: priceResult.rows[0].timestamp,
-      },
-    });
-  } catch (error: any) {
-    console.error('Get price error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 /**
  * GET /api/trading/pairs/:id/kline

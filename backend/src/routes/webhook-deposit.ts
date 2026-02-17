@@ -1,6 +1,6 @@
 import express from 'express';
 import { query } from '../db';
-import { processDeposit } from '../jobs/deposit-checker';
+import { processDeposit } from '../services/deposit.service';
 
 const router = express.Router();
 
