@@ -8,6 +8,10 @@ export const addReward = async (
   description: string,
   referenceId?: string
 ) => {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Reward amount must be a positive number');
+  }
+
   return transaction(async (client: PoolClient) => {
     // Get current balance
     const userResult = await client.query('SELECT balance FROM users WHERE id = $1', [userId]);
@@ -33,6 +37,10 @@ export const addReward = async (
 };
 
 export const addRedPacketCredits = async (userId: string, credits: number) => {
+  if (!Number.isInteger(credits) || credits <= 0) {
+    throw new Error('Credits must be a positive integer');
+  }
+
   const result = await query(
     `UPDATE users 
      SET red_packet_credits = red_packet_credits + $1 

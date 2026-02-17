@@ -22,7 +22,6 @@ import {
   DatabaseOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
-import axios from 'axios';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
@@ -37,31 +36,6 @@ import { AuditLogs } from './pages/AuditLogs';
 import { SystemSettings } from './pages/SystemSettings';
 
 const { Header, Sider, Content } = Layout;
-
-// Set up axios interceptors
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;

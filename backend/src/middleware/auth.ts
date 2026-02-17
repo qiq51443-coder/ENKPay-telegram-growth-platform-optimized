@@ -26,7 +26,12 @@ export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFun
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any;
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable is not set');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    const decoded = jwt.verify(token, jwtSecret) as any;
 
     req.user = {
       id: decoded.id,

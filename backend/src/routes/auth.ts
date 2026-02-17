@@ -32,9 +32,15 @@ router.post('/login', async (req, res) => {
     // Update last login
     await query('UPDATE admin_users SET last_login_at = NOW() WHERE id = $1', [admin.id]);
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable is not set');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     const token = jwt.sign(
       { id: admin.id, username: admin.username, role: admin.role },
-      process.env.JWT_SECRET || 'default-secret',
+      jwtSecret,
       { expiresIn: '7d' }
     );
 
