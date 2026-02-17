@@ -51,26 +51,6 @@ router.get('/pairs/:id/price', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-    );
-
-    if (priceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No price data available' });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        pair_id: pair.id,
-        symbol: pair.symbol,
-        price: parseFloat(priceResult.rows[0].price),
-        timestamp: priceResult.rows[0].timestamp,
-      },
-    });
-  } catch (error: any) {
-    console.error('Get price error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 /**
  * GET /api/trading/pairs/:id/kline
@@ -193,6 +173,36 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
         throw new Error('Trading session is not in valid time range');
       }
 
+      // Get trading rule for this session (if exists)
+      let ruleId = session.rule_id;
+      let odds = 1.95; // Default odds
+      let minBet = 1.0;
+      let maxBet = 10000.0;
+
+      if (ruleId) {
+        const ruleResult = await client.query(
+          `SELECT id, odds, min_bet, max_bet, is_active
+           FROM trading_rules
+           WHERE id = $1`,
+          [ruleId]
+        );
+
+        if (ruleResult.rows.length > 0 && ruleResult.rows[0].is_active) {
+          const rule = ruleResult.rows[0];
+          odds = parseFloat(rule.odds);
+          minBet = parseFloat(rule.min_bet);
+          maxBet = parseFloat(rule.max_bet);
+        }
+      }
+
+      // Check min/max bet amounts
+      if (orderAmount < minBet) {
+        throw new Error(`Minimum bet amount is ${minBet}`);
+      }
+      if (orderAmount > maxBet) {
+        throw new Error(`Maximum bet amount is ${maxBet}`);
+      }
+
       // Get user balance
       const userResult = await client.query(
         'SELECT wallet_balance FROM users WHERE id = $1',
@@ -230,13 +240,13 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
         [orderAmount, user_id]
       );
 
-      // Create order
+      // Create order with rule_id and odds
       const orderResult = await client.query(
         `INSERT INTO trading_orders 
-         (session_id, user_id, pair_id, direction, amount, entry_price, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'active')
+         (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
          RETURNING *`,
-        [id, user_id, session.pair_id, direction, orderAmount, entryPrice]
+        [id, user_id, session.pair_id, direction, orderAmount, entryPrice, ruleId, odds]
       );
 
       // Trigger first trade reward for referrer

@@ -30,6 +30,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://telegram:telegram123@postgres:5432/telegram_growth
       - REDIS_URL=redis://redis:6379
+      - WALLET_ENCRYPTION_KEY=${WALLET_ENCRYPTION_KEY:-default-dev-key-change-in-production-32}
+      - BINANCE_API_URL=${BINANCE_API_URL:-https://api.binance.com}
+      - PM2_INSTANCES=${PM2_INSTANCES:-4}
+      - DB_POOL_MAX=50
+      - DB_POOL_MIN=10
     ports:
       - "3000:3000"
     depends_on:

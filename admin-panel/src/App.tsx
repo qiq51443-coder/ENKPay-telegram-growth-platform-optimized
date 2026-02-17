@@ -19,6 +19,8 @@ import {
   LineChartOutlined,
   HeartOutlined,
   WalletOutlined,
+  ClockCircleOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -40,6 +42,8 @@ import { CharityProjects } from './pages/CharityProjects';
 import { WalletNetworks } from './pages/WalletNetworks';
 import { DepositRecords } from './pages/DepositRecords';
 import { TransferRecords } from './pages/TransferRecords';
+import { TradingRules } from './pages/TradingRules';
+import { TradingSessions } from './pages/TradingSessions';
 
 const { Header, Sider, Content } = Layout;
 
@@ -106,6 +110,14 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
         {
           key: 'custom-price',
           label: <Link to="/custom-price">自定义走势</Link>,
+        },
+        {
+          key: 'trading-rules',
+          label: <Link to="/trading-rules">交易规则</Link>,
+        },
+        {
+          key: 'trading-sessions',
+          label: <Link to="/trading-sessions">交易结算</Link>,
         },
       ],
     },
@@ -419,6 +431,22 @@ function App() {
         element={
           <ProtectedRoute>
             <TransferRecords />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trading-rules"
+        element={
+          <ProtectedRoute>
+            <TradingRules />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trading-sessions"
+        element={
+          <ProtectedRoute>
+            <TradingSessions />
           </ProtectedRoute>
         }
       />

@@ -4,6 +4,8 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
+import { checkBinanceConnectivity } from './services/price.service';
+import { startAutoSettle } from './jobs/auto-settle';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -27,6 +29,7 @@ import tradingAdminRoutes from './routes/trading-admin';
 import charityRoutes from './routes/charity';
 import walletRoutes from './routes/wallet';
 import walletAdminRoutes from './routes/wallet-admin';
+import depositWebhookRoutes from './routes/webhook-deposit';
 
 dotenv.config();
 
@@ -66,6 +69,9 @@ app.use('/api/admin/system-settings', systemSettingsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/webhook', webhookRoutes);
 
+// Deposit webhook routes (for blockchain notifications)
+app.use('/webhook/deposit', depositWebhookRoutes);
+
 // New NFT platform routes
 app.use('/api/nft', nftRoutes);
 app.use('/api/auctions', auctionRoutes);
@@ -90,8 +96,14 @@ const startServer = async () => {
     await connectRedis();
     console.log('✓ Redis connected');
 
+    // Check Binance API connectivity
+    await checkBinanceConnectivity();
+
     // Start deposit checker job
     startDepositChecker();
+
+    // Start auto-settle job
+    startAutoSettle();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);

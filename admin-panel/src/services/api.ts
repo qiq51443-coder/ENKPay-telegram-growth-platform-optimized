@@ -519,6 +519,43 @@ class ApiClient {
     return response.data;
   }
 
+  // Trading Rules
+  async getTradingRules(params?: any) {
+    const response = await this.client.get('/admin/trading/rules', { params });
+    return response.data;
+  }
+
+  async createTradingRule(data: any) {
+    const response = await this.client.post('/admin/trading/rules', data);
+    return response.data;
+  }
+
+  async updateTradingRule(id: string, data: any) {
+    const response = await this.client.put(`/admin/trading/rules/${id}`, data);
+    return response.data;
+  }
+
+  async deleteTradingRule(id: string) {
+    const response = await this.client.delete(`/admin/trading/rules/${id}`);
+    return response.data;
+  }
+
+  // Trading Sessions
+  async getTradingSessions(params?: any) {
+    const response = await this.client.get('/admin/trading/sessions', { params });
+    return response.data;
+  }
+
+  async settleSession(id: string, data: any) {
+    const response = await this.client.post(`/admin/trading/sessions/${id}/settle`, data);
+    return response.data;
+  }
+
+  async getTradingPairs(params?: any) {
+    const response = await this.client.get('/admin/trading/pairs', { params });
+    return response.data;
+  }
+
   // File upload helper
   getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;
