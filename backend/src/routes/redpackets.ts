@@ -26,7 +26,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'total_count must be a positive integer' });
     }
 
-    if (amount < count * 0.01) {
+    const MIN_AMOUNT_PER_PACKET = 0.01;
+    if (amount < count * MIN_AMOUNT_PER_PACKET) {
       return res.status(400).json({ error: 'total_amount too small for the given count' });
     }
 

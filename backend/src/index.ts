@@ -34,9 +34,11 @@ const app = express();
 const PORT = process.env.BACKEND_PORT || 3000;
 
 // Middleware
-const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : ['http://localhost:3001'];
 app.use(cors({
-  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
