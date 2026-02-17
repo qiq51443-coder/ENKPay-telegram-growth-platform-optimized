@@ -115,22 +115,32 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const telegram = new TelegramAPI(botResult.rows[0].token);
 
-    // Send to all users (async)
+    // Send to all users (with rate limiting to avoid Telegram API limits)
     let sentCount = 0;
     let failedCount = 0;
 
-    const sendPromises = usersResult.rows.map(async (user) => {
-      try {
-        await telegram.sendMessage(user.telegram_id, broadcast.content);
-        sentCount++;
-      } catch (error) {
-        console.error('Failed to send to user:', user.telegram_id, error);
-        failedCount++;
-      }
-    });
+    const BATCH_SIZE = 25;
+    const BATCH_DELAY_MS = 1000;
 
-    // Wait for all sends (with some delay to avoid rate limits)
-    await Promise.all(sendPromises);
+    for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
+      const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
+      const sendPromises = batch.map(async (user) => {
+        try {
+          await telegram.sendMessage(user.telegram_id, broadcast.content);
+          sentCount++;
+        } catch (error) {
+          console.error('Failed to send to user:', user.telegram_id, error);
+          failedCount++;
+        }
+      });
+
+      await Promise.all(sendPromises);
+
+      // Wait between batches to respect rate limits
+      if (i + BATCH_SIZE < usersResult.rows.length) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
 
     // Update broadcast status
     await query(

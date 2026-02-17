@@ -1,6 +1,6 @@
 import express from 'express';
 import { query, transaction } from '../db';
-import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
 import { deductRedPacketCredits } from '../utils/rewards';
 
@@ -15,15 +15,36 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const expiresAt = expires_in_hours 
-      ? new Date(Date.now() + expires_in_hours * 60 * 60 * 1000)
+    const amount = Number(total_amount);
+    const count = Number(total_count);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'total_amount must be a positive number' });
+    }
+
+    if (!Number.isInteger(count) || count <= 0) {
+      return res.status(400).json({ error: 'total_count must be a positive integer' });
+    }
+
+    const MIN_AMOUNT_PER_PACKET = 0.01;
+    if (amount < count * MIN_AMOUNT_PER_PACKET) {
+      return res.status(400).json({ error: 'total_amount too small for the given count' });
+    }
+
+    const expiresHours = expires_in_hours ? Number(expires_in_hours) : null;
+    if (expiresHours !== null && (!Number.isFinite(expiresHours) || expiresHours <= 0)) {
+      return res.status(400).json({ error: 'expires_in_hours must be a positive number' });
+    }
+
+    const expiresAt = expiresHours
+      ? new Date(Date.now() + expiresHours * 60 * 60 * 1000)
       : null;
 
     const result = await query(
       `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
        RETURNING *`,
-      [bot_id, chat_id, title, total_amount, total_count, expiresAt, req.user?.id]
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id]
     );
 
     const redPacket = result.rows[0];
@@ -38,9 +59,9 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
 ${title || 'Lucky Red Packet'}
 
-💰 Total: ${total_amount}
-👥 Count: ${total_count}
-${expires_in_hours ? `⏰ Expires in ${expires_in_hours} hours` : ''}
+💰 Total: ${amount}
+👥 Count: ${count}
+${expiresHours ? `⏰ Expires in ${expiresHours} hours` : ''}
 
 Click the button below to claim!
 ⚠️ Requires 1 red packet credit to claim
@@ -90,6 +111,10 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     if (status) {
+      const validStatuses = ['active', 'finished', 'expired'];
+      if (!validStatuses.includes(status as string)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      }
       params.push(status);
       queryText += ` AND rp.status = $${params.length}`;
     }
@@ -125,8 +150,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Claim red packet
-router.post('/:id/claim', async (req, res) => {
+// Claim red packet (requires bot authentication)
+router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.body;
@@ -146,6 +171,16 @@ router.post('/:id/claim', async (req, res) => {
     }
 
     const redPacket = rpResult.rows[0];
+
+    // Check if active
+    if (redPacket.status !== 'active') {
+      return res.status(400).json({ error: 'Red packet is not active' });
+    }
+
+    // Check if expired
+    if (redPacket.expires_at && new Date(redPacket.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Red packet has expired' });
+    }
 
     // Check if finished
     if (redPacket.claimed_count >= redPacket.total_count) {
