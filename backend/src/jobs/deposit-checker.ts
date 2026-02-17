@@ -34,7 +34,7 @@ async function checkEthDeposits(network: any, addresses: string[]): Promise<void
 /**
  * Process a detected deposit transaction
  */
-async function processDeposit(
+export async function processDeposit(
   userId: number,
   networkId: number,
   txHash: string,
@@ -233,12 +233,12 @@ export function startDepositChecker(): void {
     return;
   }
 
-  // Run every 30 seconds
-  cronJob = cron.schedule('*/30 * * * * *', async () => {
+  // Run every 5 minutes (reduced from 30 seconds as webhooks are primary method)
+  cronJob = cron.schedule('*/5 * * * *', async () => {
     await checkDeposits();
   });
 
-  console.log('✓ Deposit checker started (running every 30 seconds)');
+  console.log('✓ Deposit checker started (running every 5 minutes as fallback)');
 
   // Run once immediately
   checkDeposits();

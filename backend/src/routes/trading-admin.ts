@@ -422,4 +422,278 @@ router.post('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+/**
+ * GET /api/admin/trading/rules
+ * List all trading rules
+ */
+router.get('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const result = await query(
+      `SELECT 
+         tr.*,
+         tp.symbol as pair_symbol,
+         tp.display_name as pair_display_name
+       FROM trading_rules tr
+       LEFT JOIN trading_pairs tp ON tr.pair_id = tp.id
+       ORDER BY tr.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [Number(limit), offset]
+    );
+
+    const countResult = await query('SELECT COUNT(*) FROM trading_rules');
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get rules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/rules
+ * Create trading rule
+ */
+router.post('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      pair_id,
+      session_id,
+      rule_name,
+      direction,
+      odds = 1.95,
+      min_bet = 1.0,
+      max_bet = 10000.0,
+      duration_seconds = 60,
+      is_active = true,
+    } = req.body;
+
+    if (!pair_id || !rule_name || !direction) {
+      return res.status(400).json({
+        error: 'pair_id, rule_name, and direction are required',
+      });
+    }
+
+    if (!['up', 'down'].includes(direction)) {
+      return res.status(400).json({
+        error: 'direction must be "up" or "down"',
+      });
+    }
+
+    const result = await query(
+      `INSERT INTO trading_rules 
+       (pair_id, session_id, rule_name, direction, odds, min_bet, max_bet, 
+        duration_seconds, is_active, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        pair_id,
+        session_id || null,
+        rule_name,
+        direction,
+        odds,
+        min_bet,
+        max_bet,
+        duration_seconds,
+        is_active,
+        req.user?.id || null,
+      ]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Trading rule created successfully',
+    });
+  } catch (error: any) {
+    console.error('Create rule error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/trading/rules/:id
+ * Update trading rule
+ */
+router.put('/rules/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields: any = {};
+    const params: any[] = [];
+    let paramCount = 1;
+
+    const allowedFields = [
+      'rule_name',
+      'direction',
+      'odds',
+      'min_bet',
+      'max_bet',
+      'duration_seconds',
+      'is_active',
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateFields[field] = `$${paramCount}`;
+        params.push(req.body[field]);
+        paramCount++;
+      }
+    }
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(id);
+    const setClause = Object.keys(updateFields)
+      .map((key) => `${key} = ${updateFields[key]}`)
+      .join(', ');
+
+    const result = await query(
+      `UPDATE trading_rules 
+       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $${paramCount}
+       RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading rule not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Trading rule updated successfully',
+    });
+  } catch (error: any) {
+    console.error('Update rule error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/trading/rules/:id
+ * Delete trading rule
+ */
+router.delete('/rules/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    await query('DELETE FROM trading_rules WHERE id = $1', [id]);
+
+    res.json({
+      success: true,
+      message: 'Trading rule deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete rule error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/trading/sessions
+ * Get all trading sessions with settlement info
+ */
+router.get('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 50, status } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let whereClause = '';
+    const params: any[] = [Number(limit), offset];
+    
+    if (status) {
+      whereClause = 'WHERE ts.status = $3';
+      params.push(status);
+    }
+
+    const result = await query(
+      `SELECT 
+         ts.*,
+         tp.symbol as pair_symbol,
+         tp.display_name as pair_display_name,
+         tr.rule_name,
+         tr.direction as rule_direction,
+         tr.odds as rule_odds
+       FROM trading_sessions ts
+       JOIN trading_pairs tp ON ts.pair_id = tp.id
+       LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
+       ${whereClause}
+       ORDER BY ts.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      params
+    );
+
+    const countQuery = status
+      ? 'SELECT COUNT(*) FROM trading_sessions WHERE status = $1'
+      : 'SELECT COUNT(*) FROM trading_sessions';
+    const countParams = status ? [status] : [];
+    const countResult = await query(countQuery, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/sessions/:id/settle
+ * Manually settle a trading session
+ */
+router.post('/sessions/:id/settle', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { result_direction, settlement_price } = req.body;
+
+    if (!result_direction || !settlement_price) {
+      return res.status(400).json({
+        error: 'result_direction and settlement_price are required',
+      });
+    }
+
+    if (!['up', 'down'].includes(result_direction)) {
+      return res.status(400).json({
+        error: 'result_direction must be "up" or "down"',
+      });
+    }
+
+    const { settleSession } = require('../services/trading-settlement.service');
+    const result = await settleSession(
+      parseInt(id),
+      result_direction,
+      parseFloat(settlement_price)
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Session settled successfully',
+    });
+  } catch (error: any) {
+    console.error('Settle session error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
