@@ -1,0 +1,333 @@
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { apiClient } from '../services/api';
+
+interface WalletNetwork {
+  id: string;
+  network_name: string;
+  network_display: string;
+  chain_name: string;
+  master_address: string;
+  hd_mnemonic?: string;
+  min_deposit_amount: number;
+  deposit_fee_percent: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const WalletNetworks: React.FC = () => {
+  const [networks, setNetworks] = useState<WalletNetwork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingNetwork, setEditingNetwork] = useState<WalletNetwork | null>(null);
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    fetchNetworks();
+  }, []);
+
+  const fetchNetworks = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.getWalletNetworks();
+      setNetworks(response.networks || []);
+    } catch (error) {
+      console.error('Failed to fetch wallet networks:', error);
+      message.error('获取网络列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenModal = (network?: WalletNetwork) => {
+    if (network) {
+      setEditingNetwork(network);
+      // Don't show the mnemonic in the form for security
+      const formValues = { ...network };
+      delete formValues.hd_mnemonic;
+      form.setFieldsValue(formValues);
+    } else {
+      setEditingNetwork(null);
+      form.resetFields();
+    }
+    setModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      if (editingNetwork) {
+        await apiClient.updateWalletNetwork(editingNetwork.id, values);
+        message.success('网络更新成功');
+      } else {
+        await apiClient.createWalletNetwork(values);
+        message.success('网络创建成功');
+      }
+      
+      setModalOpen(false);
+      form.resetFields();
+      setEditingNetwork(null);
+      fetchNetworks();
+    } catch (error: any) {
+      console.error('Failed to save network:', error);
+      message.error(error.response?.data?.error || '操作失败');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await apiClient.deleteWalletNetwork(id);
+      message.success('网络删除成功');
+      fetchNetworks();
+    } catch (error: any) {
+      console.error('Failed to delete network:', error);
+      message.error(error.response?.data?.error || '删除失败');
+    }
+  };
+
+  const handleToggleStatus = async (id: string, isActive: boolean) => {
+    try {
+      await apiClient.updateWalletNetwork(id, { is_active: !isActive });
+      message.success(isActive ? '已禁用' : '已启用');
+      fetchNetworks();
+    } catch (error: any) {
+      console.error('Failed to toggle status:', error);
+      message.error(error.response?.data?.error || '操作失败');
+    }
+  };
+
+  const columns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (id: string) => id.substring(0, 8),
+    },
+    {
+      title: '网络名称',
+      dataIndex: 'network_name',
+      key: 'network_name',
+      width: 120,
+      render: (name: string) => (
+        <span style={{ fontWeight: 'bold' }}>{name}</span>
+      ),
+    },
+    {
+      title: '显示名称',
+      dataIndex: 'network_display',
+      key: 'network_display',
+      width: 150,
+    },
+    {
+      title: '链名',
+      dataIndex: 'chain_name',
+      key: 'chain_name',
+      width: 100,
+      render: (name: string) => (
+        <Tag color="blue">{name}</Tag>
+      ),
+    },
+    {
+      title: '主地址',
+      dataIndex: 'master_address',
+      key: 'master_address',
+      ellipsis: true,
+      render: (address: string) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{address}</span>
+      ),
+    },
+    {
+      title: '最低充值',
+      dataIndex: 'min_deposit_amount',
+      key: 'min_deposit_amount',
+      width: 100,
+      render: (amount: number) => `${amount.toFixed(2)} USDT`,
+    },
+    {
+      title: '手续费',
+      dataIndex: 'deposit_fee_percent',
+      key: 'deposit_fee_percent',
+      width: 80,
+      render: (fee: number) => `${fee}%`,
+    },
+    {
+      title: '状态',
+      dataIndex: 'is_active',
+      key: 'is_active',
+      width: 80,
+      render: (isActive: boolean) => (
+        <Tag color={isActive ? 'green' : 'red'}>
+          {isActive ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 160,
+      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      fixed: 'right' as const,
+      width: 250,
+      render: (_: any, record: WalletNetwork) => (
+        <Space>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleOpenModal(record)}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={record.is_active ? <StopOutlined /> : <CheckCircleOutlined />}
+            onClick={() => handleToggleStatus(record.id, record.is_active)}
+          >
+            {record.is_active ? '禁用' : '启用'}
+          </Button>
+          <Popconfirm
+            title="确定要删除这个网络吗？"
+            onConfirm={() => handleDelete(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>充值网络管理</h2>
+          <p style={{ color: '#666', marginTop: 4 }}>管理支持的区块链充值网络</p>
+        </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
+          添加网络
+        </Button>
+      </div>
+
+      <Table
+        columns={columns}
+        dataSource={networks}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 1400 }}
+      />
+
+      <Modal
+        title={editingNetwork ? '编辑网络' : '添加网络'}
+        open={modalOpen}
+        onOk={handleSubmit}
+        onCancel={() => {
+          setModalOpen(false);
+          form.resetFields();
+          setEditingNetwork(null);
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{
+            min_deposit_amount: 1,
+            deposit_fee_percent: 0,
+            is_active: true,
+          }}
+        >
+          <Form.Item
+            name="network_name"
+            label="网络名称"
+            rules={[{ required: true, message: '请输入网络名称' }]}
+            tooltip="例如：TRC20, ERC20, BEP20"
+          >
+            <Input placeholder="TRC20" />
+          </Form.Item>
+
+          <Form.Item
+            name="network_display"
+            label="显示名称"
+            rules={[{ required: true, message: '请输入显示名称' }]}
+          >
+            <Input placeholder="TRON (TRC20)" />
+          </Form.Item>
+
+          <Form.Item
+            name="chain_name"
+            label="链名"
+            rules={[{ required: true, message: '请输入链名' }]}
+          >
+            <Select>
+              <Select.Option value="tron">Tron</Select.Option>
+              <Select.Option value="ethereum">Ethereum</Select.Option>
+              <Select.Option value="bsc">BSC</Select.Option>
+              <Select.Option value="polygon">Polygon</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="master_address"
+            label="主地址"
+            rules={[{ required: true, message: '请输入主地址' }]}
+          >
+            <Input placeholder="0x..." />
+          </Form.Item>
+
+          {!editingNetwork && (
+            <Form.Item
+              name="hd_mnemonic"
+              label="HD 助记词"
+              rules={[{ required: true, message: '请输入 HD 助记词' }]}
+              tooltip="用于生成用户充值地址，请妥善保管"
+            >
+              <Input.TextArea rows={2} placeholder="12 或 24 个单词的助记词" />
+            </Form.Item>
+          )}
+
+          <Form.Item
+            name="min_deposit_amount"
+            label="最低充值金额 (USDT)"
+            rules={[{ required: true, message: '请输入最低充值金额' }]}
+          >
+            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="deposit_fee_percent"
+            label="充值手续费 (%)"
+            rules={[{ required: true, message: '请输入手续费百分比' }]}
+          >
+            <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="is_active"
+            label="状态"
+          >
+            <Select>
+              <Select.Option value={true}>启用</Select.Option>
+              <Select.Option value={false}>禁用</Select.Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+};

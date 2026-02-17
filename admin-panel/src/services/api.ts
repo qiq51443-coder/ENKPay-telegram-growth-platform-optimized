@@ -344,6 +344,181 @@ class ApiClient {
     return response.data;
   }
 
+  // NFT API
+  async getNFTCategories() {
+    const response = await this.client.get('/nft/categories');
+    return response.data;
+  }
+
+  async createNFTCategory(data: any) {
+    const response = await this.client.post('/nft/categories', data);
+    return response.data;
+  }
+
+  async updateNFTCategory(id: string, data: any) {
+    const response = await this.client.put(`/nft/categories/${id}`, data);
+    return response.data;
+  }
+
+  async deleteNFTCategory(id: string) {
+    const response = await this.client.delete(`/nft/categories/${id}`);
+    return response.data;
+  }
+
+  async getNFTProducts(params?: any) {
+    const response = await this.client.get('/nft/products', { params });
+    return response.data;
+  }
+
+  async getNFTProduct(id: string) {
+    const response = await this.client.get(`/nft/products/${id}`);
+    return response.data;
+  }
+
+  async createNFTProduct(data: any) {
+    const response = await this.client.post('/nft/products', data);
+    return response.data;
+  }
+
+  async updateNFTProduct(id: string, data: any) {
+    const response = await this.client.put(`/nft/products/${id}`, data);
+    return response.data;
+  }
+
+  async deleteNFTProduct(id: string) {
+    const response = await this.client.delete(`/nft/products/${id}`);
+    return response.data;
+  }
+
+  // Auction API
+  async getAuctions(params?: any) {
+    const response = await this.client.get('/auctions', { params });
+    return response.data;
+  }
+
+  async getAuction(id: string) {
+    const response = await this.client.get(`/auctions/${id}`);
+    return response.data;
+  }
+
+  async createAuction(data: any) {
+    const response = await this.client.post('/auctions', data);
+    return response.data;
+  }
+
+  async drawAuction(id: string) {
+    const response = await this.client.post(`/auctions/${id}/draw`);
+    return response.data;
+  }
+
+  async getAuctionEntries(id: string) {
+    const response = await this.client.get(`/auctions/${id}/entries`);
+    return response.data;
+  }
+
+  // Trading Admin API
+  async getTradingPairs(params?: any) {
+    const response = await this.client.get('/admin/trading/pairs', { params });
+    return response.data;
+  }
+
+  async createRealPair(data: any) {
+    const response = await this.client.post('/admin/trading/pairs/real', data);
+    return response.data;
+  }
+
+  async createCustomPair(data: any) {
+    const response = await this.client.post('/admin/trading/pairs/custom', data);
+    return response.data;
+  }
+
+  async updateTradingPair(id: string, data: any) {
+    const response = await this.client.put(`/admin/trading/pairs/${id}`, data);
+    return response.data;
+  }
+
+  async deleteTradingPair(id: string) {
+    const response = await this.client.delete(`/admin/trading/pairs/${id}`);
+    return response.data;
+  }
+
+  async addPricePoint(pairId: string, data: any) {
+    const response = await this.client.post(`/admin/trading/pairs/${pairId}/price-points`, data);
+    return response.data;
+  }
+
+  async createPricePreset(pairId: string, data: any) {
+    const response = await this.client.post(`/admin/trading/pairs/${pairId}/presets`, data);
+    return response.data;
+  }
+
+  async activatePreset(presetId: string) {
+    const response = await this.client.put(`/admin/trading/presets/${presetId}/activate`);
+    return response.data;
+  }
+
+  // Charity API
+  async getCharityProjects(params?: any) {
+    const response = await this.client.get('/charity/projects', { params });
+    return response.data;
+  }
+
+  async getCharityProject(id: string) {
+    const response = await this.client.get(`/charity/projects/${id}`);
+    return response.data;
+  }
+
+  async createCharityProject(data: any) {
+    const response = await this.client.post('/charity/projects', data);
+    return response.data;
+  }
+
+  async updateCharityProject(id: string, data: any) {
+    const response = await this.client.put(`/charity/projects/${id}`, data);
+    return response.data;
+  }
+
+  // Wallet Admin API
+  async getWalletNetworks() {
+    const response = await this.client.get('/admin/wallet/networks');
+    return response.data;
+  }
+
+  async createWalletNetwork(data: any) {
+    const response = await this.client.post('/admin/wallet/networks', data);
+    return response.data;
+  }
+
+  async updateWalletNetwork(id: string, data: any) {
+    const response = await this.client.put(`/admin/wallet/networks/${id}`, data);
+    return response.data;
+  }
+
+  async deleteWalletNetwork(id: string) {
+    const response = await this.client.delete(`/admin/wallet/networks/${id}`);
+    return response.data;
+  }
+
+  async getDepositRecords(params?: any) {
+    const response = await this.client.get('/admin/wallet/deposits', { params });
+    return response.data;
+  }
+
+  async getTransferRecords(params?: any) {
+    const response = await this.client.get('/admin/wallet/transfers', { params });
+    return response.data;
+  }
+
+  async getWithdrawalRecords(params?: any) {
+    const response = await this.client.get('/admin/wallet/withdrawals', { params });
+    return response.data;
+  }
+
+  async reviewWithdrawalNew(id: string, data: any) {
+    const response = await this.client.put(`/admin/wallet/withdrawals/${id}/review`, data);
+    return response.data;
+  }
+
   // File upload helper
   getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;

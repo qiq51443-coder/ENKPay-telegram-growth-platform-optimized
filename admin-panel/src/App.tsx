@@ -21,6 +21,13 @@ import {
   FileTextOutlined,
   DatabaseOutlined,
   BarChartOutlined,
+  AppstoreOutlined,
+  TrophyOutlined,
+  LineChartOutlined,
+  HeartOutlined,
+  WalletOutlined,
+  BankOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -34,6 +41,15 @@ import { Settings } from './pages/Settings';
 import { AdminUserManager } from './pages/AdminUserManager';
 import { AuditLogs } from './pages/AuditLogs';
 import { SystemSettings } from './pages/SystemSettings';
+import { NFTCategories } from './pages/NFTCategories';
+import { NFTProducts } from './pages/NFTProducts';
+import { Auctions } from './pages/Auctions';
+import { TradingPairs } from './pages/TradingPairs';
+import { CustomPriceControl } from './pages/CustomPriceControl';
+import { CharityProjects } from './pages/CharityProjects';
+import { WalletNetworks } from './pages/WalletNetworks';
+import { DepositRecords } from './pages/DepositRecords';
+import { TransferRecords } from './pages/TransferRecords';
 
 const { Header, Sider, Content } = Layout;
 
@@ -69,6 +85,69 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       label: <Link to="/analytics">数据分析</Link>,
     },
     {
+      key: 'nft',
+      icon: <AppstoreOutlined />,
+      label: 'NFT 管理',
+      children: [
+        {
+          key: 'nft-categories',
+          label: <Link to="/nft-categories">NFT 分类</Link>,
+        },
+        {
+          key: 'nft-products',
+          label: <Link to="/nft-products">NFT 产品</Link>,
+        },
+      ],
+    },
+    {
+      key: 'auctions',
+      icon: <TrophyOutlined />,
+      label: <Link to="/auctions">竞拍管理</Link>,
+    },
+    {
+      key: 'trading',
+      icon: <LineChartOutlined />,
+      label: '交易管理',
+      children: [
+        {
+          key: 'trading-pairs',
+          label: <Link to="/trading-pairs">交易币种</Link>,
+        },
+        {
+          key: 'custom-price',
+          label: <Link to="/custom-price">自定义走势</Link>,
+        },
+      ],
+    },
+    {
+      key: 'charity',
+      icon: <HeartOutlined />,
+      label: <Link to="/charity">公益管理</Link>,
+    },
+    {
+      key: 'wallet',
+      icon: <WalletOutlined />,
+      label: '钱包管理',
+      children: [
+        {
+          key: 'wallet-networks',
+          label: <Link to="/wallet-networks">充值网络</Link>,
+        },
+        {
+          key: 'deposit-records',
+          label: <Link to="/deposit-records">充值记录</Link>,
+        },
+        {
+          key: 'withdrawals',
+          label: <Link to="/withdrawals">提现审核</Link>,
+        },
+        {
+          key: 'transfer-records',
+          label: <Link to="/transfer-records">转账记录</Link>,
+        },
+      ],
+    },
+    {
       key: 'bots',
       icon: <RobotOutlined />,
       label: <Link to="/bots">Bot 管理</Link>,
@@ -77,11 +156,6 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'users',
       icon: <UserOutlined />,
       label: <Link to="/users">用户列表</Link>,
-    },
-    {
-      key: 'withdrawals',
-      icon: <DollarOutlined />,
-      label: <Link to="/withdrawals">提现审核</Link>,
     },
     {
       key: 'red-packets',
@@ -134,7 +208,7 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
             borderBottom: '1px solid rgba(255,255,255,0.1)',
           }}
         >
-          {collapsed ? 'TGP' : 'Telegram Growth'}
+          {collapsed ? 'NFT' : 'NFT 数字藏品'}
         </div>
         <Menu
           theme="dark"
@@ -283,6 +357,78 @@ function App() {
         element={
           <ProtectedRoute>
             <SystemSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/nft-categories"
+        element={
+          <ProtectedRoute>
+            <NFTCategories />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/nft-products"
+        element={
+          <ProtectedRoute>
+            <NFTProducts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auctions"
+        element={
+          <ProtectedRoute>
+            <Auctions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trading-pairs"
+        element={
+          <ProtectedRoute>
+            <TradingPairs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/custom-price"
+        element={
+          <ProtectedRoute>
+            <CustomPriceControl />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/charity"
+        element={
+          <ProtectedRoute>
+            <CharityProjects />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/wallet-networks"
+        element={
+          <ProtectedRoute>
+            <WalletNetworks />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/deposit-records"
+        element={
+          <ProtectedRoute>
+            <DepositRecords />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/transfer-records"
+        element={
+          <ProtectedRoute>
+            <TransferRecords />
           </ProtectedRoute>
         }
       />
