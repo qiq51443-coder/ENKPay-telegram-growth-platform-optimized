@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
+import { checkBinanceConnectivity } from './services/price.service';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -89,6 +90,9 @@ const startServer = async () => {
     // Connect to Redis
     await connectRedis();
     console.log('✓ Redis connected');
+
+    // Check Binance API connectivity
+    await checkBinanceConnectivity();
 
     // Start deposit checker job
     startDepositChecker();
