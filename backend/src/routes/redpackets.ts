@@ -230,9 +230,16 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         [user_id]
       );
 
-      // Add balance
+      // Check if this is the user's first red packet claim
+      const isNewUserResult = await client.query(
+        'SELECT COUNT(*) as claim_count FROM red_packet_claims WHERE user_id = $1',
+        [user_id]
+      );
+      const isNewUser = parseInt(isNewUserResult.rows[0].claim_count) === 0;
+
+      // Add to reward_balance instead of balance
       await client.query(
-        'UPDATE users SET balance = balance + $1 WHERE id = $2',
+        'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
         [claimAmount, user_id]
       );
 
@@ -250,13 +257,65 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         [claimAmount, id]
       );
 
-      // Record transaction
-      const userBalanceResult = await client.query('SELECT balance FROM users WHERE id = $1', [user_id]);
+      // Record transaction as red_packet_claim type
+      const userBalanceResult = await client.query(
+        'SELECT reward_balance FROM users WHERE id = $1', 
+        [user_id]
+      );
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description)
          VALUES ($1, $2, $3, $4, $5)`,
-        [user_id, 'red_packet', claimAmount, userBalanceResult.rows[0].balance, 'Red packet claim']
+        [user_id, 'red_packet_claim', claimAmount, userBalanceResult.rows[0].reward_balance, 'Red packet claim']
       );
+
+      // If new user, trigger follow reward for referrer
+      if (isNewUser) {
+        const invitationResult = await client.query(
+          'SELECT inviter_user_id, follow_reward_paid FROM invitations WHERE invitee_user_id = $1',
+          [user_id]
+        );
+
+        if (invitationResult.rows.length > 0) {
+          const invitation = invitationResult.rows[0];
+          
+          // Give follow reward (5 USDT) to referrer if not already paid
+          if (!invitation.follow_reward_paid && invitation.inviter_user_id) {
+            const FOLLOW_REWARD = 5.00;
+            
+            await client.query(
+              'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
+              [FOLLOW_REWARD, invitation.inviter_user_id]
+            );
+
+            await client.query(
+              `UPDATE invitations 
+               SET follow_reward_paid = true, 
+                   invitee_first_interaction = CURRENT_TIMESTAMP
+               WHERE invitee_user_id = $1`,
+              [user_id]
+            );
+
+            // Record referrer transaction
+            const referrerBalanceResult = await client.query(
+              'SELECT reward_balance FROM users WHERE id = $1',
+              [invitation.inviter_user_id]
+            );
+            
+            await client.query(
+              `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                invitation.inviter_user_id,
+                'referral_reward',
+                FOLLOW_REWARD,
+                referrerBalanceResult.rows[0].reward_balance,
+                'Follow reward from referral',
+                user_id
+              ]
+            );
+          }
+        }
+      }
 
       return { amount: claimAmount, claimed_count: redPacket.claimed_count + 1 };
     });

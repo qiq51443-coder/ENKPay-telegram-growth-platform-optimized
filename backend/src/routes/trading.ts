@@ -2,6 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { getPairPrice, getKlineData, getCachedKlineData } from '../services/price.service';
+import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
 
@@ -237,6 +238,9 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
          RETURNING *`,
         [id, user_id, session.pair_id, direction, orderAmount, entryPrice]
       );
+
+      // Trigger first trade reward for referrer
+      await triggerFirstTradeReward(client, user_id);
 
       return orderResult.rows[0];
     });

@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
 
@@ -370,8 +371,8 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
         [user_id, product_id, product.price]
       );
 
-      // TODO: Trigger first trade reward if configured
-      // TODO: Mint NFT on blockchain if needed
+      // Trigger first trade reward for referrer
+      await triggerFirstTradeReward(client, user_id);
 
       return holdingResult.rows[0];
     });
