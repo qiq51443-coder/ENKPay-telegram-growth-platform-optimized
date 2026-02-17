@@ -235,7 +235,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         'SELECT COUNT(*) as claim_count FROM red_packet_claims WHERE user_id = $1',
         [user_id]
       );
-      const isNewUser = isNewUserResult.rows[0].claim_count === '0';
+      const isNewUser = parseInt(isNewUserResult.rows[0].claim_count) === 0;
 
       // Add to reward_balance instead of balance
       await client.query(

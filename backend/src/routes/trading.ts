@@ -2,6 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { getPairPrice, getKlineData, getCachedKlineData } from '../services/price.service';
+import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
 
@@ -239,102 +240,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
       );
 
       // Trigger first trade reward for referrer
-      const invitationResult = await client.query(
-        `SELECT inviter_user_id, trade_reward_paid, invitee_first_trade
-         FROM invitations 
-         WHERE invitee_user_id = $1`,
-        [user_id]
-      );
-
-      if (invitationResult.rows.length > 0) {
-        const invitation = invitationResult.rows[0];
-        
-        // Check if this is the first trade and reward not paid
-        if (!invitation.invitee_first_trade && !invitation.trade_reward_paid && invitation.inviter_user_id) {
-          const TRADE_REWARD = 5.00;
-          
-          // Give trade reward to referrer (L1)
-          await client.query(
-            'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
-            [TRADE_REWARD, invitation.inviter_user_id]
-          );
-
-          // Update invitation record
-          await client.query(
-            `UPDATE invitations 
-             SET invitee_first_trade = CURRENT_TIMESTAMP,
-                 trade_reward_paid = true
-             WHERE invitee_user_id = $1`,
-            [user_id]
-          );
-
-          // Record L1 referrer transaction
-          const l1BalanceResult = await client.query(
-            'SELECT reward_balance FROM users WHERE id = $1',
-            [invitation.inviter_user_id]
-          );
-          
-          await client.query(
-            `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [
-              invitation.inviter_user_id,
-              'referral_reward',
-              TRADE_REWARD,
-              l1BalanceResult.rows[0].reward_balance,
-              'First trade reward from referral',
-              user_id
-            ]
-          );
-
-          // Check for L2 referrer
-          const l2InvitationResult = await client.query(
-            `SELECT inviter_user_id, trade_reward_paid_l2
-             FROM invitations 
-             WHERE invitee_user_id = $1`,
-            [invitation.inviter_user_id]
-          );
-
-          if (l2InvitationResult.rows.length > 0) {
-            const l2Invitation = l2InvitationResult.rows[0];
-            
-            if (!l2Invitation.trade_reward_paid_l2 && l2Invitation.inviter_user_id) {
-              // Give L2 trade reward
-              await client.query(
-                'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
-                [TRADE_REWARD, l2Invitation.inviter_user_id]
-              );
-
-              // Update L2 invitation record
-              await client.query(
-                `UPDATE invitations 
-                 SET trade_reward_paid_l2 = true
-                 WHERE invitee_user_id = $1`,
-                [invitation.inviter_user_id]
-              );
-
-              // Record L2 referrer transaction
-              const l2BalanceResult = await client.query(
-                'SELECT reward_balance FROM users WHERE id = $1',
-                [l2Invitation.inviter_user_id]
-              );
-              
-              await client.query(
-                `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [
-                  l2Invitation.inviter_user_id,
-                  'referral_reward',
-                  TRADE_REWARD,
-                  l2BalanceResult.rows[0].reward_balance,
-                  'L2 first trade reward from referral',
-                  user_id
-                ]
-              );
-            }
-          }
-        }
-      }
+      await triggerFirstTradeReward(client, user_id);
 
       return orderResult.rows[0];
     });
