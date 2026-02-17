@@ -5,29 +5,20 @@ import {
   DashboardOutlined,
   UserOutlined,
   RobotOutlined,
-  LinkOutlined,
   GiftOutlined,
   SoundOutlined,
-  PictureOutlined,
-  ShopOutlined,
-  BookOutlined,
-  DollarOutlined,
   TeamOutlined,
   AuditOutlined,
   SettingOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  FileTextOutlined,
-  DatabaseOutlined,
   BarChartOutlined,
   AppstoreOutlined,
   TrophyOutlined,
   LineChartOutlined,
   HeartOutlined,
   WalletOutlined,
-  BankOutlined,
-  SwapOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -37,7 +28,6 @@ import { Bots } from './pages/Bots';
 import { RedPackets } from './pages/RedPackets';
 import { Broadcasts } from './pages/Broadcasts';
 import { Withdrawals } from './pages/Withdrawals';
-import { Settings } from './pages/Settings';
 import { AdminUserManager } from './pages/AdminUserManager';
 import { AuditLogs } from './pages/AuditLogs';
 import { SystemSettings } from './pages/SystemSettings';

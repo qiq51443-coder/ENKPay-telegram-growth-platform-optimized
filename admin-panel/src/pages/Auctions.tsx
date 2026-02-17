@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker } from 'antd';
 import { PlusOutlined, TrophyOutlined, EyeOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
-import dayjs from 'dayjs';
 
 interface Auction {
   id: string;

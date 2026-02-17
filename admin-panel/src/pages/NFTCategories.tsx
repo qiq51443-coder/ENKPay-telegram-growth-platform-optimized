@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Checkbox } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -238,7 +238,7 @@ export const NFTCategories: React.FC = () => {
             label="状态"
             valuePropName="checked"
           >
-            <Input type="checkbox" />
+            <Checkbox>启用</Checkbox>
           </Form.Item>
         </Form>
       </Modal>

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker } from 'antd';
 import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
-import dayjs from 'dayjs';
 
 interface TradingPair {
   id: string;
