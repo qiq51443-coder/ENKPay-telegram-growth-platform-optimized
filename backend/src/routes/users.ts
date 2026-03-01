@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -291,7 +292,7 @@ router.get('/stats/overview', authenticateAdmin, async (req: AuthRequest, res) =
 });
 
 // Freeze user
-router.post('/:id/freeze', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/:id/freeze', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -307,7 +308,7 @@ router.post('/:id/freeze', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 // Unfreeze user
-router.post('/:id/unfreeze', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/:id/unfreeze', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -323,7 +324,7 @@ router.post('/:id/unfreeze', authenticateAdmin, async (req: AuthRequest, res) =>
 });
 
 // Adjust user balance (admin)
-router.post('/:id/adjust-balance', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { amount, type, reason } = req.body;
@@ -363,7 +364,7 @@ router.post('/:id/adjust-balance', authenticateAdmin, async (req: AuthRequest, r
 });
 
 // Get user by unique_id
-router.get('/unique/:uniqueId', authenticateAdmin, async (req: AuthRequest, res) => {
+router.get('/unique/:uniqueId', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { uniqueId } = req.params;
     const result = await query(

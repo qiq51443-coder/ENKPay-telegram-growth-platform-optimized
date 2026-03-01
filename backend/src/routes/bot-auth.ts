@@ -2,8 +2,12 @@ import express from 'express';
 import axios from 'axios';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all bot-auth routes
+router.use(adminLimiter);
 
 /**
  * POST /api/bot-auth/authorize

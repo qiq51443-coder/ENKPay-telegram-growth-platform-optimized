@@ -1,8 +1,12 @@
 import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all order routes
+router.use(adminLimiter);
 
 /**
  * GET /api/orders — Admin: list all orders with pagination and search
