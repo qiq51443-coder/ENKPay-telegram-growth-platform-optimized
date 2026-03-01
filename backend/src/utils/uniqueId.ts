@@ -27,15 +27,18 @@ export async function getOrCreateUniqueId(telegramId: number, botId: string): Pr
   }
 
   // Generate new unique ID
-  let uniqueId: string;
+  let uniqueId = '';
   let attempts = 0;
-  do {
-    uniqueId = generateUniqueIdCandidate();
-    const conflict = await query('SELECT id FROM users WHERE unique_id = $1', [uniqueId]);
-    if (conflict.rows.length === 0) break;
+  while (attempts <= 100) {
+    const candidate = generateUniqueIdCandidate();
+    const conflict = await query('SELECT id FROM users WHERE unique_id = $1', [candidate]);
+    if (conflict.rows.length === 0) {
+      uniqueId = candidate;
+      break;
+    }
     attempts++;
-    if (attempts > 100) throw new Error('Failed to generate unique ID after 100 attempts');
-  } while (true);
+  }
+  if (!uniqueId) throw new Error('Failed to generate unique ID after 100 attempts');
 
   // Persist the generated unique_id
   await query(

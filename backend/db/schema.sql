@@ -398,17 +398,18 @@ CREATE OR REPLACE FUNCTION generate_unique_id()
 RETURNS TEXT AS $$
 DECLARE
   new_id TEXT;
-  done BOOLEAN := false;
+  attempts INT := 0;
   letters TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 BEGIN
-  WHILE NOT done LOOP
+  WHILE attempts <= 100 LOOP
     new_id := SUBSTR(letters, FLOOR(RANDOM() * LENGTH(letters) + 1)::INT, 1) ||
               LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
     IF NOT EXISTS (SELECT 1 FROM users WHERE unique_id = new_id) THEN
-      done := true;
+      RETURN new_id;
     END IF;
+    attempts := attempts + 1;
   END LOOP;
-  RETURN new_id;
+  RAISE EXCEPTION 'Failed to generate unique_id after 100 attempts';
 END;
 $$ LANGUAGE plpgsql;
 

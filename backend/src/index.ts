@@ -6,6 +6,7 @@ import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
+import { generalLimiter } from './middleware/rateLimiter';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -60,14 +61,14 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Static file serving for admin-panel SPA
 const adminDistPath = path.join(__dirname, 'public/admin');
 app.use('/admin', express.static(adminDistPath));
-app.get('/admin/*', (req, res) => {
+app.get('/admin/*', generalLimiter, (req, res) => {
   res.sendFile(path.join(adminDistPath, 'index.html'));
 });
 
 // Static file serving for mini-app SPA
 const appDistPath = path.join(__dirname, 'public/app');
 app.use('/app', express.static(appDistPath));
-app.get('/app/*', (req, res) => {
+app.get('/app/*', generalLimiter, (req, res) => {
   res.sendFile(path.join(appDistPath, 'index.html'));
 });
 

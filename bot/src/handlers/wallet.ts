@@ -26,7 +26,7 @@ export const handleWallet = async (ctx: Context) => {
 
     const message =
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
-      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.robot_user_id || user.invite_code || 'N/A'}</b>\n` +
+      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
       `💵 ${t(lang, 'wallet_balance')}: <b>${balance.toFixed(2)}</b>\n`;
 
     await ctx.replyWithHTML(message, Markup.keyboard([

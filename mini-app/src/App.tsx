@@ -29,6 +29,8 @@ function App() {
       });
     }, 80);
     return () => clearInterval(interval);
+  // tg is stable after initial mount; expand only needs to be called once
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {

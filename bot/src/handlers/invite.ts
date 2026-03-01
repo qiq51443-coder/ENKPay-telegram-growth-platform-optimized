@@ -11,7 +11,7 @@ export const handleInvite = async (ctx: Context) => {
     const lang = getUserLanguage(user);
 
     const botUsername = process.env.BOT_USERNAME || 'your_bot';
-    const uniqueId = user.robot_user_id || user.invite_code;
+    const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
     const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
 
     const message =

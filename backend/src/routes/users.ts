@@ -340,6 +340,7 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
 
     const delta = type === 'add' ? numAmount : -numAmount;
 
+    // delta is negative for subtract operations; the (balance + $1) >= 0 check prevents negative balances
     const result = await query(
       'UPDATE users SET balance = balance + $1 WHERE id = $2 AND (balance + $1) >= 0 RETURNING *',
       [delta, id]

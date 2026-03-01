@@ -18,15 +18,18 @@ export function generateOrderIdCandidate(): string {
  * Generate a unique order ID that doesn't exist in the database
  */
 export async function generateOrderId(): Promise<string> {
-  let orderId: string;
+  let orderId = '';
   let attempts = 0;
-  do {
-    orderId = generateOrderIdCandidate();
-    const conflict = await query('SELECT id FROM orders WHERE order_id = $1', [orderId]);
-    if (conflict.rows.length === 0) break;
+  while (attempts <= 100) {
+    const candidate = generateOrderIdCandidate();
+    const conflict = await query('SELECT id FROM orders WHERE order_id = $1', [candidate]);
+    if (conflict.rows.length === 0) {
+      orderId = candidate;
+      break;
+    }
     attempts++;
-    if (attempts > 100) throw new Error('Failed to generate order ID after 100 attempts');
-  } while (true);
+  }
+  if (!orderId) throw new Error('Failed to generate order ID after 100 attempts');
 
   return orderId;
 }

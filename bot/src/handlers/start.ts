@@ -40,7 +40,7 @@ export const handleStart = async (ctx: Context) => {
     // Build welcome message
     const welcomeText = settings.welcome_message ||
       `🎉 ${t(botLang, 'welcome_title')}\n\n` +
-      `🆔 ${t(botLang, 'your_unique_id')}: <b>${user.robot_user_id || user.invite_code || 'N/A'}</b>\n` +
+      `🆔 ${t(botLang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
       `💰 ${t(botLang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
       t(botLang, 'welcome_description');
 

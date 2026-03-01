@@ -52,9 +52,10 @@ export const Profile: React.FC = () => {
     } else {
       setLoading(false);
     }
-  // fetchProfile is defined in render scope; initData is the actual dependency
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initData]);
+
+  if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>加载中...</div>;
   }
 
