@@ -92,6 +92,14 @@ export const Users: React.FC = () => {
     }
   };
 
+  const openAdjustModal = (record: User) => {
+    setSelectedUser(record);
+    setAdjustAmount(0);
+    setAdjustType('add');
+    setAdjustReason('');
+    setAdjustModal(true);
+  };
+
   const handleAdjustBalance = async () => {
     try {
       await axios.post(`/api/users/${selectedUser?.id}/adjust-balance`, {
@@ -218,7 +226,7 @@ export const Users: React.FC = () => {
             type="text"
             size="small"
             icon={<DollarOutlined />}
-            onClick={() => { setSelectedUser(record); setAdjustAmount(0); setAdjustType('add'); setAdjustReason(''); setAdjustModal(true); }}
+            onClick={() => openAdjustModal(record)}
           >
             调整余额
           </Button>
