@@ -8,6 +8,12 @@ import { handleLanguage } from './language';
 import { handleHelp } from './help';
 import { t } from '../i18n';
 
+const ALL_LANGS = ['en', 'zh', 'fr', 'de', 'es', 'ar', 'ja'];
+
+function collectButtons(key: string): string[] {
+  return ALL_LANGS.map(l => t(l, key));
+}
+
 export const handleMenu = async (ctx: Context) => {
   try {
     if (!ctx.from || !ctx.message || !('text' in ctx.message)) return;
@@ -19,18 +25,19 @@ export const handleMenu = async (ctx: Context) => {
 
     // Match menu buttons in any language
     const buttons = {
-      wallet: [t('en', 'btn_my_wallet'), t('zh', 'btn_my_wallet')],
-      invite: [t('en', 'btn_invite'), t('zh', 'btn_invite')],
-      help: [t('en', 'btn_help'), t('zh', 'btn_help')],
-      tasks: [t('en', 'menu_tasks'), t('zh', 'menu_tasks')],
-      account: [t('en', 'menu_account'), t('zh', 'menu_account')],
-      language: [t('en', 'menu_language'), t('zh', 'menu_language')],
+      wallet: collectButtons('btn_my_wallet'),
+      invite: collectButtons('btn_invite'),
+      help: collectButtons('btn_help'),
+      tasks: collectButtons('menu_tasks'),
+      account: collectButtons('menu_account'),
+      language: collectButtons('menu_language'),
+      back: collectButtons('btn_back'),
     };
 
     if (buttons.wallet.includes(text)) {
-      await handleWallet(ctx, user);
+      await handleWallet(ctx);
     } else if (buttons.invite.includes(text)) {
-      await handleInvite(ctx, user);
+      await handleInvite(ctx);
     } else if (buttons.help.includes(text)) {
       await handleHelp(ctx, user);
     } else if (buttons.tasks.includes(text)) {

@@ -159,4 +159,13 @@ export const zh = {
   cancel: '取消',
   confirm: '确认',
   error: '发生错误。请重试。',
+
+  // New keys
+  your_unique_id: '您的唯一ID',
+  your_balance: '您的余额',
+  btn_open_app: '📱 打开应用',
+  btn_transfer: '💸 转账',
+  btn_deposit: '📥 充值',
+  btn_withdraw: '📤 提现',
+  btn_back: '« 返回',
 };

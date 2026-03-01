@@ -296,3 +296,142 @@ CREATE TRIGGER trigger_update_bot_settings_updated_at
 BEFORE UPDATE ON bot_settings
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+-- Add new fields to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unique_id VARCHAR(7) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_frozen BOOLEAN DEFAULT false;
+
+-- Add new fields to bots table  
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS default_language VARCHAR(5) DEFAULT 'en';
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS welcome_message TEXT;
+
+-- Add new fields to red_packets table
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS is_random BOOLEAN DEFAULT true;
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS balance_expiry_hours INTEGER;
+
+-- Add balance_expires_at to red_packet_claims
+ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expires_at TIMESTAMPTZ;
+
+-- Create unique_id index
+CREATE INDEX IF NOT EXISTS idx_users_unique_id ON users(unique_id);
+
+-- Authorized groups table
+CREATE TABLE IF NOT EXISTS authorized_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+  group_id BIGINT NOT NULL,
+  group_name TEXT,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(bot_id, group_id)
+);
+
+-- Orders table
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id VARCHAR(11) UNIQUE NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('transfer', 'deposit', 'withdrawal', 'red_packet')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'cancelled')),
+  amount DECIMAL(10, 2) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+
+-- Announcements table
+CREATE TABLE IF NOT EXISTS announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  images TEXT[] DEFAULT '{}',
+  targets VARCHAR[] DEFAULT '{}',
+  scheduled_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  is_pinned BOOLEAN DEFAULT false,
+  show_on_app_launch BOOLEAN DEFAULT false,
+  status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sent', 'expired')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Charity activities table
+CREATE TABLE IF NOT EXISTS charity_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  target_amount DECIMAL(10, 2) DEFAULT 0,
+  current_amount DECIMAL(10, 2) DEFAULT 0,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Charity applications table
+CREATE TABLE IF NOT EXISTS charity_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  activity_id UUID REFERENCES charity_activities(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT,
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  amount DECIMAL(10, 2),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ
+);
+
+-- Balance adjustments log
+CREATE TABLE IF NOT EXISTS balance_adjustments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  admin_id UUID REFERENCES admin_users(id),
+  amount DECIMAL(10, 2) NOT NULL,
+  type VARCHAR(10) NOT NULL CHECK (type IN ('add', 'subtract')),
+  reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Generate unique_id for existing users without one
+CREATE OR REPLACE FUNCTION generate_unique_id()
+RETURNS TEXT AS $$
+DECLARE
+  new_id TEXT;
+  attempts INT := 0;
+  letters TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+BEGIN
+  WHILE attempts <= 100 LOOP
+    new_id := SUBSTR(letters, FLOOR(RANDOM() * LENGTH(letters) + 1)::INT, 1) ||
+              LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+    IF NOT EXISTS (SELECT 1 FROM users WHERE unique_id = new_id) THEN
+      RETURN new_id;
+    END IF;
+    attempts := attempts + 1;
+  END LOOP;
+  RAISE EXCEPTION 'Failed to generate unique_id after 100 attempts';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Update trigger to also set unique_id
+CREATE OR REPLACE FUNCTION set_user_ids()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.robot_user_id IS NULL THEN
+    NEW.robot_user_id := generate_robot_user_id();
+  END IF;
+  IF NEW.invite_code IS NULL THEN
+    NEW.invite_code := generate_invite_code();
+  END IF;
+  IF NEW.unique_id IS NULL THEN
+    NEW.unique_id := generate_unique_id();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for orders updated_at
+CREATE TRIGGER trigger_update_orders_updated_at
+BEFORE UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();

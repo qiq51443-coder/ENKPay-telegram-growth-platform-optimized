@@ -1,6 +1,7 @@
 import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import { connectRedis as connectStateRedis } from './utils/state';
 import { connectRedis as connectSettingsRedis, subscribeToSettingsUpdates } from './services/settings';
 import { getOrCreateUser, getUserLanguage } from './services/user';
@@ -10,6 +11,8 @@ import { getUserState } from './utils/state';
 // Import handlers
 import { handleStart } from './handlers/start';
 import { handleMenu } from './handlers/menu';
+import { handleWallet } from './handlers/wallet';
+import { handleInvite } from './handlers/invite';
 import { handleLanguageChange } from './handlers/language';
 import { handleRedPacketClaim } from './handlers/redpacket';
 
@@ -96,6 +99,26 @@ bot.catch((err, ctx) => {
   console.error('Bot error:', err);
 });
 
+// Group membership tracking
+bot.on('my_chat_member', async (ctx) => {
+  try {
+    const chat = ctx.myChatMember.chat;
+    if (chat.type === 'group' || chat.type === 'supergroup') {
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+      const newStatus = ctx.myChatMember.new_chat_member.status;
+      if (newStatus === 'member' || newStatus === 'administrator') {
+        await axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
+          bot_id: BOT_ID,
+          group_id: chat.id,
+          group_name: chat.title,
+        }).catch(() => {}); // Ignore errors
+      }
+    }
+  } catch (error) {
+    console.error('my_chat_member error:', error);
+  }
+});
+
 // Start bot
 const startBot = async () => {
   try {
@@ -110,8 +133,15 @@ const startBot = async () => {
     });
 
     // Start bot
-    await bot.launch();
-    console.log('✓ Bot started successfully');
+    if (process.env.USE_WEBHOOK === 'true') {
+      const webhookDomain = process.env.WEBHOOK_DOMAIN;
+      const botId = BOT_ID;
+      await bot.telegram.setWebhook(`${webhookDomain}/webhook/${botId}`);
+      console.log(`✓ Bot webhook set to ${webhookDomain}/webhook/${botId}`);
+    } else {
+      await bot.launch();
+      console.log('✓ Bot started in polling mode');
+    }
 
     // Enable graceful stop
     process.once('SIGINT', () => bot.stop('SIGINT'));

@@ -159,4 +159,13 @@ export const en = {
   cancel: 'Cancel',
   confirm: 'Confirm',
   error: 'An error occurred. Please try again.',
+
+  // New keys
+  your_unique_id: 'Your Unique ID',
+  your_balance: 'Your Balance',
+  btn_open_app: '📱 Open App',
+  btn_transfer: '💸 Transfer',
+  btn_deposit: '📥 Deposit',
+  btn_withdraw: '📤 Withdraw',
+  btn_back: '« Back',
 };

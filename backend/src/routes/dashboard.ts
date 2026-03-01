@@ -333,4 +333,59 @@ router.get('/top-users', authenticateAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+/**
+ * GET /admin/dashboard/stats
+ * Get 7 dashboard stat cards
+ */
+router.get('/stats', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Total users
+    const userStats = await query(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as new_today
+      FROM users
+    `);
+
+    // Deposit total
+    const depositStats = await query(`
+      SELECT COALESCE(SUM(amount), 0) as total_deposits
+      FROM transactions WHERE type = 'deposit'
+    `);
+
+    // Withdrawal total
+    const withdrawalStats = await query(`
+      SELECT COALESCE(SUM(amount), 0) as total_withdrawals
+      FROM transactions WHERE type = 'withdrawal'
+    `);
+
+    // Total rewards
+    const rewardStats = await query(`
+      SELECT COALESCE(SUM(amount), 0) as total_rewards
+      FROM transactions WHERE type IN ('reward', 'invite')
+    `);
+
+    // Red packet stats
+    const redPacketStats = await query(`
+      SELECT 
+        COALESCE(SUM(total_amount), 0) as total_red_packet_amount,
+        COALESCE(SUM(claimed_amount), 0) as total_claimed_amount
+      FROM red_packets
+    `);
+
+    res.json({
+      total_users: parseInt(userStats.rows[0].total_users),
+      new_today: parseInt(userStats.rows[0].new_today),
+      total_deposits: parseFloat(depositStats.rows[0].total_deposits),
+      total_withdrawals: parseFloat(withdrawalStats.rows[0].total_withdrawals),
+      total_rewards: parseFloat(rewardStats.rows[0].total_rewards),
+      total_red_packet_amount: parseFloat(redPacketStats.rows[0].total_red_packet_amount),
+      total_claimed_amount: parseFloat(redPacketStats.rows[0].total_claimed_amount),
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

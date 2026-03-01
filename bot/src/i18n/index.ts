@@ -1,32 +1,30 @@
 import { en } from './en';
 import { zh } from './zh';
+import { fr } from './fr';
+import { de } from './de';
+import { es } from './es';
+import { ar } from './ar';
+import { ja } from './ja';
 
-// Simplified versions for other languages (can be expanded later)
-export const fr = { ...en }; // French - using English as base
-export const es = { ...en }; // Spanish - using English as base
-export const ar = { ...en }; // Arabic - using English as base
+type Lang = Record<string, string>;
 
-export const translations: Record<string, typeof en> = {
+const translations: Record<string, Lang> = {
   en,
   zh,
   fr,
+  de,
   es,
   ar,
+  ja,
 };
 
-export const getTranslation = (lang: string = 'en'): typeof en => {
-  return translations[lang] || translations.en;
-};
-
-export const t = (lang: string, key: keyof typeof en, replacements?: Record<string, string>): string => {
-  const translation = getTranslation(lang);
-  let text = translation[key] || en[key] || key;
-  
+export function t(lang: string, key: string, replacements?: Record<string, string>): string {
+  const langData = translations[lang] || translations['en'];
+  let text = langData[key] || translations['en'][key] || key;
   if (replacements) {
-    Object.entries(replacements).forEach(([placeholder, value]) => {
-      text = text.replace(`{${placeholder}}`, value);
-    });
+    for (const [k, v] of Object.entries(replacements)) {
+      text = text.replace(`{${k}}`, v);
+    }
   }
-  
   return text;
-};
+}

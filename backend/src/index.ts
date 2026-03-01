@@ -6,6 +6,7 @@ import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
+import { generalLimiter } from './middleware/rateLimiter';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -20,6 +21,8 @@ import withdrawalRoutes from './routes/withdrawals';
 import auditLogsRoutes from './routes/audit-logs';
 import systemSettingsRoutes from './routes/system-settings';
 import dashboardRoutes from './routes/dashboard';
+import ordersRoutes from './routes/orders';
+import botAuthRoutes from './routes/bot-auth';
 
 // New NFT platform routes
 import nftRoutes from './routes/nft';
@@ -34,26 +37,40 @@ import depositWebhookRoutes from './routes/webhook-deposit';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.BACKEND_PORT || 3000;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 3000;
 
 // Middleware
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',')
-  : ['http://localhost:3001'];
+  : ['http://localhost:3001', 'http://localhost:5173'];
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
 }));
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Static file serving for NFT uploads
+// Static file serving for uploads (legacy)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Static file serving for admin-panel SPA
+const adminDistPath = path.join(__dirname, 'public/admin');
+app.use('/admin', express.static(adminDistPath));
+app.get('/admin/*', generalLimiter, (req, res) => {
+  res.sendFile(path.join(adminDistPath, 'index.html'));
+});
+
+// Static file serving for mini-app SPA
+const appDistPath = path.join(__dirname, 'public/app');
+app.use('/app', express.static(appDistPath));
+app.get('/app/*', generalLimiter, (req, res) => {
+  res.sendFile(path.join(appDistPath, 'index.html'));
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -67,6 +84,8 @@ app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/admin/audit-logs', auditLogsRoutes);
 app.use('/api/admin/system-settings', systemSettingsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/bot-auth', botAuthRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Deposit webhook routes (for blockchain notifications)
@@ -108,7 +127,8 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
       console.log(`✓ Health check: http://localhost:${PORT}/health`);
-      console.log(`✓ Static files: http://localhost:${PORT}/uploads`);
+      console.log(`✓ Admin panel: http://localhost:${PORT}/admin`);
+      console.log(`✓ Mini App: http://localhost:${PORT}/app`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
