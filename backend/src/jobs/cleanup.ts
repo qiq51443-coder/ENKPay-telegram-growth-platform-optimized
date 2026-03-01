@@ -1,6 +1,8 @@
 import { query } from '../db';
+import { expireAuctions } from '../services/auction.service';
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const AUCTION_CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
 
 /**
  * Cleanup job that runs hourly:
@@ -74,4 +76,9 @@ export function startCleanupJob(): void {
   // Run immediately on startup, then every hour
   runCleanup();
   setInterval(runCleanup, CLEANUP_INTERVAL_MS);
+
+  // Auction expiry check runs every minute
+  console.log('✓ Auction cleanup job started (runs every minute)');
+  expireAuctions();
+  setInterval(expireAuctions, AUCTION_CLEANUP_INTERVAL_MS);
 }

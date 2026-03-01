@@ -13,6 +13,7 @@ interface Product {
 export const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Product | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -46,6 +47,7 @@ export const Products: React.FC = () => {
           {products.map(product => (
             <div
               key={product.id}
+              onClick={() => setSelected(product)}
               style={{
                 backgroundColor: theme.bgCard,
                 borderRadius: '10px',
@@ -73,6 +75,52 @@ export const Products: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Product detail modal */}
+      {selected && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            zIndex: 200, padding: '0',
+          }}
+          onClick={() => setSelected(null)}
+        >
+          <div
+            style={{
+              backgroundColor: theme.bgCard,
+              borderRadius: '16px 16px 0 0',
+              padding: '20px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              border: `1px solid ${theme.border}`,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ width: '100%', height: '220px', backgroundColor: theme.bgCardHover, borderRadius: '10px', overflow: 'hidden', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selected.image_url
+                ? <img src={selected.image_url} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontSize: '64px' }}>🖼️</span>}
+            </div>
+            <h2 style={{ color: theme.text, fontSize: '18px', marginBottom: '8px' }}>{selected.name}</h2>
+            <div style={{ color: theme.accent, fontSize: '20px', fontWeight: '700', marginBottom: '12px' }}>${parseFloat(String(selected.price)).toFixed(2)}</div>
+            {selected.description && (
+              <p style={{ color: theme.textSecondary, fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>{selected.description}</p>
+            )}
+            <button
+              onClick={() => setSelected(null)}
+              style={{
+                width: '100%', padding: '12px', backgroundColor: theme.bgCardHover,
+                color: theme.text, border: `1px solid ${theme.border}`,
+                borderRadius: '8px', fontSize: '14px', cursor: 'pointer',
+              }}
+            >
+              关闭
+            </button>
+          </div>
         </div>
       )}
     </div>
