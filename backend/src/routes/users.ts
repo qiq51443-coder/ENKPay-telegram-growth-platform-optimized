@@ -290,4 +290,92 @@ router.get('/stats/overview', authenticateAdmin, async (req: AuthRequest, res) =
   }
 });
 
+// Freeze user
+router.post('/:id/freeze', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      'UPDATE users SET is_frozen = true WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Freeze user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Unfreeze user
+router.post('/:id/unfreeze', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      'UPDATE users SET is_frozen = false WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Unfreeze user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Adjust user balance (admin)
+router.post('/:id/adjust-balance', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, type, reason } = req.body;
+
+    if (!amount || !type || !['add', 'subtract'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid amount or type (add/subtract)' });
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive number' });
+    }
+
+    const delta = type === 'add' ? numAmount : -numAmount;
+
+    const result = await query(
+      'UPDATE users SET balance = balance + $1 WHERE id = $2 AND (balance + $1) >= 0 RETURNING *',
+      [delta, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'User not found or insufficient balance' });
+    }
+
+    // Log the adjustment
+    await query(
+      `INSERT INTO balance_adjustments (user_id, admin_id, amount, type, reason)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, req.user?.id, numAmount, type, reason || '']
+    );
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Adjust balance error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user by unique_id
+router.get('/unique/:uniqueId', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const result = await query(
+      'SELECT * FROM users WHERE unique_id = $1',
+      [uniqueId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Get user by unique_id error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
