@@ -384,4 +384,56 @@ router.get('/top-donors', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/charity/applications
+ * Submit a charity help application (mini-app user)
+ */
+router.post('/applications', async (req, res) => {
+  try {
+    const { activity_id, user_id, reason, amount } = req.body;
+
+    if (!user_id || !reason) {
+      return res.status(400).json({ error: 'user_id and reason are required' });
+    }
+
+    const result = await query(
+      `INSERT INTO charity_applications (activity_id, user_id, reason, amount, status)
+       VALUES ($1, $2, $3, $4, 'pending')
+       RETURNING *`,
+      [activity_id || null, user_id, reason, amount ? parseFloat(amount) : null]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: '申请已提交，等待审核',
+    });
+  } catch (error: any) {
+    console.error('Submit application error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/charity/activities
+ * Alias for projects (mini-app compatibility)
+ */
+router.get('/activities', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, title, description, image_url, goal_amount as target_amount,
+              raised_amount as current_amount, status, start_date, end_date, created_at
+       FROM charity_projects
+       WHERE status = 'active'
+       ORDER BY created_at DESC`,
+      []
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get activities error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

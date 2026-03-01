@@ -436,3 +436,59 @@ CREATE TRIGGER trigger_update_orders_updated_at
 BEFORE UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================================
+-- Auction (Lucky Draw) tables - added as part of auction feature
+-- ============================================================================
+-- Note: The full schema is in migrations/101_auction_schema.sql
+-- The CREATE IF NOT EXISTS below serves as documentation; run the migration for production.
+
+CREATE TABLE IF NOT EXISTS auctions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id INT,
+  title TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  product_value DECIMAL(10, 2) NOT NULL,
+  participant_count INT NOT NULL,
+  per_person_cost DECIMAL(10, 2) NOT NULL,
+  max_purchases_per_user INT DEFAULT 1,
+  platform_fee_percent DECIMAL(5, 2) DEFAULT 30,
+  winner_payout DECIMAL(10, 2) NOT NULL,
+  current_participants INT DEFAULT 0,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'expired', 'cancelled')),
+  winner_id UUID REFERENCES users(id),
+  winner_unique_id VARCHAR(7),
+  drawn_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  notify_channels BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS auction_participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  auction_id UUID NOT NULL REFERENCES auctions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  quantity INT DEFAULT 1,
+  amount DECIMAL(10, 2) NOT NULL,
+  is_winner BOOLEAN DEFAULT false,
+  refunded BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(auction_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS auction_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  auction_id UUID NOT NULL REFERENCES auctions(id) ON DELETE CASCADE,
+  winner_id UUID NOT NULL REFERENCES users(id),
+  winner_unique_id VARCHAR(7),
+  product_title TEXT,
+  product_value DECIMAL(10, 2),
+  payout_amount DECIMAL(10, 2),
+  charity_amount DECIMAL(10, 2),
+  total_participants INT,
+  is_redeemed BOOLEAN DEFAULT false,
+  redeemed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

@@ -60,3 +60,90 @@ export async function getCharityActivities() {
   const response = await api.get('/charity/activities');
   return response.data;
 }
+
+// ============================================================
+// Auction API
+// ============================================================
+
+export async function getAuctions(status?: string) {
+  const response = await api.get('/auctions', { params: status ? { status } : {} });
+  return response.data;
+}
+
+export async function getAuctionDetail(id: string) {
+  const response = await api.get(`/auctions/${id}`);
+  return response.data;
+}
+
+export async function getAuctionParticipants(id: string) {
+  const response = await api.get(`/auctions/${id}/participants`);
+  return response.data;
+}
+
+export async function joinAuction(id: string, userId: string, quantity: number) {
+  const response = await api.post(
+    `/auctions/${id}/join`,
+    { user_id: userId, quantity },
+  );
+  return response.data;
+}
+
+export async function getAuctionResults() {
+  const response = await api.get('/auctions/results');
+  return response.data;
+}
+
+export async function getMyAuctions(userId: string) {
+  const response = await api.get('/auctions/my', { params: { user_id: userId } });
+  return response.data;
+}
+
+export async function redeemAuction(resultId: string, userId: string) {
+  const response = await api.post(`/auctions/results/${resultId}/redeem`, { user_id: userId });
+  return response.data;
+}
+
+// ============================================================
+// Transactions API
+// ============================================================
+
+export async function getTransactions(userId: string, options?: { limit?: number; offset?: number }) {
+  const response = await api.get(`/users/${userId}/transactions`, {
+    params: { ...options },
+  });
+  return response.data;
+}
+
+// ============================================================
+// Announcements API
+// ============================================================
+
+export async function getAnnouncements(showOnLaunch?: boolean) {
+  const params: Record<string, any> = {};
+  if (showOnLaunch) params.show_on_app_launch = true;
+  const response = await api.get('/announcements', { params });
+  return response.data;
+}
+
+// ============================================================
+// Charity application API
+// ============================================================
+
+export async function submitCharityApplication(data: {
+  activity_id?: string;
+  user_id: string;
+  reason: string;
+  amount?: number;
+}) {
+  const response = await api.post('/charity/applications', data);
+  return response.data;
+}
+
+// ============================================================
+// Language preference API
+// ============================================================
+
+export async function updateLanguage(userId: string, langCode: string) {
+  const response = await api.post('/miniapp/language', { user_id: userId, lang_code: langCode });
+  return response.data;
+}

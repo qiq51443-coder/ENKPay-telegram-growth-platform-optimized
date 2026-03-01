@@ -1,12 +1,14 @@
 import { query } from '../db';
+import { processExpiredAuctions } from '../services/auction.service';
 
-const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute (needed for auction expiry checks)
 
 /**
- * Cleanup job that runs hourly:
+ * Cleanup job that runs every minute:
  * 1. Expire red_packet_claims whose balance_expires_at has passed (deduct from reward_balance)
  * 2. Expire announcements whose expires_at has passed
  * 3. Expire red_packets whose expires_at has passed
+ * 4. Process expired auctions (refund participants)
  */
 async function runCleanup(): Promise<void> {
   try {
@@ -64,14 +66,17 @@ async function runCleanup(): Promise<void> {
     if (expiredRedPackets.rows.length > 0) {
       console.log(`Cleanup: expired ${expiredRedPackets.rows.length} red packets`);
     }
+
+    // 4. Process expired auctions (refund participants)
+    await processExpiredAuctions();
   } catch (error) {
     console.error('Cleanup job error:', error);
   }
 }
 
 export function startCleanupJob(): void {
-  console.log('✓ Cleanup job started (runs every hour)');
-  // Run immediately on startup, then every hour
+  console.log('✓ Cleanup job started (runs every minute)');
+  // Run immediately on startup, then every minute
   runCleanup();
   setInterval(runCleanup, CLEANUP_INTERVAL_MS);
 }

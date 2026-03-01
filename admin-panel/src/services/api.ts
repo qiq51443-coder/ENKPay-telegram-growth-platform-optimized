@@ -390,7 +390,7 @@ class ApiClient {
     return response.data;
   }
 
-  // Auction API
+  // Auction API (old compatibility)
   async getAuctions(params?: any) {
     const response = await this.client.get('/auctions', { params });
     return response.data;
@@ -402,7 +402,7 @@ class ApiClient {
   }
 
   async createAuction(data: any) {
-    const response = await this.client.post('/auctions', data);
+    const response = await this.client.post('/admin/auctions', data);
     return response.data;
   }
 
@@ -413,6 +413,42 @@ class ApiClient {
 
   async getAuctionEntries(id: string) {
     const response = await this.client.get(`/auctions/${id}/entries`);
+    return response.data;
+  }
+
+  // Admin Auction API (new lucky draw system)
+  async getAdminAuctions(params?: any) {
+    const response = await this.client.get('/admin/auctions', { params });
+    return response.data;
+  }
+
+  async getAdminAuctionDetail(id: string) {
+    const response = await this.client.get(`/admin/auctions/${id}`);
+    return response.data;
+  }
+
+  async createAdminAuction(data: any) {
+    const response = await this.client.post('/admin/auctions', data);
+    return response.data;
+  }
+
+  async updateAdminAuction(id: string, data: any) {
+    const response = await this.client.put(`/admin/auctions/${id}`, data);
+    return response.data;
+  }
+
+  async deleteAdminAuction(id: string) {
+    const response = await this.client.delete(`/admin/auctions/${id}`);
+    return response.data;
+  }
+
+  async cancelAdminAuction(id: string) {
+    const response = await this.client.post(`/admin/auctions/${id}/cancel`);
+    return response.data;
+  }
+
+  async getAdminAuctionResults(params?: any) {
+    const response = await this.client.get('/admin/auction-results', { params });
     return response.data;
   }
 
