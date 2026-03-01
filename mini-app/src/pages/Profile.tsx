@@ -27,14 +27,6 @@ export const Profile: React.FC = () => {
   const [selectedLang, setSelectedLang] = useState(tgUser?.language_code || 'en');
   const [showLangPicker, setShowLangPicker] = useState(false);
 
-  useEffect(() => {
-    if (initData) {
-      fetchProfile();
-    } else {
-      setLoading(false);
-    }
-  }, [initData]);
-
   const fetchProfile = async () => {
     try {
       const data = await getUserProfile(initData);
@@ -54,7 +46,15 @@ export const Profile: React.FC = () => {
     }
   };
 
-  if (loading) {
+  useEffect(() => {
+    if (initData) {
+      fetchProfile();
+    } else {
+      setLoading(false);
+    }
+  // fetchProfile is defined in render scope; initData is the actual dependency
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initData]);
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>加载中...</div>;
   }
 
