@@ -1,43 +1,41 @@
-import { Context } from 'telegraf';
-import { getUserLanguage } from '../services/user';
+import { Context, Markup } from 'telegraf';
+import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { t } from '../i18n';
-import { api } from '../services/api';
+import axios from 'axios';
 
-export const handleWallet = async (ctx: Context, user: any) => {
+export const handleWallet = async (ctx: Context) => {
   try {
+    if (!ctx.from) return;
+
+    const botId = process.env.BOT_ID || 'default';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+
+    const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
-    // Fetch user balance from backend
-    const response = await api.get(`/wallet/balance/${user.id}`);
-    
-    if (!response.data.success) {
-      await ctx.reply(t(lang, 'error_fetch_balance'));
-      return;
-    }
+    // Fetch latest balance from backend
+    let balance = user.balance || 0;
+    try {
+      const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
+        headers: { Authorization: `Bearer ${process.env.BOT_API_KEY}` },
+      });
+      if (res.data?.user?.balance !== undefined) {
+        balance = parseFloat(res.data.user.balance);
+      }
+    } catch {}
 
-    const balance = response.data.data;
+    const message =
+      `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
+      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.robot_user_id || user.invite_code || 'N/A'}</b>\n` +
+      `💵 ${t(lang, 'wallet_balance')}: <b>${balance.toFixed(2)}</b>\n`;
 
-    let message = `💰 ${t(lang, 'wallet_title')}\n\n`;
-    message += `💵 ${t(lang, 'wallet_balance')}: ${balance.wallet_balance.toFixed(2)} USDT\n`;
-    message += `🎁 ${t(lang, 'reward_balance')}: ${balance.reward_balance.toFixed(2)} USDT\n`;
-    message += `🔒 ${t(lang, 'frozen_balance')}: ${balance.frozen_balance.toFixed(2)} USDT\n\n`;
-    
-    message += `📊 ${t(lang, 'wallet_stats')}:\n`;
-    message += `💳 ${t(lang, 'total_recharged')}: ${balance.total_recharged.toFixed(2)} USDT\n`;
-    message += `💸 ${t(lang, 'total_withdrawn')}: ${balance.total_withdrawn.toFixed(2)} USDT\n`;
-    message += `📈 ${t(lang, 'total_traded')}: ${balance.total_traded.toFixed(2)} USDT\n\n`;
-
-    if (balance.reward_balance > 0) {
-      message += `🔓 ${t(lang, 'reward_unlock_progress')}: ${balance.reward_unlock_progress.toFixed(0)}%\n`;
-      message += `📊 ${t(lang, 'reward_unlock_required')}: ${balance.reward_unlock_required.toFixed(2)} USDT\n\n`;
-    }
-
-    message += `✅ ${t(lang, 'available_for_transfer')}: ${balance.available_for_transfer.toFixed(2)} USDT\n`;
-    message += `✅ ${t(lang, 'available_for_withdrawal')}: ${balance.available_for_withdrawal.toFixed(2)} USDT\n`;
-
-    await ctx.reply(message);
+    await ctx.replyWithHTML(message, Markup.keyboard([
+      [Markup.button.text(t(lang, 'btn_transfer')), Markup.button.text(t(lang, 'btn_deposit'))],
+      [Markup.button.text(t(lang, 'btn_withdraw'))],
+      [Markup.button.text(t(lang, 'btn_back'))],
+    ]).resize());
   } catch (error) {
     console.error('Wallet handler error:', error);
-    await ctx.reply(t(lang, 'error'));
+    await ctx.reply(t('en', 'error'));
   }
 };
