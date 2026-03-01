@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from '../theme';
 
-type TabKey = 'trading' | 'products' | 'charity' | 'profile';
+type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
 interface BottomNavProps {
   activeTab: TabKey;
@@ -10,6 +10,7 @@ interface BottomNavProps {
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'trading', label: '即时交易', icon: '📈' },
+  { key: 'auction', label: '竞拍', icon: '🎯' },
   { key: 'products', label: '定期产品', icon: '🎨' },
   { key: 'charity', label: '公益活动', icon: '❤️' },
   { key: 'profile', label: '个人中心', icon: '👤' },

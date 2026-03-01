@@ -384,4 +384,47 @@ router.get('/top-donors', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/charity/applications
+ * Submit a charity assistance application (mini-app users)
+ */
+router.post('/applications', async (req, res) => {
+  try {
+    const { activity_id, reason, amount } = req.body;
+
+    // Try to get user_id from Telegram initData header if present
+    let userId: string | null = null;
+    const initData = req.headers['x-telegram-init-data'] as string | undefined;
+    if (initData) {
+      try {
+        const { authenticateMiniApp } = await import('../middleware/miniapp-auth');
+        // Parse user from initData directly without full middleware
+        const params = new URLSearchParams(initData);
+        const userParam = params.get('user');
+        if (userParam) {
+          const tgUser = JSON.parse(userParam);
+          const userResult = await query(
+            `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+            [tgUser.id]
+          );
+          if (userResult.rows.length > 0) userId = userResult.rows[0].id;
+        }
+      } catch {
+        // Proceed without user_id
+      }
+    }
+
+    const result = await query(
+      `INSERT INTO charity_applications (activity_id, user_id, reason, amount)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [activity_id || null, userId, reason || null, amount ? parseFloat(amount) : null]
+    );
+
+    res.json({ success: true, id: result.rows[0].id, message: '申请已提交，等待审核' });
+  } catch (error: any) {
+    console.error('Submit charity application error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

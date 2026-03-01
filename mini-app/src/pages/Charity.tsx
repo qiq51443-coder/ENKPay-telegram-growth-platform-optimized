@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
-import { api } from '../services/api';
+import { api, submitCharityApplication } from '../services/api';
+import { useTelegram } from '../hooks/useTelegram';
 
 interface CharityActivity {
   id: string;
@@ -14,8 +15,15 @@ interface CharityActivity {
 }
 
 export const Charity: React.FC = () => {
+  const { initData } = useTelegram();
   const [activities, setActivities] = useState<CharityActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formActivityId, setFormActivityId] = useState('');
+  const [formReason, setFormReason] = useState('');
+  const [formAmount, setFormAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState('');
 
   useEffect(() => {
     fetchActivities();
@@ -29,6 +37,34 @@ export const Charity: React.FC = () => {
       setActivities([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitApplication = async () => {
+    if (!formReason.trim()) {
+      setSubmitMsg('请填写申请理由');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitMsg('');
+    try {
+      await submitCharityApplication(
+        {
+          activity_id: formActivityId || undefined,
+          reason: formReason,
+          amount: formAmount ? parseFloat(formAmount) : undefined,
+        },
+        initData || ''
+      );
+      setSubmitMsg('✅ 申请已提交，等待审核');
+      setFormReason('');
+      setFormAmount('');
+      setFormActivityId('');
+      setTimeout(() => { setShowForm(false); setSubmitMsg(''); }, 2000);
+    } catch (e: any) {
+      setSubmitMsg(`❌ ${e.response?.data?.error || '提交失败'}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -99,20 +135,131 @@ export const Charity: React.FC = () => {
         left: '16px',
         right: '16px',
       }}>
-        <button style={{
-          width: '100%',
-          padding: '14px',
-          backgroundColor: theme.accent,
-          color: '#fff',
-          border: 'none',
-          borderRadius: '10px',
-          fontSize: '16px',
-          fontWeight: '600',
-          cursor: 'pointer',
-        }}>
+        <button
+          onClick={() => setShowForm(true)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            backgroundColor: theme.accent,
+            color: '#fff',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}
+        >
           ❤️ 申请救助
         </button>
       </div>
+
+      {/* Application form modal */}
+      {showForm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            zIndex: 200,
+          }}
+          onClick={() => setShowForm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: theme.bgCard,
+              borderRadius: '16px 16px 0 0',
+              padding: '20px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              border: `1px solid ${theme.border}`,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 style={{ color: theme.text, fontSize: '18px', marginBottom: '16px' }}>申请救助</h2>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ color: theme.textSecondary, fontSize: '13px', display: 'block', marginBottom: '6px' }}>关联活动（可选）</label>
+              <select
+                value={formActivityId}
+                onChange={e => setFormActivityId(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px', borderRadius: '8px',
+                  border: `1px solid ${theme.border}`, backgroundColor: theme.bgCardHover,
+                  color: theme.text, fontSize: '14px',
+                }}
+              >
+                <option value=''>请选择活动（可选）</option>
+                {activities.filter(a => a.status === 'active').map(a => (
+                  <option key={a.id} value={a.id}>{a.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ color: theme.textSecondary, fontSize: '13px', display: 'block', marginBottom: '6px' }}>申请理由 *</label>
+              <textarea
+                value={formReason}
+                onChange={e => setFormReason(e.target.value)}
+                placeholder='请描述您的申请理由...'
+                rows={4}
+                style={{
+                  width: '100%', padding: '10px', borderRadius: '8px',
+                  border: `1px solid ${theme.border}`, backgroundColor: theme.bgCardHover,
+                  color: theme.text, fontSize: '14px', resize: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ color: theme.textSecondary, fontSize: '13px', display: 'block', marginBottom: '6px' }}>申请金额（USDT，可选）</label>
+              <input
+                type='number'
+                value={formAmount}
+                onChange={e => setFormAmount(e.target.value)}
+                placeholder='输入金额'
+                min='0'
+                step='0.01'
+                style={{
+                  width: '100%', padding: '10px', borderRadius: '8px',
+                  border: `1px solid ${theme.border}`, backgroundColor: theme.bgCardHover,
+                  color: theme.text, fontSize: '14px', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {submitMsg && (
+              <div style={{ color: submitMsg.startsWith('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>
+                {submitMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{
+                  flex: 1, padding: '12px', backgroundColor: theme.bgCardHover,
+                  color: theme.text, border: `1px solid ${theme.border}`,
+                  borderRadius: '8px', fontSize: '14px', cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSubmitApplication}
+                disabled={submitting}
+                style={{
+                  flex: 2, padding: '12px', backgroundColor: theme.accent,
+                  color: '#fff', border: 'none', borderRadius: '8px',
+                  fontSize: '14px', fontWeight: '600', cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                }}
+              >
+                {submitting ? '提交中...' : '提交申请'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

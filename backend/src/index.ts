@@ -28,12 +28,15 @@ import botAuthRoutes from './routes/bot-auth';
 // New NFT platform routes
 import nftRoutes from './routes/nft';
 import auctionRoutes from './routes/auction';
+import newAuctionRoutes from './routes/auctions';
+import auctionAdminRoutes from './routes/auction-admin';
 import tradingRoutes from './routes/trading';
 import tradingAdminRoutes from './routes/trading-admin';
 import charityRoutes from './routes/charity';
 import walletRoutes from './routes/wallet';
 import walletAdminRoutes from './routes/wallet-admin';
 import depositWebhookRoutes from './routes/webhook-deposit';
+import miniappRoutes from './routes/miniapp';
 
 dotenv.config();
 
@@ -95,11 +98,14 @@ app.use('/webhook/deposit', depositWebhookRoutes);
 // New NFT platform routes
 app.use('/api/nft', nftRoutes);
 app.use('/api/auctions', auctionRoutes);
+app.use('/api/lucky-auctions', newAuctionRoutes);
+app.use('/api/admin/lucky-auctions', auctionAdminRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/admin/trading', tradingAdminRoutes);
 app.use('/api/charity', charityRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/admin/wallet', walletAdminRoutes);
+app.use('/api/miniapp', miniappRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

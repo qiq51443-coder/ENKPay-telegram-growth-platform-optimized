@@ -60,3 +60,71 @@ export async function getCharityActivities() {
   const response = await api.get('/charity/activities');
   return response.data;
 }
+
+export async function getTransactions(initData: string) {
+  const response = await api.get('/miniapp/transactions', {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+
+export async function getAnnouncements(showOnLaunch?: boolean) {
+  const params = showOnLaunch ? { show_on_app_launch: true } : {};
+  const response = await api.get('/miniapp/announcements', { params });
+  return response.data;
+}
+
+export async function submitCharityApplication(data: {
+  activity_id?: string;
+  reason: string;
+  amount?: number;
+}, initData: string) {
+  const response = await api.post('/charity/applications', data, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+
+export async function updateLanguage(langCode: string, initData: string) {
+  const response = await api.post('/miniapp/language', { language_code: langCode }, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+
+// Auction (Lucky Draw) APIs
+export async function getAuctions(status = 'active') {
+  const response = await api.get('/lucky-auctions', { params: { status } });
+  return response.data;
+}
+
+export async function getAuctionDetail(id: string) {
+  const response = await api.get(`/lucky-auctions/${id}`);
+  return response.data;
+}
+
+export async function joinAuction(id: string, quantity: number, initData: string) {
+  const response = await api.post(`/lucky-auctions/${id}/join`, { quantity }, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+
+export async function getAuctionResults() {
+  const response = await api.get('/lucky-auctions/results');
+  return response.data;
+}
+
+export async function getMyAuctions(initData: string) {
+  const response = await api.get('/lucky-auctions/my', {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+
+export async function redeemAuction(resultId: string, initData: string) {
+  const response = await api.post(`/lucky-auctions/results/${resultId}/redeem`, {}, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
