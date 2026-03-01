@@ -2,8 +2,12 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { refundAuction } from '../services/auction.service';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Apply rate limiting to all admin auction routes
+router.use(adminLimiter);
 
 /**
  * GET /api/admin/auctions
