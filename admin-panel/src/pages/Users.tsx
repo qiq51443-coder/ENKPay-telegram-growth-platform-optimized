@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, Input, Button, Space, Select } from 'antd';
-import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Tag, message, Input, Button, Space, Select, Modal, InputNumber, Form } from 'antd';
+import { SearchOutlined, EyeOutlined, LockOutlined, UnlockOutlined, DollarOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -12,11 +12,13 @@ interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
+  unique_id?: string;
   robot_user_id?: string;
   balance: number;
   red_packet_credits: number;
   binding_status: string;
   account_status: string;
+  is_frozen?: boolean;
   registered_at: string;
 }
 
@@ -28,6 +30,11 @@ export const Users: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [bindingFilter, setBindingFilter] = useState<string>('');
   const [accountFilter, setAccountFilter] = useState<string>('');
+  const [adjustModal, setAdjustModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState<number>(0);
+  const [adjustType, setAdjustType] = useState<'add' | 'subtract'>('add');
+  const [adjustReason, setAdjustReason] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -61,6 +68,47 @@ export const Users: React.FC = () => {
     fetchUsers();
   };
 
+  const handleFreeze = async (userId: string) => {
+    try {
+      await axios.post(`/api/users/${userId}/freeze`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      message.success('用户已冻结');
+      fetchUsers();
+    } catch (error) {
+      message.error('操作失败');
+    }
+  };
+
+  const handleUnfreeze = async (userId: string) => {
+    try {
+      await axios.post(`/api/users/${userId}/unfreeze`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      message.success('用户已解冻');
+      fetchUsers();
+    } catch (error) {
+      message.error('操作失败');
+    }
+  };
+
+  const handleAdjustBalance = async () => {
+    try {
+      await axios.post(`/api/users/${selectedUser?.id}/adjust-balance`, {
+        amount: adjustAmount,
+        type: adjustType,
+        reason: adjustReason,
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      message.success('余额调整成功');
+      setAdjustModal(false);
+      fetchUsers();
+    } catch (error) {
+      message.error('余额调整失败');
+    }
+  };
+
   const columns = [
     {
       title: 'Telegram ID',
@@ -78,6 +126,13 @@ export const Users: React.FC = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>{record.first_name}</div>
         </div>
       ),
+    },
+    {
+      title: 'UID',
+      dataIndex: 'unique_id',
+      key: 'unique_id',
+      width: 100,
+      render: (uid?: string) => uid ? <span>#{uid}</span> : '-',
     },
     {
       title: 'Bot ID',
@@ -116,16 +171,18 @@ export const Users: React.FC = () => {
     },
     {
       title: '账号状态',
-      dataIndex: 'account_status',
       key: 'account_status',
-      width: 100,
-      render: (status: string) => {
+      width: 120,
+      render: (_: any, record: User) => {
+        if (record.is_frozen) {
+          return <Tag color="error">已冻结</Tag>;
+        }
         const statusMap: Record<string, { text: string; color: string }> = {
           active: { text: '正常', color: 'success' },
           suspended: { text: '暂停', color: 'warning' },
           banned: { text: '封禁', color: 'error' },
         };
-        const statusInfo = statusMap[status] || { text: status, color: 'default' };
+        const statusInfo = statusMap[record.account_status] || { text: record.account_status, color: 'default' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
     },
@@ -140,13 +197,32 @@ export const Users: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 80,
+      width: 200,
       render: (_: any, record: User) => (
-        <Link to={`/users/${record.id}`}>
-          <Button type="text" size="small" icon={<EyeOutlined />}>
-            查看
+        <Space size="small">
+          <Link to={`/users/${record.id}`}>
+            <Button type="text" size="small" icon={<EyeOutlined />}>
+              查看
+            </Button>
+          </Link>
+          {record.is_frozen ? (
+            <Button type="text" size="small" icon={<UnlockOutlined />} onClick={() => handleUnfreeze(record.id)}>
+              解冻
+            </Button>
+          ) : (
+            <Button type="text" size="small" danger icon={<LockOutlined />} onClick={() => handleFreeze(record.id)}>
+              冻结
+            </Button>
+          )}
+          <Button
+            type="text"
+            size="small"
+            icon={<DollarOutlined />}
+            onClick={() => { setSelectedUser(record); setAdjustAmount(0); setAdjustType('add'); setAdjustReason(''); setAdjustModal(true); }}
+          >
+            调整余额
           </Button>
-        </Link>
+        </Space>
       ),
     },
   ];
@@ -204,8 +280,43 @@ export const Users: React.FC = () => {
           total: total,
           onChange: setCurrentPage,
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1400 }}
       />
+
+      <Modal
+        title={`调整余额 - ${selectedUser?.username || selectedUser?.first_name || '用户'}`}
+        open={adjustModal}
+        onOk={handleAdjustBalance}
+        onCancel={() => setAdjustModal(false)}
+        okText="确认调整"
+        cancelText="取消"
+      >
+        <Form layout="vertical">
+          <Form.Item label="操作类型">
+            <Select value={adjustType} onChange={(v) => setAdjustType(v)}>
+              <Select.Option value="add">增加</Select.Option>
+              <Select.Option value="subtract">减少</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item label="金额">
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              precision={2}
+              value={adjustAmount}
+              onChange={(v) => setAdjustAmount(v || 0)}
+              prefix="$"
+            />
+          </Form.Item>
+          <Form.Item label="原因">
+            <Input
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+              placeholder="请输入调整原因"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

@@ -44,6 +44,7 @@ import { DepositRecords } from './pages/DepositRecords';
 import { TransferRecords } from './pages/TransferRecords';
 import { TradingRules } from './pages/TradingRules';
 import { TradingSessions } from './pages/TradingSessions';
+import { Orders } from './pages/Orders';
 
 const { Header, Sider, Content } = Layout;
 
@@ -153,6 +154,11 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'bots',
       icon: <RobotOutlined />,
       label: <Link to="/bots">Bot 管理</Link>,
+    },
+    {
+      key: 'orders',
+      icon: <ClockCircleOutlined />,
+      label: <Link to="/orders">订单管理</Link>,
     },
     {
       key: 'users',
@@ -447,6 +453,14 @@ function App() {
         element={
           <ProtectedRoute>
             <TradingSessions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute>
+            <Orders />
           </ProtectedRoute>
         }
       />
