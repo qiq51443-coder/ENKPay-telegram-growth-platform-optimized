@@ -6,7 +6,7 @@ const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 // Validate encryption key
 const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || '';
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-  console.warn('WARNING: WALLET_ENCRYPTION_KEY is not set or too short. Wallet features will be disabled.');
+  console.warn('WARNING: WALLET_ENCRYPTION_KEY is not set or too short (must be exactly 32 bytes). Wallet features will be disabled.');
 }
 
 // Try to import crypto libraries
@@ -32,7 +32,10 @@ export function encrypt(text: string): string {
   if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
     throw new Error('WALLET_ENCRYPTION_KEY not configured');
   }
-  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+  if (ENCRYPTION_KEY.length !== 32) {
+    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes');
+  }
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
   
@@ -49,7 +52,10 @@ export function decrypt(encryptedText: string): string {
   if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
     throw new Error('WALLET_ENCRYPTION_KEY not configured');
   }
-  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+  if (ENCRYPTION_KEY.length !== 32) {
+    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes');
+  }
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
   const parts = encryptedText.split(':');
   const iv = Buffer.from(parts[0], 'hex');
   const encrypted = parts[1];
@@ -77,7 +83,7 @@ export async function deriveEthAddress(
   }
 
   try {
-    const path = `${derivationPath}/${index}`;
+    const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
     const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
     return wallet.address;
   } catch (error: any) {
@@ -99,8 +105,14 @@ export async function deriveTronAddress(
     );
   }
 
+  if (!ethers) {
+    throw new Error(
+      'Tron address derivation requires ethers.js. Install with: npm install ethers'
+    );
+  }
+
   try {
-    const path = `${derivationPath}/${index}`;
+    const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
     const hdNode = ethers ? ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path) : null;
     
     if (!hdNode) {
@@ -168,14 +180,19 @@ export async function generateUserDepositAddress(
 
   const network = networkResult.rows[0];
 
-  // Get next available HD index for this network
-  const indexResult = await query(
-    `SELECT COALESCE(MAX(hd_index), -1) + 1 as next_index
-     FROM user_deposit_addresses
-     WHERE network_id = $1 AND source = 'hd_derived'`,
-    [networkId]
-  );
-  const hdIndex = indexResult.rows[0].next_index;
+  // Get next available HD index for this network using advisory lock to prevent concurrent duplicates
+  const hdIndex = await transaction(async (client: any) => {
+    // Acquire an advisory lock keyed by network_id to serialize index allocation
+    await client.query('SELECT pg_advisory_xact_lock($1)', [networkId]);
+
+    const indexResult = await client.query(
+      `SELECT COALESCE(MAX(hd_index), -1) + 1 as next_index
+       FROM user_deposit_addresses
+       WHERE network_id = $1 AND source = 'hd_derived'`,
+      [networkId]
+    );
+    return indexResult.rows[0].next_index;
+  });
 
   // Generate address based on chain type
   let address: string;
@@ -188,6 +205,12 @@ export async function generateUserDepositAddress(
     }
 
     const mnemonic = decrypt(network.hd_mnemonic_encrypted);
+
+    // HD-7: Validate mnemonic integrity after decryption
+    if (ethers && !ethers.Mnemonic.isValidMnemonic(mnemonic)) {
+      throw new Error('Decrypted mnemonic is invalid. Please reconfigure the HD mnemonic.');
+    }
+
     const derivationPath = network.hd_derivation_path;
 
     if (network.chain_name === 'TRON') {

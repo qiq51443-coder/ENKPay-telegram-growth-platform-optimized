@@ -15,6 +15,11 @@ services:
         fromDatabase:
           name: telegram-growth-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: telegram-growth-redis
+          type: redis
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_USERNAME
@@ -29,3 +34,9 @@ databases:
     databaseName: telegram_growth
     region: singapore
     plan: free
+
+  - type: redis
+    name: telegram-growth-redis
+    region: singapore
+    plan: free
+    maxmemoryPolicy: noeviction

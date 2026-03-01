@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 
@@ -49,7 +50,13 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'symbol and binance_symbol are required' });
     }
 
-    // TODO: Validate binance_symbol exists on Binance API
+    // Validate binance_symbol exists on Binance API
+    const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api.binance.com';
+    try {
+      await axios.get(`${BINANCE_API_URL}/api/v3/ticker/price?symbol=${binance_symbol}`, { timeout: 5000 });
+    } catch (validationError: any) {
+      return res.status(400).json({ error: `Invalid binance_symbol: "${binance_symbol}" does not exist on Binance` });
+    }
 
     const result = await query(
       `INSERT INTO trading_pairs 

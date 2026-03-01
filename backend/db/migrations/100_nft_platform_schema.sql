@@ -399,7 +399,7 @@ ON CONFLICT (network_name) DO NOTHING;
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_deposit_addresses (
   id SERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   network_id INT NOT NULL REFERENCES deposit_networks(id) ON DELETE CASCADE,
   address VARCHAR(100) NOT NULL,
   hd_index INT,

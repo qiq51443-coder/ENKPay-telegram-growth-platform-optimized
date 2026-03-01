@@ -21,6 +21,10 @@ export const handleLanguage = async (ctx: Context, user: User) => {
       ],
       [
         Markup.button.callback('🇸🇦 العربية', 'lang_ar'),
+        Markup.button.callback('🇩🇪 Deutsch', 'lang_de'),
+      ],
+      [
+        Markup.button.callback('🇯🇵 日本語', 'lang_ja'),
       ],
     ]);
 

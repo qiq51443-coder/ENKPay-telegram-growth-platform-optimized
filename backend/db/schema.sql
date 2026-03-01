@@ -308,6 +308,7 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS welcome_message TEXT;
 -- Add new fields to red_packets table
 ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS is_random BOOLEAN DEFAULT true;
 ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS balance_expiry_hours INTEGER;
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en';
 
 -- Add balance_expires_at to red_packet_claims
 ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expires_at TIMESTAMPTZ;

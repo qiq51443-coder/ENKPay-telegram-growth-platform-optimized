@@ -292,6 +292,22 @@ export const RedPackets: React.FC = () => {
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
+
+          <Form.Item
+            name="language"
+            label="语言 / Language"
+            initialValue="en"
+          >
+            <Select>
+              <Select.Option value="en">🇬🇧 English</Select.Option>
+              <Select.Option value="zh">🇨🇳 中文</Select.Option>
+              <Select.Option value="fr">🇫🇷 Français</Select.Option>
+              <Select.Option value="de">🇩🇪 Deutsch</Select.Option>
+              <Select.Option value="es">🇪🇸 Español</Select.Option>
+              <Select.Option value="ar">🇸🇦 العربية</Select.Option>
+              <Select.Option value="ja">🇯🇵 日本語</Select.Option>
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
 

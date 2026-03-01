@@ -3,13 +3,14 @@ import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
 import { deductRedPacketCredits } from '../utils/rewards';
+import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
 
 const router = express.Router();
 
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, expires_in_hours } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, expires_in_hours, language } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -41,10 +42,10 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       : null;
 
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id]
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en']
     );
 
     const redPacket = result.rows[0];
@@ -53,24 +54,21 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const botResult = await query('SELECT token FROM bots WHERE id = $1', [bot_id]);
     if (botResult.rows.length > 0) {
       const telegram = new TelegramAPI(botResult.rows[0].token);
+      const redPacketLang = language || 'en';
+      const msgs = getRedPacketMessages(redPacketLang);
       
-      const message = `
-🧧 <b>Red Packet Alert!</b> 🧧
-
-${title || 'Lucky Red Packet'}
-
-💰 Total: ${amount}
-👥 Count: ${count}
-${expiresHours ? `⏰ Expires in ${expiresHours} hours` : ''}
-
-Click the button below to claim!
-⚠️ Requires 1 red packet credit to claim
-      `;
+      const message = buildRedPacketMessage({
+        language: redPacketLang,
+        title,
+        totalAmount: amount,
+        totalCount: count,
+        expiresHours: expiresHours ? Number(expiresHours) : null,
+      });
 
       const sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
         reply_markup: {
           inline_keyboard: [[
-            { text: '🧧 Claim Red Packet', callback_data: `claim_redpacket:${redPacket.id}` }
+            { text: msgs.claimButton, callback_data: `claim_redpacket:${redPacket.id}` }
           ]]
         }
       });
@@ -207,14 +205,18 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Insufficient credits' });
     }
 
-    // Calculate claim amount (random distribution)
+    // Calculate claim amount based on is_random flag
     const remainingAmount = redPacket.total_amount - redPacket.claimed_amount;
     const remainingCount = redPacket.total_count - redPacket.claimed_count;
     
     let claimAmount;
     if (remainingCount === 1) {
       claimAmount = remainingAmount;
+    } else if (redPacket.is_random === false) {
+      // Equal distribution
+      claimAmount = remainingAmount / remainingCount;
     } else {
+      // Random distribution
       const maxClaim = (remainingAmount / remainingCount) * 2;
       claimAmount = Math.random() * maxClaim;
       claimAmount = Math.max(0.01, Math.min(claimAmount, remainingAmount));

@@ -50,17 +50,6 @@ router.get('/overview', authenticateAdmin, async (req: AuthRequest, res) => {
     `, params);
 
     // Get binding statistics
-    const bindingStats = await query(`
-      SELECT 
-        COUNT(*) as total_bindings,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending_bindings,
-        COUNT(*) FILTER (WHERE status = 'approved') as approved_bindings,
-        COUNT(*) FILTER (WHERE status = 'rejected') as rejected_bindings,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as bindings_today
-      FROM platform_bindings
-      ${whereClause}
-    `, params);
-
     // Get red packet statistics
     const redPacketStats = await query(`
       SELECT 
@@ -98,7 +87,6 @@ router.get('/overview', authenticateAdmin, async (req: AuthRequest, res) => {
     res.json({
       users: userStats.rows[0],
       transactions: transactionStats.rows[0],
-      bindings: bindingStats.rows[0],
       redPackets: redPacketStats.rows[0],
       withdrawals: withdrawalStats.rows[0],
       bots: botStats.rows[0],

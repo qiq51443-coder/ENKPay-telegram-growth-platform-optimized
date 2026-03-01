@@ -329,4 +329,163 @@ router.get('/my-orders', authenticateBot, async (req: AuthRequest, res) => {
   }
 });
 
+/**
+ * GET /api/trading/pairs/:id/rules
+ * Get trading rules for a pair, optionally filtered by duration
+ */
+router.get('/pairs/:id/rules', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { duration } = req.query;
+
+    let queryText = `
+      SELECT id, duration_seconds, odds, min_bet, max_bet, is_active
+      FROM trading_rules
+      WHERE pair_id = $1 AND is_active = true
+    `;
+    const params: any[] = [id];
+
+    if (duration) {
+      params.push(Number(duration));
+      queryText += ` AND duration_seconds = $${params.length}`;
+    }
+
+    queryText += ' ORDER BY duration_seconds ASC';
+
+    const result = await query(queryText, params);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get rules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/trading/quick-session
+ * Create a quick trading session for a pair+duration and place an order atomically
+ */
+router.post('/quick-session', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, pair_id, duration, direction, amount } = req.body;
+
+    if (!user_id || !pair_id || !duration || !direction || !amount) {
+      return res.status(400).json({ error: 'Missing required fields: user_id, pair_id, duration, direction, amount' });
+    }
+
+    if (!['up', 'down'].includes(direction)) {
+      return res.status(400).json({ error: 'Invalid direction. Must be up or down' });
+    }
+
+    const orderAmount = parseFloat(amount);
+    const durationSeconds = parseInt(duration, 10);
+
+    if (isNaN(orderAmount) || orderAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    if (isNaN(durationSeconds) || durationSeconds <= 0) {
+      return res.status(400).json({ error: 'Invalid duration' });
+    }
+
+    const result = await transaction(async (client) => {
+      // Get trading pair
+      const pairResult = await client.query(
+        'SELECT id, symbol, display_name, is_active FROM trading_pairs WHERE id = $1',
+        [pair_id]
+      );
+      if (pairResult.rows.length === 0 || !pairResult.rows[0].is_active) {
+        throw new Error('Trading pair not found or inactive');
+      }
+
+      // Get applicable rule
+      const ruleResult = await client.query(
+        `SELECT id, odds, min_bet, max_bet
+         FROM trading_rules
+         WHERE pair_id = $1 AND duration_seconds = $2 AND is_active = true
+         LIMIT 1`,
+        [pair_id, durationSeconds]
+      );
+
+      let ruleId: number | null = null;
+      let odds = 1.95;
+      let minBet = 1.0;
+      let maxBet = 10000.0;
+
+      if (ruleResult.rows.length > 0) {
+        const rule = ruleResult.rows[0];
+        ruleId = rule.id;
+        odds = parseFloat(rule.odds);
+        minBet = parseFloat(rule.min_bet);
+        maxBet = parseFloat(rule.max_bet);
+      }
+
+      if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
+      if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
+
+      // Check user balance
+      const userResult = await client.query(
+        'SELECT wallet_balance FROM users WHERE id = $1',
+        [user_id]
+      );
+      if (userResult.rows.length === 0) throw new Error('User not found');
+      if (userResult.rows[0].wallet_balance < orderAmount) throw new Error('Insufficient balance');
+
+      // Create a new session
+      const now = new Date();
+      const endTime = new Date(now.getTime() + durationSeconds * 1000);
+
+      const sessionResult = await client.query(
+        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time)
+         VALUES ($1, $2, 'active', $3, $4)
+         RETURNING *`,
+        [pair_id, ruleId, now, endTime]
+      );
+      const session = sessionResult.rows[0];
+
+      // Get current price
+      const priceResult = await client.query(
+        `SELECT price FROM price_points WHERE pair_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+        [pair_id]
+      );
+      if (priceResult.rows.length === 0) throw new Error('Price data not available');
+      const entryPrice = parseFloat(priceResult.rows[0].price);
+
+      // Deduct balance
+      await client.query(
+        'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
+        [orderAmount, user_id]
+      );
+
+      // Create order
+      const orderResult = await client.query(
+        `INSERT INTO trading_orders
+         (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+         RETURNING *`,
+        [session.id, user_id, pair_id, direction, orderAmount, entryPrice, ruleId, odds]
+      );
+
+      return {
+        session,
+        order: orderResult.rows[0],
+        odds,
+        expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
+      };
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Session created and order placed successfully',
+    });
+  } catch (error: any) {
+    console.error('Quick session error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
