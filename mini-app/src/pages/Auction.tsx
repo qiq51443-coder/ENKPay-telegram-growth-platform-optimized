@@ -29,6 +29,7 @@ interface Auction {
   winner_unique_id?: string;
   drawn_at?: string;
   expires_at: string;
+  product_description?: string;
 }
 
 interface AuctionResult {
@@ -189,7 +190,7 @@ const AuctionDetail: React.FC<{
       <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, marginBottom: '12px' }}>
         <div style={{ width: '100%', height: '200px', backgroundColor: theme.bgCardHover, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {(auction.image_url || auction.product_image)
-            ? <img src={auction.image_url || (auction as any).product_image} alt={auction.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={auction.image_url || auction.product_image} alt={auction.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: '64px' }}>🎯</span>}
         </div>
         <div style={{ padding: '16px' }}>

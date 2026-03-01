@@ -1,9 +1,13 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
+
+// Apply admin rate limiter to all routes in this router
+router.use(adminLimiter);
 
 /**
  * POST /api/admin/auctions

@@ -397,8 +397,7 @@ router.post('/applications', async (req, res) => {
     const initData = req.headers['x-telegram-init-data'] as string | undefined;
     if (initData) {
       try {
-        const { authenticateMiniApp } = await import('../middleware/miniapp-auth');
-        // Parse user from initData directly without full middleware
+        // Parse user from initData directly
         const params = new URLSearchParams(initData);
         const userParam = params.get('user');
         if (userParam) {

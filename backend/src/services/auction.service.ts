@@ -5,8 +5,7 @@ import { query, transaction } from '../db';
  * Draw a winner for an auction using cryptographically secure random selection.
  * Each participant's entries are weighted by quantity purchased.
  */
-export async function drawWinner(auctionId: string): Promise<void> {
-  await transaction(async (client) => {
+export async function drawWinner(auctionId: string): Promise<void> {  await transaction(async (client) => {
     // 1. Lock the auction row and verify it's still active
     const auctionResult = await client.query(
       `SELECT * FROM lucky_auctions WHERE id = $1 FOR UPDATE`,
@@ -143,8 +142,21 @@ async function notifyParticipants(
 /**
  * Expire auctions that have passed their deadline without being completed,
  * refund all participants, and notify them.
+ * Guard prevents concurrent executions.
  */
+let expireAuctionsRunning = false;
+
 export async function expireAuctions(): Promise<void> {
+  if (expireAuctionsRunning) return;
+  expireAuctionsRunning = true;
+  try {
+    await _expireAuctions();
+  } finally {
+    expireAuctionsRunning = false;
+  }
+}
+
+async function _expireAuctions(): Promise<void> {
   // Find all active auctions past their expiry time
   const expiredResult = await query(
     `SELECT * FROM lucky_auctions
