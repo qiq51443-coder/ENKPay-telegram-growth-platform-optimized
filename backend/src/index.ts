@@ -6,6 +6,7 @@ import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
+import { startCleanupJob } from './jobs/cleanup';
 import { generalLimiter } from './middleware/rateLimiter';
 
 // Routes
@@ -123,6 +124,9 @@ const startServer = async () => {
 
     // Start auto-settle job
     startAutoSettle();
+
+    // Start cleanup job
+    startCleanupJob();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);

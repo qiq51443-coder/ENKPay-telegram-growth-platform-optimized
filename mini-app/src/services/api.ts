@@ -22,6 +22,35 @@ export async function getTradingPairs() {
   return response.data;
 }
 
+export async function getTradingPairPrice(pairId: string) {
+  const response = await api.get(`/trading/pairs/${pairId}/price`);
+  return response.data;
+}
+
+export async function getTradingPairRules(pairId: string, duration?: number) {
+  const params = duration ? { duration } : {};
+  const response = await api.get(`/trading/pairs/${pairId}/rules`, { params });
+  return response.data;
+}
+
+export async function placeQuickSession(params: {
+  user_id: number;
+  pair_id: string;
+  duration: number;
+  direction: 'up' | 'down';
+  amount: number;
+}) {
+  const response = await api.post('/trading/quick-session', params);
+  return response.data;
+}
+
+export async function getMyOrders(userId: number, options?: { status?: string; limit?: number }) {
+  const response = await api.get('/trading/my-orders', {
+    params: { user_id: userId, ...options },
+  });
+  return response.data;
+}
+
 export async function getProducts() {
   const response = await api.get('/nft/products');
   return response.data;

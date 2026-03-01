@@ -133,7 +133,9 @@ const startBot = async () => {
     });
 
     // Start bot
-    if (process.env.USE_WEBHOOK === 'true') {
+    // BOT_MODE env var takes precedence; USE_WEBHOOK is kept for backward compatibility
+    const botMode = process.env.BOT_MODE || (process.env.USE_WEBHOOK === 'true' ? 'webhook' : 'polling');
+    if (botMode === 'webhook') {
       const webhookDomain = process.env.WEBHOOK_DOMAIN;
       const botId = BOT_ID;
       await bot.telegram.setWebhook(`${webhookDomain}/webhook/${botId}`);

@@ -163,21 +163,6 @@ export const Users: React.FC = () => {
       width: 100,
     },
     {
-      title: '绑定状态',
-      dataIndex: 'binding_status',
-      key: 'binding_status',
-      width: 100,
-      render: (status: string) => {
-        const statusMap: Record<string, { text: string; color: string }> = {
-          unbound: { text: '未绑定', color: 'default' },
-          pending: { text: '待审核', color: 'warning' },
-          bound: { text: '已绑定', color: 'success' },
-        };
-        const statusInfo = statusMap[status] || { text: status, color: 'default' };
-        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
-      },
-    },
-    {
       title: '账号状态',
       key: 'account_status',
       width: 120,
