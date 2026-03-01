@@ -18,7 +18,7 @@ export const handleStart = async (ctx: Context) => {
 
     let inviteCodeUsed: string | undefined;
     if (startPayload && startPayload.startsWith('REF_')) {
-      inviteCodeUsed = startPayload.substring(4); // Extract unique_id after REF_
+      inviteCodeUsed = startPayload.substring(4); // Extract invite code after REF_
     }
 
     // Get or create user
