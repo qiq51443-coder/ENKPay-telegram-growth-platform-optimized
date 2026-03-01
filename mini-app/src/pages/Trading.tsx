@@ -93,13 +93,10 @@ export const Trading: React.FC = () => {
       await Promise.allSettled(
         pairList.map(async (p) => {
           try {
-            const [priceRes, changeRes] = await Promise.all([
-              api.get(`/trading/pairs/${p.id}/price`),
-              api.get(`/trading/pairs/${p.id}/price`),
-            ]);
+            const priceRes = await api.get(`/trading/pairs/${p.id}/price`);
             updates[p.id] = {
               price: priceRes.data?.data?.price ?? 0,
-              change24h: changeRes.data?.data?.change24h ?? 0,
+              change24h: priceRes.data?.data?.change24h ?? 0,
             };
           } catch {}
         })
@@ -183,7 +180,8 @@ export const Trading: React.FC = () => {
 
   const fetchResult = async (orderId: string) => {
     try {
-      const res = await api.get(`/trading/my-orders?user_id=0&status=settled`);
+      const userId = (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      const res = await api.get(`/trading/my-orders?user_id=${userId}&status=settled`);
       const order = res.data?.data?.find((o: any) => o.id === orderId);
       if (order) {
         const win = order.status === 'won';

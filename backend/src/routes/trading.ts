@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
+import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { getPairPrice, getKlineData, getCachedKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
@@ -367,8 +368,9 @@ router.get('/pairs/:id/rules', async (req, res) => {
 /**
  * POST /api/trading/quick-session
  * Create a quick trading session for a pair+duration and place an order atomically
+ * Uses Telegram WebApp initData for authentication
  */
-router.post('/quick-session', authenticateBot, async (req: AuthRequest, res) => {
+router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
     const { user_id, pair_id, duration, direction, amount } = req.body;
 

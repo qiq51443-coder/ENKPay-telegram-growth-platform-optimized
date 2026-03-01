@@ -7,6 +7,8 @@ const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || '';
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
   console.warn('WARNING: WALLET_ENCRYPTION_KEY is not set or too short (must be exactly 32 bytes). Wallet features will be disabled.');
+} else if (ENCRYPTION_KEY.length > 32) {
+  console.warn('WARNING: WALLET_ENCRYPTION_KEY is longer than 32 bytes. It must be exactly 32 bytes. Wallet features will be disabled.');
 }
 
 // Try to import crypto libraries

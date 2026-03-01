@@ -213,8 +213,8 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
     if (remainingCount === 1) {
       claimAmount = remainingAmount;
     } else if (redPacket.is_random === false) {
-      // Equal distribution
-      claimAmount = remainingAmount / remainingCount;
+      // Equal distribution - round to 2 decimal places to avoid floating-point issues
+      claimAmount = Math.floor((remainingAmount / remainingCount) * 100) / 100;
     } else {
       // Random distribution
       const maxClaim = (remainingAmount / remainingCount) * 2;
