@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Space, Tag, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -10,8 +10,20 @@ interface Bot {
   username?: string;
   is_active: boolean;
   webhook_url?: string;
+  default_language?: string;
+  welcome_message?: string;
   created_at: string;
 }
+
+const LANGUAGES = [
+  { value: 'en', label: '🇬🇧 English' },
+  { value: 'zh', label: '🇨🇳 中文' },
+  { value: 'fr', label: '🇫🇷 Français' },
+  { value: 'de', label: '🇩🇪 Deutsch' },
+  { value: 'es', label: '🇪🇸 Español' },
+  { value: 'ar', label: '🇸🇦 العربية' },
+  { value: 'ja', label: '🇯🇵 日本語' },
+];
 
 export const Bots: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
@@ -41,13 +53,14 @@ export const Bots: React.FC = () => {
     if (bot) {
       setEditingBot(bot);
       form.setFieldsValue({
-        name: bot.name,
         token: bot.token,
-        webhook_url: bot.webhook_url || '',
+        default_language: bot.default_language || 'en',
+        welcome_message: bot.welcome_message || '',
       });
     } else {
       setEditingBot(null);
       form.resetFields();
+      form.setFieldsValue({ default_language: 'en' });
     }
     setModalOpen(true);
   };
@@ -55,15 +68,23 @@ export const Bots: React.FC = () => {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      
+
       if (editingBot) {
-        await apiClient.updateBot(editingBot.id, values);
+        await apiClient.updateBot(editingBot.id, {
+          default_language: values.default_language,
+          welcome_message: values.welcome_message,
+        });
         message.success('Bot 更新成功');
       } else {
-        await apiClient.createBot(values);
-        message.success('Bot 创建成功');
+        // Authorize bot with token + optional configuration fields
+        await apiClient.createBot({
+          token: values.token,
+          default_language: values.default_language,
+          welcome_message: values.welcome_message,
+        });
+        message.success('Bot 授权成功');
       }
-      
+
       setModalOpen(false);
       fetchBots();
     } catch (error: any) {
@@ -116,6 +137,15 @@ export const Bots: React.FC = () => {
       render: (username?: string) => username ? `@${username}` : '-',
     },
     {
+      title: '默认语言',
+      dataIndex: 'default_language',
+      key: 'default_language',
+      render: (lang?: string) => {
+        const found = LANGUAGES.find(l => l.value === lang);
+        return found ? found.label : (lang || 'en');
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'is_active',
       key: 'is_active',
@@ -129,13 +159,6 @@ export const Bots: React.FC = () => {
             已停用
           </Tag>
         ),
-    },
-    {
-      title: 'Webhook URL',
-      dataIndex: 'webhook_url',
-      key: 'webhook_url',
-      ellipsis: true,
-      render: (url?: string) => url || '-',
     },
     {
       title: '创建时间',
@@ -195,7 +218,7 @@ export const Bots: React.FC = () => {
           icon={<PlusOutlined />}
           onClick={() => handleOpenModal()}
         >
-          添加 Bot
+          授权 Bot
         </Button>
       </div>
 
@@ -209,7 +232,7 @@ export const Bots: React.FC = () => {
       />
 
       <Modal
-        title={editingBot ? '编辑 Bot' : '添加 Bot'}
+        title={editingBot ? '编辑 Bot' : '授权 Bot'}
         open={modalOpen}
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
@@ -218,27 +241,37 @@ export const Bots: React.FC = () => {
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
+          {!editingBot && (
+            <Form.Item
+              name="token"
+              label="Bot Token"
+              rules={[{ required: true, message: '请输入 Bot Token' }]}
+              extra="粘贴从 @BotFather 获取的 Token，系统将自动验证并获取 Bot 信息"
+            >
+              <Input.Password placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" />
+            </Form.Item>
+          )}
+
           <Form.Item
-            name="name"
-            label="Bot 名称"
-            rules={[{ required: true, message: '请输入 Bot 名称' }]}
+            name="default_language"
+            label="默认语言"
+            initialValue="en"
           >
-            <Input placeholder="例如：主要 Bot" />
+            <Select>
+              {LANGUAGES.map(l => (
+                <Select.Option key={l.value} value={l.value}>{l.label}</Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item
-            name="token"
-            label="Bot Token"
-            rules={[{ required: true, message: '请输入 Bot Token' }]}
+            name="welcome_message"
+            label="欢迎语（留空使用默认）"
           >
-            <Input.Password placeholder="从 @BotFather 获取的 Token" />
-          </Form.Item>
-
-          <Form.Item
-            name="webhook_url"
-            label="Webhook URL"
-          >
-            <Input placeholder="https://your-domain.com/webhook" />
+            <Input.TextArea
+              rows={4}
+              placeholder="用户关注 Bot 后显示的欢迎消息，支持 HTML 格式"
+            />
           </Form.Item>
         </Form>
       </Modal>

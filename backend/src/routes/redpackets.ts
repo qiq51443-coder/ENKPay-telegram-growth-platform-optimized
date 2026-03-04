@@ -10,7 +10,7 @@ const router = express.Router();
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, expires_in_hours, language } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -37,15 +37,23 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'expires_in_hours must be a positive number' });
     }
 
+    const balanceExpiryHours = balance_expiry_hours ? Number(balance_expiry_hours) : null;
+    if (balanceExpiryHours !== null && (!Number.isFinite(balanceExpiryHours) || balanceExpiryHours <= 0)) {
+      return res.status(400).json({ error: 'balance_expiry_hours must be a positive number' });
+    }
+
     const expiresAt = expiresHours
       ? new Date(Date.now() + expiresHours * 60 * 60 * 1000)
       : null;
 
+    // is_random defaults to true if not specified
+    const isRandom = is_random === false ? false : true;
+
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8)
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en']
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours]
     );
 
     const redPacket = result.rows[0];
@@ -247,8 +255,12 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
 
       // Record claim
       await client.query(
-        'INSERT INTO red_packet_claims (red_packet_id, user_id, amount) VALUES ($1, $2, $3)',
-        [id, user_id, claimAmount]
+        `INSERT INTO red_packet_claims (red_packet_id, user_id, amount, balance_expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [id, user_id, claimAmount,
+          redPacket.balance_expiry_hours
+            ? new Date(Date.now() + redPacket.balance_expiry_hours * 60 * 60 * 1000)
+            : null]
       );
 
       // Update red packet

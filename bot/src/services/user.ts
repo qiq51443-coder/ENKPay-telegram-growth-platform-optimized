@@ -10,9 +10,12 @@ export interface User {
   last_name?: string;
   language_code: string;
   robot_user_id: string;
+  unique_id?: string;
   invite_code: string;
   invited_by?: string;
   balance: number;
+  reward_balance?: number;
+  frozen_balance?: number;
   platform_username?: string;
   platform_bound: boolean;
   platform_status: string;

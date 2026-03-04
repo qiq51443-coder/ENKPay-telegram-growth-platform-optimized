@@ -7,6 +7,7 @@ import { startDepositChecker } from './jobs/deposit-checker';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
 import { startCleanupJob } from './jobs/cleanup';
+import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { generalLimiter } from './middleware/rateLimiter';
 
 // Routes
@@ -24,6 +25,7 @@ import systemSettingsRoutes from './routes/system-settings';
 import dashboardRoutes from './routes/dashboard';
 import ordersRoutes from './routes/orders';
 import botAuthRoutes from './routes/bot-auth';
+import announcementsRoutes from './routes/announcements';
 
 // New NFT platform routes
 import nftRoutes from './routes/nft';
@@ -90,6 +92,7 @@ app.use('/api/admin/system-settings', systemSettingsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/bot-auth', botAuthRoutes);
+app.use('/api/announcements', announcementsRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Deposit webhook routes (for blockchain notifications)
@@ -133,6 +136,9 @@ const startServer = async () => {
 
     // Start cleanup job
     startCleanupJob();
+
+    // Start red packet expiry job
+    startRedPacketExpiryJob();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
