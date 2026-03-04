@@ -76,7 +76,7 @@ export const Bots: React.FC = () => {
         });
         message.success('Bot 更新成功');
       } else {
-        // Use token-only authorization endpoint
+        // Authorize bot with token + optional configuration fields
         await apiClient.createBot({
           token: values.token,
           default_language: values.default_language,
