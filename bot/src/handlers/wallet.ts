@@ -17,6 +17,7 @@ export const handleWallet = async (ctx: Context) => {
     let balance = user.balance || 0;
     let rewardBalance = user.reward_balance || 0;
     let frozenBalance = user.frozen_balance || 0;
+    let nftHoldings = 0;
     try {
       const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
         headers: { Authorization: `Bearer ${process.env.BOT_API_KEY}` },
@@ -26,21 +27,33 @@ export const handleWallet = async (ctx: Context) => {
         if (u.balance !== undefined) balance = parseFloat(u.balance);
         if (u.reward_balance !== undefined) rewardBalance = parseFloat(u.reward_balance);
         if (u.frozen_balance !== undefined) frozenBalance = parseFloat(u.frozen_balance);
+        if (u.nft_holdings_value !== undefined) nftHoldings = parseFloat(u.nft_holdings_value);
       }
     } catch {}
 
     const message =
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
       `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-      `💵 ${t(lang, 'wallet_balance')}: <b>${balance.toFixed(2)}</b>\n` +
-      `🎁 ${t(lang, 'reward_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
-      `🔒 ${t(lang, 'frozen_balance')}: <b>${frozenBalance.toFixed(2)}</b>\n`;
+      `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
+      `🎁 ${t(lang, 'redpacket_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
+      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n`;
 
-    await ctx.replyWithHTML(message, Markup.keyboard([
-      [Markup.button.text(t(lang, 'btn_transfer')), Markup.button.text(t(lang, 'btn_deposit'))],
-      [Markup.button.text(t(lang, 'btn_withdraw'))],
-      [Markup.button.text(t(lang, 'btn_back'))],
-    ]).resize());
+    await ctx.replyWithHTML(message, Markup.inlineKeyboard([
+      [
+        Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
+        Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer'),
+      ],
+      [
+        Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
+      ],
+      [
+        Markup.button.callback(t(lang, 'btn_contact_support'), 'wallet_support'),
+        Markup.button.callback(t(lang, 'btn_language'), 'wallet_language'),
+      ],
+      [
+        Markup.button.callback(t(lang, 'btn_back'), 'wallet_back'),
+      ],
+    ]));
   } catch (error) {
     console.error('Wallet handler error:', error);
     await ctx.reply(t('en', 'error'));

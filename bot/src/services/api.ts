@@ -104,3 +104,70 @@ export const getInviteStats = async (userId: string) => {
   const response = await api.get(`/api/users/${userId}/invites`);
   return response.data;
 };
+
+// Wallet endpoints
+export const getDepositAddress = async (botId: string, userId: string, networkId: string) => {
+  const response = await api.get(`/api/wallet/deposit-address/${userId}?network_id=${networkId}`, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data.data;
+};
+
+export const submitWithdraw = async (botId: string, data: {
+  user_id: string | number;
+  network_id: string;
+  amount: number;
+  to_address: string;
+}) => {
+  const response = await api.post('/api/wallet/withdraw', data, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data;
+};
+
+export const submitTransfer = async (botId: string, data: {
+  from_user_id: string | number;
+  to_identifier: string;
+  amount: number;
+  memo?: string;
+}) => {
+  const response = await api.post('/api/wallet/transfer', data, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data;
+};
+
+export const getWithdrawPassword = async (botId: string, userId: string) => {
+  const response = await api.get(`/api/wallet/withdraw-password/${userId}`, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data;
+};
+
+export const setWithdrawPassword = async (botId: string, userId: string, password: string) => {
+  const response = await api.post('/api/wallet/withdraw-password', { user_id: userId, password }, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data;
+};
+
+export const getUserByUniqueId = async (botId: string, uniqueId: string) => {
+  try {
+    const response = await api.get(`/api/users/unique/${uniqueId}`, {
+      headers: { 'X-Bot-Token': botId },
+    });
+    return response.data.user;
+  } catch (error: any) {
+    if (error.response?.status === 404) return null;
+    throw error;
+  }
+};
+
+export const getSystemSetting = async (key: string) => {
+  try {
+    const response = await api.get(`/api/settings/public/${key}`);
+    return response.data.value;
+  } catch {
+    return null;
+  }
+};

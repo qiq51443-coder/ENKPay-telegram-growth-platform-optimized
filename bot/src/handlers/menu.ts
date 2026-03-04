@@ -6,6 +6,7 @@ import { handleWallet } from './wallet';
 import { handleAccount } from './account';
 import { handleLanguage } from './language';
 import { handleHelp } from './help';
+import { handleStart } from './start';
 import { t } from '../i18n';
 
 const ALL_LANGS = ['en', 'zh', 'fr', 'de', 'es', 'ar', 'ja'];
@@ -46,6 +47,8 @@ export const handleMenu = async (ctx: Context) => {
       await handleAccount(ctx, user);
     } else if (buttons.language.includes(text)) {
       await handleLanguage(ctx, user);
+    } else if (buttons.back.includes(text)) {
+      await handleStart(ctx);
     }
   } catch (error) {
     console.error('Menu handler error:', error);

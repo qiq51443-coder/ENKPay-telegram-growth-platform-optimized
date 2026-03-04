@@ -387,4 +387,65 @@ router.get('/transfers/:userId', authenticateBot, async (req: AuthRequest, res) 
   }
 });
 
+/**
+ * GET /api/wallet/withdraw-password/:userId
+ * Check if user has set a withdraw password (bot use)
+ */
+router.get('/withdraw-password/:userId', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await query(
+      `SELECT withdraw_password FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      has_password: !!user.withdraw_password,
+      password: user.withdraw_password, // visible to bot for verification
+    });
+  } catch (error: any) {
+    console.error('Get withdraw password error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/wallet/withdraw-password
+ * Set withdraw password for user (bot use)
+ * Body: { user_id, password }
+ */
+router.post('/withdraw-password', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, password } = req.body;
+
+    if (!user_id || !password) {
+      return res.status(400).json({ error: 'user_id and password are required' });
+    }
+
+    if (!/^\d{4}$/.test(password)) {
+      return res.status(400).json({ error: 'Password must be exactly 4 digits' });
+    }
+
+    const result = await query(
+      `UPDATE users SET withdraw_password = $1 WHERE id = $2 RETURNING id`,
+      [password, user_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true, message: 'Withdraw password set successfully' });
+  } catch (error: any) {
+    console.error('Set withdraw password error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

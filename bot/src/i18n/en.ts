@@ -168,4 +168,50 @@ export const en = {
   btn_deposit: '📥 Deposit',
   btn_withdraw: '📤 Withdraw',
   btn_back: '« Back',
+
+  // Wallet inline buttons
+  btn_contact_support: '🎧 Contact Support',
+  btn_language: '🌐 Language',
+
+  // Wallet extra info
+  nft_holdings: 'NFT Holdings Value',
+  redpacket_balance: 'Red Packet Balance',
+
+  // Deposit flow
+  select_network: 'Please select a network',
+  deposit_address: 'Deposit Address',
+  copy_address: '📋 Copy Address',
+  deposit_address_hint: 'Please transfer USDT to this address',
+
+  // Withdraw flow
+  withdraw_select_network: 'Please select withdrawal network',
+  withdraw_enter_address: 'Please send your withdrawal address',
+  withdraw_enter_amount: 'Please enter the withdrawal amount',
+  withdraw_confirm_info: 'Withdrawal Confirmation',
+  withdraw_set_password: 'First withdrawal: please set a 4-digit withdrawal password',
+  withdraw_enter_password: 'Please enter your withdrawal password',
+  withdraw_processing: '⏳ Processing withdrawal...',
+  withdraw_success: '✅ Withdrawal successful, funds have arrived in your account',
+  withdraw_password_set: '✅ Withdrawal password set successfully',
+
+  // Transfer flow
+  transfer_enter_id: 'Please enter the recipient\'s ENK account ID',
+  transfer_confirm_recipient: 'Confirm transfer to this user',
+  transfer_enter_amount: 'Please enter the transfer amount',
+  transfer_success: '✅ Transfer successful',
+  transfer_received: '💰 You received a transfer',
+  transfer_notify_sender: '📤 Transfer Details (Sender)',
+  transfer_notify_receiver: '📥 Transfer Details (Receiver)',
+
+  // Numpad
+  numpad_confirm: '✅ Confirm',
+  numpad_delete: '⌫ Delete',
+
+  // Password errors
+  password_incorrect: '❌ Incorrect password, please try again',
+  password_digits_only: '❌ Password must be 4 digits',
+
+  // Confirm/Cancel
+  btn_confirm: '✅ Confirm',
+  btn_cancel: '❌ Cancel',
 };
