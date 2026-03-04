@@ -6,15 +6,37 @@ import { connectRedis as connectStateRedis } from './utils/state';
 import { connectRedis as connectSettingsRedis, subscribeToSettingsUpdates } from './services/settings';
 import { getOrCreateUser, getUserLanguage } from './services/user';
 import { getMainKeyboard } from './keyboards/main';
-import { getUserState } from './utils/state';
+import { getUserState, clearUserState } from './utils/state';
 
 // Import handlers
 import { handleStart } from './handlers/start';
 import { handleMenu } from './handlers/menu';
 import { handleWallet } from './handlers/wallet';
 import { handleInvite } from './handlers/invite';
-import { handleLanguageChange } from './handlers/language';
+import { handleLanguage, handleLanguageChange } from './handlers/language';
 import { handleRedPacketClaim } from './handlers/redpacket';
+import { handleDepositSelectNetwork, handleDepositShowAddress } from './handlers/deposit';
+import {
+  handleWithdrawSelectNetwork,
+  handleWithdrawSelectNetworkCallback,
+  handleWithdrawEnterAddress,
+  handleWithdrawEnterAmount,
+  handleWithdrawConfirm,
+  handleWithdrawCancel,
+  handleNumpadInput,
+  handleNumpadDelete,
+  handleNumpadConfirm,
+} from './handlers/withdraw';
+import {
+  handleTransferStart,
+  handleTransferEnterId,
+  handleTransferConfirmRecipient,
+  handleTransferEnterAmount,
+  handleTransferConfirm,
+  handleTransferCancel,
+} from './handlers/transfer';
+import { getSettings } from './services/settings';
+import { t } from './i18n';
 
 dotenv.config();
 
@@ -42,6 +64,29 @@ bot.on(message('text'), async (ctx) => {
     const user = await getOrCreateUser(ctx, BOT_ID);
     const state = await getUserState(user.id.toString());
 
+    // Handle active flow states first
+    if (state?.step) {
+      const text = ctx.message.text;
+
+      switch (state.step) {
+        case 'withdraw_enter_address':
+          await handleWithdrawEnterAddress(ctx, user, text);
+          return;
+
+        case 'withdraw_enter_amount':
+          await handleWithdrawEnterAmount(ctx, user, text);
+          return;
+
+        case 'transfer_enter_id':
+          await handleTransferEnterId(ctx, user, text);
+          return;
+
+        case 'transfer_enter_amount':
+          await handleTransferEnterAmount(ctx, user, text);
+          return;
+      }
+    }
+
     // Handle menu navigation
     await handleMenu(ctx);
   } catch (error) {
@@ -52,7 +97,7 @@ bot.on(message('text'), async (ctx) => {
 // Photo handler
 bot.on(message('photo'), async (ctx) => {
   try {
-    const user = await getOrCreateUser(ctx, BOT_ID);
+    await getOrCreateUser(ctx, BOT_ID);
     // Photo uploads can be handled in future features
   } catch (error) {
     console.error('Photo message error:', error);
@@ -63,6 +108,7 @@ bot.on(message('photo'), async (ctx) => {
 bot.on('callback_query', async (ctx) => {
   try {
     const user = await getOrCreateUser(ctx, BOT_ID);
+    const lang = getUserLanguage(user);
     const data = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
 
     // Language selection
@@ -74,9 +120,7 @@ bot.on('callback_query', async (ctx) => {
 
     // Task verification
     if (data === 'check_channel' || data === 'check_group') {
-      // Implement channel/group verification
       await ctx.answerCbQuery('Verifying...');
-      // This would check membership and unlock rewards
       return;
     }
 
@@ -84,6 +128,116 @@ bot.on('callback_query', async (ctx) => {
     if (data.startsWith('claim_redpacket:')) {
       const redPacketId = data.split(':')[1];
       await handleRedPacketClaim(ctx, user, redPacketId);
+      return;
+    }
+
+    // Wallet menu
+    if (data === 'wallet_deposit') {
+      await handleDepositSelectNetwork(ctx);
+      return;
+    }
+
+    if (data === 'wallet_withdraw') {
+      await handleWithdrawSelectNetwork(ctx);
+      return;
+    }
+
+    if (data === 'wallet_transfer') {
+      await handleTransferStart(ctx);
+      return;
+    }
+
+    if (data === 'wallet_support') {
+      await ctx.answerCbQuery();
+      const settings = await getSettings(BOT_ID).catch(() => ({})) as Record<string, any>;
+      const supportUsername = settings.support_telegram;
+      if (supportUsername) {
+        await ctx.reply(`Contact support: https://t.me/${supportUsername}`);
+      } else {
+        await ctx.reply(t(lang, 'help_contact'));
+      }
+      return;
+    }
+
+    if (data === 'wallet_language') {
+      await ctx.answerCbQuery();
+      await handleLanguage(ctx, user);
+      return;
+    }
+
+    if (data === 'wallet_back' || data === 'wallet_back_to_wallet') {
+      await ctx.answerCbQuery();
+      if (data === 'wallet_back') {
+        // Go back to main menu
+        await handleStart(ctx);
+      } else {
+        // Go back to wallet
+        await handleWallet(ctx);
+      }
+      return;
+    }
+
+    // Deposit network selection
+    if (data.startsWith('deposit_network:')) {
+      const networkId = data.split(':')[1];
+      await handleDepositShowAddress(ctx, networkId);
+      return;
+    }
+
+    // Withdraw network selection
+    if (data.startsWith('withdraw_network:')) {
+      const networkId = data.split(':')[1];
+      await handleWithdrawSelectNetworkCallback(ctx, networkId);
+      return;
+    }
+
+    // Withdraw confirm/cancel
+    if (data === 'withdraw_confirm') {
+      await handleWithdrawConfirm(ctx);
+      return;
+    }
+
+    if (data === 'withdraw_cancel') {
+      await handleWithdrawCancel(ctx);
+      return;
+    }
+
+    // Transfer confirm recipient / confirm / cancel
+    if (data === 'transfer_confirm_recipient') {
+      await handleTransferConfirmRecipient(ctx);
+      return;
+    }
+
+    if (data === 'transfer_confirm') {
+      await handleTransferConfirm(ctx);
+      return;
+    }
+
+    if (data === 'transfer_cancel') {
+      await handleTransferCancel(ctx);
+      return;
+    }
+
+    // Numpad for password
+    if (data.startsWith('numpad:')) {
+      const digit = data.split(':')[1];
+      await handleNumpadInput(ctx, digit);
+      return;
+    }
+
+    if (data === 'numpad_delete') {
+      await handleNumpadDelete(ctx);
+      return;
+    }
+
+    if (data === 'numpad_confirm') {
+      await handleNumpadConfirm(ctx);
+      return;
+    }
+
+    // No-op button (e.g., copy address display)
+    if (data === 'copy_noop') {
+      await ctx.answerCbQuery();
       return;
     }
 

@@ -560,6 +560,11 @@ class ApiClient {
     return response.data;
   }
 
+  async resetWithdrawPassword(userId: string) {
+    const response = await this.client.put(`/users/${userId}/reset-withdraw-password`, {});
+    return response.data;
+  }
+
   // Trading Rules
   async getTradingRules(params?: any) {
     const response = await this.client.get('/admin/trading/rules', { params });

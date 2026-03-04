@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input } from 'antd';
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input, Popconfirm } from 'antd';
+import { ArrowLeftOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { apiClient } from '../services/api';
 
 const { TabPane } = Tabs;
 
@@ -20,6 +21,7 @@ interface UserDetail {
   platform_username?: string;
   registered_at: string;
   last_active_at?: string;
+  withdraw_password?: string;
 }
 
 export const UserDetail: React.FC = () => {
@@ -85,6 +87,17 @@ export const UserDetail: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to update balance:', error);
       message.error(error.response?.data?.error || '操作失败');
+    }
+  };
+
+  const handleResetWithdrawPassword = async () => {
+    try {
+      await apiClient.resetWithdrawPassword(id!);
+      message.success('提现密码已重置');
+      fetchUserDetail();
+    } catch (error: any) {
+      console.error('Failed to reset withdraw password:', error);
+      message.error(error.response?.data?.error || '重置失败');
     }
   };
 
@@ -229,6 +242,30 @@ export const UserDetail: React.FC = () => {
                 <span style={{ fontSize: '24px', fontWeight: 'bold' }}>
                   {user.red_packet_credits}
                 </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="提现密码">
+                <span style={{ fontFamily: 'monospace', marginRight: 8 }}>
+                  {user.withdraw_password ? (
+                    <Tag color="blue">{user.withdraw_password}</Tag>
+                  ) : (
+                    <Tag color="default">未设置</Tag>
+                  )}
+                </span>
+                <Popconfirm
+                  title="确定要重置提现密码吗？用户下次提现时需要重新设置。"
+                  onConfirm={handleResetWithdrawPassword}
+                  okText="确定"
+                  cancelText="取消"
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<LockOutlined />}
+                    disabled={!user.withdraw_password}
+                  >
+                    重置密码
+                  </Button>
+                </Popconfirm>
               </Descriptions.Item>
             </Descriptions>
           </Card>

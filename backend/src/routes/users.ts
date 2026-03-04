@@ -364,8 +364,8 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
   }
 });
 
-// Get user by unique_id
-router.get('/unique/:uniqueId', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+// Get user by unique_id (accessible by bot)
+router.get('/unique/:uniqueId', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { uniqueId } = req.params;
     const result = await query(
@@ -376,6 +376,27 @@ router.get('/unique/:uniqueId', adminLimiter, authenticateAdmin, async (req: Aut
     res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Get user by unique_id error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset user withdraw password (admin)
+router.put('/:id/reset-withdraw-password', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `UPDATE users SET withdraw_password = NULL WHERE id = $1 RETURNING id`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true, message: 'Withdraw password reset successfully' });
+  } catch (error) {
+    console.error('Reset withdraw password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

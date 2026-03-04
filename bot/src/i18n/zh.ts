@@ -168,4 +168,50 @@ export const zh = {
   btn_deposit: '📥 充值',
   btn_withdraw: '📤 提现',
   btn_back: '« 返回',
+
+  // Wallet inline buttons
+  btn_contact_support: '🎧 联系客服',
+  btn_language: '🌐 语言',
+
+  // Wallet extra info
+  nft_holdings: 'NFT 藏品持有价值',
+  redpacket_balance: '红包余额',
+
+  // Deposit flow
+  select_network: '请选择网络',
+  deposit_address: '充值地址',
+  copy_address: '📋 复制地址',
+  deposit_address_hint: '请向此地址转入USDT',
+
+  // Withdraw flow
+  withdraw_select_network: '请选择提现网络',
+  withdraw_enter_address: '请发送你的提现地址',
+  withdraw_enter_amount: '请输入提现金额',
+  withdraw_confirm_info: '提现信息确认',
+  withdraw_set_password: '首次提现，请设置4位数提现密码',
+  withdraw_enter_password: '请输入提现密码',
+  withdraw_processing: '⏳ 提现处理中...',
+  withdraw_success: '✅ 提现成功，资金已到达你的账户',
+  withdraw_password_set: '✅ 提现密码设置成功',
+
+  // Transfer flow
+  transfer_enter_id: '请输入对方ENK账号ID',
+  transfer_confirm_recipient: '确认转账给此用户',
+  transfer_enter_amount: '请输入转账金额',
+  transfer_success: '✅ 转账成功',
+  transfer_received: '💰 你收到一笔转账',
+  transfer_notify_sender: '📤 转账详情（发送方）',
+  transfer_notify_receiver: '📥 转账详情（接收方）',
+
+  // Numpad
+  numpad_confirm: '✅ 确认',
+  numpad_delete: '⌫ 删除',
+
+  // Password errors
+  password_incorrect: '❌ 密码错误，请重新输入',
+  password_digits_only: '❌ 密码必须是4位数字',
+
+  // Confirm/Cancel
+  btn_confirm: '✅ 确认',
+  btn_cancel: '❌ 取消',
 };
