@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, Dropdown, Avatar } from 'antd';
 import {
-  DashboardOutlined,
   UserOutlined,
   RobotOutlined,
   GiftOutlined,
@@ -23,7 +22,6 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
 import { Bots } from './pages/Bots';
@@ -47,6 +45,7 @@ import { TradingSessions } from './pages/TradingSessions';
 import { Orders } from './pages/Orders';
 import { Groups } from './pages/Groups';
 import { Announcements } from './pages/Announcements';
+import { Analytics } from './pages/Analytics';
 
 const { Header, Sider, Content } = Layout;
 
@@ -58,10 +57,10 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const [selectedKey, setSelectedKey] = useState('dashboard');
+  const [selectedKey, setSelectedKey] = useState('analytics');
 
   useEffect(() => {
-    const path = location.pathname.split('/')[1] || 'dashboard';
+    const path = location.pathname.split('/')[1] || 'analytics';
     setSelectedKey(path);
   }, [location]);
 
@@ -72,14 +71,19 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
 
   const menuItems = [
     {
-      key: 'dashboard',
-      icon: <DashboardOutlined />,
-      label: <Link to="/dashboard">仪表盘</Link>,
-    },
-    {
       key: 'analytics',
       icon: <BarChartOutlined />,
-      label: <Link to="/analytics">数据分析</Link>,
+      label: <Link to="/analytics">数据统计</Link>,
+    },
+    {
+      key: 'users',
+      icon: <UserOutlined />,
+      label: <Link to="/users">用户管理</Link>,
+    },
+    {
+      key: 'groups',
+      icon: <TeamOutlined />,
+      label: <Link to="/groups">群组管理</Link>,
     },
     {
       key: 'nft',
@@ -120,7 +124,7 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
         },
         {
           key: 'trading-sessions',
-          label: <Link to="/trading-sessions">交易结算</Link>,
+          label: <Link to="/trading-sessions">交易时段</Link>,
         },
       ],
     },
@@ -143,10 +147,6 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           label: <Link to="/deposit-records">充值记录</Link>,
         },
         {
-          key: 'withdrawals',
-          label: <Link to="/withdrawals">提现审核</Link>,
-        },
-        {
           key: 'transfer-records',
           label: <Link to="/transfer-records">转账记录</Link>,
         },
@@ -158,19 +158,9 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       label: <Link to="/bots">Bot 管理</Link>,
     },
     {
-      key: 'groups',
-      icon: <TeamOutlined />,
-      label: <Link to="/groups">群组管理</Link>,
-    },
-    {
       key: 'orders',
       icon: <ClockCircleOutlined />,
       label: <Link to="/orders">订单管理</Link>,
-    },
-    {
-      key: 'users',
-      icon: <UserOutlined />,
-      label: <Link to="/users">用户列表</Link>,
     },
     {
       key: 'red-packets',
@@ -228,7 +218,7 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
             borderBottom: '1px solid rgba(255,255,255,0.1)',
           }}
         >
-          {collapsed ? 'NFT' : 'NFT 数字藏品'}
+          {collapsed ? '💳' : '💳 ENK Pay'}
         </div>
         <Menu
           theme="dark"
@@ -293,18 +283,10 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/analytics"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <Analytics />
           </ProtectedRoute>
         }
       />
@@ -492,8 +474,9 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/analytics" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+      <Route path="*" element={<Navigate to="/analytics" replace />} />
     </Routes>
   );
 }

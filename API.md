@@ -1,4 +1,4 @@
-# API Documentation
+# ENK Pay API Documentation
 
 Base URL: `http://localhost:3000` (development) or `https://yourdomain.com` (production)
 

@@ -13,7 +13,7 @@ import axios from 'axios';
 
 const { Title } = Typography;
 
-interface DashboardStats {
+interface AnalyticsStats {
   total_users: number;
   new_today: number;
   total_deposits: number;
@@ -23,8 +23,8 @@ interface DashboardStats {
   total_claimed_amount: number;
 }
 
-export const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+export const Analytics: React.FC = () => {
+  const [stats, setStats] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>仪表盘</Title>
+      <Title level={2}>数据统计</Title>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={8}>

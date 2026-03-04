@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message, Popconfirm } from 'antd';
-import { DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, message, Popconfirm, Modal, Form, Input, Select } from 'antd';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 interface Group {
@@ -12,11 +12,18 @@ interface Group {
   group_name: string;
   group_type?: string;
   joined_at: string;
+  country?: string;
+  language?: string;
+  member_count?: number;
+  is_active?: boolean;
 }
 
 export const Groups: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchGroups();
@@ -50,12 +57,39 @@ export const Groups: React.FC = () => {
     }
   };
 
+  const handleEditClick = (record: Group) => {
+    setEditingGroup(record);
+    editForm.setFieldsValue({
+      country: record.country || '',
+      language: record.language || '',
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingGroup) return;
+    try {
+      const values = await editForm.validateFields();
+      await axios.put(`/api/admin/groups/${editingGroup.id}`, values, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      message.success('群组信息已更新');
+      setEditModalVisible(false);
+      setEditingGroup(null);
+      fetchGroups();
+    } catch (error: any) {
+      if (error.errorFields) return;
+      console.error('Failed to update group:', error);
+      message.error(error.response?.data?.error || '更新失败');
+    }
+  };
+
   const columns = [
     {
-      title: 'Chat ID',
-      dataIndex: 'group_id',
-      key: 'group_id',
-      render: (group_id: string) => <span style={{ fontFamily: 'monospace' }}>{group_id}</span>,
+      title: '群组 ID',
+      dataIndex: 'id',
+      key: 'id',
+      render: (id: string) => <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{id}</span>,
     },
     {
       title: '群组名称',
@@ -64,25 +98,37 @@ export const Groups: React.FC = () => {
       render: (name: string) => name || '-',
     },
     {
-      title: '类型',
-      dataIndex: 'group_type',
-      key: 'group_type',
-      render: (type?: string) => {
-        const typeMap: Record<string, { text: string; color: string }> = {
-          group: { text: '群组', color: 'blue' },
-          supergroup: { text: '超级群组', color: 'green' },
-          channel: { text: '频道', color: 'purple' },
-        };
-        const t = typeMap[type || ''] || { text: type || 'group', color: 'default' };
-        return <Tag color={t.color}>{t.text}</Tag>;
-      },
+      title: 'Telegram 群组 ID',
+      dataIndex: 'group_id',
+      key: 'group_id',
+      render: (group_id: string) => <span style={{ fontFamily: 'monospace' }}>{group_id}</span>,
     },
     {
-      title: '所属 Bot',
-      key: 'bot',
-      render: (_: any, record: Group) => (
-        <span>{record.bot_name || record.bot_id}{record.bot_username ? ` (@${record.bot_username})` : ''}</span>
-      ),
+      title: '国家',
+      dataIndex: 'country',
+      key: 'country',
+      render: (country?: string) => country || '-',
+    },
+    {
+      title: '语言',
+      dataIndex: 'language',
+      key: 'language',
+      render: (language?: string) => language ? <Tag>{language}</Tag> : '-',
+    },
+    {
+      title: '成员数',
+      dataIndex: 'member_count',
+      key: 'member_count',
+      render: (count?: number) => count ?? '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'is_active',
+      key: 'is_active',
+      render: (isActive?: boolean) => {
+        if (isActive === undefined || isActive === null) return <Tag color="default">未知</Tag>;
+        return isActive ? <Tag color="green">活跃</Tag> : <Tag color="red">停用</Tag>;
+      },
     },
     {
       title: '加入时间',
@@ -94,9 +140,17 @@ export const Groups: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 100,
+      width: 150,
       render: (_: any, record: Group) => (
         <Space>
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEditClick(record)}
+          >
+            编辑
+          </Button>
           <Popconfirm
             title="确定要移除这个群组吗？"
             onConfirm={() => handleDelete(record.id)}
@@ -116,7 +170,7 @@ export const Groups: React.FC = () => {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0 }}>已授权群组</h2>
+          <h2 style={{ margin: 0 }}>群组管理</h2>
           <p style={{ color: '#666', marginTop: 4 }}>Bot 所在的群组列表（Bot 被添加到群组后自动记录）</p>
         </div>
         <Button onClick={fetchGroups}>刷新</Button>
@@ -128,8 +182,40 @@ export const Groups: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 800 }}
+        scroll={{ x: 1000 }}
       />
+
+      <Modal
+        title="编辑群组信息"
+        open={editModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setEditingGroup(null);
+        }}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="country" label="国家">
+            <Input placeholder="请输入国家（如：中国、美国）" />
+          </Form.Item>
+          <Form.Item name="language" label="语言">
+            <Select placeholder="请选择语言" allowClear>
+              <Select.Option value="zh">中文 (zh)</Select.Option>
+              <Select.Option value="en">英语 (en)</Select.Option>
+              <Select.Option value="ja">日语 (ja)</Select.Option>
+              <Select.Option value="ko">韩语 (ko)</Select.Option>
+              <Select.Option value="ru">俄语 (ru)</Select.Option>
+              <Select.Option value="ar">阿拉伯语 (ar)</Select.Option>
+              <Select.Option value="es">西班牙语 (es)</Select.Option>
+              <Select.Option value="fr">法语 (fr)</Select.Option>
+              <Select.Option value="de">德语 (de)</Select.Option>
+              <Select.Option value="pt">葡萄牙语 (pt)</Select.Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

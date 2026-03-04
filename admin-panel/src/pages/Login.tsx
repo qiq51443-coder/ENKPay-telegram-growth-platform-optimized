@@ -22,7 +22,7 @@ export const Login: React.FC = () => {
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
         message.success('登录成功');
-        navigate('/dashboard');
+        navigate('/analytics');
       }
     } catch (err: any) {
       console.error('Login error:', err);
@@ -57,10 +57,29 @@ export const Login: React.FC = () => {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Title level={2} style={{ marginBottom: '8px' }}>
-            管理后台
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '64px',
+              height: '64px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              marginBottom: '16px',
+              boxShadow: '0 4px 12px rgba(102,126,234,0.4)',
+            }}
+          >
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="8" width="24" height="16" rx="3" stroke="white" strokeWidth="2" fill="none"/>
+              <line x1="4" y1="14" x2="28" y2="14" stroke="white" strokeWidth="2"/>
+              <rect x="8" y="18" width="6" height="2" rx="1" fill="white"/>
+            </svg>
+          </div>
+          <Title level={2} style={{ marginBottom: '4px' }}>
+            ENK Pay
           </Title>
-          <Text type="secondary">Telegram Growth Platform</Text>
+          <Text type="secondary">平台管理系统</Text>
         </div>
 
         <Form

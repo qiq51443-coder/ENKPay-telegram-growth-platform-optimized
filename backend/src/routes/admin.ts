@@ -4,6 +4,7 @@ import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth
 import TelegramAPI from '../utils/telegram';
 import bcrypt from 'bcryptjs';
 import { logAuditAction } from '../utils/audit';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -606,6 +607,94 @@ router.delete('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) =>
     });
   } catch (error) {
     console.error('Delete admin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Groups Management ────────────────────────────────────────────────────────
+
+// GET /groups — list all groups with pagination and search
+router.get('/groups', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = (req.query.search as string) || '';
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    const params: any[] = [];
+
+    if (search) {
+      whereClause = 'WHERE group_name ILIKE $1 OR group_id::text ILIKE $1';
+      params.push(`%${search}%`);
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) FROM authorized_groups ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    params.push(limit, offset);
+    const result = await query(
+      `SELECT id, group_id, group_name, group_type, bot_id, joined_at,
+              country, language, member_count, is_active
+       FROM authorized_groups
+       ${whereClause}
+       ORDER BY joined_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    res.json({ groups: result.rows, total, page, limit });
+  } catch (error) {
+    console.error('Get groups error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /groups/:id — update group info (country, language)
+router.put('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { country, language } = req.body;
+
+    const result = await query(
+      `UPDATE authorized_groups
+       SET country = $1, language = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING id, group_id, group_name, country, language, member_count, is_active`,
+      [country || null, language || null, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    res.json({ group: result.rows[0] });
+  } catch (error) {
+    console.error('Update group error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /groups/:id — deactivate or remove a group
+router.delete('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `UPDATE authorized_groups SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    res.json({ message: 'Group deactivated successfully' });
+  } catch (error) {
+    console.error('Delete group error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
