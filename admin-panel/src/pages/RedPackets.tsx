@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch } from 'antd';
 import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
+import axios from 'axios';
 
 interface RedPacket {
   id: string;
@@ -12,8 +13,10 @@ interface RedPacket {
   total_count: number;
   claimed_amount: number;
   claimed_count: number;
+  is_random: boolean;
   status: string;
   expires_at: string;
+  balance_expiry_hours?: number;
   created_at: string;
 }
 
@@ -22,14 +25,23 @@ interface Bot {
   name: string;
 }
 
+interface AuthorizedGroup {
+  id: string;
+  bot_id: string;
+  group_id: string;
+  group_name: string;
+}
+
 export const RedPackets: React.FC = () => {
   const [redPackets, setRedPackets] = useState<RedPacket[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
+  const [groups, setGroups] = useState<AuthorizedGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [claimsModalOpen, setClaimsModalOpen] = useState(false);
   const [selectedRedPacket, setSelectedRedPacket] = useState<RedPacket | null>(null);
   const [claims, setClaims] = useState([]);
+  const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -59,6 +71,19 @@ export const RedPackets: React.FC = () => {
     }
   };
 
+  const fetchGroupsForBot = async (botId: string) => {
+    if (!botId) { setGroups([]); return; }
+    try {
+      const response = await axios.get(`/api/bot-auth/groups?bot_id=${botId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setGroups(response.data.groups || []);
+    } catch (error) {
+      console.error('Failed to fetch groups:', error);
+      setGroups([]);
+    }
+  };
+
   const fetchClaims = async (redPacketId: string) => {
     try {
       const response = await apiClient.getRedPacketClaims(redPacketId);
@@ -76,6 +101,8 @@ export const RedPackets: React.FC = () => {
       message.success('红包创建成功');
       setModalOpen(false);
       form.resetFields();
+      setSelectedBotId('');
+      setGroups([]);
       fetchRedPackets();
     } catch (error: any) {
       console.error('Failed to create red packet:', error);
@@ -109,6 +136,15 @@ export const RedPackets: React.FC = () => {
       width: 100,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace' }}>${amount.toFixed(2)}</span>
+      ),
+    },
+    {
+      title: '类型',
+      dataIndex: 'is_random',
+      key: 'is_random',
+      width: 80,
+      render: (is_random: boolean) => (
+        <Tag color={is_random ? 'orange' : 'blue'}>{is_random ? '随机' : '均等'}</Tag>
       ),
     },
     {
@@ -146,7 +182,7 @@ export const RedPackets: React.FC = () => {
       dataIndex: 'expires_at',
       key: 'expires_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
     {
       title: '创建时间',
@@ -232,6 +268,8 @@ export const RedPackets: React.FC = () => {
         onCancel={() => {
           setModalOpen(false);
           form.resetFields();
+          setSelectedBotId('');
+          setGroups([]);
         }}
         okText="创建"
         cancelText="取消"
@@ -243,7 +281,14 @@ export const RedPackets: React.FC = () => {
             label="选择 Bot"
             rules={[{ required: true, message: '请选择 Bot' }]}
           >
-            <Select placeholder="请选择...">
+            <Select
+              placeholder="请选择..."
+              onChange={(value) => {
+                setSelectedBotId(value);
+                form.setFieldValue('chat_id', undefined);
+                fetchGroupsForBot(value);
+              }}
+            >
               {bots.map((bot) => (
                 <Select.Option key={bot.id} value={bot.id}>
                   {bot.name}
@@ -254,10 +299,20 @@ export const RedPackets: React.FC = () => {
 
           <Form.Item
             name="chat_id"
-            label="群组 Chat ID"
-            rules={[{ required: true, message: '请输入 Chat ID' }]}
+            label="发送群组"
+            rules={[{ required: true, message: '请选择或输入 Chat ID' }]}
           >
-            <Input placeholder="-1001234567890" />
+            {groups.length > 0 ? (
+              <Select placeholder="选择已授权群组...">
+                {groups.map((g) => (
+                  <Select.Option key={g.group_id} value={g.group_id}>
+                    {g.group_name || g.group_id}
+                  </Select.Option>
+                ))}
+              </Select>
+            ) : (
+              <Input placeholder="-1001234567890（手动输入 Chat ID）" />
+            )}
           </Form.Item>
 
           <Form.Item
@@ -285,12 +340,28 @@ export const RedPackets: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            name="is_random"
+            label="是否随机金额"
+            valuePropName="checked"
+            initialValue={true}
+          >
+            <Switch checkedChildren="随机" unCheckedChildren="均等" defaultChecked />
+          </Form.Item>
+
+          <Form.Item
             name="expires_in_hours"
-            label="有效期 (小时)"
+            label="红包有效期 (小时)"
             rules={[{ required: true, message: '请输入有效期' }]}
             initialValue={24}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="balance_expiry_hours"
+            label="余额有效期 (小时，留空表示永久有效)"
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="留空则永久有效" />
           </Form.Item>
 
           <Form.Item

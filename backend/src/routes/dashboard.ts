@@ -233,13 +233,6 @@ router.get('/activity-summary', authenticateAdmin, async (req: AuthRequest, res)
     `, params);
 
     // Get pending reviews
-    const pendingBindings = await query(`
-      SELECT COUNT(*) as count
-      FROM platform_bindings
-      WHERE status = 'pending'
-      ${botId ? `AND bot_id = $2` : ''}
-    `, botId ? [botId] : []);
-
     const pendingWithdrawals = await query(`
       SELECT COUNT(*) as count
       FROM withdrawals w
@@ -248,21 +241,11 @@ router.get('/activity-summary', authenticateAdmin, async (req: AuthRequest, res)
       ${botId ? `AND u.bot_id = $2` : ''}
     `, botId ? [botId] : []);
 
-    const pendingScreenshots = await query(`
-      SELECT COUNT(*) as count
-      FROM task_screenshots ts
-      JOIN users u ON ts.user_id = u.id
-      WHERE ts.status = 'pending'
-      ${botId ? `AND u.bot_id = $2` : ''}
-    `, botId ? [botId] : []);
-
     res.json({
       recent_users: recentUsers.rows,
       recent_transactions: recentTransactions.rows,
       pending_reviews: {
-        bindings: parseInt(pendingBindings.rows[0]?.count || '0', 10),
         withdrawals: parseInt(pendingWithdrawals.rows[0]?.count || '0', 10),
-        screenshots: parseInt(pendingScreenshots.rows[0]?.count || '0', 10),
       },
     });
   } catch (error) {

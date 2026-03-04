@@ -312,6 +312,13 @@ ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en
 
 -- Add balance_expires_at to red_packet_claims
 ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expires_at TIMESTAMPTZ;
+ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expiry_processed BOOLEAN DEFAULT false;
+
+-- Add sent_at to announcements
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
+
+-- Add group_type to authorized_groups
+ALTER TABLE authorized_groups ADD COLUMN IF NOT EXISTS group_type VARCHAR(20) DEFAULT 'group';
 
 -- Create unique_id index
 CREATE INDEX IF NOT EXISTS idx_users_unique_id ON users(unique_id);
@@ -401,10 +408,25 @@ DECLARE
   new_id TEXT;
   attempts INT := 0;
   letters TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  letter_count INT;
+  digit_count INT;
+  i INT;
 BEGIN
   WHILE attempts <= 100 LOOP
-    new_id := SUBSTR(letters, FLOOR(RANDOM() * LENGTH(letters) + 1)::INT, 1) ||
-              LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+    -- Random 1-3 letters, rest are digits, total 7
+    letter_count := 1 + FLOOR(RANDOM() * 3)::INT;  -- 1, 2, or 3
+    digit_count := 7 - letter_count;                 -- 6, 5, or 4
+
+    new_id := '';
+    -- Generate letters
+    FOR i IN 1..letter_count LOOP
+      new_id := new_id || SUBSTR(letters, FLOOR(RANDOM() * LENGTH(letters) + 1)::INT, 1);
+    END LOOP;
+    -- Generate digits
+    FOR i IN 1..digit_count LOOP
+      new_id := new_id || FLOOR(RANDOM() * 10)::TEXT;
+    END LOOP;
+
     IF NOT EXISTS (SELECT 1 FROM users WHERE unique_id = new_id) THEN
       RETURN new_id;
     END IF;

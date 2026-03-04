@@ -13,21 +13,28 @@ export const handleWallet = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
-    // Fetch latest balance from backend
+    // Fetch latest balance details from backend
     let balance = user.balance || 0;
+    let rewardBalance = user.reward_balance || 0;
+    let frozenBalance = user.frozen_balance || 0;
     try {
       const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
         headers: { Authorization: `Bearer ${process.env.BOT_API_KEY}` },
       });
-      if (res.data?.user?.balance !== undefined) {
-        balance = parseFloat(res.data.user.balance);
+      if (res.data?.user) {
+        const u = res.data.user;
+        if (u.balance !== undefined) balance = parseFloat(u.balance);
+        if (u.reward_balance !== undefined) rewardBalance = parseFloat(u.reward_balance);
+        if (u.frozen_balance !== undefined) frozenBalance = parseFloat(u.frozen_balance);
       }
     } catch {}
 
     const message =
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
       `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-      `💵 ${t(lang, 'wallet_balance')}: <b>${balance.toFixed(2)}</b>\n`;
+      `💵 ${t(lang, 'wallet_balance')}: <b>${balance.toFixed(2)}</b>\n` +
+      `🎁 ${t(lang, 'reward_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
+      `🔒 ${t(lang, 'frozen_balance')}: <b>${frozenBalance.toFixed(2)}</b>\n`;
 
     await ctx.replyWithHTML(message, Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_transfer')), Markup.button.text(t(lang, 'btn_deposit'))],

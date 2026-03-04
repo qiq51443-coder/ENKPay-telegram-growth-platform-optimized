@@ -45,6 +45,8 @@ import { TransferRecords } from './pages/TransferRecords';
 import { TradingRules } from './pages/TradingRules';
 import { TradingSessions } from './pages/TradingSessions';
 import { Orders } from './pages/Orders';
+import { Groups } from './pages/Groups';
+import { Announcements } from './pages/Announcements';
 
 const { Header, Sider, Content } = Layout;
 
@@ -156,6 +158,11 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       label: <Link to="/bots">Bot 管理</Link>,
     },
     {
+      key: 'groups',
+      icon: <TeamOutlined />,
+      label: <Link to="/groups">群组管理</Link>,
+    },
+    {
       key: 'orders',
       icon: <ClockCircleOutlined />,
       label: <Link to="/orders">订单管理</Link>,
@@ -174,6 +181,11 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'broadcasts',
       icon: <SoundOutlined />,
       label: <Link to="/broadcasts">广播管理</Link>,
+    },
+    {
+      key: 'announcements',
+      icon: <ThunderboltOutlined />,
+      label: <Link to="/announcements">公告管理</Link>,
     },
     {
       key: 'admin-users',
@@ -461,6 +473,22 @@ function App() {
         element={
           <ProtectedRoute>
             <Orders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/groups"
+        element={
+          <ProtectedRoute>
+            <Groups />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/announcements"
+        element={
+          <ProtectedRoute>
+            <Announcements />
           </ProtectedRoute>
         }
       />

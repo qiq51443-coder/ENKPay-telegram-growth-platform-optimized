@@ -14,7 +14,7 @@ const DEFAULT_NEW_USER_CREDITS = parseInt(process.env.DEFAULT_NEW_USER_CREDITS |
 router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `SELECT id, name, username, is_active, webhook_url, created_at, updated_at 
+      `SELECT id, name, username, is_active, webhook_url, default_language, welcome_message, created_at, updated_at 
        FROM bots 
        ORDER BY created_at DESC`
     );
@@ -29,10 +29,10 @@ router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
 // Create bot
 router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { name, token } = req.body;
+    const { token, default_language, welcome_message } = req.body;
 
-    if (!name || !token) {
-      return res.status(400).json({ error: 'Name and token required' });
+    if (!token) {
+      return res.status(400).json({ error: 'Token required' });
     }
 
     // 1. Verify token with Telegram API
@@ -81,12 +81,13 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
       }
     }
 
-    // 4. Save bot to database
+    // 4. Save bot to database (name auto-filled from Telegram)
+    const name = botInfo.first_name || botInfo.username;
     const result = await query(
-      `INSERT INTO bots (name, token, username, is_active, webhook_url)
-       VALUES ($1, $2, $3, true, $4)
-       RETURNING id, name, username, is_active, webhook_url, created_at`,
-      [name, token, botInfo.username, webhookUrl]
+      `INSERT INTO bots (name, token, username, is_active, webhook_url, default_language, welcome_message)
+       VALUES ($1, $2, $3, true, $4, $5, $6)
+       RETURNING id, name, username, is_active, webhook_url, default_language, created_at`,
+      [name, token, botInfo.username, webhookUrl, default_language || 'en', welcome_message || null]
     );
 
     const bot = result.rows[0];
@@ -127,7 +128,7 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
 router.put('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { name, is_active, webhook_url } = req.body;
+    const { name, is_active, webhook_url, default_language, welcome_message } = req.body;
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -143,6 +144,14 @@ router.put('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (webhook_url !== undefined) {
       params.push(webhook_url);
       updates.push(`webhook_url = $${params.length}`);
+    }
+    if (default_language !== undefined) {
+      params.push(default_language);
+      updates.push(`default_language = $${params.length}`);
+    }
+    if (welcome_message !== undefined) {
+      params.push(welcome_message || null);
+      updates.push(`welcome_message = $${params.length}`);
     }
 
     if (updates.length === 0) {

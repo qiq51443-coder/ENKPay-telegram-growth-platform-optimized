@@ -61,6 +61,34 @@ router.post('/authorize', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 /**
+ * POST /api/bot-auth/groups/register
+ * Register a group when the bot is added to it
+ */
+router.post('/groups/register', async (req, res) => {
+  try {
+    const { bot_id, group_id, group_name, group_type } = req.body;
+
+    if (!bot_id || !group_id) {
+      return res.status(400).json({ error: 'bot_id and group_id are required' });
+    }
+
+    // Upsert the group
+    await query(
+      `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (bot_id, group_id)
+       DO UPDATE SET group_name = EXCLUDED.group_name, joined_at = NOW()`,
+      [bot_id, group_id, group_name || '', group_type || 'group']
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Register group error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/bot-auth/groups
  * Get all authorized groups
  */
