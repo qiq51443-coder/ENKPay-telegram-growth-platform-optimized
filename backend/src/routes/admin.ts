@@ -4,6 +4,7 @@ import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth
 import TelegramAPI from '../utils/telegram';
 import bcrypt from 'bcryptjs';
 import { logAuditAction } from '../utils/audit';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -613,7 +614,7 @@ router.delete('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) =>
 // ─── Groups Management ────────────────────────────────────────────────────────
 
 // GET /groups — list all groups with pagination and search
-router.get('/groups', authenticateAdmin, async (req: AuthRequest, res) => {
+router.get('/groups', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -653,7 +654,7 @@ router.get('/groups', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 // PUT /groups/:id — update group info (country, language)
-router.put('/groups/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+router.put('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { country, language } = req.body;
@@ -678,7 +679,7 @@ router.put('/groups/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 // DELETE /groups/:id — deactivate or remove a group
-router.delete('/groups/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+router.delete('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
