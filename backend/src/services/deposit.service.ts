@@ -150,7 +150,7 @@ export async function deriveBnbAddress(
  * Generate a unique deposit address for a user
  */
 export async function generateUserDepositAddress(
-  userId: number,
+  userId: number | string,
   networkId: number
 ): Promise<string> {
   // Check if address already exists
@@ -264,7 +264,7 @@ export async function addManualDepositAddress(
 /**
  * Get all deposit addresses for a user
  */
-export async function getUserDepositAddresses(userId: number) {
+export async function getUserDepositAddresses(userId: number | string) {
   const result = await query(
     `SELECT 
        uda.id,

@@ -3,6 +3,7 @@ import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
 import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword } from '../services/api';
 import { t } from '../i18n';
+import { handleWallet } from './wallet';
 
 const NETWORKS = [
   { label: 'BSC (BEP20)', id: 'BSC' },
@@ -177,6 +178,7 @@ export const handleWithdrawCancel = async (ctx: Context) => {
     await clearUserState(user.id.toString());
     await ctx.answerCbQuery();
     await ctx.reply(t(lang, 'cancel'));
+    await handleWallet(ctx);
   } catch (error) {
     console.error('Withdraw cancel error:', error);
   }
@@ -309,6 +311,7 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
       amount: data?.amount,
       to_address: data?.address,
     });
+    await ctx.reply(t(lang, 'withdraw_success'));
   } catch (err: any) {
     console.error('Submit withdrawal error:', err);
     await ctx.reply(err.response?.data?.error || t(lang, 'error'));

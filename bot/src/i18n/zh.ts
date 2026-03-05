@@ -185,6 +185,7 @@ export const zh = {
   withdraw_password_set: '✅ 提现密码设置成功',
 
   // Transfer flow
+  transfer_processing: '⏳ 转账处理中...',
   transfer_enter_id: '请输入对方ENK账号ID',
   transfer_confirm_recipient: '确认转账给此用户',
   transfer_enter_amount: '请输入转账金额',

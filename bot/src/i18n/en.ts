@@ -185,6 +185,7 @@ export const en = {
   withdraw_password_set: '✅ Withdrawal password set successfully',
 
   // Transfer flow
+  transfer_processing: '⏳ Processing transfer...',
   transfer_enter_id: 'Please enter the recipient\'s ENK account ID',
   transfer_confirm_recipient: 'Confirm transfer to this user',
   transfer_enter_amount: 'Please enter the transfer amount',
