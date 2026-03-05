@@ -5,6 +5,28 @@ import { invalidateSettings, publishSettingsUpdate } from '../utils/cache';
 
 const router = express.Router();
 
+/**
+ * GET /api/settings/public/:key
+ * Get a public system setting value (no auth required)
+ */
+router.get('/public/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const allowed = ['user_agreement', 'announcement'];
+    if (!allowed.includes(key)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const result = await query(
+      `SELECT value FROM system_settings WHERE key = $1 LIMIT 1`,
+      [key]
+    );
+    res.json({ value: result.rows[0]?.value || '' });
+  } catch (error) {
+    console.error('Get public setting error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get bot settings
 router.get('/:botId', async (req, res) => {
   try {

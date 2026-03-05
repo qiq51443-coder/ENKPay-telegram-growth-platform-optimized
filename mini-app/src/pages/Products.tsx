@@ -8,12 +8,34 @@ interface Product {
   image_url: string;
   price: number;
   description: string;
+  daily_yield_rate?: number;
+  term_days?: number;
+  current_holders?: number;
+  max_holders?: number;
+  is_purchase_limited?: boolean;
+  max_purchases_per_user?: number;
+  status?: string;
+}
+
+function getGradient(price: number): string {
+  if (price < 500) return 'linear-gradient(135deg, #1a5e36, #27ae60)';
+  if (price < 2000) return 'linear-gradient(135deg, #1a3a5e, #2980b9)';
+  return 'linear-gradient(135deg, #4a1a5e, #8e44ad)';
+}
+
+function formatAmount(price: number): string {
+  return '$' + price.toLocaleString('en-US');
 }
 
 export const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Product | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showPurchase, setShowPurchase] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseMsg, setPurchaseMsg] = useState('');
+
+  const selected = products.find(p => p.id === selectedId) || null;
 
   useEffect(() => {
     fetchProducts();
@@ -22,7 +44,7 @@ export const Products: React.FC = () => {
   const fetchProducts = async () => {
     try {
       const data = await api.get('/nft/products?limit=9');
-      setProducts(data.data?.products || []);
+      setProducts(data.data?.data || data.data?.products || []);
     } catch {
       setProducts([]);
     } finally {
@@ -30,9 +52,163 @@ export const Products: React.FC = () => {
     }
   };
 
+  const handlePurchase = async () => {
+    if (!selected) return;
+    setPurchasing(true);
+    setPurchaseMsg('');
+    try {
+      await api.post(`/nft/products/${selected.id}/purchase`, { amount: selected.price });
+      setPurchaseMsg('✅ 购买成功，次日起收益自动到账');
+      setTimeout(() => {
+        setShowPurchase(false);
+        setPurchaseMsg('');
+      }, 2000);
+    } catch (e: any) {
+      setPurchaseMsg(`❌ ${e?.response?.data?.error || '购买失败'}`);
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  if (selectedId && selected) {
+    const holders = selected.current_holders ?? 0;
+    const maxHolders = selected.max_holders ?? 100;
+    const holdersProgress = maxHolders > 0 ? Math.min((holders / maxHolders) * 100, 100) : 0;
+    const dailyRate = selected.daily_yield_rate ?? 0.005;
+    const termDays = selected.term_days ?? 30;
+    const expectedYield = selected.price * dailyRate * termDays;
+
+    return (
+      <div style={{ paddingBottom: '80px' }}>
+        {/* Back button */}
+        <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setSelectedId(null)}
+            style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            ← 返回
+          </button>
+        </div>
+
+        {/* Product image */}
+        <div style={{ width: '100%', height: '220px', backgroundColor: theme.bgCardHover, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {selected.image_url
+            ? <img src={selected.image_url} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <div style={{ background: getGradient(selected.price), width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💰</div>
+          }
+        </div>
+
+        <div style={{ padding: '16px' }}>
+          {/* Title + status */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h2 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>{selected.name}</h2>
+            <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', backgroundColor: theme.success, color: '#fff' }}>
+              {selected.status === 'active' || !selected.status ? '进行中' : '已下线'}
+            </span>
+          </div>
+
+          {/* Holders progress */}
+          <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '14px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>持有人数: {holders}</span>
+              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>总量: {maxHolders}</span>
+            </div>
+            <div style={{ height: '6px', backgroundColor: theme.border, borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${holdersProgress}%`, height: '100%', backgroundColor: '#F0B90B', borderRadius: '3px' }} />
+            </div>
+          </div>
+
+          {/* Details */}
+          <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '14px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
+            {[
+              ['期限', `${termDays} 天`],
+              ['日收益率', `${(dailyRate * 100).toFixed(2)}%`],
+              ['最低购入', formatAmount(selected.price)],
+              ['预期总收益', `$${expectedYield.toFixed(2)}`],
+            ].map(([label, val]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
+                <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{label}</span>
+                <span style={{ color: theme.text, fontSize: '13px', fontWeight: '500' }}>{val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Purchase limit info */}
+          {selected.is_purchase_limited && (
+            <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '12px', textAlign: 'center' }}>
+              每人限购 {selected.max_purchases_per_user ?? 1} 次
+            </div>
+          )}
+
+          {/* Description */}
+          {selected.description && (
+            <p style={{ color: theme.textSecondary, fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>
+              {selected.description}
+            </p>
+          )}
+
+          {/* Purchase button */}
+          <button
+            onClick={() => setShowPurchase(true)}
+            style={{
+              width: '100%', padding: '14px', backgroundColor: '#F0B90B', color: '#000',
+              border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '700',
+              cursor: 'pointer',
+            }}
+          >
+            立即购入
+          </button>
+        </div>
+
+        {/* Purchase confirm modal */}
+        {showPurchase && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+            <div style={{ backgroundColor: theme.bgCard, borderRadius: '16px', padding: '24px', width: '320px', maxWidth: '90vw' }}>
+              <h3 style={{ color: theme.text, margin: '0 0 16px' }}>确认购入</h3>
+              {[
+                ['产品', selected.name],
+                ['金额', formatAmount(selected.price)],
+                ['期限', `${termDays} 天`],
+                ['预期总收益', `$${expectedYield.toFixed(2)}`],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
+                  <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{label}</span>
+                  <span style={{ color: theme.text, fontSize: '13px' }}>{val}</span>
+                </div>
+              ))}
+              {purchaseMsg && (
+                <div style={{ color: purchaseMsg.startsWith('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>{purchaseMsg}</div>
+              )}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                <button
+                  onClick={() => { setShowPurchase(false); setPurchaseMsg(''); }}
+                  style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: theme.text, border: `1px solid ${theme.border}`, borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handlePurchase}
+                  disabled={purchasing}
+                  style={{ flex: 1, padding: '12px', backgroundColor: '#F0B90B', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', opacity: purchasing ? 0.7 : 1 }}
+                >
+                  {purchasing ? '处理中...' : '确认购入'}
+                </button>
+              </div>
+              {!purchaseMsg && (
+                <p style={{ color: theme.textSecondary, fontSize: '11px', textAlign: 'center', marginTop: '8px' }}>
+                  购买成功，次日起收益自动到账
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: '16px' }}>
-      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>🎨 定期产品</h1>
+    <div style={{ padding: '16px', paddingBottom: '80px' }}>
+      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>⏱ 定期产品</h1>
 
       {loading ? (
         <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>加载中...</div>
@@ -42,85 +218,28 @@ export const Products: React.FC = () => {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '12px',
+          gap: '10px',
         }}>
           {products.map(product => (
             <div
               key={product.id}
-              onClick={() => setSelected(product)}
+              onClick={() => setSelectedId(product.id)}
               style={{
-                backgroundColor: theme.bgCard,
+                background: getGradient(product.price),
                 borderRadius: '10px',
-                overflow: 'hidden',
-                border: `1px solid ${theme.border}`,
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{
-                width: '100%',
                 aspectRatio: '1',
-                backgroundColor: theme.bgCardHover,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '32px',
-              }}>
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : '🖼️'}
-              </div>
-              <div style={{ padding: '8px' }}>
-                <div style={{ color: theme.text, fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>{product.name}</div>
-                <div style={{ color: theme.accent, fontSize: '11px' }}>${parseFloat(String(product.price)).toFixed(2)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Product detail modal */}
-      {selected && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-            zIndex: 200, padding: '0',
-          }}
-          onClick={() => setSelected(null)}
-        >
-          <div
-            style={{
-              backgroundColor: theme.bgCard,
-              borderRadius: '16px 16px 0 0',
-              padding: '20px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              border: `1px solid ${theme.border}`,
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ width: '100%', height: '220px', backgroundColor: theme.bgCardHover, borderRadius: '10px', overflow: 'hidden', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {selected.image_url
-                ? <img src={selected.image_url} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: '64px' }}>🖼️</span>}
-            </div>
-            <h2 style={{ color: theme.text, fontSize: '18px', marginBottom: '8px' }}>{selected.name}</h2>
-            <div style={{ color: theme.accent, fontSize: '20px', fontWeight: '700', marginBottom: '12px' }}>${parseFloat(String(selected.price)).toFixed(2)}</div>
-            {selected.description && (
-              <p style={{ color: theme.textSecondary, fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>{selected.description}</p>
-            )}
-            <button
-              onClick={() => setSelected(null)}
-              style={{
-                width: '100%', padding: '12px', backgroundColor: theme.bgCardHover,
-                color: theme.text, border: `1px solid ${theme.border}`,
-                borderRadius: '8px', fontSize: '14px', cursor: 'pointer',
+                cursor: 'pointer',
+                border: `1px solid ${theme.border}`,
               }}
             >
-              关闭
-            </button>
-          </div>
+              <span style={{ color: '#fff', fontWeight: '700', fontSize: '16px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                {formatAmount(product.price)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

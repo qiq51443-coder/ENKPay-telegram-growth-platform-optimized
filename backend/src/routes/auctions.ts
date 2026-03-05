@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
+import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
@@ -334,6 +335,56 @@ router.post('/results/:id/redeem', authenticateMiniApp, async (req: MiniAppAuthR
   } catch (error: any) {
     console.error('Redeem auction error:', error);
     res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/auctions/:id/draw
+ * Draw a winner (admin only)
+ * body: { method: 'random' | 'manual', winner_unique_id?: string }
+ */
+router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { method = 'random', winner_unique_id } = req.body;
+
+    if (!['random', 'manual'].includes(method)) {
+      return res.status(400).json({ error: 'method must be random or manual' });
+    }
+
+    const auctionResult = await query(
+      `SELECT * FROM lucky_auctions WHERE id = $1`,
+      [id]
+    );
+    if (auctionResult.rows.length === 0) return res.status(404).json({ error: 'Auction not found' });
+    const auction = auctionResult.rows[0];
+    if (auction.status === 'completed') return res.status(400).json({ error: 'Auction already completed' });
+
+    if (method === 'manual') {
+      if (!winner_unique_id) return res.status(400).json({ error: 'winner_unique_id is required for manual draw' });
+      // Verify the user is a participant
+      const participantCheck = await query(
+        `SELECT lap.id FROM lucky_auction_participants lap
+         JOIN users u ON lap.user_id = u.id
+         WHERE lap.auction_id = $1 AND u.unique_id = $2`,
+        [id, winner_unique_id]
+      );
+      if (participantCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Specified user is not a participant' });
+      }
+      // Override the auction winner
+      await query(
+        `UPDATE lucky_auctions SET winner_unique_id = $1, status = 'active' WHERE id = $2`,
+        [winner_unique_id, id]
+      );
+    }
+
+    await drawWinner(id);
+
+    res.json({ success: true, message: '开奖完成' });
+  } catch (error: any) {
+    console.error('Draw winner error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

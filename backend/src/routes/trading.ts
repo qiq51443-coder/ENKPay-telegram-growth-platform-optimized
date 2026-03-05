@@ -490,4 +490,43 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
   }
 });
 
+/**
+ * GET /api/trading/orders/my
+ * Get the current user's trading orders (mini-app auth)
+ */
+router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { limit = 50 } = req.query;
+
+    const userResult = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      [telegramId]
+    );
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const userId = userResult.rows[0].id;
+
+    const result = await query(
+      `SELECT 
+         o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status, o.created_at,
+         p.symbol, p.display_name,
+         s.start_time as session_start, s.end_time as session_end
+       FROM trading_orders o
+       JOIN trading_pairs p ON o.pair_id = p.id
+       JOIN trading_sessions s ON o.session_id = s.id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC
+       LIMIT $2`,
+      [userId, Number(limit)]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get my orders error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

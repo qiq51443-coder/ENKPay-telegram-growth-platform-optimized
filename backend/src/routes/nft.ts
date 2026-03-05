@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
@@ -479,6 +480,111 @@ router.get('/my-holdings/:id', authenticateBot, async (req: AuthRequest, res) =>
     });
   } catch (error: any) {
     console.error('Get holding error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/products/:id/purchase
+ * Purchase a periodic product (mini-app auth)
+ */
+router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+
+    await transaction(async (client) => {
+      const userResult = await client.query(
+        `SELECT id, balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        [telegramId]
+      );
+      if (userResult.rows.length === 0) throw new Error('User not found');
+      const user = userResult.rows[0];
+
+      const productResult = await client.query(
+        `SELECT * FROM nft_products WHERE id = $1 AND status = 'active' FOR UPDATE`,
+        [id]
+      );
+      if (productResult.rows.length === 0) throw new Error('Product not found or inactive');
+      const product = productResult.rows[0];
+
+      const maxHolders = product.max_holders ?? 100;
+      const currentHolders = product.current_holders ?? 0;
+      if (currentHolders >= maxHolders) throw new Error('Product is sold out');
+
+      if (product.is_purchase_limited) {
+        const purchaseCount = await client.query(
+          `SELECT COUNT(*) FROM product_holdings WHERE user_id = $1 AND product_id = $2`,
+          [user.id, id]
+        );
+        if (parseInt(purchaseCount.rows[0].count) >= (product.max_purchases_per_user ?? 1)) {
+          throw new Error('Purchase limit reached');
+        }
+      }
+
+      const amount = parseFloat(product.price);
+      if (parseFloat(user.balance) < amount) throw new Error('Insufficient balance');
+
+      await client.query(`UPDATE users SET balance = balance - $1 WHERE id = $2`, [amount, user.id]);
+
+      const startDate = new Date();
+      const termDays = product.term_days ?? 30;
+      const endDate = new Date(startDate.getTime() + termDays * 86400000);
+
+      await client.query(
+        `INSERT INTO product_holdings (user_id, product_id, amount, start_date, end_date, status)
+         VALUES ($1, $2, $3, $4, $5, 'active')`,
+        [user.id, id, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
+      );
+
+      await client.query(
+        `UPDATE nft_products SET current_holders = COALESCE(current_holders, 0) + 1 WHERE id = $1`,
+        [id]
+      );
+
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+         SELECT $1, 'deposit', $2, balance, $3, $4 FROM users WHERE id = $1`,
+        [user.id, -amount, `购买定期产品: ${product.name}`, id]
+      );
+    });
+
+    res.json({ success: true, message: '购买成功，次日起收益自动到账' });
+  } catch (error: any) {
+    console.error('Product purchase error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/holdings/my
+ * Get current user's product holdings (mini-app auth)
+ */
+router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const userResult = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      [telegramId]
+    );
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const userId = userResult.rows[0].id;
+
+    const result = await query(
+      `SELECT ph.*, p.name as product_name, p.image_url, p.daily_yield_rate, p.term_days
+       FROM product_holdings ph
+       JOIN nft_products p ON ph.product_id = p.id
+       WHERE ph.user_id = $1
+       ORDER BY ph.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get holdings error:', error);
     res.status(500).json({ error: error.message });
   }
 });

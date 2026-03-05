@@ -37,6 +37,8 @@ export const SystemSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [newSettingModalOpen, setNewSettingModalOpen] = useState(false);
   const [newSettingForm] = Form.useForm();
+  const [agreementText, setAgreementText] = useState('');
+  const [agreementSaving, setAgreementSaving] = useState(false);
 
   const categories = [
     { key: 'general', label: '通用设置' },
@@ -49,7 +51,31 @@ export const SystemSettings: React.FC = () => {
 
   useEffect(() => {
     fetchSettings();
+    fetchAgreement();
   }, []);
+
+  const fetchAgreement = async () => {
+    try {
+      const response = await apiClient.getSystemSettings();
+      const settingsList = response?.settings || [];
+      const agreementSetting = settingsList.find((s: SystemSetting) => s.key === 'user_agreement');
+      if (agreementSetting) setAgreementText(String(agreementSetting.value || ''));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveAgreement = async () => {
+    setAgreementSaving(true);
+    try {
+      await apiClient.updateSystemSetting('user_agreement', { value: agreementText });
+      message.success('用户协议保存成功');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '保存失败');
+    } finally {
+      setAgreementSaving(false);
+    }
+  };
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -256,6 +282,26 @@ export const SystemSettings: React.FC = () => {
           <Tabs items={tabItems} />
         </Form>
       </Spin>
+
+      {/* User Agreement Section */}
+      <Card style={{ marginTop: 16 }} title="用户协议">
+        <Form.Item label="协议内容">
+          <TextArea
+            rows={10}
+            value={agreementText}
+            onChange={e => setAgreementText(e.target.value)}
+            placeholder="请输入用户协议内容..."
+          />
+        </Form.Item>
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          onClick={handleSaveAgreement}
+          loading={agreementSaving}
+        >
+          保存协议
+        </Button>
+      </Card>
 
       {/* New Setting Modal */}
       <Modal

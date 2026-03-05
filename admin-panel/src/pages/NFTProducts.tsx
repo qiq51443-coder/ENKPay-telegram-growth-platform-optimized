@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker } from 'antd';
+import { Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -370,6 +370,47 @@ export const NFTProducts: React.FC = () => {
             tooltip="仅定期产品需要"
           >
             <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="term_days"
+            label="定期期限 (天)"
+            tooltip="定期产品持有天数，如 30"
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="30" />
+          </Form.Item>
+
+          <Form.Item
+            name="daily_yield_rate"
+            label="日收益率 (小数，如 0.005 = 0.5%/天)"
+          >
+            <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
+          </Form.Item>
+
+          <Form.Item
+            name="max_holders"
+            label="总量上限 (最多可购人数)"
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
+          </Form.Item>
+
+          <Form.Item
+            name="is_purchase_limited"
+            label="是否限购"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="限购" unCheckedChildren="不限" />
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
+          >
+            {({ getFieldValue }) => getFieldValue('is_purchase_limited') ? (
+              <Form.Item name="max_purchases_per_user" label="每人限购次数">
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
+              </Form.Item>
+            ) : null}
           </Form.Item>
 
           <Form.Item
