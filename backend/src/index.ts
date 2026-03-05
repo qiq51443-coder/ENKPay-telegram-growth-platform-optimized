@@ -29,8 +29,8 @@ import announcementsRoutes from './routes/announcements';
 
 // New NFT platform routes
 import nftRoutes from './routes/nft';
-import auctionRoutes from './routes/auction';
-import newAuctionRoutes from './routes/auctions';
+import nftAuctionRoutes from './routes/auction';
+import luckyAuctionRoutes from './routes/auctions';
 import auctionAdminRoutes from './routes/auction-admin';
 import tradingRoutes from './routes/trading';
 import tradingAdminRoutes from './routes/trading-admin';
@@ -100,8 +100,8 @@ app.use('/webhook/deposit', depositWebhookRoutes);
 
 // New NFT platform routes
 app.use('/api/nft', nftRoutes);
-app.use('/api/auctions', auctionRoutes);
-app.use('/api/lucky-auctions', newAuctionRoutes);
+app.use('/api/auctions', nftAuctionRoutes);
+app.use('/api/lucky-auctions', luckyAuctionRoutes);
 app.use('/api/admin/lucky-auctions', auctionAdminRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/admin/trading', tradingAdminRoutes);

@@ -151,6 +151,13 @@ export const setWithdrawPassword = async (botId: string, userId: string, passwor
   return response.data;
 };
 
+export const verifyWithdrawPassword = async (botId: string, userId: string, password: string) => {
+  const response = await api.post('/api/wallet/verify-withdraw-password', { user_id: userId, password }, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data;
+};
+
 export const getUserByUniqueId = async (botId: string, uniqueId: string) => {
   try {
     const response = await api.get(`/api/users/unique/${uniqueId}`, {

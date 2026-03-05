@@ -204,4 +204,10 @@ export const en = {
   // Confirm/Cancel
   btn_confirm: '✅ Confirm',
   btn_cancel: '❌ Cancel',
+
+  // Wallet warnings
+  balance_stale_warning: '⚠️ Balance may not be up to date',
+
+  // Transfer errors
+  transfer_invalid_recipient_id: '❌ Invalid recipient ID, please try again',
 };

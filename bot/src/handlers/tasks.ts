@@ -2,12 +2,13 @@ import { Context, Markup } from 'telegraf';
 import { User, getUserLanguage } from '../services/user';
 import { getSettings } from '../services/settings';
 import { t } from '../i18n';
+import { Settings } from '../types';
 
 export const handleTasks = async (ctx: Context, user: User) => {
   try {
     const lang = getUserLanguage(user);
     const botId = process.env.BOT_ID || 'default';
-    const settings = await getSettings(botId);
+    const settings: Settings = await getSettings(botId);
 
     let message = `${t(lang, 'tasks_title')}\n\n`;
 

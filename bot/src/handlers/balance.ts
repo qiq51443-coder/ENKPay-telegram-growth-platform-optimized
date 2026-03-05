@@ -2,6 +2,7 @@ import { Context } from 'telegraf';
 import { User, getUserLanguage } from '../services/user';
 import { getTransactions } from '../services/api';
 import { t } from '../i18n';
+import { Transaction } from '../types';
 
 export const handleBalance = async (ctx: Context, user: User) => {
   try {
@@ -15,7 +16,7 @@ export const handleBalance = async (ctx: Context, user: User) => {
 
     if (transactions && transactions.length > 0) {
       message += `📊 ${t(lang, 'balance_recent_transactions')}:\n`;
-      transactions.forEach((tx: any) => {
+      transactions.forEach((tx: Transaction) => {
         const date = new Date(tx.created_at).toLocaleDateString();
         const sign = tx.amount >= 0 ? '+' : '';
         message += `  ${date}: ${sign}${tx.amount} - ${tx.description}\n`;
