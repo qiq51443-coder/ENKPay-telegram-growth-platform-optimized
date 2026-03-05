@@ -18,7 +18,9 @@ export const handleTransferStart = async (ctx: Context) => {
     });
 
     await ctx.answerCbQuery();
-    await ctx.reply(t(lang, 'transfer_enter_id'));
+    await ctx.reply(t(lang, 'transfer_enter_id'), Markup.inlineKeyboard([
+      [Markup.button.callback(t(lang, 'btn_cancel'), 'transfer_back')],
+    ]));
   } catch (error) {
     console.error('Transfer start error:', error);
   }
@@ -49,6 +51,8 @@ export const handleTransferEnterId = async (ctx: Context, user: any, recipientId
       step: 'transfer_confirm_recipient',
       data: {
         recipientId: recipient.id,
+        recipientTelegramId: recipient.telegram_id,
+        recipientLanguage: recipient.language_code || 'en',
         recipientName: recipient.first_name || recipient.username || recipientId,
         recipientUniqueId: recipientId,
       },
@@ -62,7 +66,7 @@ export const handleTransferEnterId = async (ctx: Context, user: any, recipientId
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
       [
         Markup.button.callback(t(lang, 'btn_confirm'), 'transfer_confirm_recipient'),
-        Markup.button.callback(t(lang, 'btn_cancel'), 'transfer_cancel'),
+        Markup.button.callback(t(lang, 'btn_cancel'), 'transfer_back'),
       ],
     ]));
   } catch (error) {
@@ -117,7 +121,7 @@ export const handleTransferEnterAmount = async (ctx: Context, user: any, amount:
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
       [
         Markup.button.callback(t(lang, 'btn_confirm'), 'transfer_confirm'),
-        Markup.button.callback(t(lang, 'btn_cancel'), 'transfer_cancel'),
+        Markup.button.callback(t(lang, 'btn_cancel'), 'transfer_back'),
       ],
     ]));
   } catch (error) {
@@ -142,10 +146,16 @@ export const handleTransferConfirm = async (ctx: Context) => {
       return;
     }
 
-    const { recipientId, recipientName, recipientUniqueId, amount } = state.data;
+    const { recipientId, recipientName, recipientUniqueId, recipientTelegramId, recipientLanguage, amount } = state.data;
+
+    // Processing indicator
+    await ctx.reply(t(lang, 'withdraw_processing'));
+
+    // Wait 3 seconds before showing result
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     try {
-      const result = await submitTransfer(botId, {
+      await submitTransfer(botId, {
         from_user_id: user.id,
         to_identifier: recipientUniqueId || recipientId,
         amount,
@@ -157,6 +167,20 @@ export const handleTransferConfirm = async (ctx: Context) => {
         `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
 
       await ctx.replyWithHTML(successMsg);
+
+      // Notify recipient if we have their telegram_id
+      if (recipientTelegramId) {
+        try {
+          const rLang = recipientLanguage || 'en';
+          const notifyMsg =
+            `${t(rLang, 'transfer_received')}\n\n` +
+            `👤 From: <b>${user.first_name || user.username || '-'}</b>\n` +
+            `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
+          await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
+        } catch (notifyErr) {
+          console.error('Failed to notify recipient:', notifyErr);
+        }
+      }
     } catch (err: any) {
       console.error('Transfer API error:', err);
       await ctx.reply(err.response?.data?.error || t(lang, 'error'));

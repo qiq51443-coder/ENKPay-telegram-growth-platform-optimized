@@ -1,14 +1,4 @@
 export const ar: Record<string, string> = {
-  // Menu buttons
-  menu_tasks: '🎯 المهام',
-  menu_invites: '👥 الدعوات',
-  menu_balance: '💰 الرصيد',
-  menu_tutorials: '📚 الدروس',
-  menu_account: '👤 الحساب',
-  menu_language: '🌐 اللغة',
-  menu_exchange: '🏦 البورصة',
-  menu_help: '❓ المساعدة',
-
   // New NFT platform buttons
   btn_open_platform: '🎨 فتح المنصة',
   btn_my_wallet: '💰 محفظتي',

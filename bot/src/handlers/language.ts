@@ -2,6 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { User, getUserLanguage } from '../services/user';
 import { updateUser } from '../services/api';
 import { getMainKeyboard } from '../keyboards/main';
+import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 
 export const handleLanguage = async (ctx: Context, user: User) => {
@@ -26,6 +27,9 @@ export const handleLanguage = async (ctx: Context, user: User) => {
       [
         Markup.button.callback('🇯🇵 日本語', 'lang_ja'),
       ],
+      [
+        Markup.button.callback(t(lang, 'btn_back'), 'language_back'),
+      ],
     ]);
 
     await ctx.reply(message, keyboard);
@@ -38,15 +42,22 @@ export const handleLanguage = async (ctx: Context, user: User) => {
 export const handleLanguageChange = async (ctx: Context, user: User, newLang: string) => {
   try {
     const botId = process.env.BOT_ID || 'default';
-    
+
     // Update user language
     await updateUser(botId, user.id, { language_code: newLang });
 
-    // Send confirmation with new keyboard in the selected language
+    // Get webApp URL from settings for the keyboard
+    let webAppUrl: string | undefined;
+    try {
+      const settings = await getSettings(botId);
+      webAppUrl = settings?.webapp_url || process.env.WEBAPP_URL;
+    } catch {}
+
+    // Send confirmation with new 3-button keyboard in the selected language
     await ctx.answerCbQuery();
     await ctx.reply(
       t(newLang, 'language_changed'),
-      getMainKeyboard(newLang)
+      getMainKeyboard(newLang, webAppUrl)
     );
   } catch (error) {
     console.error('Language change error:', error);
