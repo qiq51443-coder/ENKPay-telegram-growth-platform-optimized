@@ -59,19 +59,15 @@ export const de: Record<string, string> = {
   tasks_title: '🎯 Verfügbare Aufgaben',
   tasks_follow_channel: '📢 Kanal folgen',
   tasks_join_group: '👥 Gruppe beitreten',
-  tasks_bind_platform: '🔗 Plattform verknüpfen',
   tasks_invite_friends: '👫 Freunde einladen',
-  tasks_share_screenshot: '📸 Screenshot teilen',
   tasks_completed: '✅ Abgeschlossen',
   tasks_reward: 'Belohnung',
   tasks_follow_button: 'Kanal folgen',
   tasks_join_button: 'Gruppe beitreten',
-  tasks_bind_button: 'Jetzt verknüpfen',
   tasks_check_button: 'Überprüfen',
   tasks_follow_success: '✅ Danke für das Folgen! Belohnung freigeschaltet!',
   tasks_join_success: '✅ Danke für den Beitritt! Belohnung freigeschaltet!',
   tasks_not_completed: '❌ Bitte zuerst die Aufgabe abschließen.',
-  tasks_share_screenshot_desc: 'Teilen Sie Ihren Gewinn-Screenshot für 1 Rotes-Paket-Guthaben',
 
   // Invites
   invites_title: '👥 Ihr Einladungslink',
@@ -121,22 +117,7 @@ export const de: Record<string, string> = {
   help_description: 'Wie können wir helfen?',
   help_contact: 'Support kontaktieren',
 
-  // Platform Binding
-  binding_start: 'Ihr Konto verknüpfen!',
-  binding_step_1: '📝 Schritt 1: Benutzername eingeben',
-  binding_step_2: '📸 Schritt 2: Screenshot hochladen',
-  binding_step_3: '✅ Schritt 3: Auf Genehmigung warten',
-  binding_enter_username: 'Bitte Benutzernamen eingeben:',
-  binding_upload_screenshot: 'Bitte Screenshot hochladen:',
-  binding_submitted: '✅ Verknüpfungsanfrage eingereicht!',
-  binding_approved: '✅ Ihre Verknüpfung wurde genehmigt!',
-  binding_rejected: '❌ Ihre Verknüpfung wurde abgelehnt.',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 Gewinn-Screenshot teilen',
-  screenshot_instructions: '1. Screenshot machen\n2. Gruppe beitreten\n3. Screenshot senden\n4. Guthaben erhalten!',
-  screenshot_join_group: 'Gruppe beitreten',
-  screenshot_submitted: '✅ Screenshot erhalten!',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Rotes Paket einlösen',
@@ -206,4 +187,17 @@ export const de: Record<string, string> = {
   // Confirm/Cancel
   btn_confirm: '✅ Bestätigen',
   btn_cancel: '❌ Abbrechen',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 Erfolgreich teilgenommen! Viel Glück!',
+  auction_won: '🏆 Herzlichen Glückwunsch! Sie haben die Verlosung gewonnen!',
+  auction_lost: '😞 Beim nächsten Mal!',
+  auction_refunded: '↩️ Ihre Teilnahmegebühr wurde erstattet.',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 Sie haben eine periodische Produktrendite von {amount} USDT erhalten.',
+  product_principal_returned: '✅ Ihr Kapital von {amount} USDT wurde zurückgegeben.',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ Neue Wohltätigkeitsaktivität: {name}. Machen Sie mit!',
 };

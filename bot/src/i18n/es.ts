@@ -59,19 +59,15 @@ export const es: Record<string, string> = {
   tasks_title: '🎯 Tareas disponibles',
   tasks_follow_channel: '📢 Seguir canal',
   tasks_join_group: '👥 Unirse al grupo',
-  tasks_bind_platform: '🔗 Vincular plataforma',
   tasks_invite_friends: '👫 Invitar amigos',
-  tasks_share_screenshot: '📸 Compartir captura',
   tasks_completed: '✅ Completado',
   tasks_reward: 'Recompensa',
   tasks_follow_button: 'Seguir canal',
   tasks_join_button: 'Unirse al grupo',
-  tasks_bind_button: 'Vincular ahora',
   tasks_check_button: 'Verificar',
   tasks_follow_success: '✅ ¡Gracias por seguir! ¡Recompensa desbloqueada!',
   tasks_join_success: '✅ ¡Gracias por unirte! ¡Recompensa desbloqueada!',
   tasks_not_completed: '❌ Por favor completa la tarea primero.',
-  tasks_share_screenshot_desc: 'Comparte tu captura de ganancias para ganar 1 crédito sobre rojo',
 
   // Invites
   invites_title: '👥 Tu enlace de invitación',
@@ -121,22 +117,7 @@ export const es: Record<string, string> = {
   help_description: '¿Cómo podemos ayudarte?',
   help_contact: 'Contactar soporte',
 
-  // Platform Binding
-  binding_start: '¡Vincula tu cuenta!',
-  binding_step_1: '📝 Paso 1: Ingresa tu nombre de usuario',
-  binding_step_2: '📸 Paso 2: Sube una captura',
-  binding_step_3: '✅ Paso 3: Espera aprobación',
-  binding_enter_username: 'Por favor ingresa tu nombre de usuario:',
-  binding_upload_screenshot: 'Por favor sube una captura:',
-  binding_submitted: '✅ ¡Solicitud de vinculación enviada!',
-  binding_approved: '✅ ¡Tu vinculación fue aprobada!',
-  binding_rejected: '❌ Tu vinculación fue rechazada.',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 Comparte tu captura de ganancias',
-  screenshot_instructions: '1. Toma una captura\n2. Únete al grupo\n3. Envía la captura\n4. ¡Obtén 1 crédito!',
-  screenshot_join_group: 'Unirse al grupo',
-  screenshot_submitted: '✅ ¡Captura recibida!',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Reclamar sobre rojo',
@@ -206,4 +187,17 @@ export const es: Record<string, string> = {
   // Confirm/Cancel
   btn_confirm: '✅ Confirmar',
   btn_cancel: '❌ Cancelar',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 ¡Participación exitosa! ¡Buena suerte!',
+  auction_won: '🏆 ¡Felicitaciones! ¡Ganaste el sorteo!',
+  auction_lost: '😞 ¡Mejor suerte la próxima vez!',
+  auction_refunded: '↩️ Tu tarifa de participación ha sido reembolsada.',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 Recibiste un rendimiento de producto periódico de {amount} USDT.',
+  product_principal_returned: '✅ Tu capital de {amount} USDT ha sido devuelto.',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ Nueva actividad benéfica: {name}. ¡Únete!',
 };

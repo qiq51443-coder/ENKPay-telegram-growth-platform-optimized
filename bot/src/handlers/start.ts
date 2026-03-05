@@ -1,7 +1,7 @@
 import { Context, Markup } from 'telegraf';
-import { getOrCreateUser, getUserLanguage } from '../services/user';
+import { getOrCreateUser } from '../services/user';
 import { getSettings } from '../services/settings';
-import { t } from '../i18n';
+import { t, isSupportedLang } from '../i18n';
 import axios from 'axios';
 
 export const handleStart = async (ctx: Context) => {
@@ -23,32 +23,36 @@ export const handleStart = async (ctx: Context) => {
 
     // Get or create user
     const user = await getOrCreateUser(ctx, botId, inviteCodeUsed);
-    const lang = getUserLanguage(user);
+
+    // Language priority: Telegram user language (if supported) > Bot default_language > 'en'
+    let lang = 'en';
+    const telegramLang = ctx.from.language_code;
+    if (telegramLang && isSupportedLang(telegramLang)) {
+      lang = telegramLang;
+    } else {
+      try {
+        const botRes = await axios.get(`${backendUrl}/api/bots/${botId}`);
+        if (botRes.data?.bot?.default_language) {
+          lang = botRes.data.bot.default_language;
+        }
+      } catch {}
+    }
 
     // Get bot settings (welcome message + webapp url)
     const settings = await getSettings(botId);
 
-    // Get bot info for language
-    let botLang = lang;
-    try {
-      const botRes = await axios.get(`${backendUrl}/api/bots/${botId}`);
-      if (botRes.data?.bot?.default_language) {
-        botLang = botRes.data.bot.default_language;
-      }
-    } catch {}
-
     // Build welcome message
     const welcomeText = settings.welcome_message ||
-      `🎉 ${t(botLang, 'welcome_title')}\n\n` +
-      `🆔 ${t(botLang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-      `💰 ${t(botLang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
-      t(botLang, 'welcome_description');
+      `🎉 ${t(lang, 'welcome_title')}\n\n` +
+      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
+      `💰 ${t(lang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
+      t(lang, 'welcome_description');
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
     await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-      [Markup.button.text(t(botLang, 'btn_my_wallet')), Markup.button.text(t(botLang, 'btn_invite'))],
-      [Markup.button.webApp(t(botLang, 'btn_open_app'), webAppUrl)],
+      [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+      [Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)],
     ]).resize());
   } catch (error) {
     console.error('Start handler error:', error);

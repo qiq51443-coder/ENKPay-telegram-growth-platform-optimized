@@ -96,12 +96,13 @@ router.post('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, re
   try {
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
-    const { language_code } = req.body;
-    if (!language_code) return res.status(400).json({ error: 'language_code is required' });
+    const { language_code, language } = req.body;
+    const lang = language_code || language;
+    if (!lang) return res.status(400).json({ error: 'language_code is required' });
 
     await query(
       `UPDATE users SET language_code = $1 WHERE telegram_id = $2`,
-      [language_code, telegramId]
+      [lang, telegramId]
     );
 
     res.json({ success: true });

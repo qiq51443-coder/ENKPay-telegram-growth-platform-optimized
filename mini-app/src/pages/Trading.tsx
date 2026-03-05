@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { useLang } from '../context/LanguageContext';
 
 interface TradingPair {
   id: string;
@@ -44,6 +45,7 @@ const DURATION_OPTIONS = [
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 
 export const Trading: React.FC = () => {
+  const { t } = useLang();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -155,7 +157,7 @@ export const Trading: React.FC = () => {
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
     } catch (e: any) {
-      alert(e?.response?.data?.error || '下单失败');
+      alert(e?.response?.data?.error || t('order_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +205,7 @@ export const Trading: React.FC = () => {
   if (loading) {
     return (
       <div style={{ padding: '16px', color: theme.textSecondary, textAlign: 'center', paddingTop: '80px' }}>
-        加载中...
+        {t('loading')}
       </div>
     );
   }
@@ -253,7 +255,7 @@ export const Trading: React.FC = () => {
         {/* Countdown */}
         {countdown !== null && (
           <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
-            <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>订单倒计时</div>
+            <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>{t('order_countdown')}</div>
             <div style={{ height: '6px', backgroundColor: theme.border, borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
@@ -271,7 +273,7 @@ export const Trading: React.FC = () => {
 
         {/* Duration selector */}
         <div style={{ marginBottom: '12px' }}>
-          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>选择时间</div>
+          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>{t('select_duration')}</div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {DURATION_OPTIONS.map((d) => (
               <button
@@ -295,13 +297,13 @@ export const Trading: React.FC = () => {
 
         {/* Odds display */}
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: theme.textSecondary }}>赔率</span>
+          <span style={{ color: theme.textSecondary }}>{t('odds')}</span>
           <span style={{ color: '#f0b90b', fontWeight: '600' }}>{selectedOdds.toFixed(2)}x</span>
         </div>
 
         {/* Amount input */}
         <div style={{ marginBottom: '12px' }}>
-          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>投入金额 (USDT)</div>
+          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>{t('bet_amount')}</div>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
             {QUICK_AMOUNTS.map((v) => (
               <button
@@ -324,7 +326,7 @@ export const Trading: React.FC = () => {
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="自定义金额"
+            placeholder={t('custom_amount')}
             style={{
               width: '100%', padding: '10px 12px', borderRadius: '8px',
               border: `1px solid ${theme.border}`, backgroundColor: theme.bgCard,
@@ -333,7 +335,7 @@ export const Trading: React.FC = () => {
           />
           {amountNum > 0 && (
             <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '6px' }}>
-              预期收益: +{expectedProfit.toFixed(2)} USDT
+              {t('expected_profit')}: +{expectedProfit.toFixed(2)} USDT
             </div>
           )}
         </div>
@@ -349,7 +351,7 @@ export const Trading: React.FC = () => {
               cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null) ? 0.5 : 1,
             }}
           >
-            🟢 买涨 (UP)
+            {t('btn_up')}
           </button>
           <button
             onClick={() => openConfirm('down')}
@@ -360,7 +362,7 @@ export const Trading: React.FC = () => {
               cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null) ? 0.5 : 1,
             }}
           >
-            🔴 买跌 (DOWN)
+            {t('btn_down')}
           </button>
         </div>
 
@@ -369,25 +371,25 @@ export const Trading: React.FC = () => {
           onClick={() => { setHistoryOpen(!historyOpen); if (!historyOpen) fetchOrderHistory(); }}
           style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bgCard, color: theme.text, cursor: 'pointer', fontSize: '14px' }}
         >
-          {historyOpen ? '▲ 收起历史' : '▼ 查看历史订单'}
+          {historyOpen ? t('collapse_history') : t('view_history')}
         </button>
 
         {historyOpen && (
           <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {orders.length === 0 ? (
-              <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '16px' }}>暂无历史订单</div>
+              <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '16px' }}>{t('no_history')}</div>
             ) : orders.map((o) => (
               <div key={o.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${theme.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: o.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600' }}>
-                    {o.direction === 'up' ? '🟢 UP' : '🔴 DOWN'}
+                    {o.direction === 'up' ? t('order_up') : t('order_down')}
                   </span>
                   <span style={{ color: o.status === 'won' ? '#26a69a' : o.status === 'lost' ? '#ef5350' : theme.textSecondary, fontSize: '13px' }}>
-                    {o.status === 'won' ? 'WIN' : o.status === 'lost' ? 'LOSE' : o.status}
+                    {o.status === 'won' ? t('order_status_won') : o.status === 'lost' ? t('order_status_lost') : o.status}
                   </span>
                 </div>
                 <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '4px' }}>
-                  金额: {o.amount} USDT · 赔率: {o.odds}x · {new Date(o.created_at).toLocaleString('zh-CN')}
+                  {t('order_amount_label')}: {o.amount} USDT · {t('order_odds_label')}: {o.odds}x · {new Date(o.created_at).toLocaleString()}
                 </div>
               </div>
             ))}
@@ -398,15 +400,15 @@ export const Trading: React.FC = () => {
         {confirmOpen && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
             <div style={{ backgroundColor: theme.bgCard, borderRadius: '16px', padding: '24px', width: '320px', maxWidth: '90vw' }}>
-              <h3 style={{ color: theme.text, margin: '0 0 16px' }}>确认下单</h3>
+              <h3 style={{ color: theme.text, margin: '0 0 16px' }}>{t('confirm_order')}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                 {[
-                  ['币种', selectedPair.display_name],
-                  ['方向', confirmDirection === 'up' ? '🟢 买涨 (UP)' : '🔴 买跌 (DOWN)'],
-                  ['金额', `${amount} USDT`],
-                  ['时间', `${selectedDuration}秒`],
-                  ['赔率', `${selectedOdds.toFixed(2)}x`],
-                  ['预期收益', `+${(Number(amount) * (selectedOdds - 1)).toFixed(2)} USDT`],
+                  [t('order_pair'), selectedPair.display_name],
+                  [t('order_direction'), confirmDirection === 'up' ? t('order_up') : t('order_down')],
+                  [t('order_amount'), `${amount} USDT`],
+                  [t('order_duration'), `${selectedDuration}${t('order_seconds')}`],
+                  [t('order_odds_label'), `${selectedOdds.toFixed(2)}x`],
+                  [t('order_expected_yield'), `+${(Number(amount) * (selectedOdds - 1)).toFixed(2)} USDT`],
                 ].map(([label, val]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: theme.textSecondary }}>{label}</span>
@@ -415,9 +417,9 @@ export const Trading: React.FC = () => {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => setConfirmOpen(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.text, cursor: 'pointer', fontSize: '15px' }}>取消</button>
+                <button onClick={() => setConfirmOpen(false)} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.text, cursor: 'pointer', fontSize: '15px' }}>{t('cancel')}</button>
                 <button onClick={submitOrder} disabled={submitting} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: confirmDirection === 'up' ? '#26a69a' : '#ef5350', color: '#fff', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}>
-                  {submitting ? '下单中...' : '确认'}
+                  {submitting ? t('placing_order') : t('confirm')}
                 </button>
               </div>
             </div>
@@ -430,7 +432,7 @@ export const Trading: React.FC = () => {
   // Pairs list view
   return (
     <div style={{ padding: '16px' }}>
-      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>📈 即时交易</h1>
+      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('trading_title')}</h1>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {pairs.map((pair) => {
           const info = prices[pair.id] || { price: 0, change24h: 0 };

@@ -58,19 +58,15 @@ export const zh = {
   tasks_title: '🎯 可用任务',
   tasks_follow_channel: '📢 关注频道',
   tasks_join_group: '👥 加入群组',
-  tasks_bind_platform: '🔗 绑定平台',
   tasks_invite_friends: '👫 邀请好友',
-  tasks_share_screenshot: '📸 分享收益截图',
   tasks_completed: '✅ 已完成',
   tasks_reward: '奖励',
   tasks_follow_button: '关注频道',
   tasks_join_button: '加入群组',
-  tasks_bind_button: '立即绑定',
   tasks_check_button: '验证',
   tasks_follow_success: '✅ 感谢关注！奖励已解锁！',
   tasks_join_success: '✅ 感谢加入！奖励已解锁！',
   tasks_not_completed: '❌ 请先完成任务。',
-  tasks_share_screenshot_desc: '分享您的收益截图到我们的群组，赚取1个红包积分',
 
   // Invites
   invites_title: '👥 您的邀请链接',
@@ -120,22 +116,7 @@ export const zh = {
   help_description: '我们能帮您什么？',
   help_contact: '联系支持',
 
-  // Platform Binding
-  binding_start: '让我们绑定您的平台账户！',
-  binding_step_1: '📝 步骤 1: 输入您的平台用户名',
-  binding_step_2: '📸 步骤 2: 上传您的绑定截图',
-  binding_step_3: '✅ 步骤 3: 等待审核',
-  binding_enter_username: '请输入您的平台用户名：',
-  binding_upload_screenshot: '请上传显示您平台账户的截图：',
-  binding_submitted: '✅ 绑定请求已提交！我们将很快审核。',
-  binding_approved: '✅ 您的平台绑定已获批准！',
-  binding_rejected: '❌ 您的平台绑定被拒绝。请重试。',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 分享您的收益截图',
-  screenshot_instructions: '1. 截取您的收益截图\n2. 点击下方按钮加入我们的群组\n3. 在群组中发送截图\n4. 我们将收集并审核\n5. 审核通过后获得1个红包积分！',
-  screenshot_join_group: '加入截图群组',
-  screenshot_submitted: '✅ 截图已收到！我们将很快审核。',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: '领取红包',
@@ -205,4 +186,17 @@ export const zh = {
   // Confirm/Cancel
   btn_confirm: '✅ 确认',
   btn_cancel: '❌ 取消',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 参与成功，祝您好运！',
+  auction_won: '🏆 恭喜您赢得了夺宝活动！',
+  auction_lost: '😞 下次会更好！',
+  auction_refunded: '↩️ 您的夺宝参与费用已退回。',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 您收到定期产品收益 {amount} USDT。',
+  product_principal_returned: '✅ 您的本金 {amount} USDT 已退回。',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ 新公益活动：{name}，欢迎参与！',
 };

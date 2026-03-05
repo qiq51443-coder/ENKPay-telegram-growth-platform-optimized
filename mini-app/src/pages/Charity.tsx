@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { useLang } from '../context/LanguageContext';
+
+type CharityView = 'list' | 'detail';
 
 interface CharityProject {
   id: string;
@@ -21,6 +24,7 @@ interface CharityBanner {
 const BANNER_ROTATION_INTERVAL = 10000; // 10 seconds
 
 export const Charity: React.FC = () => {
+  const { t } = useLang();
   const [projects, setProjects] = useState<CharityProject[]>([]);
   const [banners, setBanners] = useState<CharityBanner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +77,7 @@ export const Charity: React.FC = () => {
             onClick={() => { setView('list'); setSelectedId(null); }}
             style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0 }}
           >
-            ← 返回
+            {t('back')}
           </button>
         </div>
 
@@ -91,7 +95,7 @@ export const Charity: React.FC = () => {
               backgroundColor: selected.status === 'active' ? theme.success : theme.textSecondary,
               color: '#fff', whiteSpace: 'nowrap',
             }}>
-              {selected.status === 'active' ? '进行中' : '已结束'}
+              {selected.status === 'active' ? t('charity_active') : t('charity_ended')}
             </span>
           </div>
 
@@ -113,7 +117,7 @@ export const Charity: React.FC = () => {
               fontSize: '16px', fontWeight: '600', cursor: hasAmbassador ? 'pointer' : 'not-allowed',
             }}
           >
-            {hasAmbassador ? '联系公益大使' : '暂无联系方式'}
+            {hasAmbassador ? t('contact_ambassador') : t('no_contact')}
           </button>
         </div>
       </div>
@@ -123,7 +127,7 @@ export const Charity: React.FC = () => {
   return (
     <div style={{ paddingBottom: '80px' }}>
       <div style={{ padding: '16px 16px 0' }}>
-        <h1 style={{ color: theme.text, marginBottom: '12px', fontSize: '20px' }}>❤️ 公益活动</h1>
+        <h1 style={{ color: theme.text, marginBottom: '12px', fontSize: '20px' }}>{t('charity_title')}</h1>
       </div>
 
       {/* Banner carousel */}
@@ -161,7 +165,7 @@ export const Charity: React.FC = () => {
             background: 'linear-gradient(135deg, #1a2742 0%, #243352 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ color: theme.textSecondary, fontSize: '14px' }}>暂无轮播图</span>
+            <span style={{ color: theme.textSecondary, fontSize: '14px' }}>{t('no_banners')}</span>
           </div>
         )}
       </div>
@@ -169,9 +173,9 @@ export const Charity: React.FC = () => {
       {/* Project list */}
       <div style={{ padding: '0 16px' }}>
         {loading ? (
-          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>加载中...</div>
+          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
         ) : projects.length === 0 ? (
-          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>暂无活动</div>
+          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_activities')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {projects.map(project => (
@@ -202,7 +206,7 @@ export const Charity: React.FC = () => {
                       backgroundColor: project.status === 'active' ? theme.success : theme.textSecondary,
                       color: '#fff',
                     }}>
-                      {project.status === 'active' ? '进行中' : '已结束'}
+                      {project.status === 'active' ? t('charity_active') : t('charity_ended')}
                     </span>
                   </div>
                   {project.description && (

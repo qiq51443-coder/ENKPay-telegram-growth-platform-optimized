@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLang } from '../context/LanguageContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -46,15 +47,17 @@ const ProfileIcon: React.FC<{ active: boolean }> = ({ active }) => (
   </svg>
 );
 
-const tabs: Array<{ key: TabKey; label: string; Icon: React.FC<{ active: boolean }> }> = [
-  { key: 'trading', label: '即时交易', Icon: TradingIcon },
-  { key: 'auction', label: '夺宝', Icon: AuctionIcon },
-  { key: 'products', label: '定期产品', Icon: ProductsIcon },
-  { key: 'charity', label: '公益活动', Icon: CharityIcon },
-  { key: 'profile', label: '个人中心', Icon: ProfileIcon },
+const tabDefs: Array<{ key: TabKey; labelKey: string; Icon: React.FC<{ active: boolean }> }> = [
+  { key: 'trading', labelKey: 'nav_trading', Icon: TradingIcon },
+  { key: 'auction', labelKey: 'nav_auction', Icon: AuctionIcon },
+  { key: 'products', labelKey: 'nav_products', Icon: ProductsIcon },
+  { key: 'charity', labelKey: 'nav_charity', Icon: CharityIcon },
+  { key: 'profile', labelKey: 'nav_profile', Icon: ProfileIcon },
 ];
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
+  const { t } = useLang();
+
   return (
     <div style={{
       position: 'fixed',
@@ -71,7 +74,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
       justifyContent: 'space-around',
       zIndex: 100,
     }}>
-      {tabs.map(({ key, label, Icon }) => {
+      {tabDefs.map(({ key, labelKey, Icon }) => {
         const isActive = activeTab === key;
         return (
           <button
@@ -95,7 +98,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
           >
             <Icon active={isActive} />
             <span style={{ fontSize: '10px', fontWeight: isActive ? '600' : '400', color: isActive ? ACTIVE_COLOR : INACTIVE_COLOR }}>
-              {label}
+              {t(labelKey)}
             </span>
           </button>
         );

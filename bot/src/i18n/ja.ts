@@ -59,19 +59,15 @@ export const ja: Record<string, string> = {
   tasks_title: '🎯 利用可能なタスク',
   tasks_follow_channel: '📢 チャンネルをフォロー',
   tasks_join_group: '👥 グループに参加',
-  tasks_bind_platform: '🔗 プラットフォームを連携',
   tasks_invite_friends: '👫 友達を招待',
-  tasks_share_screenshot: '📸 スクリーンショットを共有',
   tasks_completed: '✅ 完了',
   tasks_reward: '報酬',
   tasks_follow_button: 'チャンネルをフォロー',
   tasks_join_button: 'グループに参加',
-  tasks_bind_button: '今すぐ連携',
   tasks_check_button: '確認',
   tasks_follow_success: '✅ フォローありがとうございます！報酬がアンロックされました！',
   tasks_join_success: '✅ 参加ありがとうございます！報酬がアンロックされました！',
   tasks_not_completed: '❌ まずタスクを完了してください。',
-  tasks_share_screenshot_desc: '収益スクリーンショットを共有して1レッドパケットクレジットを獲得',
 
   // Invites
   invites_title: '👥 招待リンク',
@@ -121,22 +117,7 @@ export const ja: Record<string, string> = {
   help_description: 'どのようにお手伝いできますか？',
   help_contact: 'サポートに連絡',
 
-  // Platform Binding
-  binding_start: 'アカウントを連携しましょう！',
-  binding_step_1: '📝 ステップ1：ユーザー名を入力',
-  binding_step_2: '📸 ステップ2：スクリーンショットをアップロード',
-  binding_step_3: '✅ ステップ3：承認を待つ',
-  binding_enter_username: 'ユーザー名を入力してください：',
-  binding_upload_screenshot: 'スクリーンショットをアップロードしてください：',
-  binding_submitted: '✅ 連携リクエストが送信されました！',
-  binding_approved: '✅ 連携が承認されました！',
-  binding_rejected: '❌ 連携が拒否されました。再試行してください。',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 収益スクリーンショットを共有',
-  screenshot_instructions: '1. スクリーンショットを撮る\n2. グループに参加\n3. スクリーンショットを送る\n4. クレジットを獲得！',
-  screenshot_join_group: 'グループに参加',
-  screenshot_submitted: '✅ スクリーンショットを受け取りました！',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'レッドパケットを受け取る',
@@ -206,4 +187,17 @@ export const ja: Record<string, string> = {
   // Confirm/Cancel
   btn_confirm: '✅ 確認',
   btn_cancel: '❌ キャンセル',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 参加成功！幸運を祈ります！',
+  auction_won: '🏆 おめでとうございます！抽選に当選しました！',
+  auction_lost: '😞 次回頑張りましょう！',
+  auction_refunded: '↩️ 参加費が返金されました。',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 定期商品の収益 {amount} USDT を受け取りました。',
+  product_principal_returned: '✅ 元本 {amount} USDT が返還されました。',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ 新しいチャリティー活動：{name}。参加しましょう！',
 };
