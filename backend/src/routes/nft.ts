@@ -545,7 +545,7 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
 
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-         SELECT $1, 'deposit', $2, balance, $3, $4 FROM users WHERE id = $1`,
+         SELECT $1, 'product_purchase', $2, balance, $3, $4 FROM users WHERE id = $1`,
         [user.id, -amount, `购买定期产品: ${product.name}`, id]
       );
     });

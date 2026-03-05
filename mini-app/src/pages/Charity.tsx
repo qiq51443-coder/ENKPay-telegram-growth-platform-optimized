@@ -18,7 +18,7 @@ interface CharityBanner {
   title?: string;
 }
 
-type CharityView = 'list' | 'detail';
+const BANNER_ROTATION_INTERVAL = 10000; // 10 seconds
 
 export const Charity: React.FC = () => {
   const [projects, setProjects] = useState<CharityProject[]>([]);
@@ -39,7 +39,7 @@ export const Charity: React.FC = () => {
     if (banners.length <= 1) return;
     bannerTimer.current = setInterval(() => {
       setBannerIndex(i => (i + 1) % banners.length);
-    }, 10000);
+    }, BANNER_ROTATION_INTERVAL);
     return () => {
       if (bannerTimer.current) clearInterval(bannerTimer.current);
     };

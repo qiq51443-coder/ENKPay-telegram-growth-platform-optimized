@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.get('/banners', async (req, res) => {
       `SELECT id, image_url, title, sort_order
        FROM charity_banners
        WHERE is_active = true
-       ORDER BY sort_order ASC, created_at DESC`
+       ORDER BY sort_order ASC, created_at ASC`
     );
     res.json({ success: true, data: result.rows });
   } catch (error: any) {
@@ -27,7 +28,7 @@ router.get('/banners', async (req, res) => {
  * POST /api/charity/banners
  * Create banner (admin)
  */
-router.post('/banners', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/banners', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { image_url, title, sort_order = 0 } = req.body;
     if (!image_url) return res.status(400).json({ error: 'image_url is required' });
@@ -46,7 +47,7 @@ router.post('/banners', authenticateAdmin, async (req: AuthRequest, res) => {
  * DELETE /api/charity/banners/:id
  * Delete banner (admin)
  */
-router.delete('/banners/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+router.delete('/banners/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     await query(`UPDATE charity_banners SET is_active = false WHERE id = $1`, [id]);

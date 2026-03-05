@@ -2,6 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
@@ -343,7 +344,7 @@ router.post('/results/:id/redeem', authenticateMiniApp, async (req: MiniAppAuthR
  * Draw a winner (admin only)
  * body: { method: 'random' | 'manual', winner_unique_id?: string }
  */
-router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/:id/draw', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { method = 'random', winner_unique_id } = req.body;

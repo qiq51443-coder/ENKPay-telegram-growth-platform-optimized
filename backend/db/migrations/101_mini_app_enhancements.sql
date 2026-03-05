@@ -3,7 +3,7 @@
 
 -- Periodic products new fields
 ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS is_purchase_limited BOOLEAN DEFAULT FALSE;
-ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS max_purchases_per_user INT DEFAULT 1;
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS max_purchases_per_user INT DEFAULT NULL;
 ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS daily_yield_rate DECIMAL(8,6) DEFAULT 0.005;
 ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS term_days INT DEFAULT 30;
 ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS current_holders INT DEFAULT 0;

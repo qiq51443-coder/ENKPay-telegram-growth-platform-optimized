@@ -57,7 +57,7 @@ export const Products: React.FC = () => {
     setPurchasing(true);
     setPurchaseMsg('');
     try {
-      await api.post(`/nft/products/${selected.id}/purchase`, { amount: selected.price });
+      await api.post(`/nft/products/${selected.id}/purchase`, {});
       setPurchaseMsg('✅ 购买成功，次日起收益自动到账');
       setTimeout(() => {
         setShowPurchase(false);

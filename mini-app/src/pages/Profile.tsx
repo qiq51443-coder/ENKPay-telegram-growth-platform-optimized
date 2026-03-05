@@ -58,7 +58,7 @@ export const Profile: React.FC = () => {
   const { user: tgUser, initData } = useTelegram();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedLang, setSelectedLang] = useState(tgUser?.language_code || 'zh');
+  const [selectedLang, setSelectedLang] = useState(tgUser?.language_code || 'en');
   const [view, setView] = useState<ProfileView>('main');
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);

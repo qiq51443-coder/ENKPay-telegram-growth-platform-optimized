@@ -13,7 +13,7 @@ async function distributeDailyYield(): Promise<void> {
               p.daily_yield_rate, p.name as product_name
        FROM product_holdings ph
        JOIN nft_products p ON ph.product_id = p.id
-       WHERE ph.status = 'active' AND ph.end_date > CURRENT_DATE`,
+       WHERE ph.status = 'active' AND ph.end_date >= CURRENT_DATE`,
       []
     );
 
@@ -56,7 +56,7 @@ async function refundExpiredHoldings(): Promise<void> {
               p.name as product_name
        FROM product_holdings ph
        JOIN nft_products p ON ph.product_id = p.id
-       WHERE ph.status = 'active' AND ph.end_date <= CURRENT_DATE`,
+       WHERE ph.status = 'active' AND ph.end_date < CURRENT_DATE`,
       []
     );
 
