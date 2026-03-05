@@ -1,8 +1,62 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+/**
+ * GET /api/charity/banners
+ * List active charity banners (public)
+ */
+router.get('/banners', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, image_url, title, sort_order
+       FROM charity_banners
+       WHERE is_active = true
+       ORDER BY sort_order ASC, created_at ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get banners error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/charity/banners
+ * Create banner (admin)
+ */
+router.post('/banners', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { image_url, title, sort_order = 0 } = req.body;
+    if (!image_url) return res.status(400).json({ error: 'image_url is required' });
+    const result = await query(
+      `INSERT INTO charity_banners (image_url, title, sort_order) VALUES ($1, $2, $3) RETURNING *`,
+      [image_url, title, sort_order]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Create banner error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/charity/banners/:id
+ * Delete banner (admin)
+ */
+router.delete('/banners/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await query(`UPDATE charity_banners SET is_active = false WHERE id = $1`, [id]);
+    res.json({ success: true, message: 'Banner deleted' });
+  } catch (error: any) {
+    console.error('Delete banner error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * GET /api/charity/projects
@@ -16,7 +70,8 @@ router.get('/projects', async (req, res) => {
     let queryText = `
       SELECT 
         id, title, description, image_url, goal_amount, raised_amount,
-        status, start_date, end_date, created_at, updated_at
+        status, start_date, end_date, created_at, updated_at,
+        ambassador_telegram, is_active
       FROM charity_projects
       WHERE 1=1
     `;
@@ -157,6 +212,8 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       'organization',
       'website_url',
       'status',
+      'ambassador_telegram',
+      'is_active',
     ];
 
     for (const field of allowedFields) {

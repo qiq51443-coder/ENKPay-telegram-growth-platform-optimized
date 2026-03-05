@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select } from 'antd';
-import { PlusOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch } from 'antd';
+import { PlusOutlined, EditOutlined, PictureOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -15,6 +15,8 @@ interface CharityProject {
   status: string;
   start_date?: string;
   end_date?: string;
+  ambassador_telegram?: string;
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -24,6 +26,11 @@ export const CharityProjects: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<CharityProject | null>(null);
   const [form] = Form.useForm();
+  const [bannerModalOpen, setBannerModalOpen] = useState(false);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [newBannerUrl, setNewBannerUrl] = useState('');
+  const [newBannerTitle, setNewBannerTitle] = useState('');
+  const [bannerLoading, setBannerLoading] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -96,6 +103,43 @@ export const CharityProjects: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to update status:', error);
       message.error(error.response?.data?.error || '更新失败');
+    }
+  };
+
+  const openBannerModal = async () => {
+    setBannerLoading(true);
+    setBannerModalOpen(true);
+    try {
+      const data = await apiClient.getCharityBanners();
+      setBanners(data.data || []);
+    } catch {
+      setBanners([]);
+    } finally {
+      setBannerLoading(false);
+    }
+  };
+
+  const handleAddBanner = async () => {
+    if (!newBannerUrl.trim()) { message.error('请输入图片URL'); return; }
+    try {
+      await apiClient.createCharityBanner({ image_url: newBannerUrl, title: newBannerTitle });
+      message.success('轮播图添加成功');
+      setNewBannerUrl('');
+      setNewBannerTitle('');
+      const data = await apiClient.getCharityBanners();
+      setBanners(data.data || []);
+    } catch {
+      message.error('添加失败');
+    }
+  };
+
+  const handleDeleteBanner = async (id: string) => {
+    try {
+      await apiClient.deleteCharityBanner(id);
+      message.success('删除成功');
+      setBanners(prev => prev.filter(b => b.id !== id));
+    } catch {
+      message.error('删除失败');
     }
   };
 
@@ -231,9 +275,14 @@ export const CharityProjects: React.FC = () => {
           <h2 style={{ margin: 0 }}>公益项目管理</h2>
           <p style={{ color: '#666', marginTop: 4 }}>创建和管理公益援助项目</p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          创建项目
-        </Button>
+        <Space>
+          <Button icon={<PictureOutlined />} onClick={openBannerModal}>
+            轮播图管理
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
+            创建项目
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -325,7 +374,65 @@ export const CharityProjects: React.FC = () => {
               <Select.Option value="closed">已关闭</Select.Option>
             </Select>
           </Form.Item>
+
+          <Form.Item
+            name="ambassador_telegram"
+            label="公益大使 Telegram"
+            tooltip="不含@符号，用于联系公益大使"
+          >
+            <Input placeholder="例如：ambassador_username" />
+          </Form.Item>
+
+          <Form.Item
+            name="is_active"
+            label="是否进行中"
+            valuePropName="checked"
+            initialValue={true}
+          >
+            <Switch checkedChildren="进行中" unCheckedChildren="已停止" />
+          </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Banner Management Modal */}
+      <Modal
+        title="轮播图管理"
+        open={bannerModalOpen}
+        onCancel={() => setBannerModalOpen(false)}
+        footer={[<Button key="close" onClick={() => setBannerModalOpen(false)}>关闭</Button>]}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <h4>添加轮播图</h4>
+          <Space.Compact style={{ width: '100%', marginBottom: 8 }}>
+            <Input
+              placeholder="图片URL"
+              value={newBannerUrl}
+              onChange={e => setNewBannerUrl(e.target.value)}
+            />
+            <Input
+              placeholder="标题（可选）"
+              value={newBannerTitle}
+              onChange={e => setNewBannerTitle(e.target.value)}
+            />
+            <Button type="primary" onClick={handleAddBanner}>添加</Button>
+          </Space.Compact>
+        </div>
+        {bannerLoading ? (
+          <div style={{ textAlign: 'center', padding: 20 }}>加载中...</div>
+        ) : banners.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#999', padding: 20 }}>暂无轮播图</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {banners.map(b => (
+              <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #f0f0f0', padding: '8px', borderRadius: 6 }}>
+                <img src={b.image_url} alt={b.title} style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4 }} />
+                <div style={{ flex: 1 }}>{b.title || '（无标题）'}</div>
+                <Button danger size="small" onClick={() => handleDeleteBanner(b.id)}>删除</Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );

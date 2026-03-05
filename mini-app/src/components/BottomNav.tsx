@@ -1,5 +1,4 @@
 import React from 'react';
-import { theme } from '../theme';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -8,12 +7,51 @@ interface BottomNavProps {
   onTabChange: (tab: TabKey) => void;
 }
 
-const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
-  { key: 'trading', label: '即时交易', icon: '📈' },
-  { key: 'auction', label: '竞拍', icon: '🎯' },
-  { key: 'products', label: '定期产品', icon: '🎨' },
-  { key: 'charity', label: '公益活动', icon: '❤️' },
-  { key: 'profile', label: '个人中心', icon: '👤' },
+const ACTIVE_COLOR = '#F0B90B';
+const INACTIVE_COLOR = '#8899AA';
+
+const TradingIcon: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : INACTIVE_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+    <polyline points="16 7 22 7 22 13" />
+  </svg>
+);
+
+const AuctionIcon: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : INACTIVE_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="8" width="18" height="12" rx="2" />
+    <path d="M8 8V6a4 4 0 0 1 8 0v2" />
+    <line x1="12" y1="13" x2="12" y2="16" />
+    <circle cx="12" cy="13" r="1" fill={active ? ACTIVE_COLOR : INACTIVE_COLOR} stroke="none" />
+  </svg>
+);
+
+const ProductsIcon: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : INACTIVE_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const CharityIcon: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : INACTIVE_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+  </svg>
+);
+
+const ProfileIcon: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : INACTIVE_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const tabs: Array<{ key: TabKey; label: string; Icon: React.FC<{ active: boolean }> }> = [
+  { key: 'trading', label: '即时交易', Icon: TradingIcon },
+  { key: 'auction', label: '夺宝', Icon: AuctionIcon },
+  { key: 'products', label: '定期产品', Icon: ProductsIcon },
+  { key: 'charity', label: '公益活动', Icon: CharityIcon },
+  { key: 'profile', label: '个人中心', Icon: ProfileIcon },
 ];
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
@@ -24,38 +62,44 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
       left: 0,
       right: 0,
       height: '60px',
-      backgroundColor: theme.bgCard,
-      borderTop: `1px solid ${theme.border}`,
+      backgroundColor: 'rgba(26, 39, 66, 0.92)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      borderTop: '1px solid rgba(42, 58, 90, 0.8)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-around',
       zIndex: 100,
     }}>
-      {tabs.map(tab => (
-        <button
-          key={tab.key}
-          onClick={() => onTabChange(tab.key)}
-          style={{
-            flex: 1,
-            height: '100%',
-            border: 'none',
-            background: 'none',
-            color: activeTab === tab.key ? theme.accent : theme.textSecondary,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '2px',
-            cursor: 'pointer',
-            transition: 'color 0.2s',
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>{tab.icon}</span>
-          <span style={{ fontSize: '10px', fontWeight: activeTab === tab.key ? '600' : '400' }}>
-            {tab.label}
-          </span>
-        </button>
-      ))}
+      {tabs.map(({ key, label, Icon }) => {
+        const isActive = activeTab === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onTabChange(key)}
+            style={{
+              flex: 1,
+              height: '100%',
+              border: 'none',
+              background: 'none',
+              color: isActive ? ACTIVE_COLOR : INACTIVE_COLOR,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              padding: 0,
+            }}
+          >
+            <Icon active={isActive} />
+            <span style={{ fontSize: '10px', fontWeight: isActive ? '600' : '400', color: isActive ? ACTIVE_COLOR : INACTIVE_COLOR }}>
+              {label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 };

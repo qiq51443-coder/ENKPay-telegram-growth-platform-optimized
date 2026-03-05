@@ -36,11 +36,9 @@ interface Order {
 }
 
 const DURATION_OPTIONS = [
-  { label: '1分钟', seconds: 60 },
-  { label: '2分钟', seconds: 120 },
-  { label: '3分钟', seconds: 180 },
-  { label: '5分钟', seconds: 300 },
-  { label: '10分钟', seconds: 600 },
+  { label: '1分钟', seconds: 60, periodsPerDay: 1440 },
+  { label: '5分钟', seconds: 300, periodsPerDay: 288 },
+  { label: '10分钟', seconds: 600, periodsPerDay: 144 },
 ];
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];

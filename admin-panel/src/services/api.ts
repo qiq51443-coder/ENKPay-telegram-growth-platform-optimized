@@ -597,14 +597,42 @@ class ApiClient {
     return response.data;
   }
 
-  async getTradingPairs(params?: any) {
-    const response = await this.client.get('/admin/trading/pairs', { params });
-    return response.data;
-  }
-
   // File upload helper
   getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;
+  }
+
+  // Generic HTTP methods for flexible use
+  async get(path: string, params?: any) {
+    return this.client.get(path, { params });
+  }
+
+  async post(path: string, data?: any) {
+    return this.client.post(path, data);
+  }
+
+  async put(path: string, data?: any) {
+    return this.client.put(path, data);
+  }
+
+  async delete(path: string) {
+    return this.client.delete(path);
+  }
+
+  // Charity Banners
+  async getCharityBanners() {
+    const response = await this.client.get('/charity/banners');
+    return response.data;
+  }
+
+  async createCharityBanner(data: any) {
+    const response = await this.client.post('/charity/banners', data);
+    return response.data;
+  }
+
+  async deleteCharityBanner(id: string) {
+    const response = await this.client.delete(`/charity/banners/${id}`);
+    return response.data;
   }
 }
 

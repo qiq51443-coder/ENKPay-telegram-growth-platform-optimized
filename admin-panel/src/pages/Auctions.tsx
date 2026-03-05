@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Radio } from 'antd';
 import { PlusOutlined, TrophyOutlined, EyeOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -7,39 +7,36 @@ interface Auction {
   id: string;
   title: string;
   description?: string;
-  prize_type: string;
-  prize_info: any;
-  share_price: number;
-  total_shares: number;
-  sold_shares: number;
+  image_url?: string;
+  product_value: number;
+  participant_count: number;
+  current_participants: number;
+  per_person_cost: number;
+  max_purchases_per_user: number;
   status: string;
-  start_time: string;
-  end_time: string;
-  draw_time?: string;
-  winner_user_id?: string;
+  expires_at: string;
+  winner_unique_id?: string;
   created_at: string;
 }
 
-interface AuctionEntry {
+interface Participant {
   id: string;
-  user_id: string;
-  shares_purchased: number;
-  total_amount: number;
+  unique_id: string;
+  quantity: number;
   created_at: string;
-  user?: {
-    telegram_id: number;
-    username?: string;
-    first_name?: string;
-  };
 }
 
 export const Auctions: React.FC = () => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [entriesModalOpen, setEntriesModalOpen] = useState(false);
-  const [entries, setEntries] = useState<AuctionEntry[]>([]);
+  const [participantsModalOpen, setParticipantsModalOpen] = useState(false);
+  const [drawModalOpen, setDrawModalOpen] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null);
+  const [drawMethod, setDrawMethod] = useState<'random' | 'manual'>('random');
+  const [manualWinnerId, setManualWinnerId] = useState('');
+  const [drawing, setDrawing] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -49,11 +46,14 @@ export const Auctions: React.FC = () => {
   const fetchAuctions = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.getAuctions();
-      setAuctions(response.auctions || []);
+      const [active, completed] = await Promise.all([
+        apiClient.get('/auctions?status=active&limit=50'),
+        apiClient.get('/auctions?status=completed&limit=50'),
+      ]);
+      setAuctions([...(active.data?.data || []), ...(completed.data?.data || [])]);
     } catch (error) {
       console.error('Failed to fetch auctions:', error);
-      message.error('获取竞拍列表失败');
+      message.error('获取夺宝列表失败');
     } finally {
       setLoading(false);
     }
@@ -67,28 +67,19 @@ export const Auctions: React.FC = () => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
-      // Convert dates to ISO strings
-      if (values.start_time) {
-        values.start_time = values.start_time.toISOString();
+      if (values.expires_at) {
+        values.expires_at = values.expires_at.toISOString();
       }
-      if (values.end_time) {
-        values.end_time = values.end_time.toISOString();
+      // Calculate per_person_cost from product_value and participant_count
+      if (values.product_value && values.participant_count) {
+        values.per_person_cost = parseFloat((values.product_value / values.participant_count).toFixed(2));
       }
-      
-      // Parse prize_info as JSON
-      if (values.prize_info && typeof values.prize_info === 'string') {
-        try {
-          values.prize_info = JSON.parse(values.prize_info);
-        } catch (e) {
-          message.error('奖品信息格式错误，请输入有效的 JSON');
-          return;
-        }
-      }
-      
-      await apiClient.createAuction(values);
-      message.success('竞拍创建成功');
-      
+      // Set platform fee and winner payout
+      values.platform_fee_percent = 30;
+      values.winner_payout = parseFloat((values.product_value * 0.7).toFixed(2));
+
+      await apiClient.post('/auctions', values);
+      message.success('夺宝创建成功');
       setModalOpen(false);
       form.resetFields();
       fetchAuctions();
@@ -98,26 +89,39 @@ export const Auctions: React.FC = () => {
     }
   };
 
-  const handleDraw = async (id: string) => {
+  const handleOpenDraw = (auction: Auction) => {
+    setSelectedAuction(auction);
+    setDrawMethod('random');
+    setManualWinnerId('');
+    setDrawModalOpen(true);
+  };
+
+  const handleDraw = async () => {
+    if (!selectedAuction) return;
+    setDrawing(true);
     try {
-      await apiClient.drawAuction(id);
+      const body: any = { method: drawMethod };
+      if (drawMethod === 'manual') body.winner_unique_id = manualWinnerId;
+      await apiClient.post(`/auctions/${selectedAuction.id}/draw`, body);
       message.success('开奖成功');
+      setDrawModalOpen(false);
       fetchAuctions();
     } catch (error: any) {
-      console.error('Failed to draw auction:', error);
+      console.error('Failed to draw:', error);
       message.error(error.response?.data?.error || '开奖失败');
+    } finally {
+      setDrawing(false);
     }
   };
 
-  const handleViewEntries = async (auction: Auction) => {
+  const handleViewParticipants = async (auction: Auction) => {
     setSelectedAuction(auction);
     try {
-      const response = await apiClient.getAuctionEntries(auction.id);
-      setEntries(response.entries || []);
-      setEntriesModalOpen(true);
+      const response = await apiClient.get(`/auctions/${auction.id}/participants?limit=100`);
+      setParticipants(response.data?.data || []);
+      setParticipantsModalOpen(true);
     } catch (error: any) {
-      console.error('Failed to fetch entries:', error);
-      message.error(error.response?.data?.error || '获取参与记录失败');
+      message.error('获取参与者失败');
     }
   };
 
@@ -130,43 +134,34 @@ export const Auctions: React.FC = () => {
       render: (id: string) => id.substring(0, 8),
     },
     {
-      title: '标题',
+      title: '藏品名称',
       dataIndex: 'title',
       key: 'title',
       width: 200,
     },
     {
-      title: '奖品类型',
-      dataIndex: 'prize_type',
-      key: 'prize_type',
+      title: '总价值',
+      dataIndex: 'product_value',
+      key: 'product_value',
       width: 100,
-      render: (type: string) => {
-        const typeMap: Record<string, { text: string; color: string }> = {
-          nft: { text: 'NFT', color: 'purple' },
-          usdt: { text: 'USDT', color: 'green' },
-          physical: { text: '实物', color: 'orange' },
-          custom: { text: '自定义', color: 'blue' },
-        };
-        const typeInfo = typeMap[type] || { text: type, color: 'default' };
-        return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
-      },
+      render: (v: number) => `$${parseFloat(String(v)).toFixed(2)}`,
     },
     {
-      title: '份额价格',
-      dataIndex: 'share_price',
-      key: 'share_price',
+      title: '每份价格',
+      dataIndex: 'per_person_cost',
+      key: 'per_person_cost',
       width: 100,
-      render: (price: number) => `${price.toFixed(2)} USDT`,
+      render: (v: number) => `$${parseFloat(String(v)).toFixed(2)}`,
     },
     {
-      title: '份额进度',
-      key: 'shares',
+      title: '参与进度',
+      key: 'progress',
       width: 120,
       render: (_: any, record: Auction) => (
         <div>
-          <div>{record.sold_shares} / {record.total_shares}</div>
+          <div>{record.current_participants} / {record.participant_count}</div>
           <div style={{ fontSize: '12px', color: '#666' }}>
-            {((record.sold_shares / record.total_shares) * 100).toFixed(1)}%
+            {record.participant_count > 0 ? ((record.current_participants / record.participant_count) * 100).toFixed(1) : 0}%
           </div>
         </div>
       ),
@@ -177,21 +172,20 @@ export const Auctions: React.FC = () => {
       key: 'status',
       width: 100,
       render: (status: string) => {
-        const statusMap: Record<string, { text: string; color: string }> = {
-          upcoming: { text: '未开始', color: 'blue' },
+        const map: Record<string, { text: string; color: string }> = {
           active: { text: '进行中', color: 'green' },
-          ended: { text: '已结束', color: 'orange' },
-          drawn: { text: '已开奖', color: 'purple' },
+          completed: { text: '已完成', color: 'purple' },
+          expired: { text: '已过期', color: 'orange' },
           cancelled: { text: '已取消', color: 'red' },
         };
-        const statusInfo = statusMap[status] || { text: status, color: 'default' };
-        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
+        const info = map[status] || { text: status, color: 'default' };
+        return <Tag color={info.color}>{info.text}</Tag>;
       },
     },
     {
       title: '开奖时间',
-      dataIndex: 'draw_time',
-      key: 'draw_time',
+      dataIndex: 'expires_at',
+      key: 'expires_at',
       width: 160,
       render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
@@ -199,77 +193,47 @@ export const Auctions: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 200,
+      width: 220,
       render: (_: any, record: Auction) => (
         <Space>
           <Button
             type="link"
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => handleViewEntries(record)}
+            onClick={() => handleViewParticipants(record)}
           >
-            参与记录
+            查看参与者
           </Button>
-          {record.status === 'ended' && !record.draw_time && (
-            <Popconfirm
-              title="确定要开奖吗？"
-              onConfirm={() => handleDraw(record.id)}
-              okText="确定"
-              cancelText="取消"
+          {record.status === 'active' && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<TrophyOutlined />}
+              onClick={() => handleOpenDraw(record)}
             >
-              <Button type="primary" size="small" icon={<TrophyOutlined />}>
-                开奖
-              </Button>
-            </Popconfirm>
+              开奖
+            </Button>
           )}
         </Space>
       ),
     },
   ];
 
-  const entriesColumns = [
-    {
-      title: '用户',
-      key: 'user',
-      render: (_: any, record: AuctionEntry) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>
-            {record.user?.username || record.user?.first_name || '未知'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#666' }}>
-            ID: {record.user?.telegram_id}
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '购买份额',
-      dataIndex: 'shares_purchased',
-      key: 'shares_purchased',
-    },
-    {
-      title: '支付金额',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: number) => `${amount.toFixed(2)} USDT`,
-    },
-    {
-      title: '参与时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
-    },
+  const participantColumns = [
+    { title: '用户ID', dataIndex: 'unique_id', key: 'unique_id' },
+    { title: '购买份数', dataIndex: 'quantity', key: 'quantity' },
+    { title: '参与时间', dataIndex: 'created_at', key: 'created_at', render: (d: string) => new Date(d).toLocaleString('zh-CN') },
   ];
 
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0 }}>竞拍管理</h2>
-          <p style={{ color: '#666', marginTop: 4 }}>创建和管理竞拍活动</p>
+          <h2 style={{ margin: 0 }}>夺宝管理</h2>
+          <p style={{ color: '#666', marginTop: 4 }}>创建和管理夺宝活动（平台抽成30%，中奖者获得70%）</p>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenModal}>
-          创建竞拍
+          创建夺宝
         </Button>
       </div>
 
@@ -279,118 +243,84 @@ export const Auctions: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1200 }}
       />
 
+      {/* Create Auction Modal */}
       <Modal
-        title="创建竞拍"
+        title="创建夺宝"
         open={modalOpen}
         onOk={handleSubmit}
-        onCancel={() => {
-          setModalOpen(false);
-          form.resetFields();
-        }}
+        onCancel={() => { setModalOpen(false); form.resetFields(); }}
         okText="创建"
         cancelText="取消"
         width={600}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            prize_type: 'usdt',
-            status: 'upcoming',
-          }}
-        >
-          <Form.Item
-            name="title"
-            label="标题"
-            rules={[{ required: true, message: '请输入标题' }]}
-          >
-            <Input placeholder="例如：限量 NFT 竞拍" />
+        <Form form={form} layout="vertical">
+          <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
+            <Input placeholder="例如：限量藏品 No.001" />
           </Form.Item>
-
-          <Form.Item
-            name="description"
-            label="描述"
-          >
-            <Input.TextArea rows={3} placeholder="竞拍活动描述" />
+          <Form.Item name="image_url" label="藏品图片URL">
+            <Input placeholder="https://example.com/image.jpg" />
           </Form.Item>
-
-          <Form.Item
-            name="prize_type"
-            label="奖品类型"
-            rules={[{ required: true, message: '请选择奖品类型' }]}
-          >
-            <Select>
-              <Select.Option value="nft">NFT</Select.Option>
-              <Select.Option value="usdt">USDT</Select.Option>
-              <Select.Option value="physical">实物</Select.Option>
-              <Select.Option value="custom">自定义</Select.Option>
-            </Select>
+          <Form.Item name="product_value" label="藏品总价值 (USDT)" rules={[{ required: true, message: '请输入总价值' }]}>
+            <InputNumber min={1} step={1} style={{ width: '100%' }} placeholder="1000" />
           </Form.Item>
-
-          <Form.Item
-            name="prize_info"
-            label="奖品信息 (JSON)"
-            rules={[{ required: true, message: '请输入奖品信息' }]}
-            tooltip='例如: {"amount": 100} 或 {"name": "限量版NFT", "id": "xxx"}'
-          >
-            <Input.TextArea rows={2} placeholder='{"key": "value"}' />
+          <Form.Item name="participant_count" label="总份数" rules={[{ required: true, message: '请输入总份数' }]} extra="系统将自动计算每份价格 = 总价值 / 总份数">
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
           </Form.Item>
-
-          <Form.Item
-            name="share_price"
-            label="每份价格 (USDT)"
-            rules={[{ required: true, message: '请输入每份价格' }]}
-          >
-            <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="total_shares"
-            label="总份额数"
-            rules={[{ required: true, message: '请输入总份额数' }]}
-          >
+          <Form.Item name="max_purchases_per_user" label="每人限购份数" initialValue={5}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
-
-          <Form.Item
-            name="start_time"
-            label="开始时间"
-            rules={[{ required: true, message: '请选择开始时间' }]}
-          >
+          <Form.Item name="expires_at" label="开奖时间" rules={[{ required: true, message: '请选择开奖时间' }]}>
             <DatePicker showTime style={{ width: '100%' }} />
           </Form.Item>
-
-          <Form.Item
-            name="end_time"
-            label="结束时间"
-            rules={[{ required: true, message: '请选择结束时间' }]}
-          >
-            <DatePicker showTime style={{ width: '100%' }} />
+          <Form.Item name="description" label="描述（可选）">
+            <Input.TextArea rows={3} placeholder="藏品说明..." />
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* Draw Modal */}
       <Modal
-        title={`参与记录 - ${selectedAuction?.title}`}
-        open={entriesModalOpen}
-        onCancel={() => {
-          setEntriesModalOpen(false);
-          setSelectedAuction(null);
-          setEntries([]);
-        }}
-        footer={[
-          <Button key="close" onClick={() => setEntriesModalOpen(false)}>
-            关闭
-          </Button>,
-        ]}
-        width={800}
+        title={`开奖 - ${selectedAuction?.title}`}
+        open={drawModalOpen}
+        onOk={handleDraw}
+        onCancel={() => setDrawModalOpen(false)}
+        okText={drawing ? '开奖中...' : '确认开奖'}
+        cancelText="取消"
+        confirmLoading={drawing}
+      >
+        <Form layout="vertical">
+          <Form.Item label="开奖方式">
+            <Radio.Group value={drawMethod} onChange={e => setDrawMethod(e.target.value)}>
+              <Radio value="random">系统随机抽取</Radio>
+              <Radio value="manual">指定获奖成员</Radio>
+            </Radio.Group>
+          </Form.Item>
+          {drawMethod === 'manual' && (
+            <Form.Item label="获奖者唯一ID">
+              <Input
+                value={manualWinnerId}
+                onChange={e => setManualWinnerId(e.target.value)}
+                placeholder="请输入用户唯一ID"
+              />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
+
+      {/* Participants Modal */}
+      <Modal
+        title={`参与者列表 - ${selectedAuction?.title} (${participants.length} 人)`}
+        open={participantsModalOpen}
+        onCancel={() => { setParticipantsModalOpen(false); setParticipants([]); }}
+        footer={[<Button key="close" onClick={() => setParticipantsModalOpen(false)}>关闭</Button>]}
+        width={700}
       >
         <Table
-          columns={entriesColumns}
-          dataSource={entries}
+          columns={participantColumns}
+          dataSource={participants}
           rowKey="id"
           pagination={{ pageSize: 10 }}
         />

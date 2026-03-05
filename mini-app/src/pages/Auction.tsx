@@ -115,7 +115,7 @@ const AuctionCard: React.FC<{ auction: Auction; onClick: () => void }> = ({ auct
         }}>
           {(auction.image_url || auction.product_image)
             ? <img src={auction.image_url || auction.product_image} alt={auction.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: '28px' }}>🎯</span>}
+            : <span style={{ fontSize: '28px' }}>🎁</span>}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -174,7 +174,7 @@ const AuctionDetail: React.FC<{
   };
 
   if (loading) return <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>加载中...</div>;
-  if (!auction) return <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>竞拍不存在</div>;
+  if (!auction) return <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>夺宝不存在</div>;
 
   const progress = auction.participant_count > 0
     ? Math.min((auction.current_participants / auction.participant_count) * 100, 100)
@@ -191,7 +191,7 @@ const AuctionDetail: React.FC<{
         <div style={{ width: '100%', height: '200px', backgroundColor: theme.bgCardHover, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {(auction.image_url || auction.product_image)
             ? <img src={auction.image_url || auction.product_image} alt={auction.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: '64px' }}>🎯</span>}
+            : <span style={{ fontSize: '64px' }}>🎁</span>}
         </div>
         <div style={{ padding: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -210,7 +210,7 @@ const AuctionDetail: React.FC<{
               <div style={{ color: theme.accent, fontWeight: '600' }}>${parseFloat(String(auction.per_person_cost)).toFixed(2)}</div>
             </div>
             <div style={{ backgroundColor: theme.bgCardHover, borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>慈善抽成</div>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>平台抽成</div>
               <div style={{ color: theme.text, fontWeight: '600' }}>{parseFloat(String(auction.platform_fee_percent)).toFixed(0)}%</div>
             </div>
             <div style={{ backgroundColor: theme.bgCardHover, borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
@@ -239,7 +239,7 @@ const AuctionDetail: React.FC<{
 
       {auction.status === 'active' && (
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', border: `1px solid ${theme.border}` }}>
-          <div style={{ color: theme.text, fontWeight: '600', marginBottom: '12px' }}>参与竞拍</div>
+          <div style={{ color: theme.text, fontWeight: '600', marginBottom: '12px' }}>参与夺宝</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
             <span style={{ color: theme.textSecondary, fontSize: '13px' }}>购买份数:</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -263,7 +263,7 @@ const AuctionDetail: React.FC<{
               opacity: joining ? 0.7 : 1,
             }}
           >
-            {joining ? '处理中...' : '🎯 参与竞拍'}
+            {joining ? '处理中...' : '🎁 立即参与'}
           </button>
         </div>
       )}
@@ -347,10 +347,10 @@ export const Auction: React.FC = () => {
   return (
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <h1 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>🎯 竞拍</h1>
+        <h1 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>🎁 夺宝</h1>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => setView('results')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'results' ? theme.accent : 'transparent', color: view === 'results' ? '#fff' : theme.textSecondary, cursor: 'pointer' }}>中奖记录</button>
-          <button onClick={() => setView('my')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'my' ? theme.accent : 'transparent', color: view === 'my' ? '#fff' : theme.textSecondary, cursor: 'pointer' }}>我的竞拍</button>
+          <button onClick={() => setView('results')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'results' ? '#F0B90B' : 'transparent', color: view === 'results' ? '#000' : theme.textSecondary, cursor: 'pointer' }}>中奖记录</button>
+          <button onClick={() => setView('my')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'my' ? '#F0B90B' : 'transparent', color: view === 'my' ? '#000' : theme.textSecondary, cursor: 'pointer' }}>我的夺宝</button>
         </div>
       </div>
 
@@ -359,7 +359,7 @@ export const Auction: React.FC = () => {
           {loading
             ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>加载中...</div>
             : auctions.length === 0
-              ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>暂无竞拍活动</div>
+              ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>暂无夺宝活动</div>
               : auctions.map(a => (
                 <AuctionCard
                   key={a.id}
