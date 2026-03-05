@@ -1,8 +1,10 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { getUserBalance, validateTransfer, validateWithdrawal } from '../services/balance.service';
 import { generateUserDepositAddress, getUserDepositAddresses } from '../services/deposit.service';
+import { walletLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -31,7 +33,7 @@ router.get('/balance/:userId', authenticateBot, async (req: AuthRequest, res) =>
  * Body: { from_user_id, to_identifier, amount, memo }
  * to_identifier can be robot_user_id or username
  */
-router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
+router.post('/transfer', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { from_user_id, to_identifier, amount, memo } = req.body;
 
@@ -145,7 +147,7 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
  * Get or generate deposit address for user
  * Query: network_id (optional, if not provided, returns all networks)
  */
-router.get('/deposit-address/:userId', authenticateBot, async (req: AuthRequest, res) => {
+router.get('/deposit-address/:userId', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
     const { network_id } = req.query;
@@ -181,7 +183,7 @@ router.get('/deposit-address/:userId', authenticateBot, async (req: AuthRequest,
  * Submit withdrawal request
  * Body: { user_id, network_id, amount, to_address }
  */
-router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
+router.post('/withdraw', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { user_id, network_id, amount, to_address } = req.body;
 
@@ -407,7 +409,6 @@ router.get('/withdraw-password/:userId', authenticateBot, async (req: AuthReques
     const user = result.rows[0];
     res.json({
       has_password: !!user.withdraw_password,
-      password: user.withdraw_password, // visible to bot for verification
     });
   } catch (error: any) {
     console.error('Get withdraw password error:', error);
@@ -432,9 +433,11 @@ router.post('/withdraw-password', authenticateBot, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Password must be exactly 4 digits' });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await query(
       `UPDATE users SET withdraw_password = $1 WHERE id = $2 RETURNING id`,
-      [password, user_id]
+      [hashedPassword, user_id]
     );
 
     if (result.rows.length === 0) {
@@ -444,6 +447,41 @@ router.post('/withdraw-password', authenticateBot, async (req: AuthRequest, res)
     res.json({ success: true, message: 'Withdraw password set successfully' });
   } catch (error: any) {
     console.error('Set withdraw password error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/wallet/verify-withdraw-password
+ * Verify withdraw password for user (bot use)
+ * Body: { user_id, password }
+ */
+router.post('/verify-withdraw-password', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, password } = req.body;
+
+    if (!user_id || !password) {
+      return res.status(400).json({ error: 'user_id and password are required' });
+    }
+
+    const result = await query(
+      `SELECT withdraw_password FROM users WHERE id = $1`,
+      [user_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const storedHash = result.rows[0].withdraw_password;
+    if (!storedHash) {
+      return res.json({ valid: false });
+    }
+
+    const valid = await bcrypt.compare(password, storedHash);
+    res.json({ valid });
+  } catch (error: any) {
+    console.error('Verify withdraw password error:', error);
     res.status(500).json({ error: error.message });
   }
 });

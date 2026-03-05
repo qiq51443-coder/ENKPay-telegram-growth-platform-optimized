@@ -5,7 +5,6 @@ import axios from 'axios';
 import { connectRedis as connectStateRedis } from './utils/state';
 import { connectRedis as connectSettingsRedis, subscribeToSettingsUpdates } from './services/settings';
 import { getOrCreateUser, getUserLanguage } from './services/user';
-import { getMainKeyboard } from './keyboards/main';
 import { getUserState, clearUserState } from './utils/state';
 
 // Import handlers

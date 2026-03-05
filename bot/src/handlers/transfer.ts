@@ -31,10 +31,17 @@ export const handleTransferEnterId = async (ctx: Context, user: any, recipientId
     const lang = getUserLanguage(user);
     const botId = process.env.BOT_ID || 'default';
 
+    // Validate recipient ID format before making API calls
+    const trimmedId = recipientId.trim();
+    if (!trimmedId) {
+      await ctx.reply(t(lang, 'transfer_invalid_recipient_id'));
+      return;
+    }
+
     // Look up recipient by unique_id
     let recipient: any = null;
     try {
-      recipient = await getUserByUniqueId(botId, recipientId);
+      recipient = await getUserByUniqueId(botId, trimmedId);
     } catch {}
 
     if (!recipient) {
@@ -53,14 +60,14 @@ export const handleTransferEnterId = async (ctx: Context, user: any, recipientId
         recipientId: recipient.id,
         recipientTelegramId: recipient.telegram_id,
         recipientLanguage: recipient.language_code || 'en',
-        recipientName: recipient.first_name || recipient.username || recipientId,
-        recipientUniqueId: recipientId,
+        recipientName: recipient.first_name || recipient.username || trimmedId,
+        recipientUniqueId: trimmedId,
       },
     });
 
     const confirmMsg =
       `👤 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
-      `🆔 ID: <b>${recipientId}</b>\n` +
+      `🆔 ID: <b>${trimmedId}</b>\n` +
       `👤 Name: <b>${recipient.first_name || recipient.username || '-'}</b>`;
 
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([

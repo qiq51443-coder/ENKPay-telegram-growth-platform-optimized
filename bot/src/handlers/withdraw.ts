@@ -1,7 +1,7 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
-import { getWithdrawPassword, setWithdrawPassword, submitWithdraw } from '../services/api';
+import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword } from '../services/api';
 import { t } from '../i18n';
 
 const NETWORKS = [
@@ -274,11 +274,11 @@ export const handleNumpadConfirm = async (ctx: Context) => {
       // Now submit the withdrawal
       await processWithdrawal(ctx, user, lang, botId, state.data);
     } else if (state.step === 'withdraw_enter_password') {
-      // Verify password
+      // Verify password via backend (bcrypt compare)
       let valid = false;
       try {
-        const pwData = await getWithdrawPassword(botId, user.id.toString());
-        valid = pwData?.password === password;
+        const pwData = await verifyWithdrawPassword(botId, user.id.toString(), password);
+        valid = !!pwData?.valid;
       } catch {}
 
       if (!valid) {

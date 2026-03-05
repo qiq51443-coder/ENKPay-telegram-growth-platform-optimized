@@ -19,6 +19,7 @@ export const handleWallet = async (ctx: Context) => {
     let rewardBalance = user.reward_balance || 0;
     let frozenBalance = user.frozen_balance || 0;
     let nftHoldings = 0;
+    let balanceFetchFailed = false;
     try {
       const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
         headers: { Authorization: `Bearer ${process.env.BOT_API_KEY}` },
@@ -30,7 +31,9 @@ export const handleWallet = async (ctx: Context) => {
         if (u.frozen_balance !== undefined) frozenBalance = parseFloat(u.frozen_balance);
         if (u.nft_holdings_value !== undefined) nftHoldings = parseFloat(u.nft_holdings_value);
       }
-    } catch {}
+    } catch {
+      balanceFetchFailed = true;
+    }
 
     // Fetch settings to get support_telegram
     let supportUsername = '';
@@ -44,7 +47,8 @@ export const handleWallet = async (ctx: Context) => {
       `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
       `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
       `🎁 ${t(lang, 'redpacket_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
-      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n`;
+      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n` +
+      (balanceFetchFailed ? `\n${t(lang, 'balance_stale_warning')}` : '');
 
     const supportButton = supportUsername
       ? Markup.button.url(t(lang, 'btn_contact_support'), `https://t.me/${supportUsername}`)

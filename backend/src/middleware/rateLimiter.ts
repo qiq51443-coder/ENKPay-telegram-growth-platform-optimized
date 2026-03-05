@@ -50,10 +50,23 @@ export const adminLimiter = rateLimit({
   }),
 });
 
+// Wallet financial operations rate limiter (stricter for transfers, withdrawals, deposits)
+export const walletLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 10,              // Max 10 financial operations per minute
+  message: { error: 'Too many wallet requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    sendCommand: (...args: string[]) => (redis as any).sendCommand(args),
+  }),
+});
+
 // Export all limiters
 export default {
   generalLimiter,
   loginLimiter,
   webhookLimiter,
   adminLimiter,
+  walletLimiter,
 };
