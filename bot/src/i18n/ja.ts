@@ -1,14 +1,4 @@
 export const ja: Record<string, string> = {
-  // Menu buttons
-  menu_tasks: '🎯 タスク',
-  menu_invites: '👥 招待',
-  menu_balance: '💰 残高',
-  menu_tutorials: '📚 チュートリアル',
-  menu_account: '👤 アカウント',
-  menu_language: '🌐 言語',
-  menu_exchange: '🏦 取引所',
-  menu_help: '❓ ヘルプ',
-
   // New NFT platform buttons
   btn_open_platform: '🎨 プラットフォームを開く',
   btn_my_wallet: '💰 マイウォレット',

@@ -1,14 +1,4 @@
 export const de: Record<string, string> = {
-  // Menu buttons
-  menu_tasks: '🎯 Aufgaben',
-  menu_invites: '👥 Einladungen',
-  menu_balance: '💰 Guthaben',
-  menu_tutorials: '📚 Tutorials',
-  menu_account: '👤 Konto',
-  menu_language: '🌐 Sprache',
-  menu_exchange: '🏦 Börse',
-  menu_help: '❓ Hilfe',
-
   // New NFT platform buttons
   btn_open_platform: '🎨 Plattform öffnen',
   btn_my_wallet: '💰 Mein Wallet',

@@ -1,5 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
+import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 import axios from 'axios';
 
@@ -31,12 +32,23 @@ export const handleWallet = async (ctx: Context) => {
       }
     } catch {}
 
+    // Fetch settings to get support_telegram
+    let supportUsername = '';
+    try {
+      const settings = await getSettings(botId);
+      supportUsername = settings?.support_telegram || '';
+    } catch {}
+
     const message =
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
       `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
       `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
       `🎁 ${t(lang, 'redpacket_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
       `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n`;
+
+    const supportButton = supportUsername
+      ? Markup.button.url(t(lang, 'btn_contact_support'), `https://t.me/${supportUsername}`)
+      : Markup.button.callback(t(lang, 'btn_contact_support'), 'wallet_support');
 
     await ctx.replyWithHTML(message, Markup.inlineKeyboard([
       [
@@ -47,7 +59,7 @@ export const handleWallet = async (ctx: Context) => {
         Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
       ],
       [
-        Markup.button.callback(t(lang, 'btn_contact_support'), 'wallet_support'),
+        supportButton,
         Markup.button.callback(t(lang, 'btn_language'), 'wallet_language'),
       ],
       [

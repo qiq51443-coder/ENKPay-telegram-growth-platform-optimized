@@ -165,7 +165,10 @@ bot.on('callback_query', async (ctx) => {
       return;
     }
 
-    if (data === 'wallet_back' || data === 'wallet_back_to_wallet') {
+    if (data === 'wallet_back' || data === 'wallet_back_to_wallet' ||
+        data === 'deposit_back' || data === 'withdraw_back' ||
+        data === 'transfer_back' || data === 'language_back' ||
+        data === 'support_back') {
       await ctx.answerCbQuery();
       if (data === 'wallet_back') {
         // Go back to main menu

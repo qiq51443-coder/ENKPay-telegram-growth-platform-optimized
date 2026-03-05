@@ -1,14 +1,4 @@
 export const zh = {
-  // Menu buttons
-  menu_tasks: '🎯 任务',
-  menu_invites: '👥 邀请',
-  menu_balance: '💰 余额',
-  menu_tutorials: '📚 教程',
-  menu_account: '👤 账户',
-  menu_language: '🌐 语言',
-  menu_exchange: '🏦 交易所',
-  menu_help: '❓ 帮助',
-
   // New NFT platform buttons
   btn_open_platform: '🎨 进入平台',
   btn_my_wallet: '💰 我的钱包',

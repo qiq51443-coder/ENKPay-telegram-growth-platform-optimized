@@ -1,14 +1,4 @@
 export const en = {
-  // Menu buttons
-  menu_tasks: '🎯 Tasks',
-  menu_invites: '👥 Invites',
-  menu_balance: '💰 Balance',
-  menu_tutorials: '📚 Tutorials',
-  menu_account: '👤 Account',
-  menu_language: '🌐 Language',
-  menu_exchange: '🏦 Exchange',
-  menu_help: '❓ Help',
-
   // New NFT platform buttons
   btn_open_platform: '🎨 Open Platform',
   btn_my_wallet: '💰 My Wallet',
