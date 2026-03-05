@@ -186,6 +186,7 @@ export const ar: Record<string, string> = {
   withdraw_password_set: '✅ تم تعيين كلمة مرور السحب',
 
   // Transfer flow
+  transfer_processing: '⏳ جاري معالجة التحويل...',
   transfer_enter_id: 'يرجى إدخال معرف حساب ENK للمستلم',
   transfer_confirm_recipient: 'تأكيد التحويل لهذا المستخدم',
   transfer_enter_amount: 'يرجى إدخال مبلغ التحويل',

@@ -186,6 +186,7 @@ export const ja: Record<string, string> = {
   withdraw_password_set: '✅ 出金パスワードが設定されました',
 
   // Transfer flow
+  transfer_processing: '⏳ 送金処理中...',
   transfer_enter_id: '受取人のENKアカウントIDを入力してください',
   transfer_confirm_recipient: 'このユーザーへの送金を確認',
   transfer_enter_amount: '送金金額を入力してください',

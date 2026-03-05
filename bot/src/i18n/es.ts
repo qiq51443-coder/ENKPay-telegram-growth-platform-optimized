@@ -186,6 +186,7 @@ export const es: Record<string, string> = {
   withdraw_password_set: '✅ Contraseña de retiro establecida',
 
   // Transfer flow
+  transfer_processing: '⏳ Procesando transferencia...',
   transfer_enter_id: 'Por favor ingresa el ID ENK del destinatario',
   transfer_confirm_recipient: 'Confirmar transferencia a este usuario',
   transfer_enter_amount: 'Por favor ingresa el monto de transferencia',

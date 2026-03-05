@@ -8,6 +8,27 @@ import { walletLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
+// Apply rate limiting to all wallet routes
+router.use(walletLimiter);
+
+/**
+ * Resolve a network identifier (numeric id or chain_name string like 'BSC', 'ETH', 'TRC')
+ * to a numeric network id. Returns null if the network is not found.
+ */
+async function resolveNetworkId(networkId: string | number): Promise<number | null> {
+  if (!isNaN(Number(networkId))) {
+    return parseInt(networkId as string);
+  }
+  const result = await query(
+    `SELECT id FROM deposit_networks WHERE chain_name = $1 AND is_active = true LIMIT 1`,
+    [networkId]
+  );
+  if (result.rows.length === 0) {
+    return null;
+  }
+  return result.rows[0].id;
+}
+
 /**
  * GET /api/wallet/balance/:userId
  * Get user balance details with unlock progress
@@ -33,7 +54,7 @@ router.get('/balance/:userId', authenticateBot, async (req: AuthRequest, res) =>
  * Body: { from_user_id, to_identifier, amount, memo }
  * to_identifier can be robot_user_id or username
  */
-router.post('/transfer', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
+router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { from_user_id, to_identifier, amount, memo } = req.body;
 
@@ -147,25 +168,28 @@ router.post('/transfer', walletLimiter, authenticateBot, async (req: AuthRequest
  * Get or generate deposit address for user
  * Query: network_id (optional, if not provided, returns all networks)
  */
-router.get('/deposit-address/:userId', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
+router.get('/deposit-address/:userId', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
     const { network_id } = req.query;
 
     if (network_id) {
+      // Resolve network_id: support numeric id or chain_name string (e.g. 'BSC', 'ETH', 'TRC')
+      const numericNetworkId = await resolveNetworkId(network_id as string);
+      if (numericNetworkId === null) {
+        return res.status(404).json({ error: `Network '${network_id}' not found` });
+      }
+
       // Generate/get address for specific network
-      const address = await generateUserDepositAddress(
-        parseInt(userId),
-        parseInt(network_id as string)
-      );
+      const address = await generateUserDepositAddress(userId, numericNetworkId);
       
       res.json({
         success: true,
-        data: { address, network_id: parseInt(network_id as string) },
+        data: { address, network_id: numericNetworkId },
       });
     } else {
       // Get all deposit addresses for user
-      const addresses = await getUserDepositAddresses(parseInt(userId));
+      const addresses = await getUserDepositAddresses(userId);
       
       res.json({
         success: true,
@@ -183,13 +207,20 @@ router.get('/deposit-address/:userId', walletLimiter, authenticateBot, async (re
  * Submit withdrawal request
  * Body: { user_id, network_id, amount, to_address }
  */
-router.post('/withdraw', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
+router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
   try {
-    const { user_id, network_id, amount, to_address } = req.body;
+    let { user_id, network_id, amount, to_address } = req.body;
 
     if (!user_id || !network_id || !amount || !to_address) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Resolve network_id: support numeric id or chain_name string (e.g. 'BSC', 'ETH', 'TRC')
+    const numericNetworkId = await resolveNetworkId(network_id);
+    if (numericNetworkId === null) {
+      return res.status(404).json({ error: `Network '${network_id}' not found` });
+    }
+    network_id = numericNetworkId;
 
     const withdrawAmount = parseFloat(amount);
     if (withdrawAmount <= 0) {
@@ -456,7 +487,7 @@ router.post('/withdraw-password', authenticateBot, async (req: AuthRequest, res)
  * Verify withdraw password for user (bot use)
  * Body: { user_id, password }
  */
-router.post('/verify-withdraw-password', walletLimiter, authenticateBot, async (req: AuthRequest, res) => {
+router.post('/verify-withdraw-password', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { user_id, password } = req.body;
 

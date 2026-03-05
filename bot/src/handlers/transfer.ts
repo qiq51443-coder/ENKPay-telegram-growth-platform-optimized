@@ -3,6 +3,7 @@ import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
 import { submitTransfer, getUserByUniqueId } from '../services/api';
 import { t } from '../i18n';
+import { handleWallet } from './wallet';
 
 export const handleTransferStart = async (ctx: Context) => {
   try {
@@ -121,7 +122,7 @@ export const handleTransferEnterAmount = async (ctx: Context, user: any, amount:
 
     const d = state?.data || {};
     const confirmMsg =
-      `💸 <b>${t(lang, 'transfer_enter_amount')}</b>\n\n` +
+      `💸 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
       `👤 To: <b>${d.recipientName || d.recipientUniqueId || ''}</b>\n` +
       `💵 Amount: <b>${numAmount.toFixed(2)} USDT</b>`;
 
@@ -156,10 +157,7 @@ export const handleTransferConfirm = async (ctx: Context) => {
     const { recipientId, recipientName, recipientUniqueId, recipientTelegramId, recipientLanguage, amount } = state.data;
 
     // Processing indicator
-    await ctx.reply(t(lang, 'withdraw_processing'));
-
-    // Wait 3 seconds before showing result
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await ctx.reply(t(lang, 'transfer_processing'));
 
     try {
       await submitTransfer(botId, {
@@ -208,6 +206,7 @@ export const handleTransferCancel = async (ctx: Context) => {
     await clearUserState(user.id.toString());
     await ctx.answerCbQuery();
     await ctx.reply(t(lang, 'cancel'));
+    await handleWallet(ctx);
   } catch (error) {
     console.error('Transfer cancel error:', error);
   }

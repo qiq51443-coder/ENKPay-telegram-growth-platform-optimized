@@ -186,6 +186,7 @@ export const de: Record<string, string> = {
   withdraw_password_set: '✅ Auszahlungspasswort festgelegt',
 
   // Transfer flow
+  transfer_processing: '⏳ Überweisung wird verarbeitet...',
   transfer_enter_id: 'Bitte ENK-Konto-ID des Empfängers eingeben',
   transfer_confirm_recipient: 'Überweisung an diesen Benutzer bestätigen',
   transfer_enter_amount: 'Bitte Überweisungsbetrag eingeben',
