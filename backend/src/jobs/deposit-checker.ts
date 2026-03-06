@@ -7,28 +7,251 @@ let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;
 
 /**
- * Check deposits for TRC20 (Tron) network
- * Note: This is a placeholder. In production, use TronGrid API or similar
+ * Ensure scan state row exists for a given network + address, returning its current state.
  */
-async function checkTronDeposits(network: any, addresses: string[]): Promise<void> {
-  // TODO: Implement TronGrid API integration
-  // Example endpoint: https://api.trongrid.io/v1/accounts/{address}/transactions/trc20
-  console.log(`Checking Tron deposits for ${addresses.length} addresses...`);
-  
-  // Placeholder - in production, query TronGrid for each address
-  // and detect new USDT transfers to these addresses
+async function getScanState(
+  networkId: number,
+  address: string
+): Promise<{ last_scanned_block: number; last_scanned_at: Date }> {
+  await query(
+    `INSERT INTO deposit_scan_state (network_id, address)
+     VALUES ($1, $2)
+     ON CONFLICT (network_id, address) DO NOTHING`,
+    [networkId, address]
+  );
+  const result = await query(
+    `SELECT last_scanned_block, last_scanned_at FROM deposit_scan_state WHERE network_id = $1 AND address = $2`,
+    [networkId, address]
+  );
+  return result.rows[0];
 }
 
 /**
- * Check deposits for ERC20/BEP20 (Ethereum/BSC) networks
- * Note: This is a placeholder. In production, use Etherscan/BscScan API
+ * Update scan state after a successful scan pass.
+ */
+async function updateScanState(
+  networkId: number,
+  address: string,
+  lastScannedBlock: number
+): Promise<void> {
+  await query(
+    `UPDATE deposit_scan_state
+     SET last_scanned_block = $3, last_scanned_at = NOW()
+     WHERE network_id = $1 AND address = $2`,
+    [networkId, address, lastScannedBlock]
+  );
+}
+
+/**
+ * Check deposits for TRC20 (Tron) network using TronGrid API.
+ * Env vars used:
+ *   TRONGRID_API_KEY — optional TRON-PRO-API-KEY header for higher rate limits
+ */
+async function checkTronDeposits(network: any, addresses: string[]): Promise<void> {
+  console.log(`Checking Tron deposits for ${addresses.length} addresses on network ${network.network_name}...`);
+
+  const apiKey = process.env.TRONGRID_API_KEY;
+  const contractAddress = network.contract_address;
+  const decimals = network.decimals != null ? Number(network.decimals) : 6;
+  const minDeposit = Number(network.min_deposit_amount) || 0;
+
+  for (const address of addresses) {
+    try {
+      const state = await getScanState(network.id, address);
+      const minTimestamp = state.last_scanned_at
+        ? new Date(state.last_scanned_at).getTime()
+        : 0;
+
+      const headers: Record<string, string> = {};
+      if (apiKey) {
+        headers['TRON-PRO-API-KEY'] = apiKey;
+      }
+
+      const params: Record<string, any> = {
+        only_confirmed: true,
+        limit: 200,
+      };
+      if (contractAddress) {
+        params.contract_address = contractAddress;
+      }
+      if (minTimestamp > 0) {
+        params.min_timestamp = minTimestamp;
+      }
+
+      const response = await axios.get(
+        `https://api.trongrid.io/v1/accounts/${address}/transactions/trc20`,
+        { headers, params, timeout: 10000 }
+      );
+
+      const transfers: any[] = response.data?.data || [];
+      let latestTimestamp = minTimestamp;
+
+      for (const tx of transfers) {
+        // Only process incoming transfers to this address
+        const toAddr: string = tx.to || '';
+        if (toAddr.toLowerCase() !== address.toLowerCase()) {
+          continue;
+        }
+
+        const rawValue = BigInt(tx.value || '0');
+        const amount = Number(rawValue) / 10 ** decimals;
+
+        if (amount < minDeposit) {
+          continue;
+        }
+
+        // Find user owning this address
+        const addrResult = await query(
+          `SELECT user_id FROM user_deposit_addresses WHERE address = $1 AND network_id = $2 AND is_active = true`,
+          [address, network.id]
+        );
+        if (addrResult.rows.length === 0) continue;
+        const userId = addrResult.rows[0].user_id;
+
+        const txHash: string = tx.transaction_id || tx.tx_id || '';
+        const fromAddress: string = tx.from || '';
+        const blockTimestamp: Date = tx.block_timestamp
+          ? new Date(Number(tx.block_timestamp))
+          : new Date();
+
+        await processDeposit(
+          userId,
+          network.id,
+          txHash,
+          fromAddress,
+          address,
+          amount,
+          1, // TRC20 txs returned here are already confirmed
+          network.min_confirmations || 1,
+          0,
+          blockTimestamp
+        );
+
+        if (tx.block_timestamp && Number(tx.block_timestamp) > latestTimestamp) {
+          latestTimestamp = Number(tx.block_timestamp);
+        }
+      }
+
+      // Update scan timestamp to now so next run only fetches newer transactions
+      await query(
+        `UPDATE deposit_scan_state SET last_scanned_at = NOW() WHERE network_id = $1 AND address = $2`,
+        [network.id, address]
+      );
+    } catch (err: any) {
+      console.error(`Error checking Tron deposits for address ${address}:`, err.message);
+      // Continue with next address; do not let one failure abort the entire scan
+    }
+  }
+}
+
+/**
+ * Check deposits for ERC20/BEP20 (Ethereum/BSC) networks using Etherscan/BscScan API.
+ * Env vars used:
+ *   ETHERSCAN_API_KEY — Etherscan API key (for ETH network)
+ *   BSCSCAN_API_KEY   — BscScan API key (for BSC network)
  */
 async function checkEthDeposits(network: any, addresses: string[]): Promise<void> {
-  // TODO: Implement Etherscan/BscScan API integration
-  // Example: https://api.etherscan.io/api?module=account&action=tokentx&address={address}
-  console.log(`Checking ${network.chain_name} deposits for ${addresses.length} addresses...`);
-  
-  // Placeholder - in production, query blockchain explorer API
+  console.log(`Checking ${network.chain_name} deposits for ${addresses.length} addresses on network ${network.network_name}...`);
+
+  const isBsc = network.chain_name === 'BSC';
+  const apiBaseUrl = isBsc ? 'https://api.bscscan.com/api' : 'https://api.etherscan.io/api';
+  const apiKey = isBsc
+    ? (process.env.BSCSCAN_API_KEY || '')
+    : (process.env.ETHERSCAN_API_KEY || '');
+  const contractAddress = network.contract_address || '';
+  const decimals = network.decimals != null ? Number(network.decimals) : 18;
+  const minDeposit = Number(network.min_deposit_amount) || 0;
+
+  for (const address of addresses) {
+    try {
+      const state = await getScanState(network.id, address);
+      const startBlock = Number(state.last_scanned_block) || 0;
+
+      const params: Record<string, any> = {
+        module: 'account',
+        action: 'tokentx',
+        address,
+        startblock: startBlock,
+        endblock: 'latest',
+        sort: 'asc',
+      };
+      if (contractAddress) {
+        params.contractaddress = contractAddress;
+      }
+      if (apiKey) {
+        params.apikey = apiKey;
+      }
+
+      const response = await axios.get(apiBaseUrl, { params, timeout: 10000 });
+      const data = response.data;
+
+      if (data.status !== '1' || !Array.isArray(data.result)) {
+        // status '0' with message 'No transactions found' is normal
+        if (data.message && data.message !== 'No transactions found') {
+          console.warn(`${network.chain_name} API warning for ${address}: ${data.message}`);
+        }
+        continue;
+      }
+
+      const transfers: any[] = data.result;
+      let maxBlock = startBlock;
+
+      for (const tx of transfers) {
+        const toAddr: string = tx.to || '';
+        if (toAddr.toLowerCase() !== address.toLowerCase()) {
+          continue;
+        }
+
+        const rawValue = BigInt(tx.value || '0');
+        const amount = Number(rawValue) / 10 ** decimals;
+
+        if (amount < minDeposit) {
+          continue;
+        }
+
+        // Find user owning this address
+        const addrResult = await query(
+          `SELECT user_id FROM user_deposit_addresses WHERE address = $1 AND network_id = $2 AND is_active = true`,
+          [address, network.id]
+        );
+        if (addrResult.rows.length === 0) continue;
+        const userId = addrResult.rows[0].user_id;
+
+        const txHash: string = tx.hash || '';
+        const fromAddress: string = tx.from || '';
+        const blockNumber = parseInt(tx.blockNumber || '0', 10);
+        const blockTimestamp = tx.timeStamp
+          ? new Date(parseInt(tx.timeStamp, 10) * 1000)
+          : new Date();
+        const confirmations = parseInt(tx.confirmations || '0', 10);
+
+        await processDeposit(
+          userId,
+          network.id,
+          txHash,
+          fromAddress,
+          address,
+          amount,
+          confirmations,
+          network.min_confirmations || 12,
+          blockNumber,
+          blockTimestamp
+        );
+
+        if (blockNumber > maxBlock) {
+          maxBlock = blockNumber;
+        }
+      }
+
+      // Persist how far we have scanned so the next run starts from here
+      if (maxBlock > startBlock) {
+        await updateScanState(network.id, address, maxBlock);
+      }
+    } catch (err: any) {
+      console.error(`Error checking ${network.chain_name} deposits for address ${address}:`, err.message);
+      // Continue with next address
+    }
+  }
 }
 
 /**
@@ -43,11 +266,12 @@ export async function checkDeposits(): Promise<void> {
   isRunning = true;
 
   try {
-    // Get all active networks
+    // Get all active networks (include contract_address and decimals for scanning)
     const networksResult = await query(
       `SELECT 
          id, network_name, chain_name, min_confirmations, 
-         scan_interval_seconds, min_deposit_amount
+         scan_interval_seconds, min_deposit_amount,
+         contract_address, decimals
        FROM deposit_networks
        WHERE is_active = true`
     );

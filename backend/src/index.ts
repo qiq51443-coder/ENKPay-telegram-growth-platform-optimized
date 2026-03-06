@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
+import { startSweepScheduler } from './jobs/sweep-scheduler';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
 import { startCleanupJob } from './jobs/cleanup';
@@ -135,6 +136,9 @@ const startServer = async () => {
 
     // Start deposit checker job
     startDepositChecker();
+
+    // Start sweep scheduler (fund consolidation, runs every hour)
+    startSweepScheduler();
 
     // Start auto-settle job
     startAutoSettle();
