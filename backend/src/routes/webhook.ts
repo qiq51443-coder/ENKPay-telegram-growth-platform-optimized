@@ -1,6 +1,6 @@
 import express, { Request } from 'express';
-import { query } from '../db';
 import { validateWebhook } from '../middleware/auth';
+import { botManager } from '../services/bot-manager.service';
 
 const router = express.Router();
 
@@ -16,12 +16,14 @@ router.post('/:botToken', validateWebhook, async (req: WebhookRequest, res) => {
     const botId = req.botId;
     const update = req.body;
 
-    console.log(`Received webhook update for bot ${botId}:`, JSON.stringify(update, null, 2));
+    if (botId) {
+      try {
+        await botManager.handleUpdate(botId, update);
+      } catch (handleError) {
+        console.error(`Error handling update for bot ${botId}:`, handleError);
+      }
+    }
 
-    // Webhook received successfully
-    // Actual bot logic should be handled by independent bot service
-    // This endpoint just receives and confirms
-    
     res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Webhook error:', error);
@@ -36,9 +38,14 @@ router.post('/:botId/:secret', validateWebhook, async (req: WebhookRequest, res)
     const botId = req.botId;
     const update = req.body;
 
-    console.log(`Received webhook update for bot ${botId}:`, JSON.stringify(update, null, 2));
+    if (botId) {
+      try {
+        await botManager.handleUpdate(botId, update);
+      } catch (handleError) {
+        console.error(`Error handling update for bot ${botId}:`, handleError);
+      }
+    }
 
-    // Webhook received successfully
     res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Webhook error:', error);
@@ -47,3 +54,4 @@ router.post('/:botId/:secret', validateWebhook, async (req: WebhookRequest, res)
 });
 
 export default router;
+

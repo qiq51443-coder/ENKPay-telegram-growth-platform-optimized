@@ -5,6 +5,7 @@ import TelegramAPI from '../utils/telegram';
 import bcrypt from 'bcryptjs';
 import { logAuditAction } from '../utils/audit';
 import { adminLimiter } from '../middleware/rateLimiter';
+import { botManager } from '../services/bot-manager.service';
 
 const router = express.Router();
 
@@ -60,38 +61,42 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Bot already exists' });
     }
 
-    // 3. Set webhook if BACKEND_URL is configured
+    // 3. Save bot to database first to get the generated UUID (name auto-filled from Telegram)
+    const name = botInfo.first_name || botInfo.username;
+    const result = await query(
+      `INSERT INTO bots (name, token, username, is_active, default_language, welcome_message)
+       VALUES ($1, $2, $3, true, $4, $5)
+       RETURNING id, name, username, is_active, default_language, created_at`,
+      [name, token, botInfo.username, default_language || 'en', welcome_message || null]
+    );
+
+    const bot = result.rows[0];
+
+    // 4. Set webhook using bot UUID (not token) if BACKEND_URL is configured
     const backendUrl = process.env.BACKEND_URL || process.env.BOT_WEBHOOK_URL;
     let webhookUrl = '';
-    
+
     if (backendUrl) {
       try {
-        webhookUrl = `${backendUrl}/webhook/${token}`;
+        webhookUrl = `${backendUrl}/webhook/${bot.id}`;
         const webhookResult = await telegram.setWebhook(
           webhookUrl,
           process.env.BOT_WEBHOOK_SECRET
         );
-        
+
         if (!webhookResult.ok) {
           console.warn('Failed to set webhook:', webhookResult);
           // Continue anyway - webhook can be set later
+        } else {
+          // 5. Update webhook_url in database
+          await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookUrl, bot.id]);
+          bot.webhook_url = webhookUrl;
         }
       } catch (webhookError) {
         console.error('Webhook setup error:', webhookError);
         // Continue anyway - webhook can be set later
       }
     }
-
-    // 4. Save bot to database (name auto-filled from Telegram)
-    const name = botInfo.first_name || botInfo.username;
-    const result = await query(
-      `INSERT INTO bots (name, token, username, is_active, webhook_url, default_language, welcome_message)
-       VALUES ($1, $2, $3, true, $4, $5, $6)
-       RETURNING id, name, username, is_active, webhook_url, default_language, created_at`,
-      [name, token, botInfo.username, webhookUrl, default_language || 'en', welcome_message || null]
-    );
-
-    const bot = result.rows[0];
 
     // 5. Initialize bot settings
     await query(
@@ -110,6 +115,11 @@ router.post('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
       details: { name, username: botInfo.username },
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+    });
+
+    // 7. Notify bot-manager to load the new bot instance
+    botManager.addBot(bot.id, token, default_language || 'en').catch((err) => {
+      console.error('BotManager addBot error:', err);
     });
 
     res.json({ 
@@ -224,7 +234,12 @@ router.delete('/bots/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       userAgent: req.get('user-agent'),
     });
 
-    // 5. Return success
+    // 5. Remove from bot-manager
+    botManager.removeBot(id).catch((err) => {
+      console.error('BotManager removeBot error:', err);
+    });
+
+    // 6. Return success
     res.json({ 
       success: true, 
       message: 'Bot deleted successfully' 
@@ -265,12 +280,72 @@ router.patch('/bots/:id/status', authenticateAdmin, async (req: AuthRequest, res
       userAgent: req.get('user-agent'),
     });
 
+    // Notify bot-manager
+    if (is_active) {
+      botManager.addBot(id).catch((err) => console.error('BotManager addBot error:', err));
+    } else {
+      botManager.removeBot(id).catch((err) => console.error('BotManager removeBot error:', err));
+    }
+
     res.json({ 
       bot: result.rows[0],
       message: `Bot ${is_active ? 'enabled' : 'disabled'} successfully`
     });
   } catch (error) {
     console.error('Update bot status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset webhook for a bot
+router.post('/bots/:id/reset-webhook', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const botResult = await query('SELECT id, token, name FROM bots WHERE id = $1', [id]);
+
+    if (botResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+
+    const { token: botToken, name: botName } = botResult.rows[0];
+    const backendUrl = process.env.BACKEND_URL || process.env.BOT_WEBHOOK_URL;
+
+    if (!backendUrl) {
+      return res.status(400).json({ error: 'BACKEND_URL is not configured' });
+    }
+
+    const webhookUrl = `${backendUrl}/webhook/${id}`;
+    const telegram = new TelegramAPI(botToken);
+
+    try {
+      const webhookResult = await telegram.setWebhook(
+        webhookUrl,
+        process.env.BOT_WEBHOOK_SECRET
+      );
+
+      if (!webhookResult.ok) {
+        return res.status(500).json({ error: 'Failed to set webhook with Telegram', detail: webhookResult });
+      }
+    } catch (webhookError: any) {
+      return res.status(500).json({ error: 'Failed to communicate with Telegram', detail: webhookError?.message });
+    }
+
+    await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookUrl, id]);
+
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'reset_bot_webhook',
+      resourceType: 'bot',
+      resourceId: id,
+      details: { name: botName, webhookUrl },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    res.json({ success: true, webhookUrl, message: 'Webhook reset successfully' });
+  } catch (error) {
+    console.error('Reset webhook error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

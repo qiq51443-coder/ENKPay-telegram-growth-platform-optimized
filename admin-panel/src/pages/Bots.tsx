@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, Tag, message, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, Space, Tag, message, Popconfirm, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface Bot {
@@ -93,6 +93,17 @@ export const Bots: React.FC = () => {
     }
   };
 
+  const handleResetWebhook = async (bot: Bot) => {
+    try {
+      const result = await apiClient.resetBotWebhook(bot.id);
+      message.success(`Webhook 已重置: ${result.webhookUrl}`);
+      fetchBots();
+    } catch (error: any) {
+      console.error('Failed to reset webhook:', error);
+      message.error(error.response?.data?.error || 'Webhook 重置失败');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await apiClient.deleteBot(id);
@@ -146,6 +157,26 @@ export const Bots: React.FC = () => {
       },
     },
     {
+      title: 'Webhook URL',
+      dataIndex: 'webhook_url',
+      key: 'webhook_url',
+      ellipsis: true,
+      width: 220,
+      render: (url?: string) => url ? (
+        <Tooltip title={url}>
+          <Space size={4}>
+            <span style={{ fontSize: 12, color: '#666' }}>{url.length > 40 ? `...${url.slice(-35)}` : url}</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => { navigator.clipboard.writeText(url); message.success('已复制'); }}
+            />
+          </Space>
+        </Tooltip>
+      ) : <span style={{ color: '#ccc' }}>未设置</span>,
+    },
+    {
       title: '状态',
       dataIndex: 'is_active',
       key: 'is_active',
@@ -188,6 +219,21 @@ export const Bots: React.FC = () => {
           >
             {record.is_active ? '停用' : '启用'}
           </Button>
+          <Popconfirm
+            title="重新设置 Webhook？"
+            description="这将向 Telegram 重新注册 Webhook 地址"
+            onConfirm={() => handleResetWebhook(record)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<ReloadOutlined />}
+            >
+              重置 Webhook
+            </Button>
+          </Popconfirm>
           <Popconfirm
             title="确定要删除这个 Bot 吗？"
             description="这将删除 Bot 的 Webhook 并清除所有相关数据"

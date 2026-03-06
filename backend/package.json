@@ -11,32 +11,33 @@
     "render-build": "cd ../mini-app && npm install && npm run build && cd ../admin-panel && npm install && npm run build && cd ../backend && npm install && npm run build && mkdir -p dist/public/admin dist/public/app && cp -r ../admin-panel/dist/* dist/public/admin/ && cp -r ../mini-app/dist/* dist/public/app/"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "pg": "^8.11.3",
-    "dotenv": "^16.3.1",
-    "cors": "^2.8.5",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
     "axios": "^1.6.2",
-    "redis": "^4.6.11",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.11.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
-    "express-rate-limit": "^7.1.5",
+    "pg": "^8.11.3",
     "rate-limit-redis": "^4.2.0",
-    "ethers": "^6.11.0",
+    "redis": "^4.6.11",
+    "telegraf": "^4.16.3",
     "tronweb": "^5.3.2"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.10.5",
-    "@types/pg": "^8.10.9",
-    "@types/cors": "^2.8.17",
     "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.11",
+    "@types/node": "^20.10.5",
     "@types/node-cron": "^3.0.11",
-    "typescript": "^5.3.3",
+    "@types/pg": "^8.10.9",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
   }
 }
