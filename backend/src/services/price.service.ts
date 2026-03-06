@@ -24,7 +24,19 @@ const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api.binance.com'
 const CACHE_TTL = {
   PRICE: 5,          // 5 seconds for real-time prices
   CHANGE_24H: 60,    // 60 seconds for 24h change
-  KLINE: 300,        // 5 minutes for kline data
+  KLINE: 300,        // 5 minutes for kline data (default)
+};
+
+// Dynamic TTL map for kline data by interval
+const KLINE_TTL_MAP: Record<string, number> = {
+  '1m':  60,     // 1-minute kline cached for 60 seconds
+  '3m':  180,    // 3-minute kline cached for 3 minutes
+  '5m':  300,    // 5-minute kline cached for 5 minutes
+  '15m': 600,    // 15-minute kline cached for 10 minutes
+  '30m': 900,    // 30-minute kline cached for 15 minutes
+  '1h':  1800,   // 1-hour kline cached for 30 minutes
+  '4h':  7200,   // 4-hour kline cached for 2 hours
+  '1d':  21600,  // Daily kline cached for 6 hours
 };
 
 /**
@@ -175,8 +187,12 @@ export async function getKlineData(
       volume: parseFloat(item[5]),
     }));
 
-    // Cache for 5 minutes
-    await setCache(cacheKey, klineData, CACHE_TTL.KLINE);
+    // Cache with dynamic TTL based on interval
+    const ttl = KLINE_TTL_MAP[interval] ?? CACHE_TTL.KLINE;
+    if (!(interval in KLINE_TTL_MAP)) {
+      console.warn(`Unknown kline interval "${interval}", using default TTL of ${CACHE_TTL.KLINE}s`);
+    }
+    await setCache(cacheKey, klineData, ttl);
     
     return klineData;
   } catch (error: any) {

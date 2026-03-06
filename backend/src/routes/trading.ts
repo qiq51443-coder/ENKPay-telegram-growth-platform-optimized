@@ -2,7 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
-import { getPairPrice, getKlineData, getCachedKlineData } from '../services/price.service';
+import { getPairPrice, getKlineData, getCachedKlineData, cacheKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
@@ -61,26 +61,38 @@ router.get('/pairs/:id/kline', async (req, res) => {
   try {
     const { id } = req.params;
     const { interval = '1m', limit = 100 } = req.query;
+    const pairId = parseInt(id);
+    const limitNum = Number(limit);
+    const intervalStr = String(interval);
 
-    // TODO: Implement kline aggregation based on interval
-    const result = await query(
-      `SELECT 
-         timestamp,
-         price as close,
-         price as open,
-         price as high,
-         price as low,
-         0 as volume
-       FROM price_points
-       WHERE pair_id = $1
-       ORDER BY timestamp DESC
-       LIMIT $2`,
-      [id, Number(limit)]
+    // Get pair type and binance symbol
+    const pairResult = await query(
+      `SELECT pair_type, binance_symbol FROM trading_pairs WHERE id = $1`,
+      [pairId]
     );
+
+    if (pairResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
+    const pair = pairResult.rows[0];
+    let klineData;
+
+    if (pair.pair_type === 'real' && pair.binance_symbol) {
+      // Fetch real K-line data from Binance
+      klineData = await getKlineData(pair.binance_symbol, intervalStr, limitNum);
+      // Async cache to DB without blocking response
+      cacheKlineData(pairId, intervalStr, klineData).catch((err: any) => {
+        console.error('Failed to cache kline data:', err);
+      });
+    } else {
+      // Return cached K-line data from DB for custom pairs
+      klineData = await getCachedKlineData(pairId, intervalStr, limitNum);
+    }
 
     res.json({
       success: true,
-      data: result.rows.reverse(),
+      data: klineData,
     });
   } catch (error: any) {
     console.error('Get kline error:', error);

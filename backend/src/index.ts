@@ -8,6 +8,7 @@ import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
+import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { generalLimiter } from './middleware/rateLimiter';
 
 // Routes
@@ -141,6 +142,9 @@ const startServer = async () => {
 
     // Start red packet expiry job
     startRedPacketExpiryJob();
+
+    // Start symbol library sync job
+    startSymbolLibrarySync();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
