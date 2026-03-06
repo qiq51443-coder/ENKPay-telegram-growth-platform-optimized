@@ -2,6 +2,8 @@ import express from 'express';
 import axios from 'axios';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
+import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
 
 const router = express.Router();
 
@@ -702,6 +704,158 @@ router.post('/sessions/:id/settle', authenticateAdmin, async (req: AuthRequest, 
     });
   } catch (error: any) {
     console.error('Settle session error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/trading/symbol-library
+ * Get paginated symbol library with optional keyword search
+ */
+router.get('/symbol-library', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 50, keyword } = req.query;
+
+    const result = await getSymbolLibrary(
+      Number(page),
+      Number(limit),
+      keyword ? String(keyword) : undefined
+    );
+
+    res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error: any) {
+    console.error('Get symbol library error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/symbol-library/sync
+ * Sync Binance trading pairs into the local symbol library
+ */
+router.post('/symbol-library/sync', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const syncedCount = await syncBinanceSymbols();
+
+    res.json({
+      success: true,
+      message: `Successfully synced ${syncedCount} symbols from Binance`,
+      synced_count: syncedCount,
+    });
+  } catch (error: any) {
+    console.error('Sync symbol library error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/pairs/from-library
+ * Batch-add trading pairs from the symbol library
+ */
+router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { symbols } = req.body;
+
+    if (!Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({ error: 'symbols must be a non-empty array' });
+    }
+
+    const added: any[] = [];
+    const skipped: string[] = [];
+    const errors: Array<{ symbol: string; error: string }> = [];
+
+    for (const sym of symbols) {
+      try {
+        // Look up symbol in library
+        const libraryResult = await query(
+          `SELECT symbol, base_asset, quote_asset, display_name
+           FROM binance_symbol_library
+           WHERE symbol = $1`,
+          [sym]
+        );
+
+        if (libraryResult.rows.length === 0) {
+          errors.push({ symbol: sym, error: 'Symbol not found in library' });
+          continue;
+        }
+
+        const lib = libraryResult.rows[0];
+
+        // Check if already exists in trading_pairs
+        const existingResult = await query(
+          `SELECT id FROM trading_pairs WHERE binance_symbol = $1`,
+          [sym]
+        );
+
+        if (existingResult.rows.length > 0) {
+          skipped.push(sym);
+          continue;
+        }
+
+        // Insert into trading_pairs
+        // $1: symbol (used as the platform identifier), $3: binance_symbol (same value)
+        const insertResult = await query(
+          `INSERT INTO trading_pairs
+             (symbol, display_name, pair_type, binance_symbol, base_currency, quote_currency, is_active)
+           VALUES ($1, $2, 'real', $3, $4, $5, true)
+           RETURNING *`,
+          [
+            sym,                          // symbol (platform identifier)
+            lib.display_name || sym,      // display_name
+            sym,                          // binance_symbol
+            lib.base_asset,              // base_currency
+            lib.quote_asset,             // quote_currency
+          ]
+        );
+
+        added.push(insertResult.rows[0]);
+      } catch (err: any) {
+        errors.push({ symbol: sym, error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      added,
+      skipped,
+      errors,
+    });
+  } catch (error: any) {
+    console.error('Add pairs from library error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/admin/trading/pairs/:id/toggle
+ * Toggle is_active status for a trading pair
+ */
+router.patch('/pairs/:id/toggle', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `UPDATE trading_pairs
+       SET is_active = NOT is_active, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING id, symbol, is_active`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error: any) {
+    console.error('Toggle pair error:', error);
     res.status(500).json({ error: error.message });
   }
 });
