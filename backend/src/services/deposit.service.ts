@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import axios from 'axios';
 import { query, transaction } from '../db';
+import { generateOrderId } from '../utils/orderId';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
@@ -315,6 +316,8 @@ export async function processDeposit(
   );
   const networkName = networkNameResult.rows.length > 0 ? networkNameResult.rows[0].network_name : String(networkId);
 
+  const depositOrderId = await generateOrderId('deposit_records');
+
   await transaction(async (client: any) => {
     // Check if transaction already exists
     const existingResult = await client.query(
@@ -353,11 +356,12 @@ export async function processDeposit(
 
     const insertResult = await client.query(
       `INSERT INTO deposit_records 
-       (user_id, network_id, tx_hash, from_address, to_address, amount, actual_amount, 
+       (order_id, user_id, network_id, tx_hash, from_address, to_address, amount, actual_amount, 
         confirmations, required_confirmations, block_number, block_timestamp, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id`,
       [
+        depositOrderId,
         userId,
         networkId,
         txHash,

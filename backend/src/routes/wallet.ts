@@ -7,6 +7,7 @@ import { generateUserDepositAddress, getUserDepositAddresses } from '../services
 import { walletLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
 import { getNotifyTemplate, formatNotification } from '../utils/notify';
+import { generateOrderId } from '../utils/orderId';
 
 const router = express.Router();
 
@@ -180,6 +181,9 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
     const actualReceived = transferAmount;
     const totalCost = transferAmount + fee;
 
+    // Generate order ID before transaction
+    const transferOrderId = await generateOrderId('transfer_records');
+
     // Perform transfer in transaction
     await transaction(async (client) => {
       // Deduct from sender
@@ -203,10 +207,11 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       // Record transfer
       await client.query(
         `INSERT INTO transfer_records 
-         (from_user_id, to_user_id, amount, fee, actual_received, 
+         (order_id, from_user_id, to_user_id, amount, fee, actual_received, 
           to_bot_username, to_telegram_id, memo, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed')`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed')`,
         [
+          transferOrderId,
           from_user_id,
           recipient.id,
           transferAmount,
@@ -223,6 +228,7 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       success: true,
       message: 'Transfer completed successfully',
       data: {
+        order_id: transferOrderId,
         amount: transferAmount,
         fee,
         total_cost: totalCost,
@@ -330,6 +336,9 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
     const actualAmount = withdrawAmount - fee;
     const totalCost = withdrawAmount;
 
+    // Generate order ID before transaction
+    const withdrawOrderId = await generateOrderId('withdrawal_records');
+
     // Create withdrawal record and freeze balance
     const result = await transaction(async (client) => {
       // Deduct from wallet_balance and add to frozen_balance
@@ -344,10 +353,10 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
       // Create withdrawal record
       const insertResult = await client.query(
         `INSERT INTO withdrawal_records 
-         (user_id, network_id, amount, fee, actual_amount, to_address, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-         RETURNING id`,
-        [user_id, network_id, withdrawAmount, fee, actualAmount, to_address]
+         (order_id, user_id, network_id, amount, fee, actual_amount, to_address, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+         RETURNING id, order_id`,
+        [withdrawOrderId, user_id, network_id, withdrawAmount, fee, actualAmount, to_address]
       );
 
       return insertResult.rows[0];
@@ -357,7 +366,7 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
       success: true,
       message: 'Withdrawal request submitted for review',
       data: {
-        withdrawal_id: result.id,
+        order_id: result.order_id,
         amount: withdrawAmount,
         fee,
         actual_amount: actualAmount,
@@ -388,10 +397,10 @@ router.get('/transactions/:userId', authenticateBot, async (req: AuthRequest, re
         `SELECT 
            'deposit' as type,
            id,
+           order_id,
            amount,
            status,
            created_at,
-           tx_hash,
            network_id
          FROM deposit_records
          WHERE user_id = $1
@@ -407,10 +416,10 @@ router.get('/transactions/:userId', authenticateBot, async (req: AuthRequest, re
         `SELECT 
            'withdrawal' as type,
            id,
+           order_id,
            amount,
            status,
            created_at,
-           to_address,
            network_id
          FROM withdrawal_records
          WHERE user_id = $1
@@ -426,6 +435,7 @@ router.get('/transactions/:userId', authenticateBot, async (req: AuthRequest, re
         `SELECT 
            'transfer' as type,
            id,
+           order_id,
            amount,
            'completed' as status,
            created_at,
