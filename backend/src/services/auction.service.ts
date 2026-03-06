@@ -182,7 +182,7 @@ async function _expireAuctions(): Promise<void> {
 
         // Refund each participant
         const participantsResult = await client.query(
-          `SELECT lap.*, u.balance, u.telegram_id
+          `SELECT lap.*, u.wallet_balance, u.telegram_id
            FROM lucky_auction_participants lap
            JOIN users u ON lap.user_id = u.id
            WHERE lap.auction_id = $1 AND lap.refunded = false`,
@@ -191,7 +191,7 @@ async function _expireAuctions(): Promise<void> {
 
         for (const p of participantsResult.rows) {
           await client.query(
-            `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+            `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
             [p.amount, p.user_id]
           );
           await client.query(
@@ -200,7 +200,7 @@ async function _expireAuctions(): Promise<void> {
           );
           await client.query(
             `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-             SELECT $1, 'auction_refund', $2, balance, $3, $4
+             SELECT $1, 'auction_refund', $2, wallet_balance, $3, $4
              FROM users WHERE id = $1`,
             [p.user_id, p.amount, `竞拍 ${auction.title} 未满员退款`, auction.id]
           );

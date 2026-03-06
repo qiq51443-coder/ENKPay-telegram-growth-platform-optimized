@@ -193,7 +193,7 @@ router.post('/:id/join', authenticateMiniApp, async (req: MiniAppAuthRequest, re
     const result = await transaction(async (client) => {
       // Get user
       const userResult = await client.query(
-        `SELECT id, balance, unique_id FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        `SELECT id, wallet_balance, unique_id FROM users WHERE telegram_id = $1 FOR UPDATE`,
         [telegramId]
       );
       if (userResult.rows.length === 0) throw new Error('User not found');
@@ -231,13 +231,13 @@ router.post('/:id/join', authenticateMiniApp, async (req: MiniAppAuthRequest, re
 
       const totalCost = parseFloat(auction.per_person_cost) * quantity;
 
-      if (parseFloat(user.balance) < totalCost) {
+      if (parseFloat(user.wallet_balance) < totalCost) {
         throw new Error('Insufficient balance');
       }
 
       // Deduct balance
       await client.query(
-        `UPDATE users SET balance = balance - $1 WHERE id = $2`,
+        `UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2`,
         [totalCost, user.id]
       );
 
@@ -260,7 +260,7 @@ router.post('/:id/join', authenticateMiniApp, async (req: MiniAppAuthRequest, re
       // Record transaction
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-         SELECT $1, 'auction_join', $2, balance, $3, $4 FROM users WHERE id = $1`,
+         SELECT $1, 'auction_join', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
         [user.id, -totalCost, `参与竞拍: ${auction.title}`, id]
       );
 
@@ -314,7 +314,7 @@ router.post('/results/:id/redeem', authenticateMiniApp, async (req: MiniAppAuthR
 
       // Credit payout to user balance
       await client.query(
-        `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+        `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
         [result.payout_amount, userId]
       );
 
@@ -327,7 +327,7 @@ router.post('/results/:id/redeem', authenticateMiniApp, async (req: MiniAppAuthR
       // Record transaction
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-         SELECT $1, 'auction_redeem', $2, balance, $3, $4 FROM users WHERE id = $1`,
+         SELECT $1, 'auction_redeem', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
         [userId, result.payout_amount, `竞拍兑换: ${result.product_title}`, result.auction_id]
       );
     });
