@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
+import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
 const router = express.Router();
 
@@ -129,17 +130,39 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
       const botResult = await query('SELECT token FROM bots WHERE id = $1', [withdrawal.bot_id]);
       if (botResult.rows.length > 0) {
         const telegram = new TelegramAPI(botResult.rows[0].token);
-        const userResult = await query('SELECT telegram_id FROM users WHERE id = $1', [withdrawal.user_id]);
-        
+        const userResult = await query(
+          'SELECT telegram_id, language, wallet_balance FROM users WHERE id = $1',
+          [withdrawal.user_id]
+        );
+
         if (userResult.rows.length > 0) {
-          const notificationMessage = status === 'approved'
-            ? `✅ Your withdrawal request has been approved!\n\n💰 Amount: $${withdrawal.amount}\n📤 The funds will be sent to your wallet address shortly.`
-            : `❌ Your withdrawal request was rejected.\n\n${admin_note ? `Reason: ${admin_note}` : 'Please contact support for more information.'}`;
-          
-          await telegram.sendMessage(
-            userResult.rows[0].telegram_id,
-            notificationMessage
-          );
+          const { telegram_id, language, wallet_balance } = userResult.rows[0];
+          const lang = language || 'en';
+          const currentBalance = parseFloat(wallet_balance || '0').toFixed(2);
+          const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
+          const fee = parseFloat(withdrawal.fee || '0').toFixed(2);
+          const actual = (parseFloat(withdrawal.amount) - parseFloat(withdrawal.fee || '0')).toFixed(2);
+
+          let notificationMessage: string;
+          if (status === 'approved') {
+            const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
+            notificationMessage = formatNotification(template, {
+              amount: withdrawAmount,
+              fee,
+              actual,
+              address: withdrawal.wallet_address || '',
+              balance: currentBalance,
+            });
+          } else {
+            const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
+            notificationMessage = formatNotification(template, {
+              amount: withdrawAmount,
+              balance: currentBalance,
+              reason: admin_note || '-',
+            });
+          }
+
+          await telegram.sendMessage(telegram_id, notificationMessage);
         }
       }
     } catch (error) {

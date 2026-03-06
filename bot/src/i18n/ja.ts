@@ -200,4 +200,14 @@ export const ja: Record<string, string> = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ 新しいチャリティー活動：{name}。参加しましょう！',
+
+  // Notification templates (backend-triggered)
+  deposit_credited_notify: '✅ *入金が反映されました*\n\n💰 金額：{amount} USDT\n🌐 ネットワーク：{network}\n🔗 TXハッシュ：`{txHash}`\n\n💳 現在の残高：*{balance} USDT*\n\nご入金ありがとうございます！',
+  withdraw_approved_notify: '✅ *出金が承認されました*\n\n💰 金額：{amount} USDT\n💸 手数料：{fee} USDT\n📤 実際の金額：{actual} USDT\n📍 アドレス：{address}\n\n💳 現在の残高：*{balance} USDT*',
+  withdraw_rejected_notify: '❌ *出金が拒否されました*\n\n💰 金額：{amount} USDT\n💳 残高が復元されました：*{balance} USDT*\n\n📝 理由：{reason}',
+  transfer_sent_notify: '📤 *送金が完了しました*\n\n👤 送先：{recipient}\n💵 金額：{amount} USDT\n💸 手数料：{fee} USDT\n✅ 到達金額：{actual} USDT\n\n💳 現在の残高：*{balance} USDT*',
+  transfer_received_notify: '📥 *送金を受け取りました*\n\n👤 送信者：{sender}\n✅ 金額：{amount} USDT\n\n💳 現在の残高：*{balance} USDT*',
+
+  // Balance hint (shown in bot-side messages when exact balance is not available inline)
+  balance_updated_hint: '残高が更新されました。ウォレットをご確認ください 💳',
 };

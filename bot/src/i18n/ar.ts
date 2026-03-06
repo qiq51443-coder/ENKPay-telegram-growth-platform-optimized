@@ -200,4 +200,14 @@ export const ar: Record<string, string> = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ نشاط خيري جديد: {name}. انضم إلينا!',
+
+  // Notification templates (backend-triggered)
+  deposit_credited_notify: '✅ *تم إيداع المبلغ*\n\n💰 المبلغ: {amount} USDT\n🌐 الشبكة: {network}\n🔗 هاش المعاملة: `{txHash}`\n\n💳 الرصيد الحالي: *{balance} USDT*\n\nشكراً على إيداعك!',
+  withdraw_approved_notify: '✅ *تمت الموافقة على السحب*\n\n💰 المبلغ: {amount} USDT\n💸 الرسوم: {fee} USDT\n📤 الصافي: {actual} USDT\n📍 العنوان: {address}\n\n💳 الرصيد الحالي: *{balance} USDT*',
+  withdraw_rejected_notify: '❌ *تم رفض السحب*\n\n💰 المبلغ: {amount} USDT\n💳 تمت استعادة الرصيد: *{balance} USDT*\n\n📝 السبب: {reason}',
+  transfer_sent_notify: '📤 *تم إرسال التحويل*\n\n👤 إلى: {recipient}\n💵 المبلغ: {amount} USDT\n💸 الرسوم: {fee} USDT\n✅ المستلم: {actual} USDT\n\n💳 الرصيد الحالي: *{balance} USDT*',
+  transfer_received_notify: '📥 *تم استلام تحويل*\n\n👤 من: {sender}\n✅ المبلغ: {amount} USDT\n\n💳 الرصيد الحالي: *{balance} USDT*',
+
+  // Balance hint (shown in bot-side messages when exact balance is not available inline)
+  balance_updated_hint: 'تم تحديث الرصيد، يرجى مراجعة محفظتك 💳',
 };

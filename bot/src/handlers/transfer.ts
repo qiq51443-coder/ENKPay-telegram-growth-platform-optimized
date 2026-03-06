@@ -160,16 +160,22 @@ export const handleTransferConfirm = async (ctx: Context) => {
     await ctx.reply(t(lang, 'transfer_processing'));
 
     try {
-      await submitTransfer(botId, {
+      const result = await submitTransfer(botId, {
         from_user_id: user.id,
         to_identifier: recipientUniqueId || recipientId,
         amount,
       });
 
+      const fee: number = result?.data?.fee ?? 0;
+      const actualReceived: number = result?.data?.actual_received ?? amount;
+
       const successMsg =
         `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
         `👤 To: <b>${recipientName || recipientUniqueId || '-'}</b>\n` +
-        `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
+        `💵 Amount: <b>${amount.toFixed(2)} USDT</b>\n` +
+        `💸 Fee: <b>${fee.toFixed(2)} USDT</b>\n` +
+        `✅ Delivered: <b>${actualReceived.toFixed(2)} USDT</b>\n\n` +
+        `💳 ${t(lang, 'balance_updated_hint')}`;
 
       await ctx.replyWithHTML(successMsg);
 
@@ -180,7 +186,8 @@ export const handleTransferConfirm = async (ctx: Context) => {
           const notifyMsg =
             `${t(rLang, 'transfer_received')}\n\n` +
             `👤 From: <b>${user.first_name || user.username || '-'}</b>\n` +
-            `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
+            `💵 Amount: <b>${actualReceived.toFixed(2)} USDT</b>\n\n` +
+            `💳 ${t(rLang, 'balance_updated_hint')}`;
           await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
         } catch (notifyErr) {
           console.error('Failed to notify recipient:', notifyErr);
