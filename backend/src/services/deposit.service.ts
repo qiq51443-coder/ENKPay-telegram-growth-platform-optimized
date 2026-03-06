@@ -402,22 +402,24 @@ async function notifyUserDeposit(
 ): Promise<void> {
   try {
     const userResult = await query(
-      `SELECT u.telegram_user_id, b.token AS bot_token
+      `SELECT u.telegram_user_id, u.language, u.wallet_balance, b.token AS bot_token
        FROM users u
        JOIN bots b ON u.bot_id = b.id
        WHERE u.id = $1 AND b.is_active = true`,
       [userId]
     );
     if (userResult.rows.length === 0) return;
-    const { telegram_user_id, bot_token } = userResult.rows[0];
+    const { telegram_user_id, bot_token, language, wallet_balance } = userResult.rows[0];
     if (!telegram_user_id || !bot_token) return;
 
-    const message =
-      `✅ *充值成功*\n\n` +
-      `💰 金额：${amount} USDT\n` +
-      `🌐 网络：${networkName}\n` +
-      `🔗 交易哈希：\`${txHash}\`\n\n` +
-      `您的余额已更新，感谢您的充值！`;
+    const { getNotifyTemplate, formatNotification } = await import('../utils/notify');
+    const template = getNotifyTemplate(language || 'en', 'deposit_credited_notify');
+    const message = formatNotification(template, {
+      amount: parseFloat(amount.toString()).toFixed(2),
+      network: networkName,
+      txHash,
+      balance: parseFloat(wallet_balance || '0').toFixed(2),
+    });
 
     await axios.post(`https://api.telegram.org/bot${bot_token}/sendMessage`, {
       chat_id: telegram_user_id,

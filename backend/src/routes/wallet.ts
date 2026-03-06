@@ -5,6 +5,8 @@ import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { getUserBalance, validateTransfer, validateWithdrawal } from '../services/balance.service';
 import { generateUserDepositAddress, getUserDepositAddresses } from '../services/deposit.service';
 import { walletLimiter } from '../middleware/rateLimiter';
+import TelegramAPI from '../utils/telegram';
+import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
 const router = express.Router();
 
@@ -27,6 +29,83 @@ async function resolveNetworkId(networkId: string | number): Promise<number | nu
     return null;
   }
   return result.rows[0].id;
+}
+
+/**
+ * Send Telegram notifications to both parties after a successful transfer.
+ * Errors are caught and logged — notification failure must never affect the transfer.
+ */
+async function notifyTransferParties(
+  senderId: number,
+  recipientId: number,
+  recipientDisplayName: string,
+  amount: number,
+  fee: number,
+  actualReceived: number
+): Promise<void> {
+  // Fetch sender info (telegram_user_id, language, updated balance, bot_token)
+  const senderResult = await query(
+    `SELECT u.telegram_user_id, u.language, u.wallet_balance, u.first_name, u.username,
+            b.token AS bot_token
+     FROM users u
+     JOIN bots b ON u.bot_id = b.id
+     WHERE u.id = $1 AND b.is_active = true`,
+    [senderId]
+  );
+
+  // Fetch recipient info (telegram_user_id, language, updated balance, bot_token)
+  const recipientResult = await query(
+    `SELECT u.telegram_user_id, u.language, u.wallet_balance, b.token AS bot_token
+     FROM users u
+     JOIN bots b ON u.bot_id = b.id
+     WHERE u.id = $1 AND b.is_active = true`,
+    [recipientId]
+  );
+
+  // Notify sender
+  if (senderResult.rows.length > 0) {
+    const { telegram_user_id, language, wallet_balance, bot_token } = senderResult.rows[0];
+    if (telegram_user_id && bot_token) {
+      try {
+        const lang = language || 'en';
+        const template = getNotifyTemplate(lang, 'transfer_sent_notify');
+        const message = formatNotification(template, {
+          recipient: recipientDisplayName,
+          amount: amount.toFixed(2),
+          fee: fee.toFixed(2),
+          actual: actualReceived.toFixed(2),
+          balance: parseFloat(wallet_balance || '0').toFixed(2),
+        });
+        const tg = new TelegramAPI(bot_token);
+        await tg.sendMessage(telegram_user_id, message);
+      } catch (err) {
+        console.error(`Failed to notify sender ${senderId} of transfer:`, err);
+      }
+    }
+  }
+
+  // Notify recipient
+  if (recipientResult.rows.length > 0) {
+    const { telegram_user_id, language, wallet_balance, bot_token } = recipientResult.rows[0];
+    if (telegram_user_id && bot_token) {
+      try {
+        const lang = language || 'en';
+        const senderDisplay = senderResult.rows.length > 0
+          ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
+          : String(senderId);
+        const template = getNotifyTemplate(lang, 'transfer_received_notify');
+        const message = formatNotification(template, {
+          sender: senderDisplay,
+          amount: actualReceived.toFixed(2),
+          balance: parseFloat(wallet_balance || '0').toFixed(2),
+        });
+        const tg = new TelegramAPI(bot_token);
+        await tg.sendMessage(telegram_user_id, message);
+      } catch (err) {
+        console.error(`Failed to notify recipient ${recipientId} of transfer:`, err);
+      }
+    }
+  }
 }
 
 /**
@@ -157,6 +236,14 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
     });
 
     // TODO: Send notification to recipient via Bot
+    notifyTransferParties(
+      from_user_id,
+      recipient.id,
+      recipient.first_name || recipient.username || String(recipient.id),
+      transferAmount,
+      fee,
+      actualReceived
+    ).catch((err) => console.error('Transfer notification failed:', err));
   } catch (error: any) {
     console.error('Transfer error:', error);
     res.status(500).json({ error: error.message });

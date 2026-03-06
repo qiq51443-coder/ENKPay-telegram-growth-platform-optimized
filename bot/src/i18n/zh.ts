@@ -199,4 +199,14 @@ export const zh = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ 新公益活动：{name}，欢迎参与！',
+
+  // Notification templates (backend-triggered)
+  deposit_credited_notify: '✅ *充值成功*\n\n💰 金额：{amount} USDT\n🌐 网络：{network}\n🔗 交易哈希：`{txHash}`\n\n💳 当前余额：*{balance} USDT*\n\n感谢您的充值！',
+  withdraw_approved_notify: '✅ *提现已批准*\n\n💰 提现金额：{amount} USDT\n💸 手续费：{fee} USDT\n📤 实际到账：{actual} USDT\n📍 到账地址：{address}\n\n💳 当前余额：*{balance} USDT*',
+  withdraw_rejected_notify: '❌ *提现已拒绝*\n\n💰 提现金额：{amount} USDT\n💳 余额已退回：*{balance} USDT*\n\n📝 拒绝原因：{reason}',
+  transfer_sent_notify: '📤 *转账成功*\n\n👤 收款方：{recipient}\n💵 转账金额：{amount} USDT\n💸 手续费：{fee} USDT\n✅ 实际到账：{actual} USDT\n\n💳 当前余额：*{balance} USDT*',
+  transfer_received_notify: '📥 *收到转账*\n\n👤 汇款方：{sender}\n✅ 到账金额：{amount} USDT\n\n💳 当前余额：*{balance} USDT*',
+
+  // Balance hint (shown in bot-side messages when exact balance is not available inline)
+  balance_updated_hint: '余额已更新，请查看钱包 💳',
 };

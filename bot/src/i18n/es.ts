@@ -200,4 +200,14 @@ export const es: Record<string, string> = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ Nueva actividad benéfica: {name}. ¡Únete!',
+
+  // Notification templates (backend-triggered)
+  deposit_credited_notify: '✅ *Depósito Acreditado*\n\n💰 Monto: {amount} USDT\n🌐 Red: {network}\n🔗 Hash TX: `{txHash}`\n\n💳 Saldo Actual: *{balance} USDT*\n\n¡Gracias por tu depósito!',
+  withdraw_approved_notify: '✅ *Retiro Aprobado*\n\n💰 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n📤 Neto: {actual} USDT\n📍 Dirección: {address}\n\n💳 Saldo Actual: *{balance} USDT*',
+  withdraw_rejected_notify: '❌ *Retiro Rechazado*\n\n💰 Monto: {amount} USDT\n💳 Saldo Restaurado: *{balance} USDT*\n\n📝 Razón: {reason}',
+  transfer_sent_notify: '📤 *Transferencia Enviada*\n\n👤 Para: {recipient}\n💵 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n✅ Entregado: {actual} USDT\n\n💳 Saldo Actual: *{balance} USDT*',
+  transfer_received_notify: '📥 *Transferencia Recibida*\n\n👤 De: {sender}\n✅ Monto: {amount} USDT\n\n💳 Saldo Actual: *{balance} USDT*',
+
+  // Balance hint (shown in bot-side messages when exact balance is not available inline)
+  balance_updated_hint: 'Saldo actualizado, por favor revisa tu cartera 💳',
 };
