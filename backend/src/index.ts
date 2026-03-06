@@ -10,6 +10,7 @@ import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { generalLimiter } from './middleware/rateLimiter';
+import { botManager } from './services/bot-manager.service';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -125,6 +126,9 @@ const startServer = async () => {
     // Connect to Redis
     await connectRedis();
     console.log('✓ Redis connected');
+
+    // Load all active bots into the bot manager
+    await botManager.loadAllBots();
 
     // Check Binance API connectivity
     await checkBinanceConnectivity();

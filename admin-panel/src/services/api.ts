@@ -102,6 +102,11 @@ class ApiClient {
     return response.data;
   }
 
+  async resetBotWebhook(id: string) {
+    const response = await this.client.post(`/admin/bots/${id}/reset-webhook`);
+    return response.data;
+  }
+
   // Bindings
   async getBindings(params?: any) {
     const response = await this.client.get('/bindings', { params });
