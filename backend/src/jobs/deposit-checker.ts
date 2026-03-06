@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import axios from 'axios';
 import { query, transaction } from '../db';
-import { decrypt, processDeposit } from '../services/deposit.service';
+import { decrypt, processDeposit, creditDeposit } from '../services/deposit.service';
 
 let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;

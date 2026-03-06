@@ -1,14 +1,13 @@
 import crypto from 'crypto';
+import axios from 'axios';
 import { query, transaction } from '../db';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
 // Validate encryption key
 const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || '';
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-  console.warn('WARNING: WALLET_ENCRYPTION_KEY is not set or too short (must be exactly 32 bytes). Wallet features will be disabled.');
-} else if (ENCRYPTION_KEY.length > 32) {
-  console.warn('WARNING: WALLET_ENCRYPTION_KEY is longer than 32 bytes. It must be exactly 32 bytes. Wallet features will be disabled.');
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+  console.warn(`WARNING: WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ${ENCRYPTION_KEY?.length ?? 0}). Wallet features will be disabled.`);
 }
 
 // Try to import crypto libraries
@@ -31,11 +30,8 @@ try {
  * Encrypt sensitive data (private keys, mnemonics)
  */
 export function encrypt(text: string): string {
-  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY not configured');
-  }
-  if (ENCRYPTION_KEY.length !== 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes');
+  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ' + (ENCRYPTION_KEY?.length ?? 0) + ')');
   }
   const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
   const iv = crypto.randomBytes(16);
@@ -51,11 +47,8 @@ export function encrypt(text: string): string {
  * Decrypt sensitive data
  */
 export function decrypt(encryptedText: string): string {
-  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY not configured');
-  }
-  if (ENCRYPTION_KEY.length !== 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes');
+  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ' + (ENCRYPTION_KEY?.length ?? 0) + ')');
   }
   const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
   const parts = encryptedText.split(':');
@@ -124,7 +117,7 @@ export async function deriveTronAddress(
     // Get private key and convert to Tron address
     const privateKey = hdNode.privateKey.slice(2); // Remove '0x' prefix
     const tronWeb = new TronWeb({
-      fullHost: 'https://api.trongrid.io',
+      fullHost: 'http://localhost', // fromPrivateKey is a local operation; no network request needed
     });
     
     const address = tronWeb.address.fromPrivateKey(privateKey);
@@ -182,63 +175,71 @@ export async function generateUserDepositAddress(
 
   const network = networkResult.rows[0];
 
-  // Get next available HD index for this network using advisory lock to prevent concurrent duplicates
-  const hdIndex = await transaction(async (client: any) => {
+  // Decrypt mnemonic outside the transaction to reduce lock hold time
+  if (!network.hd_mnemonic_encrypted) {
+    throw new Error(
+      `HD mnemonic not configured for network ${network.network_name}. Please configure in admin panel.`
+    );
+  }
+
+  const mnemonic = decrypt(network.hd_mnemonic_encrypted);
+
+  // HD-7: Validate mnemonic integrity after decryption
+  if (ethers && !ethers.Mnemonic.isValidMnemonic(mnemonic)) {
+    throw new Error('Decrypted mnemonic is invalid. Please reconfigure the HD mnemonic.');
+  }
+
+  // In a single transaction: acquire advisory lock → allocate index → derive address → insert
+  const address = await transaction(async (client: any) => {
     // Acquire an advisory lock keyed by network_id to serialize index allocation
     await client.query('SELECT pg_advisory_xact_lock($1)', [networkId]);
 
+    // Double-check: another concurrent request may have inserted while we were waiting
+    const doubleCheck = await client.query(
+      `SELECT address FROM user_deposit_addresses
+       WHERE user_id = $1 AND network_id = $2 AND is_active = true`,
+      [userId, networkId]
+    );
+    if (doubleCheck.rows.length > 0) return doubleCheck.rows[0].address;
+
+    // Atomically allocate the next HD index
     const indexResult = await client.query(
-      `SELECT COALESCE(MAX(hd_index), -1) + 1 as next_index
+      `SELECT COALESCE(MAX(hd_index), -1) + 1 AS next_index
        FROM user_deposit_addresses
        WHERE network_id = $1 AND source = 'hd_derived'`,
       [networkId]
     );
-    return indexResult.rows[0].next_index;
-  });
+    const hdIndex: number = indexResult.rows[0].next_index;
 
-  // Generate address based on chain type
-  let address: string;
-  
-  try {
-    if (!network.hd_mnemonic_encrypted) {
+    // Derive address while holding the lock (HD derivation is typically < 100 ms)
+    let derivedAddress: string;
+    try {
+      if (network.chain_name === 'TRON') {
+        derivedAddress = await deriveTronAddress(mnemonic, network.hd_derivation_path, hdIndex);
+      } else if (network.chain_name === 'ETH') {
+        derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
+      } else if (network.chain_name === 'BSC') {
+        derivedAddress = await deriveBnbAddress(mnemonic, network.hd_derivation_path, hdIndex);
+      } else {
+        throw new Error(`Unsupported chain: ${network.chain_name}`);
+      }
+    } catch (error: any) {
       throw new Error(
-        `HD mnemonic not configured for network ${network.network_name}. Please configure in admin panel.`
+        `Unable to generate deposit address: ${error.message}. ` +
+        `Please install required crypto libraries (ethers, tronweb) and configure HD mnemonics.`
       );
     }
 
-    const mnemonic = decrypt(network.hd_mnemonic_encrypted);
-
-    // HD-7: Validate mnemonic integrity after decryption
-    if (ethers && !ethers.Mnemonic.isValidMnemonic(mnemonic)) {
-      throw new Error('Decrypted mnemonic is invalid. Please reconfigure the HD mnemonic.');
-    }
-
-    const derivationPath = network.hd_derivation_path;
-
-    if (network.chain_name === 'TRON') {
-      address = await deriveTronAddress(mnemonic, derivationPath, hdIndex);
-    } else if (network.chain_name === 'ETH') {
-      address = await deriveEthAddress(mnemonic, derivationPath, hdIndex);
-    } else if (network.chain_name === 'BSC') {
-      address = await deriveBnbAddress(mnemonic, derivationPath, hdIndex);
-    } else {
-      throw new Error(`Unsupported chain: ${network.chain_name}`);
-    }
-  } catch (error: any) {
-    // If crypto libraries not installed, provide helpful error
-    throw new Error(
-      `Unable to generate deposit address: ${error.message}. ` +
-      `Please install required crypto libraries (ethers, tronweb) and configure HD mnemonics.`
+    // Insert atomically — index allocation and address write are in the same transaction
+    await client.query(
+      `INSERT INTO user_deposit_addresses
+       (user_id, network_id, address, hd_index, source, is_active)
+       VALUES ($1, $2, $3, $4, 'hd_derived', true)`,
+      [userId, networkId, derivedAddress, hdIndex]
     );
-  }
 
-  // Save address to database
-  await query(
-    `INSERT INTO user_deposit_addresses 
-     (user_id, network_id, address, hd_index, source, is_active)
-     VALUES ($1, $2, $3, $4, 'hd_derived', true)`,
-    [userId, networkId, address, hdIndex]
-  );
+    return derivedAddress;
+  });
 
   return address;
 }
@@ -270,11 +271,16 @@ export async function getUserDepositAddresses(userId: number | string) {
        uda.id,
        uda.address,
        uda.source,
+       uda.hd_index,
+       uda.created_at,
+       dn.id AS network_id,
        dn.network_name,
        dn.network_display,
        dn.chain_name,
        dn.currency,
-       dn.explorer_url
+       dn.explorer_url,
+       dn.min_deposit_amount,
+       dn.min_confirmations
      FROM user_deposit_addresses uda
      JOIN deposit_networks dn ON uda.network_id = dn.id
      WHERE uda.user_id = $1 AND uda.is_active = true
@@ -300,6 +306,15 @@ export async function processDeposit(
   blockNumber: number,
   blockTimestamp: Date
 ): Promise<void> {
+  let shouldNotify = false;
+
+  // Fetch network name before the transaction so it's available for notification in all code paths
+  const networkNameResult = await query(
+    `SELECT network_name FROM deposit_networks WHERE id = $1`,
+    [networkId]
+  );
+  const networkName = networkNameResult.rows.length > 0 ? networkNameResult.rows[0].network_name : String(networkId);
+
   await transaction(async (client: any) => {
     // Check if transaction already exists
     const existingResult = await client.query(
@@ -326,6 +341,7 @@ export async function processDeposit(
         // Auto-credit if confirmed and not yet credited
         if (confirmations >= requiredConfirmations && existing.status !== 'credited') {
           await creditDeposit(client, existing.id, userId, amount);
+          shouldNotify = true;
         }
       }
       return;
@@ -362,14 +378,61 @@ export async function processDeposit(
     // Auto-credit if confirmed
     if (confirmations >= requiredConfirmations) {
       await creditDeposit(client, depositId, userId, amount);
+      shouldNotify = true;
     }
   });
+
+  // After transaction commits, asynchronously notify the user (failure must not affect deposit)
+  if (shouldNotify) {
+    notifyUserDeposit(userId, amount, networkName, txHash).catch((err) =>
+      console.error('Deposit notification failed:', err)
+    );
+  }
+}
+
+/**
+ * Send a Telegram notification to the user after a successful deposit credit.
+ * Errors are caught and logged — notification failure must never affect the deposit.
+ */
+async function notifyUserDeposit(
+  userId: number,
+  amount: number,
+  networkName: string,
+  txHash: string
+): Promise<void> {
+  try {
+    const userResult = await query(
+      `SELECT u.telegram_user_id, b.token AS bot_token
+       FROM users u
+       JOIN bots b ON u.bot_id = b.id
+       WHERE u.id = $1 AND b.is_active = true`,
+      [userId]
+    );
+    if (userResult.rows.length === 0) return;
+    const { telegram_user_id, bot_token } = userResult.rows[0];
+    if (!telegram_user_id || !bot_token) return;
+
+    const message =
+      `✅ *充值成功*\n\n` +
+      `💰 金额：${amount} USDT\n` +
+      `🌐 网络：${networkName}\n` +
+      `🔗 交易哈希：\`${txHash}\`\n\n` +
+      `您的余额已更新，感谢您的充值！`;
+
+    await axios.post(`https://api.telegram.org/bot${bot_token}/sendMessage`, {
+      chat_id: telegram_user_id,
+      text: message,
+      parse_mode: 'Markdown',
+    });
+  } catch (err) {
+    console.error(`Failed to notify user ${userId} of deposit:`, err);
+  }
 }
 
 /**
  * Credit deposit to user's wallet
  */
-async function creditDeposit(
+export async function creditDeposit(
   client: any,
   depositId: number,
   userId: number,
