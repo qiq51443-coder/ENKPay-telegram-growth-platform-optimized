@@ -18,12 +18,19 @@ const translations: Record<string, Lang> = {
   ja,
 };
 
+export const SUPPORTED_LANGUAGE_CODES = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
+export type LangCode = typeof SUPPORTED_LANGUAGE_CODES[number];
+
+export function isSupportedLang(code: string): code is LangCode {
+  return (SUPPORTED_LANGUAGE_CODES as readonly string[]).includes(code);
+}
+
 export function t(lang: string, key: string, replacements?: Record<string, string>): string {
   const langData = translations[lang] || translations['en'];
   let text = langData[key] || translations['en'][key] || key;
   if (replacements) {
     for (const [k, v] of Object.entries(replacements)) {
-      text = text.replace(`{${k}}`, v);
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
     }
   }
   return text;

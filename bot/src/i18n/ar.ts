@@ -59,19 +59,15 @@ export const ar: Record<string, string> = {
   tasks_title: '🎯 المهام المتاحة',
   tasks_follow_channel: '📢 متابعة القناة',
   tasks_join_group: '👥 الانضمام للمجموعة',
-  tasks_bind_platform: '🔗 ربط المنصة',
   tasks_invite_friends: '👫 دعوة الأصدقاء',
-  tasks_share_screenshot: '📸 مشاركة لقطة الشاشة',
   tasks_completed: '✅ مكتمل',
   tasks_reward: 'المكافأة',
   tasks_follow_button: 'متابعة القناة',
   tasks_join_button: 'الانضمام للمجموعة',
-  tasks_bind_button: 'ربط الآن',
   tasks_check_button: 'تحقق',
   tasks_follow_success: '✅ شكرًا للمتابعة! تم فتح المكافأة!',
   tasks_join_success: '✅ شكرًا للانضمام! تم فتح المكافأة!',
   tasks_not_completed: '❌ يرجى إكمال المهمة أولاً.',
-  tasks_share_screenshot_desc: 'شارك لقطة أرباحك للحصول على رصيد حزمة حمراء',
 
   // Invites
   invites_title: '👥 رابط دعوتك',
@@ -121,22 +117,7 @@ export const ar: Record<string, string> = {
   help_description: 'كيف يمكننا مساعدتك؟',
   help_contact: 'التواصل مع الدعم',
 
-  // Platform Binding
-  binding_start: 'ربط حسابك!',
-  binding_step_1: '📝 الخطوة 1: أدخل اسم المستخدم',
-  binding_step_2: '📸 الخطوة 2: ارفع لقطة شاشة',
-  binding_step_3: '✅ الخطوة 3: انتظر الموافقة',
-  binding_enter_username: 'يرجى إدخال اسم المستخدم:',
-  binding_upload_screenshot: 'يرجى رفع لقطة شاشة:',
-  binding_submitted: '✅ تم إرسال طلب الربط!',
-  binding_approved: '✅ تمت الموافقة على ربطك!',
-  binding_rejected: '❌ تم رفض ربطك. حاول مرة أخرى.',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 شارك لقطة أرباحك',
-  screenshot_instructions: '1. التقط لقطة شاشة\n2. انضم للمجموعة\n3. أرسل اللقطة\n4. احصل على رصيد!',
-  screenshot_join_group: 'الانضمام للمجموعة',
-  screenshot_submitted: '✅ تم استلام اللقطة!',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'المطالبة بالحزمة الحمراء',
@@ -206,4 +187,17 @@ export const ar: Record<string, string> = {
   // Confirm/Cancel
   btn_confirm: '✅ تأكيد',
   btn_cancel: '❌ إلغاء',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 تم الانضمام بنجاح! حظًا موفقًا!',
+  auction_won: '🏆 تهانينا! لقد فزت بالسحب!',
+  auction_lost: '😞 حظ أفضل في المرة القادمة!',
+  auction_refunded: '↩️ تم استرداد رسوم مشاركتك.',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 تلقيت عائد منتج دوري بقيمة {amount} USDT.',
+  product_principal_returned: '✅ تم إعادة رأس مالك {amount} USDT.',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ نشاط خيري جديد: {name}. انضم إلينا!',
 };

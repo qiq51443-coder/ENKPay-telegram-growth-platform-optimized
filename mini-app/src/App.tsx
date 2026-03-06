@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { LoadingScreen } from './components/LoadingScreen';
 import { BottomNav } from './components/BottomNav';
 import { AnnouncementModal } from './components/AnnouncementModal';
@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
 import { getAnnouncements } from './services/api';
+import { LanguageProvider, useLang } from './context/LanguageContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -20,12 +21,13 @@ interface Announcement {
   images?: string[];
 }
 
-function App() {
+function AppContent() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const { tg } = useTelegram();
+  const { lang } = useLang();
 
   useEffect(() => {
     tg?.expand();
@@ -69,7 +71,10 @@ function App() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}>
+    <div
+      dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}
+    >
       {announcement && (
         <AnnouncementModal
           title={announcement.title}
@@ -81,6 +86,14 @@ function App() {
       {renderPage()}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }
 

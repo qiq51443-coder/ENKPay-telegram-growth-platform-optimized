@@ -59,19 +59,15 @@ export const fr: Record<string, string> = {
   tasks_title: '🎯 Tâches disponibles',
   tasks_follow_channel: '📢 Suivre la chaîne',
   tasks_join_group: '👥 Rejoindre le groupe',
-  tasks_bind_platform: '🔗 Lier la plateforme',
   tasks_invite_friends: '👫 Inviter des amis',
-  tasks_share_screenshot: '📸 Partager une capture',
   tasks_completed: '✅ Complété',
   tasks_reward: 'Récompense',
   tasks_follow_button: 'Suivre la chaîne',
   tasks_join_button: 'Rejoindre le groupe',
-  tasks_bind_button: 'Lier maintenant',
   tasks_check_button: 'Vérifier',
   tasks_follow_success: '✅ Merci d\'avoir suivi! Récompense débloquée!',
   tasks_join_success: '✅ Merci d\'avoir rejoint! Récompense débloquée!',
   tasks_not_completed: '❌ Veuillez d\'abord compléter la tâche.',
-  tasks_share_screenshot_desc: 'Partagez votre capture de gains pour gagner 1 crédit paquet rouge',
 
   // Invites
   invites_title: '👥 Votre lien d\'invitation',
@@ -121,22 +117,7 @@ export const fr: Record<string, string> = {
   help_description: 'Comment pouvons-nous vous aider?',
   help_contact: 'Contacter le support',
 
-  // Platform Binding
-  binding_start: 'Lier votre compte!',
-  binding_step_1: '📝 Étape 1: Entrez votre nom d\'utilisateur',
-  binding_step_2: '📸 Étape 2: Téléchargez une capture',
-  binding_step_3: '✅ Étape 3: Attendez l\'approbation',
-  binding_enter_username: 'Veuillez entrer votre nom d\'utilisateur:',
-  binding_upload_screenshot: 'Veuillez télécharger une capture:',
-  binding_submitted: '✅ Demande de liaison soumise!',
-  binding_approved: '✅ Votre liaison a été approuvée!',
-  binding_rejected: '❌ Votre liaison a été rejetée. Réessayez.',
-
-  // Screenshot Sharing
-  screenshot_guide: '📸 Partagez votre capture de gains',
-  screenshot_instructions: '1. Prenez une capture\n2. Rejoignez notre groupe\n3. Envoyez la capture\n4. Obtenez 1 crédit!',
-  screenshot_join_group: 'Rejoindre le groupe',
-  screenshot_submitted: '✅ Capture reçue!',
+  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Réclamer le paquet rouge',
@@ -206,4 +187,17 @@ export const fr: Record<string, string> = {
   // Confirm/Cancel
   btn_confirm: '✅ Confirmer',
   btn_cancel: '❌ Annuler',
+
+  // Auction (Lucky Draw)
+  auction_joined: '🎉 Participation réussie ! Bonne chance !',
+  auction_won: '🏆 Félicitations ! Vous avez gagné le tirage au sort !',
+  auction_lost: '😞 Meilleure chance la prochaine fois !',
+  auction_refunded: '↩️ Vos frais de participation ont été remboursés.',
+
+  // NFT Product yield notifications
+  product_yield_received: '💹 Vous avez reçu un rendement de produit périodique de {amount} USDT.',
+  product_principal_returned: '✅ Votre capital de {amount} USDT a été retourné.',
+
+  // Charity ambassador
+  charity_ambassador_msg: '❤️ Nouvelle activité caritative : {name}. Rejoignez-nous !',
 };

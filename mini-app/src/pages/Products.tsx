@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { useLang } from '../context/LanguageContext';
 
 interface Product {
   id: string;
@@ -28,6 +29,7 @@ function formatAmount(price: number): string {
 }
 
 export const Products: React.FC = () => {
+  const { t } = useLang();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,13 +60,13 @@ export const Products: React.FC = () => {
     setPurchaseMsg('');
     try {
       await api.post(`/nft/products/${selected.id}/purchase`, {});
-      setPurchaseMsg('✅ 购买成功，次日起收益自动到账');
+      setPurchaseMsg('✅ ' + t('product_purchase_success'));
       setTimeout(() => {
         setShowPurchase(false);
         setPurchaseMsg('');
       }, 2000);
     } catch (e: any) {
-      setPurchaseMsg(`❌ ${e?.response?.data?.error || '购买失败'}`);
+      setPurchaseMsg(`❌ ${e?.response?.data?.error || t('product_purchase_failed')}`);
     } finally {
       setPurchasing(false);
     }
@@ -86,7 +88,7 @@ export const Products: React.FC = () => {
             onClick={() => setSelectedId(null)}
             style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            ← 返回
+            {t('back')}
           </button>
         </div>
 
@@ -103,15 +105,15 @@ export const Products: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <h2 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>{selected.name}</h2>
             <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', backgroundColor: theme.success, color: '#fff' }}>
-              {selected.status === 'active' || !selected.status ? '进行中' : '已下线'}
+              {selected.status === 'active' || !selected.status ? t('product_active') : t('product_offline')}
             </span>
           </div>
 
           {/* Holders progress */}
           <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '14px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>持有人数: {holders}</span>
-              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>总量: {maxHolders}</span>
+              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{t('product_holders')}: {holders}</span>
+              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{t('product_total')}: {maxHolders}</span>
             </div>
             <div style={{ height: '6px', backgroundColor: theme.border, borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ width: `${holdersProgress}%`, height: '100%', backgroundColor: '#F0B90B', borderRadius: '3px' }} />
@@ -121,10 +123,10 @@ export const Products: React.FC = () => {
           {/* Details */}
           <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '14px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
             {[
-              ['期限', `${termDays} 天`],
-              ['日收益率', `${(dailyRate * 100).toFixed(2)}%`],
-              ['最低购入', formatAmount(selected.price)],
-              ['预期总收益', `$${expectedYield.toFixed(2)}`],
+              [t('product_term'), `${termDays} ${t('product_term_days')}`],
+              [t('product_daily_rate'), `${(dailyRate * 100).toFixed(2)}%`],
+              [t('product_min_purchase'), formatAmount(selected.price)],
+              [t('product_expected_yield'), `$${expectedYield.toFixed(2)}`],
             ].map(([label, val]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
                 <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{label}</span>
@@ -136,7 +138,7 @@ export const Products: React.FC = () => {
           {/* Purchase limit info */}
           {selected.is_purchase_limited && (
             <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '12px', textAlign: 'center' }}>
-              每人限购 {selected.max_purchases_per_user ?? 1} 次
+              {t('product_purchase_limit')} {selected.max_purchases_per_user ?? 1} {t('product_purchase_limit_times')}
             </div>
           )}
 
@@ -156,7 +158,7 @@ export const Products: React.FC = () => {
               cursor: 'pointer',
             }}
           >
-            立即购入
+            {t('product_purchase_btn')}
           </button>
         </div>
 
@@ -164,12 +166,12 @@ export const Products: React.FC = () => {
         {showPurchase && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
             <div style={{ backgroundColor: theme.bgCard, borderRadius: '16px', padding: '24px', width: '320px', maxWidth: '90vw' }}>
-              <h3 style={{ color: theme.text, margin: '0 0 16px' }}>确认购入</h3>
+              <h3 style={{ color: theme.text, margin: '0 0 16px' }}>{t('product_confirm_purchase')}</h3>
               {[
-                ['产品', selected.name],
-                ['金额', formatAmount(selected.price)],
-                ['期限', `${termDays} 天`],
-                ['预期总收益', `$${expectedYield.toFixed(2)}`],
+                [t('product_label'), selected.name],
+                [t('product_amount'), formatAmount(selected.price)],
+                [t('product_term'), `${termDays} ${t('product_term_days')}`],
+                [t('product_expected_yield'), `$${expectedYield.toFixed(2)}`],
               ].map(([label, val]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
                   <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{label}</span>
@@ -184,19 +186,19 @@ export const Products: React.FC = () => {
                   onClick={() => { setShowPurchase(false); setPurchaseMsg(''); }}
                   style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: theme.text, border: `1px solid ${theme.border}`, borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
                 >
-                  取消
+                  {t('cancel')}
                 </button>
                 <button
                   onClick={handlePurchase}
                   disabled={purchasing}
                   style={{ flex: 1, padding: '12px', backgroundColor: '#F0B90B', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', opacity: purchasing ? 0.7 : 1 }}
                 >
-                  {purchasing ? '处理中...' : '确认购入'}
+                  {purchasing ? t('processing') : t('product_confirm_purchase')}
                 </button>
               </div>
               {!purchaseMsg && (
                 <p style={{ color: theme.textSecondary, fontSize: '11px', textAlign: 'center', marginTop: '8px' }}>
-                  购买成功，次日起收益自动到账
+                  {t('product_auto_yield_msg')}
                 </p>
               )}
             </div>
@@ -208,12 +210,12 @@ export const Products: React.FC = () => {
 
   return (
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
-      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>⏱ 定期产品</h1>
+      <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('products_title')}</h1>
 
       {loading ? (
-        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>加载中...</div>
+        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
       ) : products.length === 0 ? (
-        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>暂无产品</div>
+        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_products')}</div>
       ) : (
         <div style={{
           display: 'grid',

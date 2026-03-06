@@ -74,17 +74,6 @@ export async function getAnnouncements(showOnLaunch?: boolean) {
   return response.data;
 }
 
-export async function submitCharityApplication(data: {
-  activity_id?: string;
-  reason: string;
-  amount?: number;
-}, initData: string) {
-  const response = await api.post('/charity/applications', data, {
-    headers: { 'X-Telegram-Init-Data': initData },
-  });
-  return response.data;
-}
-
 export async function updateLanguage(langCode: string, initData: string) {
   const response = await api.post('/miniapp/language', { language_code: langCode }, {
     headers: { 'X-Telegram-Init-Data': initData },
