@@ -46,6 +46,7 @@ import { Orders } from './pages/Orders';
 import { Groups } from './pages/Groups';
 import { Announcements } from './pages/Announcements';
 import { Analytics } from './pages/Analytics';
+import { Sweep } from './pages/Sweep';
 
 const { Header, Sider, Content } = Layout;
 
@@ -149,6 +150,10 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
         {
           key: 'transfer-records',
           label: <Link to="/transfer-records">转账记录</Link>,
+        },
+        {
+          key: 'sweep',
+          label: <Link to="/sweep">归集管理</Link>,
         },
       ],
     },
@@ -471,6 +476,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Announcements />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/sweep"
+        element={
+          <ProtectedRoute>
+            <Sweep />
           </ProtectedRoute>
         }
       />

@@ -774,4 +774,76 @@ router.delete('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRe
   }
 });
 
+// ============================================
+// Sweep (Fund Consolidation) Routes
+// ============================================
+
+// POST /sweep/run — trigger an immediate fund sweep
+router.post('/sweep/run', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { sweepAllPendingAddresses } = await import('../services/sweep.service');
+    const { networkId, minAmount } = req.body;
+
+    const options: { networkId?: number; minAmount?: number } = {};
+    if (networkId !== undefined) options.networkId = Number(networkId);
+    if (minAmount !== undefined) options.minAmount = Number(minAmount);
+
+    const results = await sweepAllPendingAddresses(options);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error('Sweep run error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// GET /sweep/history — paginated sweep records
+router.get('/sweep/history', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10)));
+    const offset = (page - 1) * limit;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (req.query.networkId) {
+      params.push(Number(req.query.networkId));
+      conditions.push(`network_id = $${params.length}`);
+    }
+    if (req.query.status) {
+      params.push(String(req.query.status));
+      conditions.push(`status = $${params.length}`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countResult = await query(
+      `SELECT COUNT(*) AS total FROM sweep_records ${where}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+    const dataParams = [...params, limit, offset];
+    const dataResult = await query(
+      `SELECT * FROM sweep_records ${where}
+       ORDER BY created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      dataParams
+    );
+
+    res.json({
+      records: dataResult.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error: any) {
+    console.error('Sweep history error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 export default router;
