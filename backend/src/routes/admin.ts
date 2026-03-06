@@ -298,7 +298,7 @@ router.patch('/bots/:id/status', authenticateAdmin, async (req: AuthRequest, res
 });
 
 // Reset webhook for a bot
-router.post('/bots/:id/reset-webhook', authenticateAdmin, async (req: AuthRequest, res) => {
+router.post('/bots/:id/reset-webhook', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
