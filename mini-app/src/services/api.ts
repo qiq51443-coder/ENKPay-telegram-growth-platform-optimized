@@ -83,36 +83,36 @@ export async function updateLanguage(langCode: string, initData: string) {
 
 // Auction (Lucky Draw) APIs
 export async function getAuctions(status = 'active') {
-  const response = await api.get('/lucky-auctions', { params: { status } });
+  const response = await api.get('/auctions', { params: { status } });
   return response.data;
 }
 
 export async function getAuctionDetail(id: string) {
-  const response = await api.get(`/lucky-auctions/${id}`);
+  const response = await api.get(`/auctions/${id}`);
   return response.data;
 }
 
 export async function joinAuction(id: string, quantity: number, initData: string) {
-  const response = await api.post(`/lucky-auctions/${id}/join`, { quantity }, {
+  const response = await api.post(`/auctions/${id}/join`, { quantity }, {
     headers: { 'X-Telegram-Init-Data': initData },
   });
   return response.data;
 }
 
 export async function getAuctionResults() {
-  const response = await api.get('/lucky-auctions/results');
+  const response = await api.get('/auctions/results');
   return response.data;
 }
 
 export async function getMyAuctions(initData: string) {
-  const response = await api.get('/lucky-auctions/my', {
+  const response = await api.get('/auctions/my', {
     headers: { 'X-Telegram-Init-Data': initData },
   });
   return response.data;
 }
 
 export async function redeemAuction(resultId: string, initData: string) {
-  const response = await api.post(`/lucky-auctions/results/${resultId}/redeem`, {}, {
+  const response = await api.post(`/auctions/results/${resultId}/redeem`, {}, {
     headers: { 'X-Telegram-Init-Data': initData },
   });
   return response.data;

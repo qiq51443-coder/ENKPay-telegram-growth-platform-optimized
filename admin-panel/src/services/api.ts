@@ -418,42 +418,42 @@ class ApiClient {
 
   // Lucky Auction (new schema) Admin API
   async getLuckyAuctions(params?: any) {
-    const response = await this.client.get('/admin/lucky-auctions', { params });
+    const response = await this.client.get('/admin/auctions', { params });
     return response.data;
   }
 
   async getLuckyAuction(id: string) {
-    const response = await this.client.get(`/admin/lucky-auctions/${id}`);
+    const response = await this.client.get(`/admin/auctions/${id}`);
     return response.data;
   }
 
   async createLuckyAuction(data: any) {
-    const response = await this.client.post('/admin/lucky-auctions', data);
+    const response = await this.client.post('/admin/auctions', data);
     return response.data;
   }
 
   async updateLuckyAuction(id: string, data: any) {
-    const response = await this.client.put(`/admin/lucky-auctions/${id}`, data);
+    const response = await this.client.put(`/admin/auctions/${id}`, data);
     return response.data;
   }
 
   async deleteLuckyAuction(id: string) {
-    const response = await this.client.delete(`/admin/lucky-auctions/${id}`);
+    const response = await this.client.delete(`/admin/auctions/${id}`);
     return response.data;
   }
 
   async cancelLuckyAuction(id: string) {
-    const response = await this.client.post(`/admin/lucky-auctions/${id}/cancel`);
+    const response = await this.client.post(`/admin/auctions/${id}/cancel`);
     return response.data;
   }
 
   async drawLuckyAuction(id: string) {
-    const response = await this.client.post(`/admin/lucky-auctions/${id}/draw`);
+    const response = await this.client.post(`/admin/auctions/${id}/draw`);
     return response.data;
   }
 
   async getLuckyAuctionResults(params?: any) {
-    const response = await this.client.get('/admin/lucky-auctions/results/all', { params });
+    const response = await this.client.get('/admin/auctions/results/all', { params });
     return response.data;
   }
 

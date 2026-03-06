@@ -260,7 +260,7 @@ router.post('/:id/cancel', authenticateAdmin, async (req: AuthRequest, res) => {
 
       for (const p of participantsResult.rows) {
         await client.query(
-          `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+          `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
           [p.amount, p.user_id]
         );
         await client.query(
@@ -269,7 +269,7 @@ router.post('/:id/cancel', authenticateAdmin, async (req: AuthRequest, res) => {
         );
         await client.query(
           `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-           SELECT $1, 'auction_refund', $2, balance, $3, $4 FROM users WHERE id = $1`,
+           SELECT $1, 'auction_refund', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
           [p.user_id, p.amount, `竞拍取消退款: ${auction.title}`, id]
         );
       }
