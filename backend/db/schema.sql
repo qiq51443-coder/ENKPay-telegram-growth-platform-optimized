@@ -314,12 +314,6 @@ ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en
 ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expires_at TIMESTAMPTZ;
 ALTER TABLE red_packet_claims ADD COLUMN IF NOT EXISTS balance_expiry_processed BOOLEAN DEFAULT false;
 
--- Add sent_at to announcements
-ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
-
--- Add group_type to authorized_groups
-ALTER TABLE authorized_groups ADD COLUMN IF NOT EXISTS group_type VARCHAR(20) DEFAULT 'group';
-
 -- Create unique_id index
 CREATE INDEX IF NOT EXISTS idx_users_unique_id ON users(unique_id);
 
@@ -332,6 +326,7 @@ CREATE TABLE IF NOT EXISTS authorized_groups (
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(bot_id, group_id)
 );
+ALTER TABLE authorized_groups ADD COLUMN IF NOT EXISTS group_type VARCHAR(20) DEFAULT 'group';
 
 -- Orders table
 CREATE TABLE IF NOT EXISTS orders (
@@ -363,6 +358,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sent', 'expired')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
 
 -- Charity activities table
 CREATE TABLE IF NOT EXISTS charity_activities (
