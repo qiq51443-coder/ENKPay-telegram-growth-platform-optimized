@@ -22,7 +22,6 @@ CREATE INDEX IF NOT EXISTS idx_users_bot_telegram ON users(bot_id, telegram_id);
 -- =====================================================
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON transactions(user_id, type);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON transactions(user_id, created_at DESC);
@@ -55,22 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_platform_bindings_status_created ON platform_bind
 CREATE INDEX IF NOT EXISTS idx_platform_bindings_bot_id ON platform_bindings(bot_id);
 
 -- =====================================================
--- 提现请求索引 (Withdrawals table indexes)
+-- 截图表索引 (Earnings screenshots table indexes)
 -- =====================================================
-CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_status_created ON withdrawals(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_bot_id ON withdrawals(bot_id);
-
--- =====================================================
--- 截图表索引 (Screenshots table indexes)
--- =====================================================
-CREATE INDEX IF NOT EXISTS idx_screenshots_user_id ON screenshots(user_id);
-CREATE INDEX IF NOT EXISTS idx_screenshots_status ON screenshots(status);
-CREATE INDEX IF NOT EXISTS idx_screenshots_created_at ON screenshots(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_screenshots_bot_id ON screenshots(bot_id);
-
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_user_id ON earnings_screenshots(user_id);
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_status ON earnings_screenshots(status);
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_created_at ON earnings_screenshots(created_at DESC);
@@ -102,7 +87,6 @@ CREATE INDEX IF NOT EXISTS idx_tutorials_created_at ON tutorials(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_tutorial_steps_tutorial_id ON tutorial_steps(tutorial_id);
 CREATE INDEX IF NOT EXISTS idx_tutorial_steps_order ON tutorial_steps(tutorial_id, step_number);
 
-CREATE INDEX IF NOT EXISTS idx_tutorial_categories_exchange_id ON tutorial_categories(exchange_id);
 CREATE INDEX IF NOT EXISTS idx_tutorial_categories_order_index ON tutorial_categories(order_index);
 
 -- =====================================================
@@ -116,11 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_admin_users_created_at ON admin_users(created_at 
 -- =====================================================
 -- 审计日志索引 (Audit logs table indexes)
 -- =====================================================
-CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_action ON audit_logs(admin_user_id, action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON admin_audit_logs(admin_user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON admin_audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON admin_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON admin_audit_logs(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_action ON admin_audit_logs(admin_user_id, action);
 
 -- =====================================================
 -- 系统设置索引 (System settings table indexes)
