@@ -14,7 +14,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["node", "node-cron", "pg"]
+    "types": ["node", "node-cron", "pg", "express", "cors", "jsonwebtoken", "multer", "bcryptjs"],
+    "noImplicitAny": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
