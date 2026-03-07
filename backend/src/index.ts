@@ -12,6 +12,7 @@ import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { generalLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
+import { runMigrations } from './db/migrate';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -127,6 +128,9 @@ const startServer = async () => {
     // Connect to Redis
     await connectRedis();
     console.log('✓ Redis connected');
+
+    // Run database migrations (auto-create all tables)
+    await runMigrations();
 
     // Initialise rate limiters now that Redis is connected
     initLimiters();
