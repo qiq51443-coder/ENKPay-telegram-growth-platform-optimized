@@ -29,6 +29,11 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON transactions(user_id
 -- =====================================================
 -- 红包表索引 (Red packets table indexes)
 -- =====================================================
+-- Ensure columns exist before indexing (they may not be present in the base schema)
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS bot_id UUID REFERENCES bots(id) ON DELETE CASCADE;
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS group_id BIGINT;
+ALTER TABLE red_packets ADD COLUMN IF NOT EXISTS creator_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_red_packets_bot_id ON red_packets(bot_id);
 CREATE INDEX IF NOT EXISTS idx_red_packets_group_id ON red_packets(group_id);
 CREATE INDEX IF NOT EXISTS idx_red_packets_status ON red_packets(status);
@@ -47,6 +52,16 @@ CREATE INDEX IF NOT EXISTS idx_red_packet_claims_claimed_at ON red_packet_claims
 -- =====================================================
 -- 绑定请求索引 (Platform bindings table indexes)
 -- =====================================================
+-- Minimal table definition to ensure indexes can be created even if the full
+-- table definition lives in a later migration. Columns will be extended later.
+CREATE TABLE IF NOT EXISTS platform_bindings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_platform_bindings_user_id ON platform_bindings(user_id);
 CREATE INDEX IF NOT EXISTS idx_platform_bindings_status ON platform_bindings(status);
 CREATE INDEX IF NOT EXISTS idx_platform_bindings_created_at ON platform_bindings(created_at DESC);
@@ -56,6 +71,9 @@ CREATE INDEX IF NOT EXISTS idx_platform_bindings_bot_id ON platform_bindings(bot
 -- =====================================================
 -- 截图表索引 (Earnings screenshots table indexes)
 -- =====================================================
+-- Ensure status column exists
+ALTER TABLE earnings_screenshots ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';
+
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_user_id ON earnings_screenshots(user_id);
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_status ON earnings_screenshots(status);
 CREATE INDEX IF NOT EXISTS idx_earnings_screenshots_created_at ON earnings_screenshots(created_at DESC);
