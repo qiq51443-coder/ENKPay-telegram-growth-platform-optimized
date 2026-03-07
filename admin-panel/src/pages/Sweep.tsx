@@ -9,8 +9,11 @@ import {
   Typography,
   Row,
   Col,
+  Card,
+  Form,
+  Input,
 } from 'antd';
-import { SyncOutlined } from '@ant-design/icons';
+import { SyncOutlined, SaveOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 const { Title } = Typography;
@@ -61,18 +64,52 @@ export const Sweep: React.FC = () => {
   const [pageSize] = useState(20);
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined);
   const [filterNetworkId, setFilterNetworkId] = useState<string | undefined>(undefined);
+  const [hotWalletEth, setHotWalletEth] = useState('');
+  const [hotWalletTron, setHotWalletTron] = useState('');
+  const [hotWalletSaving, setHotWalletSaving] = useState(false);
 
   // Load available deposit networks for the filter dropdown
   useEffect(() => {
     apiClient
       .get('/admin/wallet/networks')
       .then((res) => {
-        setNetworks(res.data?.networks || []);
+        setNetworks(res.data?.data || []);
       })
       .catch((err) => {
         console.warn('Failed to load networks for filter:', err);
       });
   }, []);
+
+  // Load hot wallet addresses from system settings
+  useEffect(() => {
+    apiClient
+      .getSystemSettings()
+      .then((res) => {
+        const settingsList: Array<{ key: string; value: any }> = res?.settings || [];
+        const eth = settingsList.find((s) => s.key === 'sweep_hot_wallet_eth');
+        const tron = settingsList.find((s) => s.key === 'sweep_hot_wallet_tron');
+        if (eth) setHotWalletEth(String(eth.value || ''));
+        if (tron) setHotWalletTron(String(tron.value || ''));
+      })
+      .catch((err) => {
+        console.warn('Failed to load hot wallet settings:', err);
+      });
+  }, []);
+
+  const handleSaveHotWallets = async () => {
+    setHotWalletSaving(true);
+    try {
+      await Promise.all([
+        apiClient.updateSystemSetting('sweep_hot_wallet_eth', { value: hotWalletEth }),
+        apiClient.updateSystemSetting('sweep_hot_wallet_tron', { value: hotWalletTron }),
+      ]);
+      message.success('归集地址保存成功');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '保存失败');
+    } finally {
+      setHotWalletSaving(false);
+    }
+  };
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -208,6 +245,45 @@ export const Sweep: React.FC = () => {
 
   return (
     <div>
+      {/* Hot Wallet Configuration */}
+      <Card
+        title="归集地址配置"
+        style={{ marginBottom: 16 }}
+        extra={
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={hotWalletSaving}
+            onClick={handleSaveHotWallets}
+          >
+            保存归集地址
+          </Button>
+        }
+      >
+        <Form layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="ETH/BSC 热钱包地址" tooltip="ERC20/BEP20 USDT 归集目标地址">
+                <Input
+                  placeholder="0x..."
+                  value={hotWalletEth}
+                  onChange={(e) => setHotWalletEth(e.target.value)}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="TRON 热钱包地址" tooltip="TRC20 USDT 归集目标地址">
+                <Input
+                  placeholder="T..."
+                  value={hotWalletTron}
+                  onChange={(e) => setHotWalletTron(e.target.value)}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
+
       <div
         style={{
           marginBottom: 16,

@@ -10,8 +10,12 @@ interface WalletNetwork {
   chain_name: string;
   master_address: string;
   hd_mnemonic?: string;
+  hd_derivation_path?: string;
+  contract_address?: string;
+  decimals?: number;
+  rpc_url?: string;
   min_deposit_amount: number;
-  deposit_fee_percent: number;
+  deposit_fee: number;
   is_active: boolean;
   created_at: string;
 }
@@ -31,7 +35,7 @@ export const WalletNetworks: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiClient.getWalletNetworks();
-      setNetworks(response.networks || []);
+      setNetworks(response.data || []);
     } catch (error) {
       console.error('Failed to fetch wallet networks:', error);
       message.error('获取网络列表失败');
@@ -44,9 +48,9 @@ export const WalletNetworks: React.FC = () => {
     if (network) {
       setEditingNetwork(network);
       // Don't show the mnemonic in the form for security
-      const formValues = { ...network };
-      delete formValues.hd_mnemonic;
-      form.setFieldsValue(formValues);
+      const { hd_mnemonic, ...formValues } = network;
+      // Map deposit_fee to form field deposit_fee_percent for display
+      form.setFieldsValue({ ...formValues, deposit_fee_percent: network.deposit_fee });
     } else {
       setEditingNetwork(null);
       form.resetFields();
@@ -57,12 +61,15 @@ export const WalletNetworks: React.FC = () => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      // Map form field deposit_fee_percent to backend field deposit_fee
+      const { deposit_fee_percent, ...rest } = values;
+      const submitData = { ...rest, deposit_fee: deposit_fee_percent };
       
       if (editingNetwork) {
-        await apiClient.updateWalletNetwork(editingNetwork.id, values);
+        await apiClient.updateWalletNetwork(editingNetwork.id, submitData);
         message.success('网络更新成功');
       } else {
-        await apiClient.createWalletNetwork(values);
+        await apiClient.createWalletNetwork(submitData);
         message.success('网络创建成功');
       }
       
@@ -148,8 +155,8 @@ export const WalletNetworks: React.FC = () => {
     },
     {
       title: '手续费',
-      dataIndex: 'deposit_fee_percent',
-      key: 'deposit_fee_percent',
+      dataIndex: 'deposit_fee',
+      key: 'deposit_fee',
       width: 80,
       render: (fee: number) => `${fee}%`,
     },
@@ -249,6 +256,7 @@ export const WalletNetworks: React.FC = () => {
           initialValues={{
             min_deposit_amount: 1,
             deposit_fee_percent: 0,
+            decimals: 6,
             is_active: true,
           }}
         >
@@ -283,11 +291,48 @@ export const WalletNetworks: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            name="hd_derivation_path"
+            label="HD 派生路径"
+            rules={[{ required: true, message: '请选择 HD 派生路径' }]}
+            tooltip="用于从助记词派生地址的 BIP44 路径"
+          >
+            <Select placeholder="选择派生路径">
+              <Select.Option value="m/44'/195'/0'/0">m/44'/195'/0'/0 (TRON)</Select.Option>
+              <Select.Option value="m/44'/60'/0'/0">m/44'/60'/0'/0 (ETH/BSC)</Select.Option>
+              <Select.Option value="m/44'/966'/0'/0">m/44'/966'/0'/0 (Polygon)</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             name="master_address"
             label="主地址"
             rules={[{ required: true, message: '请输入主地址' }]}
           >
             <Input placeholder="0x..." />
+          </Form.Item>
+
+          <Form.Item
+            name="contract_address"
+            label="合约地址"
+            tooltip="ERC20/TRC20 代币合约地址，原生币可留空"
+          >
+            <Input placeholder="代币合约地址（如 USDT 合约）" />
+          </Form.Item>
+
+          <Form.Item
+            name="decimals"
+            label="代币精度"
+            tooltip="代币小数位数，USDT TRC20 为 6，ERC20 为 18"
+          >
+            <InputNumber min={0} max={18} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="rpc_url"
+            label="RPC 节点地址"
+            tooltip="区块链 RPC 节点 URL，留空使用默认节点"
+          >
+            <Input placeholder="https://..." />
           </Form.Item>
 
           {!editingNetwork && (

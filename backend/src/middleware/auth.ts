@@ -131,8 +131,8 @@ export const validateWebhook = async (req: Request, res: Response, next: NextFun
         return res.status(403).json({ error: 'Bot is not active' });
       }
 
-      // Verify webhook secret (if database has this field)
-      if (bot.webhook_secret && bot.webhook_secret !== secret) {
+      // Verify webhook secret (if database has this field and a secret was provided)
+      if (bot.webhook_secret && secret && bot.webhook_secret !== secret) {
         return res.status(403).json({ error: 'Invalid webhook secret' });
       }
 
