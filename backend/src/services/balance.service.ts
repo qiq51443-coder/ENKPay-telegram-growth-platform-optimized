@@ -110,8 +110,8 @@ export async function validateTransfer(
   const configResult = await query(
     `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate')`
   );
-  const config: any = {};
-  configResult.rows.forEach((row) => {
+  const config: Record<string, number> = {};
+  configResult.rows.forEach((row: { key: string; value: string }) => {
     config[row.key] = parseFloat(row.value);
   });
 
@@ -162,8 +162,8 @@ export async function validateWithdrawal(
   const configResult = await query(
     `SELECT key, value FROM platform_config WHERE key IN ('withdraw_min_amount', 'withdraw_fee_rate', 'deposit_min_amount')`
   );
-  const config: any = {};
-  configResult.rows.forEach((row) => {
+  const config: Record<string, number> = {};
+  configResult.rows.forEach((row: { key: string; value: string }) => {
     config[row.key] = parseFloat(row.value);
   });
 
