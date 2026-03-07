@@ -24,13 +24,13 @@ async function autoSettleSessions(): Promise<void> {
          ts.id,
          ts.pair_id,
          ts.rule_id,
-         ts.entry_price,
+         ts.open_price,
          tr.direction as rule_direction
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
-       WHERE ts.end_time < NOW() 
-         AND ts.status = 'active'
-       ORDER BY ts.end_time ASC
+       WHERE ts.end_at < NOW() 
+         AND ts.status IN ('open', 'upcoming')
+       ORDER BY ts.end_at ASC
        LIMIT 50`,
       []
     );
@@ -58,14 +58,14 @@ async function autoSettleSessions(): Promise<void> {
             settlementPrice = priceData.price;
           } catch (error) {
             console.error(`Failed to get price for pair ${session.pair_id}, using entry price`);
-            settlementPrice = parseFloat(session.entry_price);
+            settlementPrice = parseFloat(session.open_price);
           }
         } else {
           // No predetermined direction - compare current price to entry price
           try {
             const priceData = await getPairPrice(session.pair_id);
             settlementPrice = priceData.price;
-            const entryPrice = parseFloat(session.entry_price);
+            const entryPrice = parseFloat(session.open_price);
             
             resultDirection = settlementPrice >= entryPrice ? 'up' : 'down';
           } catch (error) {
