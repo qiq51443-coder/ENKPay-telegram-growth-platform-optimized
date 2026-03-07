@@ -3,7 +3,7 @@
 -- 竞拍表
 CREATE TABLE IF NOT EXISTS lucky_auctions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id UUID REFERENCES nft_products(id) ON DELETE SET NULL,
+  product_id INT REFERENCES nft_products(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   description TEXT,
   image_url TEXT,
