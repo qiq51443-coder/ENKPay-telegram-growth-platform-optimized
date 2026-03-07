@@ -157,6 +157,7 @@ export async function expireAuctions(): Promise<void> {
 }
 
 async function _expireAuctions(): Promise<void> {
+  try {
   // Find all active auctions past their expiry time
   const expiredResult = await query(
     `SELECT * FROM lucky_auctions
@@ -220,6 +221,9 @@ async function _expireAuctions(): Promise<void> {
 
   if (expiredResult.rows.length > 0) {
     console.log(`AuctionCleanup: expired ${expiredResult.rows.length} auctions and refunded participants`);
+  }
+  } catch (err) {
+    console.error('expireAuctions: database error:', (err as any).message);
   }
 }
 

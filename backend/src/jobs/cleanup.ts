@@ -18,7 +18,7 @@ async function runCleanup(): Promise<void> {
        FROM red_packet_claims rpc
        WHERE rpc.balance_expires_at IS NOT NULL
          AND rpc.balance_expires_at < NOW()
-         AND rpc.balance_expired = false`,
+         AND rpc.balance_expiry_processed = false`,
       []
     );
 
@@ -29,7 +29,7 @@ async function runCleanup(): Promise<void> {
           [claim.amount, claim.user_id]
         );
         await query(
-          `UPDATE red_packet_claims SET balance_expired = true WHERE id = $1`,
+          `UPDATE red_packet_claims SET balance_expiry_processed = true WHERE id = $1`,
           [claim.id]
         );
       } catch (err) {

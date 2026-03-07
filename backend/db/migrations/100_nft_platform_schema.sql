@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS nft_products (
   creator_name VARCHAR(100),
   collection_name VARCHAR(100),
   sort_order INT DEFAULT 0,
-  created_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS nft_products (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_nft_holdings (
   id SERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   product_id INT NOT NULL REFERENCES nft_products(id) ON DELETE CASCADE,
   purchase_price DECIMAL(18, 2) NOT NULL,
   purchase_quantity INT DEFAULT 1,
@@ -124,7 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_user_nft_holdings_status ON user_nft_holdings(sta
 CREATE TABLE IF NOT EXISTS nft_yield_logs (
   id SERIAL PRIMARY KEY,
   holding_id INT NOT NULL REFERENCES user_nft_holdings(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   yield_date DATE NOT NULL,
   yield_amount DECIMAL(18, 2) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -155,12 +155,12 @@ CREATE TABLE IF NOT EXISTS auctions (
   start_at TIMESTAMP NOT NULL,
   end_at TIMESTAMP NOT NULL,
   draw_at TIMESTAMP,
-  winner_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  winner_id UUID REFERENCES users(id) ON DELETE SET NULL,
   winning_share_number INT,
   draw_method VARCHAR(20),
   draw_seed VARCHAR(100),
   status VARCHAR(20) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'active', 'drawing', 'finished', 'cancelled')),
-  created_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -174,7 +174,7 @@ CREATE INDEX IF NOT EXISTS idx_auctions_start_at ON auctions(start_at);
 CREATE TABLE IF NOT EXISTS auction_entries (
   id SERIAL PRIMARY KEY,
   auction_id INT NOT NULL REFERENCES auctions(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   shares_count INT NOT NULL,
   share_numbers INT[],
   total_cost DECIMAL(18, 2) NOT NULL,
@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS custom_price_presets (
   end_price DECIMAL(18, 8),
   is_active BOOLEAN DEFAULT false,
   activated_at TIMESTAMP,
-  created_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -284,7 +284,7 @@ CREATE INDEX IF NOT EXISTS idx_trading_sessions_start_at ON trading_sessions(sta
 CREATE TABLE IF NOT EXISTS trading_orders (
   id SERIAL PRIMARY KEY,
   session_id INT NOT NULL REFERENCES trading_sessions(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   pair_id INT NOT NULL REFERENCES trading_pairs(id) ON DELETE CASCADE,
   direction VARCHAR(10) CHECK (direction IN ('up', 'down')),
   amount DECIMAL(18, 2) NOT NULL,
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS charity_projects (
   start_at TIMESTAMP,
   end_at TIMESTAMP,
   progress_updates JSONB,
-  created_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -351,7 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_charity_projects_status ON charity_projects(statu
 CREATE TABLE IF NOT EXISTS charity_donations (
   id SERIAL PRIMARY KEY,
   project_id INT NOT NULL REFERENCES charity_projects(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount DECIMAL(18, 2) NOT NULL,
   message TEXT,
   is_anonymous BOOLEAN DEFAULT false,
@@ -418,7 +418,7 @@ CREATE INDEX IF NOT EXISTS idx_user_deposit_addresses_address ON user_deposit_ad
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS deposit_records (
   id SERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   network_id INT NOT NULL REFERENCES deposit_networks(id) ON DELETE CASCADE,
   tx_hash VARCHAR(100) NOT NULL,
   from_address VARCHAR(100),
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS deposit_records (
   credited_at TIMESTAMP,
   auto_credited BOOLEAN DEFAULT false,
   admin_note TEXT,
-  reviewed_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  reviewed_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(tx_hash, network_id)
@@ -448,7 +448,7 @@ CREATE INDEX IF NOT EXISTS idx_deposit_records_tx_hash ON deposit_records(tx_has
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS withdrawal_records (
   id SERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   network_id INT NOT NULL REFERENCES deposit_networks(id) ON DELETE CASCADE,
   amount DECIMAL(18, 2) NOT NULL,
   fee DECIMAL(18, 2) NOT NULL,
@@ -457,7 +457,7 @@ CREATE TABLE IF NOT EXISTS withdrawal_records (
   tx_hash VARCHAR(100),
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'processing', 'completed', 'rejected', 'cancelled')),
   admin_note TEXT,
-  reviewed_by INT REFERENCES admin_users(id) ON DELETE SET NULL,
+  reviewed_by UUID REFERENCES admin_users(id) ON DELETE SET NULL,
   reviewed_at TIMESTAMP,
   completed_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -471,8 +471,8 @@ CREATE INDEX IF NOT EXISTS idx_withdrawal_records_status ON withdrawal_records(s
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS transfer_records (
   id SERIAL PRIMARY KEY,
-  from_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  to_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount DECIMAL(18, 2) NOT NULL,
   fee DECIMAL(18, 2) NOT NULL,
   actual_received DECIMAL(18, 2) NOT NULL,
