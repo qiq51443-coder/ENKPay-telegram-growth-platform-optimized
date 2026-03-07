@@ -85,6 +85,7 @@ app.get('/app/*', generalLimiter, (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin/users', userRoutes);  // alias for admin panel
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/admin-users', adminUsersRoutes);
 app.use('/api/redpackets', redPacketRoutes);

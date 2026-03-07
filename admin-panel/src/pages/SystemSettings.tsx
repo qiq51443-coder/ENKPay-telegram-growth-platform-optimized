@@ -39,8 +39,19 @@ export const SystemSettings: React.FC = () => {
   const [newSettingForm] = Form.useForm();
   const [agreementText, setAgreementText] = useState('');
   const [agreementSaving, setAgreementSaving] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
 
-  const categories = [
+  const categoryLabels: Record<string, string> = {
+    general: '通用设置',
+    rewards: '奖励设置',
+    withdrawals: '提现设置',
+    messages: '消息设置',
+    notifications: '通知设置',
+    security: '安全设置',
+    sweep: '归集设置',
+  };
+
+  const staticCategories = [
     { key: 'general', label: '通用设置' },
     { key: 'rewards', label: '奖励设置' },
     { key: 'withdrawals', label: '提现设置' },
@@ -49,9 +60,18 @@ export const SystemSettings: React.FC = () => {
     { key: 'security', label: '安全设置' },
   ];
 
+  // Merge static + dynamic categories, deduplicating by key
+  const categories = [
+    ...staticCategories,
+    ...dynamicCategories
+      .filter((c) => !staticCategories.find((sc) => sc.key === c))
+      .map((c) => ({ key: c, label: categoryLabels[c] || c })),
+  ];
+
   useEffect(() => {
     fetchSettings();
     fetchAgreement();
+    fetchCategories();
   }, []);
 
   const fetchAgreement = async () => {
@@ -62,6 +82,15 @@ export const SystemSettings: React.FC = () => {
       if (agreementSetting) setAgreementText(String(agreementSetting.value || ''));
     } catch {
       // ignore
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await apiClient.getSystemSettingCategories();
+      setDynamicCategories(response?.categories || []);
+    } catch {
+      // ignore — fall back to static categories
     }
   };
 
