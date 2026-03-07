@@ -50,11 +50,11 @@ const app = express();
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 3000;
 
 // Middleware
-const allowedOrigins = process.env.CORS_ORIGIN
+const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',')
-  : ['http://localhost:3001', 'http://localhost:5173'];
+  : (process.env.NODE_ENV === 'production' ? true : ['http://localhost:3001', 'http://localhost:5173']);
 app.use(cors({
-  origin: allowedOrigins,
+  origin: corsOrigin,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));

@@ -44,9 +44,9 @@ async function notifyTransferParties(
   fee: number,
   actualReceived: number
 ): Promise<void> {
-  // Fetch sender info (telegram_user_id, language, updated balance, bot_token)
+  // Fetch sender info (telegram_id, language_code, updated balance, bot_token)
   const senderResult = await query(
-    `SELECT u.telegram_user_id, u.language, u.wallet_balance, u.first_name, u.username,
+    `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name, u.username,
             b.token AS bot_token
      FROM users u
      JOIN bots b ON u.bot_id = b.id
@@ -54,9 +54,9 @@ async function notifyTransferParties(
     [senderId]
   );
 
-  // Fetch recipient info (telegram_user_id, language, updated balance, bot_token)
+  // Fetch recipient info (telegram_id, language_code, updated balance, bot_token)
   const recipientResult = await query(
-    `SELECT u.telegram_user_id, u.language, u.wallet_balance, b.token AS bot_token
+    `SELECT u.telegram_id, u.language_code, u.wallet_balance, b.token AS bot_token
      FROM users u
      JOIN bots b ON u.bot_id = b.id
      WHERE u.id = $1 AND b.is_active = true`,
@@ -65,10 +65,10 @@ async function notifyTransferParties(
 
   // Notify sender
   if (senderResult.rows.length > 0) {
-    const { telegram_user_id, language, wallet_balance, bot_token } = senderResult.rows[0];
-    if (telegram_user_id && bot_token) {
+    const { telegram_id, language_code, wallet_balance, bot_token } = senderResult.rows[0];
+    if (telegram_id && bot_token) {
       try {
-        const lang = language || 'en';
+        const lang = language_code || 'en';
         const template = getNotifyTemplate(lang, 'transfer_sent_notify');
         const message = formatNotification(template, {
           recipient: recipientDisplayName,
@@ -78,7 +78,7 @@ async function notifyTransferParties(
           balance: parseFloat(wallet_balance || '0').toFixed(2),
         });
         const tg = new TelegramAPI(bot_token);
-        await tg.sendMessage(telegram_user_id, message);
+        await tg.sendMessage(telegram_id, message);
       } catch (err) {
         console.error(`Failed to notify sender ${senderId} of transfer:`, err);
       }
@@ -87,10 +87,10 @@ async function notifyTransferParties(
 
   // Notify recipient
   if (recipientResult.rows.length > 0) {
-    const { telegram_user_id, language, wallet_balance, bot_token } = recipientResult.rows[0];
-    if (telegram_user_id && bot_token) {
+    const { telegram_id, language_code, wallet_balance, bot_token } = recipientResult.rows[0];
+    if (telegram_id && bot_token) {
       try {
-        const lang = language || 'en';
+        const lang = language_code || 'en';
         const senderDisplay = senderResult.rows.length > 0
           ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
           : String(senderId);
@@ -101,7 +101,7 @@ async function notifyTransferParties(
           balance: parseFloat(wallet_balance || '0').toFixed(2),
         });
         const tg = new TelegramAPI(bot_token);
-        await tg.sendMessage(telegram_user_id, message);
+        await tg.sendMessage(telegram_id, message);
       } catch (err) {
         console.error(`Failed to notify recipient ${recipientId} of transfer:`, err);
       }
@@ -155,7 +155,7 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
 
     // Find recipient user by robot_user_id or username
     const recipientResult = await query(
-      `SELECT id, telegram_user_id, username, first_name 
+      `SELECT id, telegram_id, username, first_name 
        FROM users 
        WHERE robot_user_id = $1 OR username = $1`,
       [to_identifier]
@@ -218,7 +218,7 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
           fee,
           actualReceived,
           recipient.username,
-          recipient.telegram_user_id,
+          recipient.telegram_id,
           memo || null,
         ]
       );
