@@ -10,7 +10,7 @@ import { startAutoSettle } from './jobs/auto-settle';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
-import { generalLimiter } from './middleware/rateLimiter';
+import { generalLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 
 // Routes
@@ -127,6 +127,9 @@ const startServer = async () => {
     // Connect to Redis
     await connectRedis();
     console.log('✓ Redis connected');
+
+    // Initialise rate limiters now that Redis is connected
+    initLimiters();
 
     // Load all active bots into the bot manager
     await botManager.loadAllBots();
