@@ -43,5 +43,5 @@ CREATE TABLE IF NOT EXISTS charity_banners (
 
 -- User agreement setting
 INSERT INTO system_settings (key, value, description, category, is_public)
-VALUES ('user_agreement', '', '用户协议内容', 'general', true)
+VALUES ('user_agreement', '""', '用户协议内容', 'general', true)
 ON CONFLICT (key) DO NOTHING;
