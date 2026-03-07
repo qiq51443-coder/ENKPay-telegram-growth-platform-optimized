@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { LoginResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
 class ApiClient {
   private client: AxiosInstance;
