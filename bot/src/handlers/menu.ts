@@ -15,7 +15,7 @@ export const handleMenu = async (ctx: Context) => {
   try {
     if (!ctx.from || !ctx.message || !('text' in ctx.message)) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const text = ctx.message.text;
 

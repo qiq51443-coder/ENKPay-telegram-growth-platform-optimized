@@ -9,7 +9,7 @@ export const handleTransferStart = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -30,7 +30,7 @@ export const handleTransferStart = async (ctx: Context) => {
 export const handleTransferEnterId = async (ctx: Context, user: any, recipientId: string) => {
   try {
     const lang = getUserLanguage(user);
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
 
     // Validate recipient ID format before making API calls
     const trimmedId = recipientId.trim();
@@ -86,7 +86,7 @@ export const handleTransferConfirmRecipient = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
@@ -141,7 +141,7 @@ export const handleTransferConfirm = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
@@ -206,7 +206,7 @@ export const handleTransferCancel = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 

@@ -36,9 +36,9 @@ export const WalletNetworks: React.FC = () => {
     try {
       const response = await apiClient.getWalletNetworks();
       setNetworks(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch wallet networks:', error);
-      message.error('获取网络列表失败');
+      message.error(error.response?.data?.error || error.message || '获取网络列表失败');
     } finally {
       setLoading(false);
     }
@@ -151,14 +151,14 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'min_deposit_amount',
       key: 'min_deposit_amount',
       width: 100,
-      render: (amount: number) => `${amount.toFixed(2)} USDT`,
+      render: (amount: number | null | undefined) => amount != null ? `${Number(amount).toFixed(2)} USDT` : '-',
     },
     {
       title: '手续费',
       dataIndex: 'deposit_fee',
       key: 'deposit_fee',
       width: 80,
-      render: (fee: number) => `${fee}%`,
+      render: (fee: number | null | undefined) => fee != null ? `${fee}%` : '0%',
     },
     {
       title: '状态',
