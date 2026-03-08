@@ -430,6 +430,25 @@ export const NFTProducts: React.FC = () => {
             {({ getFieldValue }) => getFieldValue('product_type') === 'fixed_term' && (
               <>
                 <Form.Item
+                  name="settlement_type"
+                  label="结算方式"
+                  rules={[{ required: true, message: '请选择结算方式' }]}
+                >
+                  <Select placeholder="选择结算方式">
+                    <Select.Option value="daily">每日结算</Select.Option>
+                    <Select.Option value="expiry">到期结算</Select.Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item
+                  name="settlement_description"
+                  label="结算说明"
+                  tooltip="描述收益结算规则"
+                >
+                  <Input.TextArea rows={2} placeholder="例如：每日自动结算收益到账户余额" />
+                </Form.Item>
+
+                <Form.Item
                   name="annual_yield_rate"
                   label="年化收益率 (%)"
                   rules={[{ required: true, message: '请输入年化收益率' }]}

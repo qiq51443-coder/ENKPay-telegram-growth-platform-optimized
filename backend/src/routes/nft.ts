@@ -171,20 +171,45 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
       image_url,
       price,
       total_supply,
+      stock,
       daily_trade_reward_rate,
       max_trade_reward_days,
       metadata,
+      product_type,
+      status,
+      original_price,
+      duration_days,
+      annual_yield_rate,
+      term_days,
+      daily_yield_rate,
+      max_holders,
+      is_purchase_limited,
+      max_purchases_per_user,
+      rarity,
+      listing_time,
+      attributes,
+      settlement_type,
+      settlement_description,
     } = req.body;
 
-    if (!name || !price || !total_supply) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!name || !price) {
+      return res.status(400).json({ error: 'Missing required fields: name and price' });
     }
+
+    // effectiveSupply is used for both the stock and total_supply columns
+    const effectiveSupply = stock !== undefined ? parseInt(stock) : (total_supply !== undefined ? parseInt(total_supply) : 0);
 
     const result = await query(
       `INSERT INTO nft_products 
-       (category_id, name, description, image_url, price, total_supply,
-        daily_trade_reward_rate, max_trade_reward_days, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (category_id, name, description, image_url, price, stock, total_supply,
+        daily_trade_reward_rate, max_trade_reward_days, metadata,
+        product_type, status, original_price, duration_days, annual_yield_rate,
+        term_days, daily_yield_rate, max_holders, is_purchase_limited,
+        max_purchases_per_user, rarity, listing_time, attributes,
+        settlement_type, settlement_description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+               $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+               $21, $22, $23, $24, $25)
        RETURNING *`,
       [
         category_id,
@@ -192,10 +217,26 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
         description,
         image_url,
         parseFloat(price),
-        parseInt(total_supply),
+        effectiveSupply,
+        effectiveSupply,
         daily_trade_reward_rate || 0.01,
         max_trade_reward_days || 30,
         metadata ? JSON.stringify(metadata) : null,
+        product_type || 'instant',
+        status || 'active',
+        original_price ? parseFloat(original_price) : null,
+        duration_days ? parseInt(duration_days) : null,
+        annual_yield_rate ? parseFloat(annual_yield_rate) : null,
+        term_days ? parseInt(term_days) : null,
+        daily_yield_rate ? parseFloat(daily_yield_rate) : null,
+        max_holders ? parseInt(max_holders) : null,
+        is_purchase_limited || false,
+        max_purchases_per_user ? parseInt(max_purchases_per_user) : null,
+        rarity || null,
+        listing_time || null,
+        attributes ? JSON.stringify(attributes) : null,
+        settlement_type || null,
+        settlement_description || null,
       ]
     );
 
@@ -227,11 +268,26 @@ router.put('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       'description',
       'image_url',
       'price',
+      'original_price',
+      'stock',
       'total_supply',
       'daily_trade_reward_rate',
       'max_trade_reward_days',
       'status',
       'metadata',
+      'product_type',
+      'duration_days',
+      'annual_yield_rate',
+      'term_days',
+      'daily_yield_rate',
+      'max_holders',
+      'is_purchase_limited',
+      'max_purchases_per_user',
+      'rarity',
+      'listing_time',
+      'attributes',
+      'settlement_type',
+      'settlement_description',
     ];
 
     for (const field of allowedFields) {

@@ -44,6 +44,13 @@ const DURATION_OPTIONS = [
   { label: '10分钟', seconds: 600, periodsPerDay: 144 },
 ];
 
+const KLINE_INTERVALS = [
+  { label: '1m', value: '1m' },
+  { label: '5m', value: '5m' },
+  { label: '15m', value: '15m' },
+  { label: '1h', value: '1h' },
+];
+
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 
 export const Trading: React.FC = () => {
@@ -63,6 +70,7 @@ export const Trading: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [klineInterval, setKlineInterval] = useState('1m');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -76,7 +84,7 @@ export const Trading: React.FC = () => {
     };
   }, []);
 
-  // K-line chart: initialize when a pair is selected
+  // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
     if (!selectedPair || !chartContainerRef.current) return;
 
@@ -117,7 +125,7 @@ export const Trading: React.FC = () => {
     // Load K-line data
     const fetchKline = async () => {
       try {
-        const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=1m&limit=60`);
+        const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
         const raw: any[] = res.data?.data || [];
         const data = raw.map((k: any) => ({
           time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
@@ -151,7 +159,7 @@ export const Trading: React.FC = () => {
       chartRef.current = null;
       candleSeriesRef.current = null;
     };
-  }, [selectedPair]);
+  }, [selectedPair, klineInterval]);
 
   const fetchPairs = async () => {
     try {
@@ -317,6 +325,27 @@ export const Trading: React.FC = () => {
           <div style={{ fontSize: '14px', color: priceColor(priceInfo.change24h), marginTop: '4px' }}>
             {priceInfo.change24h >= 0 ? '▲' : '▼'} {Math.abs(priceInfo.change24h).toFixed(2)}% 24h
           </div>
+        </div>
+
+        {/* K-line interval selector */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+          {KLINE_INTERVALS.map((iv) => (
+            <button
+              key={iv.value}
+              onClick={() => setKlineInterval(iv.value)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${klineInterval === iv.value ? '#f0b90b' : theme.border}`,
+                backgroundColor: klineInterval === iv.value ? '#f0b90b22' : theme.bgCard,
+                color: klineInterval === iv.value ? '#f0b90b' : theme.textSecondary,
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              {iv.label}
+            </button>
+          ))}
         </div>
 
         {/* K-line chart */}
