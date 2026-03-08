@@ -309,6 +309,64 @@ class BotManager {
     }
   }
 
+  async registerWebhooksIfNeeded(): Promise<void> {
+    const backendUrl = process.env.BACKEND_URL;
+    if (!backendUrl) {
+      console.log('BotManager: BACKEND_URL not set, skipping auto webhook registration');
+      return;
+    }
+
+    let registered = 0;
+    for (const [botId, instance] of this.bots) {
+      try {
+        // Check if webhook_url is already set in DB
+        const result = await query(
+          'SELECT webhook_url, token FROM bots WHERE id = $1',
+          [botId]
+        );
+        if (result.rows.length === 0) continue;
+
+        const { webhook_url, token } = result.rows[0];
+        if (webhook_url) {
+          // Already has a webhook registered
+          continue;
+        }
+
+        // Register webhook with Telegram
+        const webhookUrl = `${backendUrl}/webhook/${botId}`;
+        const telegramApiUrl = `https://api.telegram.org/bot${token}/setWebhook`;
+
+        const response = await axios.post(telegramApiUrl, {
+          url: webhookUrl,
+          allowed_updates: ['message', 'callback_query', 'chat_member'],
+        });
+
+        if (response.data?.ok) {
+          // Update webhook_url in database
+          await query(
+            'UPDATE bots SET webhook_url = $1 WHERE id = $2',
+            [webhookUrl, botId]
+          );
+          console.log(`BotManager: auto-registered webhook for bot ${botId} → ${webhookUrl}`);
+          registered++;
+        } else {
+          console.warn(`BotManager: failed to register webhook for bot ${botId}:`, response.data);
+        }
+      } catch (err: any) {
+        const detail = err.response
+          ? `HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}`
+          : err.message;
+        console.error(`BotManager: error registering webhook for bot ${botId}:`, detail);
+      }
+    }
+
+    if (registered > 0) {
+      console.log(`✓ BotManager: auto-registered webhooks for ${registered} bot(s)`);
+    } else {
+      console.log('BotManager: all bots already have webhooks configured');
+    }
+  }
+
   async addBot(botId: string, token?: string, defaultLanguage?: string): Promise<void> {
     if (this.bots.has(botId)) {
       return;
