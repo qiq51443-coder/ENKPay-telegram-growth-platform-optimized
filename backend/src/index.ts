@@ -127,14 +127,24 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 const startServer = async () => {
   try {
     // Connect to Redis
-    await connectRedis();
-    console.log('✓ Redis connected');
+    let redisAvailable = false;
+    try {
+      await connectRedis();
+      console.log('✓ Redis connected');
+      redisAvailable = true;
+    } catch (err) {
+      console.warn('⚠ Redis connection failed, continuing without cache:', err);
+    }
 
     // Run database migrations (auto-create all tables)
     await runMigrations();
 
-    // Initialise rate limiters now that Redis is connected
-    initLimiters();
+    // Initialise rate limiters (requires Redis; skipped gracefully if Redis is unavailable)
+    if (redisAvailable) {
+      initLimiters();
+    } else {
+      console.warn('⚠ Rate limiters not initialized (Redis unavailable)');
+    }
 
     // Load all active bots into the bot manager
     await botManager.loadAllBots();
