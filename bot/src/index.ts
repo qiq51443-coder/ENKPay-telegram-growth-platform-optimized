@@ -264,18 +264,27 @@ function createBotInstance(entry: BotEntry): Telegraf {
   return bot;
 }
 
-async function fetchActiveBots(): Promise<BotEntry[]> {
+async function fetchActiveBots(retries = 5, delayMs = 5000): Promise<BotEntry[]> {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
   const serviceToken = process.env.SERVICE_TOKEN;
 
   if (serviceToken) {
-    try {
-      const response = await axios.get(`${backendUrl}/api/admin/bots`, {
-        headers: { Authorization: `Bearer ${serviceToken}` },
-      });
-      return (response.data.bots || []).filter((b: any) => b.is_active && b.token);
-    } catch (error) {
-      console.warn('Failed to fetch bots from API, falling back to BOT_TOKEN env:', error);
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.get(`${backendUrl}/api/admin/bots`, {
+          headers: { Authorization: `Bearer ${serviceToken}` },
+          timeout: 10000,
+        });
+        return (response.data.bots || []).filter((b: any) => b.is_active && b.token);
+      } catch (error: any) {
+        const isLastAttempt = attempt === retries;
+        if (isLastAttempt) {
+          console.warn(`[fetchActiveBots] All ${retries} attempts failed. Falling back to BOT_TOKEN env.`, error?.message);
+        } else {
+          console.warn(`[fetchActiveBots] Attempt ${attempt}/${retries} failed, retrying in ${delayMs}ms...`, error?.message);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
     }
   }
 
