@@ -142,6 +142,9 @@ export const zh = {
 
   // Wallet inline buttons
   btn_contact_support: '🎧 联系客服',
+  btn_support: '🎧 联系客服',
+  btn_share: '📤 分享',
+  invite_link: '邀请链接',
   btn_language: '🌐 语言',
 
   // Wallet extra info

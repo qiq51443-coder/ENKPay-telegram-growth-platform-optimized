@@ -143,6 +143,9 @@ export const ja: Record<string, string> = {
 
   // Wallet inline buttons
   btn_contact_support: '🎧 サポートに連絡',
+  btn_support: '🎧 サポートに連絡',
+  btn_share: '📤 シェア',
+  invite_link: '招待リンク',
   btn_language: '🌐 言語',
 
   // Wallet extra info
