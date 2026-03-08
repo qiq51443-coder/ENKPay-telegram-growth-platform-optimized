@@ -216,7 +216,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { balance, account_status, platform_status, red_packet_credits } = req.body;
+    const { balance, account_status, platform_status, red_packet_credits, language_code } = req.body;
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -236,6 +236,10 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (red_packet_credits !== undefined) {
       params.push(red_packet_credits);
       updates.push(`red_packet_credits = $${params.length}`);
+    }
+    if (language_code !== undefined) {
+      params.push(language_code);
+      updates.push(`language_code = $${params.length}`);
     }
 
     if (updates.length === 0) {

@@ -17,7 +17,7 @@ export const getUser = async (botId: string, telegramId: number) => {
     const response = await api.get(`/api/users/telegram/${telegramId}`, {
       headers: { 'X-Bot-Token': botId },
     });
-    return response.data;
+    return response.data.user;
   } catch (error: any) {
     if (error.response?.status === 404) {
       return null;
