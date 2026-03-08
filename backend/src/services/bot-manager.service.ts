@@ -29,14 +29,25 @@ interface User {
 async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: string): Promise<User> {
   const tgUser = ctx.from!;
 
-  // Try to find existing user
+  // Try to find existing user for this specific bot
   const existing = await query(
     'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2',
     [tgUser.id, botId]
   );
   if (existing.rows.length > 0) {
+    // Update username/name if changed
+    await query(
+      'UPDATE users SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW() WHERE id = $4',
+      [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, existing.rows[0].id]
+    );
     return existing.rows[0];
   }
+
+  // Check if user exists for ANY other bot (cross-bot unification)
+  const existingAnyBot = await query(
+    'SELECT * FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [tgUser.id]
+  );
 
   // Resolve inviter
   let invitedBy = null;
@@ -57,7 +68,41 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
   );
   const initialCredits = settingsResult.rows[0]?.new_user_credits ?? 3;
 
-  // Create new user
+  if (existingAnyBot.rows.length > 0) {
+    // User exists for another bot — create linked entry copying shared identity/balance fields
+    const source = existingAnyBot.rows[0];
+    const createResult = await query(
+      `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code,
+       invited_by, red_packet_credits, balance, platform_username, platform_bound,
+       platform_status, account_status, channel_followed, group_joined,
+       follow_reward_unlocked, bind_reward_unlocked, last_active_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+       ON CONFLICT (bot_id, telegram_id) DO UPDATE SET last_active_at = NOW()
+       RETURNING *`,
+      [
+        botId,
+        tgUser.id,
+        tgUser.username || null,
+        tgUser.first_name || null,
+        tgUser.last_name || null,
+        source.language_code || tgUser.language_code || 'en',
+        invitedBy || source.invited_by,
+        source.red_packet_credits ?? initialCredits,
+        source.balance ?? 0,
+        source.platform_username,
+        source.platform_bound,
+        source.platform_status,
+        source.account_status,
+        source.channel_followed,
+        source.group_joined,
+        source.follow_reward_unlocked,
+        source.bind_reward_unlocked,
+      ]
+    );
+    return createResult.rows[0];
+  }
+
+  // Brand new user
   const createResult = await query(
     `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_credits)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -76,6 +121,22 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
   return createResult.rows[0];
 }
 
+async function getPrimaryUniqueId(telegramId: number): Promise<string | null> {
+  const result = await query(
+    'SELECT unique_id FROM users WHERE telegram_id = $1 AND unique_id IS NOT NULL ORDER BY created_at ASC LIMIT 1',
+    [telegramId]
+  );
+  return result.rows[0]?.unique_id || null;
+}
+
+async function getUnifiedBalance(telegramId: number): Promise<number> {
+  const result = await query(
+    'SELECT balance FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [telegramId]
+  );
+  return parseFloat(String(result.rows[0]?.balance ?? 0));
+}
+
 async function getBotSettings(botId: string): Promise<Record<string, any>> {
   try {
     const result = await query('SELECT * FROM bot_settings WHERE bot_id = $1', [botId]);
@@ -92,11 +153,13 @@ function resolveUserLang(user: User, defaultLanguage: string): string {
   return lang;
 }
 
-function buildWelcomeText(user: User, lang: string, settings: Record<string, any>): string {
-  return settings.welcome_message ||
-    `🎉 ${t(lang, 'welcome_title')}\n\n` +
-    `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-    `💰 ${t(lang, 'your_balance')}: <b>${parseFloat(String(user.balance ?? 0)).toFixed(2)}</b>\n\n` +
+async function buildWelcomeText(user: User, lang: string, settings: Record<string, any>): Promise<string> {
+  if (settings.welcome_message) return settings.welcome_message;
+  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
+  const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+  return `🎉 ${t(lang, 'welcome_title')}\n\n` +
+    `🆔 ${t(lang, 'your_unique_id')}: <b>${displayId}</b>\n` +
+    `💰 ${t(lang, 'your_balance')}: <b>${balance}</b>\n\n` +
     t(lang, 'welcome_description');
 }
 
@@ -125,13 +188,16 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       const lang = resolveUserLang(user, defaultLanguage);
       const settings = await getBotSettings(botId);
 
-      const welcomeText = buildWelcomeText(user, lang, settings);
-      const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
-
-      await ctx.replyWithHTML(welcomeText, Markup.keyboard([
+      const welcomeText = await buildWelcomeText(user, lang, settings);
+      const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL;
+      const keyboardRows: any[][] = [
         [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-        [Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)],
-      ]).resize());
+      ];
+      if (webAppUrl) {
+        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
+      }
+
+      await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
     } catch (error) {
       console.error(`[bot ${botId}] Start handler error:`, error);
       try { await ctx.reply('An error occurred. Please try again.'); } catch {}
@@ -184,25 +250,98 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         return;
       }
 
-      if (data === 'wallet_deposit' || data === 'wallet_withdraw' ||
-          data === 'wallet_transfer' || data === 'wallet_support' ||
-          data === 'wallet_language' || data === 'wallet_back' ||
-          data === 'wallet_back_to_wallet' || data === 'deposit_back' ||
-          data === 'withdraw_back' || data === 'transfer_back' ||
-          data === 'language_back' || data === 'support_back') {
+      if (data === 'wallet_deposit') {
         await ctx.answerCbQuery();
-        if (data === 'wallet_back') {
-          // Show start menu
-          const settings = await getBotSettings(botId);
-          const welcomeText = buildWelcomeText(user, lang, settings);
-          const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
-          await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-            [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-            [Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)],
-          ]).resize());
-        } else {
-          await handleWallet(ctx, botId, user, lang);
+        const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        await ctx.replyWithHTML(
+          `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n` +
+          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
+          `${t(lang, 'select_network')}:`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback('TRC20 (USDT)', 'deposit_trc20')],
+            [Markup.button.callback('ERC20 (USDT)', 'deposit_erc20')],
+            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+          ])
+        );
+        return;
+      }
+
+      if (data === 'wallet_withdraw') {
+        await ctx.answerCbQuery();
+        const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        await ctx.replyWithHTML(
+          `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n` +
+          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
+          `${t(lang, 'withdraw_select_network')}:`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback('TRC20 (USDT)', 'withdraw_trc20')],
+            [Markup.button.callback('ERC20 (USDT)', 'withdraw_erc20')],
+            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+          ])
+        );
+        return;
+      }
+
+      if (data === 'wallet_transfer') {
+        await ctx.answerCbQuery();
+        const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        await ctx.replyWithHTML(
+          `💸 <b>${t(lang, 'btn_transfer')}</b>\n\n` +
+          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
+          t(lang, 'transfer_enter_id'),
+          Markup.inlineKeyboard([
+            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+          ])
+        );
+        return;
+      }
+
+      if (data === 'wallet_language') {
+        await ctx.answerCbQuery();
+        const langButtons = [
+          [Markup.button.callback('🇨🇳 中文', 'lang_zh'), Markup.button.callback('🇺🇸 English', 'lang_en')],
+          [Markup.button.callback('🇫🇷 Français', 'lang_fr'), Markup.button.callback('🇩🇪 Deutsch', 'lang_de')],
+          [Markup.button.callback('🇪🇸 Español', 'lang_es'), Markup.button.callback('🇸🇦 العربية', 'lang_ar')],
+          [Markup.button.callback('🇯🇵 日本語', 'lang_ja')],
+          [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+        ];
+        await ctx.replyWithHTML(
+          `🌐 <b>${t(lang, 'language_title')}</b>`,
+          Markup.inlineKeyboard(langButtons)
+        );
+        return;
+      }
+
+      if (data === 'wallet_support') {
+        await ctx.answerCbQuery();
+        await ctx.replyWithHTML(
+          `🎧 <b>${t(lang, 'help_title')}</b>\n\n${t(lang, 'help_description')}`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+          ])
+        );
+        return;
+      }
+
+      if (data === 'wallet_back_to_wallet') {
+        await ctx.answerCbQuery();
+        await handleWallet(ctx, botId, user, lang);
+        return;
+      }
+
+      if (data === 'wallet_back') {
+        await ctx.answerCbQuery();
+        // Show start menu
+        const settings = await getBotSettings(botId);
+        const welcomeText = await buildWelcomeText(user, lang, settings);
+        const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL;
+        const keyboardRows: any[][] = [
+          [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+        ];
+        if (webAppUrl) {
+          keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
         }
+        await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
         return;
       }
 
@@ -220,13 +359,22 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
 async function handleWallet(ctx: Context, botId: string, user: User, lang: string) {
   const settings = await getBotSettings(botId);
+  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
+  const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+
+  const walletText =
+    `💼 <b>${t(lang, 'wallet_title')}</b>\n\n` +
+    `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
+    `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
+    `🎁 ${t(lang, 'account_red_packet_credits')}: <b>${user.red_packet_credits ?? 0}</b>\n` +
+    `📊 ${t(lang, 'account_account_status')}: ${t(lang, user.account_status === 'active' ? 'account_active' : 'account_pending')}\n`;
 
   const supportButton = settings.support_telegram
     ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]
     : [Markup.button.callback(t(lang, 'btn_support'), 'wallet_support')];
 
-  await ctx.reply(
-    t(lang, 'wallet_title') || '💼 My Wallet',
+  await ctx.replyWithHTML(
+    walletText,
     Markup.inlineKeyboard([
       [
         Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
@@ -244,8 +392,8 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
   const settings = await getBotSettings(botId);
 
   const botUsername = settings.bot_username || process.env.BOT_USERNAME || 'your_bot';
-  const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
-  const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
+  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || user.invite_code;
+  const inviteLink = `https://t.me/${botUsername}?start=REF_${displayId}`;
   const shareText = `${t(lang, 'invite_title')}\n\n${t(lang, 'invite_description')}\n\n${inviteLink}`;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
 
