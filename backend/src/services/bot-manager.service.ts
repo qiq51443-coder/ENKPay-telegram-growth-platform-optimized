@@ -62,11 +62,19 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
   }
 
   // Get initial credits from bot settings
-  const settingsResult = await query(
-    'SELECT new_user_credits FROM bot_settings WHERE bot_id = $1',
-    [botId]
-  );
-  const initialCredits = settingsResult.rows[0]?.new_user_credits ?? 3;
+  let initialCredits = 3;
+  try {
+    const settingsResult = await query(
+      'SELECT new_user_credits FROM bot_settings WHERE bot_id = $1',
+      [botId]
+    );
+    if (settingsResult.rows.length > 0 && settingsResult.rows[0].new_user_credits != null) {
+      initialCredits = settingsResult.rows[0].new_user_credits;
+    }
+  } catch (err) {
+    // bot_settings table may not exist yet or no row for this bot — use default
+    console.warn(`[bot ${botId}] Could not read bot_settings, using default credits:`, err);
+  }
 
   if (existingAnyBot.rows.length > 0) {
     // User exists for another bot — create linked entry copying shared identity/balance fields
@@ -154,7 +162,16 @@ function resolveUserLang(user: User, defaultLanguage: string): string {
 }
 
 async function buildWelcomeText(user: User, lang: string, settings: Record<string, any>): Promise<string> {
-  if (settings.welcome_message) return settings.welcome_message;
+  if (settings.welcome_message) {
+    if (typeof settings.welcome_message === 'object') {
+      const msg = settings.welcome_message[lang]
+        || settings.welcome_message['en']
+        || settings.welcome_message[Object.keys(settings.welcome_message)[0]];
+      if (msg) return msg;
+    } else if (typeof settings.welcome_message === 'string' && settings.welcome_message.trim()) {
+      return settings.welcome_message;
+    }
+  }
   const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
   const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
   return `🎉 ${t(lang, 'welcome_title')}\n\n` +
@@ -410,9 +427,18 @@ class BotManager {
 
   async loadAllBots(): Promise<void> {
     try {
-      const result = await query(
-        'SELECT id, token, default_language FROM bots WHERE is_active = true'
-      );
+      // Try with default_language first, fall back without it if column doesn't exist
+      let result;
+      try {
+        result = await query(
+          'SELECT id, token, default_language FROM bots WHERE is_active = true'
+        );
+      } catch (err) {
+        console.warn('BotManager: default_language column not found, falling back:', err);
+        result = await query(
+          'SELECT id, token FROM bots WHERE is_active = true'
+        );
+      }
 
       for (const row of result.rows) {
         await this.addBot(row.id, row.token, row.default_language || 'en');

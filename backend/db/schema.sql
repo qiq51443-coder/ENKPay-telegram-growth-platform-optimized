@@ -454,3 +454,48 @@ CREATE TRIGGER trigger_update_orders_updated_at
 BEFORE UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+-- Charity banners table
+CREATE TABLE IF NOT EXISTS charity_banners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  image_url TEXT NOT NULL,
+  title TEXT,
+  sort_order INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Charity projects table
+CREATE TABLE IF NOT EXISTS charity_projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  goal_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  raised_amount DECIMAL(10, 2) DEFAULT 0,
+  organization TEXT,
+  website_url TEXT,
+  ambassador_telegram TEXT,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  is_active BOOLEAN DEFAULT true,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER trigger_update_charity_projects_updated_at
+BEFORE UPDATE ON charity_projects
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
+-- Charity donations table
+CREATE TABLE IF NOT EXISTS charity_donations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES charity_projects(id) ON DELETE CASCADE,
+  amount DECIMAL(10, 2) NOT NULL,
+  message TEXT,
+  status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

@@ -293,7 +293,7 @@ router.post('/donate', authenticateBot, async (req: AuthRequest, res) => {
 
       // Get user balance
       const userResult = await client.query(
-        'SELECT wallet_balance FROM users WHERE id = $1',
+        'SELECT balance FROM users WHERE id = $1',
         [user_id]
       );
 
@@ -301,14 +301,14 @@ router.post('/donate', authenticateBot, async (req: AuthRequest, res) => {
         throw new Error('User not found');
       }
 
-      if (userResult.rows[0].wallet_balance < donationAmount) {
+      if (parseFloat(String(userResult.rows[0].balance)) < donationAmount) {
         throw new Error('Insufficient balance');
       }
 
       // Deduct balance
       await client.query(
         `UPDATE users 
-         SET wallet_balance = wallet_balance - $1
+         SET balance = balance - $1
          WHERE id = $2`,
         [donationAmount, user_id]
       );
