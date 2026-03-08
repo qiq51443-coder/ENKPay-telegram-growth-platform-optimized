@@ -173,11 +173,11 @@ export const validateWebhook = async (req: Request, res: Response, next: NextFun
       return res.status(400).json({ error: 'Invalid webhook URL format' });
     }
 
-    // Also validate Telegram secret token if present
-    const secretToken = req.headers['x-telegram-bot-api-secret-token'];
+    // Also validate Telegram secret token if present in both env and header
+    const secretToken = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
     const expectedSecret = process.env.BOT_WEBHOOK_SECRET;
 
-    if (expectedSecret && secretToken !== expectedSecret) {
+    if (expectedSecret && secretToken && secretToken !== expectedSecret) {
       return res.status(403).json({ error: 'Invalid Telegram webhook secret' });
     }
 

@@ -2,6 +2,7 @@ import { Telegraf, Context, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
 import axios from 'axios';
 import { query } from '../db';
+import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES } from '../i18n';
 
 interface BotInstance {
   botId: string;
@@ -25,62 +26,81 @@ interface User {
   [key: string]: any;
 }
 
-// Lazy-load bot i18n to avoid path issues at module load time
-let _botI18n: {
-  t: (lang: string, key: string) => string;
-  isSupportedLang: (lang: string) => boolean;
-  SUPPORTED_LANGUAGE_CODES: readonly string[];
-} | null = null;
-
-function getBotI18n() {
-  if (!_botI18n) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      _botI18n = require('../../../bot/src/i18n');
-    } catch {
-      _botI18n = {
-        t: (_lang: string, key: string) => key,
-        isSupportedLang: () => false,
-        SUPPORTED_LANGUAGE_CODES: ['en', 'zh', 'fr', 'de', 'es', 'ar', 'ja'],
-      };
-    }
-  }
-  return _botI18n!;
-}
-
-function getUserLanguage(user: User): string {
-  return user.language_code || 'en';
-}
-
-async function getOrCreateUser(ctx: Context, botId: string, inviteCode?: string): Promise<User> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: string): Promise<User> {
   const tgUser = ctx.from!;
 
-  try {
-    const response = await axios.get(`${backendUrl}/api/users/telegram/${tgUser.id}`, {
-      params: { bot_id: botId },
-    });
-    return response.data.user;
-  } catch (err: any) {
-    if (err.response?.status === 404) {
-      const createResponse = await axios.post(`${backendUrl}/api/users`, {
-        telegram_id: tgUser.id,
-        username: tgUser.username,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name,
-        language_code: tgUser.language_code || 'en',
-        bot_id: botId,
-        invite_code: inviteCode,
-      });
-      return createResponse.data.user;
-    }
-    throw err;
+  // Try to find existing user
+  const existing = await query(
+    'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2',
+    [tgUser.id, botId]
+  );
+  if (existing.rows.length > 0) {
+    return existing.rows[0];
   }
+
+  // Resolve inviter
+  let invitedBy = null;
+  if (inviteCodeUsed) {
+    const inviterResult = await query(
+      'SELECT id FROM users WHERE invite_code = $1',
+      [inviteCodeUsed]
+    );
+    if (inviterResult.rows.length > 0) {
+      invitedBy = inviterResult.rows[0].id;
+    }
+  }
+
+  // Get initial credits from bot settings
+  const settingsResult = await query(
+    'SELECT new_user_credits FROM bot_settings WHERE bot_id = $1',
+    [botId]
+  );
+  const initialCredits = settingsResult.rows[0]?.new_user_credits ?? 3;
+
+  // Create new user
+  const createResult = await query(
+    `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_credits)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      botId,
+      tgUser.id,
+      tgUser.username || null,
+      tgUser.first_name || null,
+      tgUser.last_name || null,
+      tgUser.language_code || 'en',
+      invitedBy,
+      initialCredits,
+    ]
+  );
+  return createResult.rows[0];
+}
+
+async function getBotSettings(botId: string): Promise<Record<string, any>> {
+  try {
+    const result = await query('SELECT * FROM bot_settings WHERE bot_id = $1', [botId]);
+    return result.rows[0] || {};
+  } catch {
+    return {};
+  }
+}
+
+function resolveUserLang(user: User, defaultLanguage: string): string {
+  let lang = user.language_code;
+  if (!lang || !isSupportedLang(lang)) lang = defaultLanguage;
+  if (!lang || !isSupportedLang(lang)) lang = 'en';
+  return lang;
+}
+
+function buildWelcomeText(user: User, lang: string, settings: Record<string, any>): string {
+  return settings.welcome_message ||
+    `🎉 ${t(lang, 'welcome_title')}\n\n` +
+    `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
+    `💰 ${t(lang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
+    t(lang, 'welcome_description');
 }
 
 function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-
   // Inject botId into every context
   bot.use((ctx, next) => {
     (ctx as any).botId = botId;
@@ -102,31 +122,10 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       }
 
       const user = await getOrCreateUser(ctx, botId, inviteCodeUsed);
+      const lang = resolveUserLang(user, defaultLanguage);
+      const settings = await getBotSettings(botId);
 
-      // Language priority: user preference > bot default_language > 'en'
-      const { isSupportedLang } = getBotI18n();
-      let lang = user.language_code;
-      if (!lang || !isSupportedLang(lang)) {
-        lang = defaultLanguage;
-      }
-      if (!lang || !isSupportedLang(lang)) {
-        lang = 'en';
-      }
-
-      let settings: Record<string, any> = {};
-      try {
-        const settingsRes = await axios.get(`${backendUrl}/api/settings/${botId}`);
-        settings = settingsRes.data || {};
-      } catch {}
-
-      const { t } = getBotI18n();
-
-      const welcomeText = settings.welcome_message ||
-        `🎉 ${t(lang, 'welcome_title')}\n\n` +
-        `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-        `💰 ${t(lang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
-        t(lang, 'welcome_description');
-
+      const welcomeText = buildWelcomeText(user, lang, settings);
       const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
       await ctx.replyWithHTML(welcomeText, Markup.keyboard([
@@ -143,10 +142,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
   bot.on(message('text'), async (ctx) => {
     try {
       const user = await getOrCreateUser(ctx, botId);
-      const { isSupportedLang, t, SUPPORTED_LANGUAGE_CODES } = getBotI18n();
-      let lang = user.language_code;
-      if (!lang || !isSupportedLang(lang)) lang = defaultLanguage;
-      if (!lang || !isSupportedLang(lang)) lang = 'en';
+      const lang = resolveUserLang(user, defaultLanguage);
 
       const text = ctx.message.text;
       const ALL_LANGS = Array.from(SUPPORTED_LANGUAGE_CODES);
@@ -172,10 +168,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
   bot.on('callback_query', async (ctx) => {
     try {
       const user = await getOrCreateUser(ctx, botId);
-      const { isSupportedLang, t } = getBotI18n();
-      let lang = user.language_code;
-      if (!lang || !isSupportedLang(lang)) lang = defaultLanguage;
-      if (!lang || !isSupportedLang(lang)) lang = 'en';
+      const lang = resolveUserLang(user, defaultLanguage);
 
       const data = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
 
@@ -183,7 +176,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data.startsWith('lang_')) {
         const newLang = data.split('_')[1];
         try {
-          await axios.put(`${backendUrl}/api/users/${user.id}`, { language_code: newLang });
+          await query('UPDATE users SET language_code = $1 WHERE id = $2', [newLang, user.id]);
           await ctx.answerCbQuery(t(newLang, 'language_changed') || 'Language updated!');
         } catch {
           await ctx.answerCbQuery('Language updated!');
@@ -200,24 +193,12 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         await ctx.answerCbQuery();
         if (data === 'wallet_back') {
           // Show start menu
-          const { isSupportedLang: isl, t: tr } = getBotI18n();
-          let l = user.language_code;
-          if (!l || !isl(l)) l = defaultLanguage;
-          if (!l || !isl(l)) l = 'en';
-          let settings: Record<string, any> = {};
-          try {
-            const sr = await axios.get(`${backendUrl}/api/settings/${botId}`);
-            settings = sr.data || {};
-          } catch {}
-          const welcomeText = settings.welcome_message ||
-            `🎉 ${tr(l, 'welcome_title')}\n\n` +
-            `🆔 ${tr(l, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-            `💰 ${tr(l, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
-            tr(l, 'welcome_description');
+          const settings = await getBotSettings(botId);
+          const welcomeText = buildWelcomeText(user, lang, settings);
           const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
           await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-            [Markup.button.text(tr(l, 'btn_my_wallet')), Markup.button.text(tr(l, 'btn_invite'))],
-            [Markup.button.webApp(tr(l, 'btn_open_app'), webAppUrl)],
+            [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+            [Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)],
           ]).resize());
         } else {
           await handleWallet(ctx, botId, user, lang);
@@ -238,14 +219,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 }
 
 async function handleWallet(ctx: Context, botId: string, user: User, lang: string) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const { t } = getBotI18n();
-
-  let settings: Record<string, any> = {};
-  try {
-    const settingsRes = await axios.get(`${backendUrl}/api/settings/${botId}`);
-    settings = settingsRes.data || {};
-  } catch {}
+  const settings = await getBotSettings(botId);
 
   const supportButton = settings.support_telegram
     ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]
@@ -267,14 +241,7 @@ async function handleWallet(ctx: Context, botId: string, user: User, lang: strin
 }
 
 async function handleInvite(ctx: Context, botId: string, user: User, lang: string) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const { t } = getBotI18n();
-
-  let settings: Record<string, any> = {};
-  try {
-    const settingsRes = await axios.get(`${backendUrl}/api/settings/${botId}`);
-    settings = settingsRes.data || {};
-  } catch {}
+  const settings = await getBotSettings(botId);
 
   const botUsername = settings.bot_username || process.env.BOT_USERNAME || 'your_bot';
   const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;

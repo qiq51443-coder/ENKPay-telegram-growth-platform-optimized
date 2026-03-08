@@ -38,7 +38,7 @@ router.get('/:botId', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Settings not found' });
+      return res.json({ settings: {} });
     }
 
     res.json({ settings: result.rows[0] });

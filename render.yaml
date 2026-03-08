@@ -28,6 +28,8 @@ services:
         generateValue: true
       - key: BINANCE_API_URL
         value: https://api.binance.com
+      - key: BACKEND_URL
+        sync: false
 
 databases:
   - name: telegram-growth-db
