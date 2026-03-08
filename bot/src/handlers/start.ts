@@ -8,7 +8,7 @@ export const handleStart = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
 
     // Extract invite code from start parameter (REF_XXXXXXX format)
