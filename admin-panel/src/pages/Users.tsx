@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Tag, message, Input, Button, Space, Select, Modal, InputNumber, Form } from 'antd';
 import { SearchOutlined, EyeOutlined, LockOutlined, UnlockOutlined, DollarOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../services/api';
 
 const { Search } = Input;
 
@@ -52,9 +52,9 @@ export const Users: React.FC = () => {
       if (bindingFilter) params.binding_status = bindingFilter;
       if (accountFilter) params.account_status = accountFilter;
 
-      const response = await axios.get('/api/admin/users', { params });
-      setUsers(response.data.users || []);
-      setTotal(response.data.pagination?.total || 0);
+      const response = await apiClient.getUsers(params);
+      setUsers(response.users || []);
+      setTotal(response.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       message.error('获取用户列表失败');
@@ -70,9 +70,7 @@ export const Users: React.FC = () => {
 
   const handleFreeze = async (userId: string) => {
     try {
-      await axios.post(`/api/users/${userId}/freeze`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await apiClient.post(`/users/${userId}/freeze`);
       message.success('用户已冻结');
       fetchUsers();
     } catch (error) {
@@ -82,9 +80,7 @@ export const Users: React.FC = () => {
 
   const handleUnfreeze = async (userId: string) => {
     try {
-      await axios.post(`/api/users/${userId}/unfreeze`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await apiClient.post(`/users/${userId}/unfreeze`);
       message.success('用户已解冻');
       fetchUsers();
     } catch (error) {
@@ -102,12 +98,10 @@ export const Users: React.FC = () => {
 
   const handleAdjustBalance = async () => {
     try {
-      await axios.post(`/api/users/${selectedUser?.id}/adjust-balance`, {
+      await apiClient.post(`/users/${selectedUser?.id}/adjust-balance`, {
         amount: adjustAmount,
         type: adjustType,
         reason: adjustReason,
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       message.success('余额调整成功');
       setAdjustModal(false);

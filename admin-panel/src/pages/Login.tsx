@@ -21,6 +21,9 @@ export const Login: React.FC = () => {
 
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
         message.success('登录成功');
         navigate('/analytics');
       }

@@ -8,7 +8,7 @@ const router = express.Router();
 // Get all users
 router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { page = 1, limit = 20, search, botId } = req.query;
+    const { page = 1, limit = 20, search, botId, binding_status, account_status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     let queryText = `
@@ -31,6 +31,23 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
       queryText += ` AND (u.username ILIKE $${params.length} OR u.first_name ILIKE $${params.length} OR u.robot_user_id ILIKE $${params.length})`;
     }
 
+    if (binding_status === 'bound') {
+      queryText += ` AND u.platform_bound = true`;
+    } else if (binding_status === 'unbound') {
+      queryText += ` AND u.platform_bound = false`;
+    } else if (binding_status === 'pending') {
+      params.push('pending');
+      queryText += ` AND u.platform_status = $${params.length}`;
+    }
+
+    if (account_status) {
+      const validAccountStatuses = ['active', 'suspended', 'banned'];
+      if (validAccountStatuses.includes(account_status as string)) {
+        params.push(account_status);
+        queryText += ` AND u.account_status = $${params.length}`;
+      }
+    }
+
     queryText += ` GROUP BY u.id ORDER BY u.created_at DESC`;
     
     params.push(Number(limit), offset);
@@ -48,6 +65,23 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (search) {
       countParams.push(`%${search}%`);
       countQuery += ` AND (username ILIKE $${countParams.length} OR first_name ILIKE $${countParams.length} OR robot_user_id ILIKE $${countParams.length})`;
+    }
+
+    if (binding_status === 'bound') {
+      countQuery += ` AND platform_bound = true`;
+    } else if (binding_status === 'unbound') {
+      countQuery += ` AND platform_bound = false`;
+    } else if (binding_status === 'pending') {
+      countParams.push('pending');
+      countQuery += ` AND platform_status = $${countParams.length}`;
+    }
+
+    if (account_status) {
+      const validAccountStatuses = ['active', 'suspended', 'banned'];
+      if (validAccountStatuses.includes(account_status as string)) {
+        countParams.push(account_status);
+        countQuery += ` AND account_status = $${countParams.length}`;
+      }
     }
 
     const countResult = await query(countQuery, countParams);
