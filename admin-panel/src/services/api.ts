@@ -602,6 +602,22 @@ class ApiClient {
     return response.data;
   }
 
+  // Symbol Library
+  async getSymbolLibrary(params?: any) {
+    const response = await this.client.get('/admin/trading/symbol-library', { params });
+    return response.data;
+  }
+
+  async syncSymbolLibrary() {
+    const response = await this.client.post('/admin/trading/symbol-library/sync');
+    return response.data;
+  }
+
+  async addPairsFromLibrary(symbols: string[]) {
+    const response = await this.client.post('/admin/trading/pairs/from-library', { symbols });
+    return response.data;
+  }
+
   // File upload helper
   getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;

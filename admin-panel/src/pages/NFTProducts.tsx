@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker, Switch } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker, Switch, Radio, Upload } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -38,6 +38,8 @@ export const NFTProducts: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<NFTProduct | null>(null);
   const [form] = Form.useForm();
+  const [imageMode, setImageMode] = useState<'upload' | 'url'>('url');
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   useEffect(() => {
     fetchProducts();
@@ -74,9 +76,13 @@ export const NFTProducts: React.FC = () => {
         listing_time: product.listing_time ? dayjs(product.listing_time) : undefined,
       };
       form.setFieldsValue(formValues);
+      setImagePreview(product.image_url || '');
+      setImageMode('url');
     } else {
       setEditingProduct(null);
       form.resetFields();
+      setImagePreview('');
+      setImageMode('url');
     }
     setDrawerOpen(true);
   };
@@ -88,6 +94,11 @@ export const NFTProducts: React.FC = () => {
       // Convert listing_time to ISO string if present
       if (values.listing_time) {
         values.listing_time = values.listing_time.toISOString();
+      }
+
+      // Use imagePreview as image_url if in upload mode
+      if (imageMode === 'upload' && imagePreview) {
+        values.image_url = imagePreview;
       }
       
       if (editingProduct) {
@@ -313,12 +324,68 @@ export const NFTProducts: React.FC = () => {
             <Input.TextArea rows={3} placeholder="产品描述" />
           </Form.Item>
 
-          <Form.Item
-            name="image_url"
-            label="封面图 URL"
-            rules={[{ required: true, message: '请输入封面图 URL' }]}
-          >
-            <Input placeholder="https://example.com/image.png" />
+          <Form.Item label="封面图">
+            <Radio.Group
+              value={imageMode}
+              onChange={e => {
+                setImageMode(e.target.value);
+                setImagePreview('');
+                form.setFieldValue('image_url', '');
+              }}
+              style={{ marginBottom: 8 }}
+            >
+              <Radio.Button value="url">输入URL</Radio.Button>
+              <Radio.Button value="upload">上传图片</Radio.Button>
+            </Radio.Group>
+            {imageMode === 'upload' ? (
+              <div>
+                <Upload
+                  accept="image/*"
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                      const base64 = e.target?.result as string;
+                      setImagePreview(base64);
+                    };
+                    reader.readAsDataURL(file);
+                    return false;
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>点击上传图片</Button>
+                </Upload>
+                {imagePreview && (
+                  <div style={{ marginTop: 8 }}>
+                    <img
+                      src={imagePreview}
+                      alt="预览"
+                      style={{ maxWidth: 200, maxHeight: 200, objectFit: 'cover', borderRadius: 4 }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Form.Item
+                name="image_url"
+                noStyle
+                rules={[{ required: imageMode === 'url', message: '请输入封面图 URL' }]}
+              >
+                <Input
+                  placeholder="https://example.com/image.png"
+                  onChange={e => setImagePreview(e.target.value)}
+                />
+              </Form.Item>
+            )}
+            {imageMode === 'url' && imagePreview && (
+              <div style={{ marginTop: 8 }}>
+                <img
+                  src={imagePreview}
+                  alt="预览"
+                  style={{ maxWidth: 200, maxHeight: 200, objectFit: 'cover', borderRadius: 4 }}
+                  onError={() => setImagePreview('')}
+                />
+              </div>
+            )}
           </Form.Item>
 
           <Form.Item
@@ -357,60 +424,137 @@ export const NFTProducts: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="duration_days"
-            label="锁定期限 (天)"
-            tooltip="仅定期产品需要"
+            noStyle
+            shouldUpdate={(prev, cur) => prev.product_type !== cur.product_type}
           >
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
+            {({ getFieldValue }) => getFieldValue('product_type') === 'fixed_term' && (
+              <>
+                <Form.Item
+                  name="annual_yield_rate"
+                  label="年化收益率 (%)"
+                  rules={[{ required: true, message: '请输入年化收益率' }]}
+                  tooltip="例如：12 表示 12%/年"
+                >
+                  <InputNumber min={0} max={1000} step={0.1} style={{ width: '100%' }} addonAfter="%" />
+                </Form.Item>
 
-          <Form.Item
-            name="annual_yield_rate"
-            label="年化收益率 (%)"
-            tooltip="仅定期产品需要"
-          >
-            <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
-          </Form.Item>
+                <Form.Item
+                  name="duration_days"
+                  label="锁定期限（天）"
+                  rules={[{ required: true, message: '请输入锁定期限' }]}
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} addonAfter="天" />
+                </Form.Item>
 
-          <Form.Item
-            name="term_days"
-            label="定期期限 (天)"
-            tooltip="定期产品持有天数，如 30"
-          >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="30" />
-          </Form.Item>
+                <Form.Item
+                  name="term_days"
+                  label="定期期限（天）"
+                  tooltip="定期产品持有天数，如 30"
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} placeholder="30" addonAfter="天" />
+                </Form.Item>
 
-          <Form.Item
-            name="daily_yield_rate"
-            label="日收益率 (小数，如 0.005 = 0.5%/天)"
-          >
-            <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
-          </Form.Item>
+                <Form.Item
+                  name="daily_yield_rate"
+                  label="日收益率"
+                  tooltip="小数，如 0.005 = 0.5%/天"
+                >
+                  <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
+                </Form.Item>
 
-          <Form.Item
-            name="max_holders"
-            label="总量上限 (最多可购人数)"
-          >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
-          </Form.Item>
+                <Form.Item
+                  name="max_holders"
+                  label="总量上限（最多可购人数）"
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
+                </Form.Item>
 
-          <Form.Item
-            name="is_purchase_limited"
-            label="是否限购"
-            valuePropName="checked"
-          >
-            <Switch checkedChildren="限购" unCheckedChildren="不限" />
+                <Form.Item
+                  name="is_purchase_limited"
+                  label="是否限购"
+                  valuePropName="checked"
+                >
+                  <Switch checkedChildren="限购" unCheckedChildren="不限" />
+                </Form.Item>
+
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
+                >
+                  {({ getFieldValue: gfv }) => gfv('is_purchase_limited') ? (
+                    <Form.Item name="max_purchases_per_user" label="每人限购次数">
+                      <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
+                    </Form.Item>
+                  ) : null}
+                </Form.Item>
+              </>
+            )}
           </Form.Item>
 
           <Form.Item
             noStyle
-            shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
+            shouldUpdate={(prev, cur) => prev.product_type !== cur.product_type}
           >
-            {({ getFieldValue }) => getFieldValue('is_purchase_limited') ? (
-              <Form.Item name="max_purchases_per_user" label="每人限购次数">
-                <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
-              </Form.Item>
-            ) : null}
+            {({ getFieldValue }) => getFieldValue('product_type') !== 'fixed_term' && (
+              <>
+                <Form.Item
+                  name="duration_days"
+                  label="锁定期限 (天)"
+                  tooltip="仅定期产品需要"
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name="annual_yield_rate"
+                  label="年化收益率 (%)"
+                  tooltip="仅定期产品需要"
+                >
+                  <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name="term_days"
+                  label="定期期限 (天)"
+                  tooltip="定期产品持有天数，如 30"
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} placeholder="30" />
+                </Form.Item>
+
+                <Form.Item
+                  name="daily_yield_rate"
+                  label="日收益率 (小数，如 0.005 = 0.5%/天)"
+                >
+                  <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
+                </Form.Item>
+
+                <Form.Item
+                  name="max_holders"
+                  label="总量上限 (最多可购人数)"
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
+                </Form.Item>
+
+                <Form.Item
+                  name="is_purchase_limited"
+                  label="是否限购"
+                  valuePropName="checked"
+                >
+                  <Switch checkedChildren="限购" unCheckedChildren="不限" />
+                </Form.Item>
+
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
+                >
+                  {({ getFieldValue: gfv }) => gfv('is_purchase_limited') ? (
+                    <Form.Item name="max_purchases_per_user" label="每人限购次数">
+                      <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
+                    </Form.Item>
+                  ) : null}
+                </Form.Item>
+              </>
+            )}
           </Form.Item>
 
           <Form.Item

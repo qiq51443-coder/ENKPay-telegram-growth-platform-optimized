@@ -35,9 +35,9 @@ export const TradingRules: React.FC = () => {
     setLoading(true);
     try {
       const response = await api.getTradingRules();
-      setRules(response.data.data || []);
+      setRules(response.data || []);
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to fetch trading rules');
+      message.error(error.response?.data?.error || '获取交易规则失败');
     } finally {
       setLoading(false);
     }
@@ -46,9 +46,9 @@ export const TradingRules: React.FC = () => {
   const fetchPairs = async () => {
     try {
       const response = await api.getTradingPairs();
-      setPairs(response.data.data || []);
+      setPairs(response.data || []);
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to fetch trading pairs');
+      message.error(error.response?.data?.error || '获取交易对列表失败');
     }
   };
 
@@ -85,15 +85,15 @@ export const TradingRules: React.FC = () => {
     try {
       if (editingRule) {
         await api.updateTradingRule(editingRule.id, values);
-        message.success('Trading rule updated successfully');
+        message.success('交易规则更新成功');
       } else {
         await api.createTradingRule(values);
-        message.success('Trading rule created successfully');
+        message.success('交易规则创建成功');
       }
       setDrawerVisible(false);
       fetchRules();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Operation failed');
+      message.error(error.response?.data?.error || '操作失败');
     } finally {
       setLoading(false);
     }
@@ -103,10 +103,10 @@ export const TradingRules: React.FC = () => {
     setLoading(true);
     try {
       await api.deleteTradingRule(id);
-      message.success('Trading rule deleted successfully');
+      message.success('交易规则删除成功');
       fetchRules();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to delete rule');
+      message.error(error.response?.data?.error || '删除规则失败');
     } finally {
       setLoading(false);
     }
@@ -120,60 +120,60 @@ export const TradingRules: React.FC = () => {
       width: 80,
     },
     {
-      title: 'Trading Pair',
+      title: '交易对',
       dataIndex: 'pair_display_name',
       key: 'pair_display_name',
       render: (text: string, record: any) => text || record.pair_symbol,
     },
     {
-      title: 'Rule Name',
+      title: '规则名称',
       dataIndex: 'rule_name',
       key: 'rule_name',
     },
     {
-      title: 'Direction',
+      title: '方向',
       dataIndex: 'direction',
       key: 'direction',
       render: (direction: string) => (
         <Tag color={direction === 'up' ? 'green' : 'red'}>
-          {direction.toUpperCase()}
+          {direction === 'up' ? '涨' : '跌'}
         </Tag>
       ),
     },
     {
-      title: 'Odds',
+      title: '赔率',
       dataIndex: 'odds',
       key: 'odds',
       render: (odds: any) => parseFloat(odds).toFixed(2),
     },
     {
-      title: 'Min Bet',
+      title: '最小下注',
       dataIndex: 'min_bet',
       key: 'min_bet',
       render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
     },
     {
-      title: 'Max Bet',
+      title: '最大下注',
       dataIndex: 'max_bet',
       key: 'max_bet',
       render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
     },
     {
-      title: 'Duration',
+      title: '持续时间',
       dataIndex: 'duration_seconds',
       key: 'duration_seconds',
-      render: (seconds: number) => `${seconds}s`,
+      render: (seconds: number) => `${seconds}秒`,
     },
     {
-      title: 'Active',
+      title: '状态',
       dataIndex: 'is_active',
       key: 'is_active',
       render: (active: boolean) => (
-        <Tag color={active ? 'green' : 'red'}>{active ? 'Yes' : 'No'}</Tag>
+        <Tag color={active ? 'green' : 'red'}>{active ? '启用' : '禁用'}</Tag>
       ),
     },
     {
-      title: 'Actions',
+      title: '操作',
       key: 'actions',
       render: (_: any, record: any) => (
         <Space>
@@ -182,16 +182,16 @@ export const TradingRules: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
           >
-            Edit
+            编辑
           </Button>
           <Popconfirm
-            title="Are you sure you want to delete this rule?"
+            title="确定要删除这条规则吗？"
             onConfirm={() => handleDelete(record.id)}
-            okText="Yes"
-            cancelText="No"
+            okText="确定"
+            cancelText="取消"
           >
             <Button type="link" danger icon={<DeleteOutlined />}>
-              Delete
+              删除
             </Button>
           </Popconfirm>
         </Space>
@@ -202,9 +202,9 @@ export const TradingRules: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h2>交易规则管理 (Trading Rules)</h2>
+        <h2>交易规则管理</h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Create Rule
+          新建规则
         </Button>
       </div>
 
@@ -217,7 +217,7 @@ export const TradingRules: React.FC = () => {
       />
 
       <Drawer
-        title={editingRule ? 'Edit Trading Rule' : 'Create Trading Rule'}
+        title={editingRule ? '编辑交易规则' : '新建交易规则'}
         width={600}
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
@@ -225,10 +225,10 @@ export const TradingRules: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
             name="pair_id"
-            label="Trading Pair"
-            rules={[{ required: true, message: 'Please select a trading pair' }]}
+            label="交易对"
+            rules={[{ required: true, message: '请选择交易对' }]}
           >
-            <Select placeholder="Select trading pair">
+            <Select placeholder="选择交易对">
               {pairs.map((pair: any) => (
                 <Option key={pair.id} value={pair.id}>
                   {pair.display_name || pair.symbol}
@@ -239,27 +239,27 @@ export const TradingRules: React.FC = () => {
 
           <Form.Item
             name="rule_name"
-            label="Rule Name"
-            rules={[{ required: true, message: 'Please enter rule name' }]}
+            label="规则名称"
+            rules={[{ required: true, message: '请输入规则名称' }]}
           >
-            <Input placeholder="e.g., BTC 1min Up" />
+            <Input placeholder="例如：BTC 1分钟涨" />
           </Form.Item>
 
           <Form.Item
             name="direction"
-            label="Direction (Predetermined Result)"
-            rules={[{ required: true, message: 'Please select direction' }]}
+            label="预定方向"
+            rules={[{ required: true, message: '请选择方向' }]}
           >
-            <Select placeholder="Select direction">
-              <Option value="up">Up (绿涨)</Option>
-              <Option value="down">Down (红跌)</Option>
+            <Select placeholder="选择方向">
+              <Option value="up">涨（绿）</Option>
+              <Option value="down">跌（红）</Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             name="odds"
-            label="Odds (Payout Multiplier)"
-            rules={[{ required: true, message: 'Please enter odds' }]}
+            label="赔率（倍数）"
+            rules={[{ required: true, message: '请输入赔率' }]}
           >
             <InputNumber
               min={1.01}
@@ -267,62 +267,62 @@ export const TradingRules: React.FC = () => {
               step={0.01}
               precision={2}
               style={{ width: '100%' }}
-              placeholder="e.g., 1.95"
+              placeholder="例如：1.95"
             />
           </Form.Item>
 
           <Form.Item
             name="min_bet"
-            label="Minimum Bet (USDT)"
-            rules={[{ required: true, message: 'Please enter minimum bet' }]}
+            label="最小下注金额（USDT）"
+            rules={[{ required: true, message: '请输入最小下注金额' }]}
           >
             <InputNumber
               min={0.01}
               step={0.01}
               precision={2}
               style={{ width: '100%' }}
-              placeholder="e.g., 1.00"
+              placeholder="例如：1.00"
             />
           </Form.Item>
 
           <Form.Item
             name="max_bet"
-            label="Maximum Bet (USDT)"
-            rules={[{ required: true, message: 'Please enter maximum bet' }]}
+            label="最大下注金额（USDT）"
+            rules={[{ required: true, message: '请输入最大下注金额' }]}
           >
             <InputNumber
               min={1}
               step={1}
               precision={2}
               style={{ width: '100%' }}
-              placeholder="e.g., 10000.00"
+              placeholder="例如：10000.00"
             />
           </Form.Item>
 
           <Form.Item
             name="duration_seconds"
-            label="Round Duration (seconds)"
-            rules={[{ required: true, message: 'Please enter duration' }]}
+            label="每轮持续时间（秒）"
+            rules={[{ required: true, message: '请输入持续时间' }]}
           >
             <InputNumber
               min={10}
               max={3600}
               step={10}
               style={{ width: '100%' }}
-              placeholder="e.g., 60"
+              placeholder="例如：60"
             />
           </Form.Item>
 
-          <Form.Item name="is_active" label="Active" valuePropName="checked">
+          <Form.Item name="is_active" label="是否启用" valuePropName="checked">
             <Switch />
           </Form.Item>
 
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading}>
-                {editingRule ? 'Update' : 'Create'}
+                {editingRule ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => setDrawerVisible(false)}>Cancel</Button>
+              <Button onClick={() => setDrawerVisible(false)}>取消</Button>
             </Space>
           </Form.Item>
         </Form>

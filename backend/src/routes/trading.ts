@@ -15,11 +15,11 @@ router.get('/pairs', async (req, res) => {
   try {
     const result = await query(
       `SELECT 
-         id, symbol, display_name, pair_type, base_currency, quote_currency,
+         id, symbol, COALESCE(display_name, name, symbol) as display_name, pair_type, base_currency, quote_currency,
          binance_symbol, is_active, created_at
        FROM trading_pairs
        WHERE is_active = true
-       ORDER BY display_name`
+       ORDER BY COALESCE(display_name, name, symbol)`
     );
 
     res.json({
@@ -112,7 +112,7 @@ router.get('/sessions', async (req, res) => {
       SELECT 
         s.*,
         p.symbol,
-        p.display_name
+        COALESCE(p.display_name, p.name, p.symbol) as display_name
       FROM trading_sessions s
       JOIN trading_pairs p ON s.pair_id = p.id
       WHERE s.status IN ('pending', 'active')
@@ -163,7 +163,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
     const result = await transaction(async (client) => {
       // Get session details
       const sessionResult = await client.query(
-        `SELECT s.*, p.symbol, p.display_name 
+        `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name 
          FROM trading_sessions s
          JOIN trading_pairs p ON s.pair_id = p.id
          WHERE s.id = $1`,
@@ -296,7 +296,7 @@ router.get('/my-orders', authenticateBot, async (req: AuthRequest, res) => {
       SELECT 
         o.*,
         p.symbol,
-        p.display_name,
+        COALESCE(p.display_name, p.name, p.symbol) as display_name,
         s.start_time as session_start,
         s.end_time as session_end,
         s.status as session_status
@@ -523,7 +523,7 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
     const result = await query(
       `SELECT 
          o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status, o.created_at,
-         p.symbol, p.display_name,
+         p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
          s.start_time as session_start, s.end_time as session_end
        FROM trading_orders o
        JOIN trading_pairs p ON o.pair_id = p.id

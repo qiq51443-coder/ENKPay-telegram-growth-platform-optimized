@@ -370,7 +370,7 @@ router.get('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
       SELECT 
         s.*,
         p.symbol,
-        p.display_name
+        COALESCE(p.display_name, p.name, p.symbol) as display_name
       FROM trading_sessions s
       JOIN trading_pairs p ON s.pair_id = p.id
       WHERE 1=1
@@ -447,7 +447,7 @@ router.get('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
       `SELECT 
          tr.*,
          tp.symbol as pair_symbol,
-         tp.display_name as pair_display_name
+         COALESCE(tp.display_name, tp.name, tp.symbol) as pair_display_name
        FROM trading_rules tr
        LEFT JOIN trading_pairs tp ON tr.pair_id = tp.id
        ORDER BY tr.created_at DESC
@@ -635,7 +635,7 @@ router.get('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
       `SELECT 
          ts.*,
          tp.symbol as pair_symbol,
-         tp.display_name as pair_display_name,
+         COALESCE(tp.display_name, tp.name, tp.symbol) as pair_display_name,
          tr.rule_name,
          tr.direction as rule_direction,
          tr.odds as rule_odds
