@@ -142,6 +142,9 @@ export const en = {
 
   // Wallet inline buttons
   btn_contact_support: '🎧 Contact Support',
+  btn_support: '🎧 Contact Support',
+  btn_share: '📤 Share',
+  invite_link: 'Invitation Link',
   btn_language: '🌐 Language',
 
   // Wallet extra info
