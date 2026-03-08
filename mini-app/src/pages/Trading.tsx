@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { createChart } from 'lightweight-charts';
 
 interface TradingPair {
   id: string;
@@ -64,6 +65,9 @@ export const Trading: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const candleSeriesRef = useRef<any>(null);
 
   useEffect(() => {
     fetchPairs();
@@ -71,6 +75,83 @@ export const Trading: React.FC = () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // K-line chart: initialize when a pair is selected
+  useEffect(() => {
+    if (!selectedPair || !chartContainerRef.current) return;
+
+    // Destroy old chart if exists
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+    }
+
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 200,
+      layout: {
+        background: { color: 'transparent' },
+        textColor: '#9e9e9e',
+      },
+      grid: {
+        vertLines: { color: 'rgba(255,255,255,0.05)' },
+        horzLines: { color: 'rgba(255,255,255,0.05)' },
+      },
+      crosshair: { mode: 1 },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+      timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+
+    // Load K-line data
+    const fetchKline = async () => {
+      try {
+        const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=1m&limit=60`);
+        const raw: any[] = res.data?.data || [];
+        const data = raw.map((k: any) => ({
+          time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
+          open: Number(k.open),
+          high: Number(k.high),
+          low: Number(k.low),
+          close: Number(k.close),
+        })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
+
+        if (data.length > 0) {
+          candleSeries.setData(data);
+          chart.timeScale().fitContent();
+        }
+      } catch (err) {
+        console.warn('[Trading] Failed to load K-line data:', err);
+      }
+    };
+
+    fetchKline();
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+    };
+  }, [selectedPair]);
 
   const fetchPairs = async () => {
     try {
@@ -237,6 +318,20 @@ export const Trading: React.FC = () => {
             {priceInfo.change24h >= 0 ? '▲' : '▼'} {Math.abs(priceInfo.change24h).toFixed(2)}% 24h
           </div>
         </div>
+
+        {/* K-line chart */}
+        <div
+          ref={chartContainerRef}
+          style={{
+            width: '100%',
+            height: '200px',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            marginBottom: '12px',
+            backgroundColor: theme.bgCard,
+            border: `1px solid ${theme.border}`,
+          }}
+        />
 
         {/* Result banner */}
         {resultMsg && (

@@ -138,13 +138,27 @@ export const validateWebhook = async (req: Request, res: Response, next: NextFun
 
       (req as any).botId = bot.id;
     } else if (botToken) {
-      // Old format: using Bot Token (backward compatibility)
-      const result = await query(
-        'SELECT id, is_active FROM bots WHERE token = $1',
-        [botToken]
-      );
+      // Old format: the path param may be either a Bot Token or a UUID (Bot ID)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(botToken);
+
+      let result;
+      if (isUUID) {
+        // The webhook was registered with /webhook/:botId format
+        console.log(`[validateWebhook] Treating param as Bot ID (UUID): ${botToken}`);
+        result = await query(
+          'SELECT id, is_active FROM bots WHERE id = $1',
+          [botToken]
+        );
+      } else {
+        // Old format: using actual Bot Token
+        result = await query(
+          'SELECT id, is_active FROM bots WHERE token = $1',
+          [botToken]
+        );
+      }
 
       if (result.rows.length === 0) {
+        console.error(`[validateWebhook] Bot not found for param: ${botToken} (isUUID=${isUUID})`);
         return res.status(404).json({ error: 'Bot not found' });
       }
 

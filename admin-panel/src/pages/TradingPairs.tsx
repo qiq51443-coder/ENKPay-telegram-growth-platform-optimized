@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs, Input as AntInput } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, SyncOutlined, SearchOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface TradingPair {
@@ -17,16 +17,33 @@ interface TradingPair {
   created_at: string;
 }
 
+interface SymbolLibraryItem {
+  symbol: string;
+  base_asset: string;
+  quote_asset: string;
+  display_name?: string;
+  status?: string;
+}
+
 export const TradingPairs: React.FC = () => {
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('real');
+  const [realSubTab, setRealSubTab] = useState('manual');
   const [editingPair, setEditingPair] = useState<TradingPair | null>(null);
   const [realForm] = Form.useForm();
   const [customForm] = Form.useForm();
   const [editForm] = Form.useForm();
+
+  // Symbol library state
+  const [libraryData, setLibraryData] = useState<SymbolLibraryItem[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [librarySyncing, setLibrarySyncing] = useState(false);
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [selectedLibrarySymbols, setSelectedLibrarySymbols] = useState<string[]>([]);
+  const [addingFromLibrary, setAddingFromLibrary] = useState(false);
 
   useEffect(() => {
     fetchPairs();
@@ -36,7 +53,7 @@ export const TradingPairs: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiClient.getTradingPairs();
-      setPairs(response.pairs || []);
+      setPairs(response.data || []);
     } catch (error) {
       console.error('Failed to fetch trading pairs:', error);
       message.error('获取交易对列表失败');
@@ -45,9 +62,57 @@ export const TradingPairs: React.FC = () => {
     }
   };
 
+  const fetchSymbolLibrary = useCallback(async () => {
+    setLibraryLoading(true);
+    try {
+      const response = await apiClient.getSymbolLibrary({ limit: 500 });
+      setLibraryData(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch symbol library:', error);
+      message.error('获取币安币种库失败');
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
+  const handleSyncLibrary = async () => {
+    setLibrarySyncing(true);
+    try {
+      const response = await apiClient.syncSymbolLibrary();
+      message.success(`同步成功，共 ${response.count || 0} 个币种`);
+      await fetchSymbolLibrary();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '同步失败');
+    } finally {
+      setLibrarySyncing(false);
+    }
+  };
+
+  const handleAddFromLibrary = async () => {
+    if (selectedLibrarySymbols.length === 0) {
+      message.warning('请先选择币种');
+      return;
+    }
+    setAddingFromLibrary(true);
+    try {
+      const response = await apiClient.addPairsFromLibrary(selectedLibrarySymbols);
+      const added = response.data?.added?.length || 0;
+      const skipped = response.data?.skipped?.length || 0;
+      message.success(`成功添加 ${added} 个，跳过 ${skipped} 个（已存在）`);
+      setSelectedLibrarySymbols([]);
+      setModalOpen(false);
+      fetchPairs();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '批量添加失败');
+    } finally {
+      setAddingFromLibrary(false);
+    }
+  };
+
   const handleOpenModal = () => {
     realForm.resetFields();
     customForm.resetFields();
+    setSelectedLibrarySymbols([]);
     setModalOpen(true);
   };
 
@@ -126,6 +191,38 @@ export const TradingPairs: React.FC = () => {
       message.error(error.response?.data?.error || '操作失败');
     }
   };
+
+  const filteredLibrary = libraryData.filter(item =>
+    item.symbol.toLowerCase().includes(librarySearch.toLowerCase()) ||
+    (item.display_name || '').toLowerCase().includes(librarySearch.toLowerCase())
+  );
+
+  const libraryColumns = [
+    {
+      title: '币种',
+      dataIndex: 'symbol',
+      key: 'symbol',
+      render: (symbol: string) => <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{symbol}</span>,
+    },
+    {
+      title: '基础资产',
+      dataIndex: 'base_asset',
+      key: 'base_asset',
+    },
+    {
+      title: '计价资产',
+      dataIndex: 'quote_asset',
+      key: 'quote_asset',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => (
+        <Tag color={status === 'TRADING' ? 'green' : 'default'}>{status || '-'}</Tag>
+      ),
+    },
+  ];
 
   const columns = [
     {
@@ -272,9 +369,10 @@ export const TradingPairs: React.FC = () => {
           setModalOpen(false);
           realForm.resetFields();
           customForm.resetFields();
+          setSelectedLibrarySymbols([]);
         }}
         footer={null}
-        width={600}
+        width={700}
       >
         <Tabs 
           activeKey={activeTab}
@@ -284,54 +382,126 @@ export const TradingPairs: React.FC = () => {
               key: 'real',
               label: '真实币种',
               children: (
-                <Form
-                  form={realForm}
-                  layout="vertical"
-                  initialValues={{ price_source: 'binance' }}
-                >
-                  <Form.Item
-                    name="symbol"
-                    label="交易对符号"
-                    rules={[{ required: true, message: '请输入交易对符号' }]}
-                    tooltip="例如：BTCUSDT"
-                  >
-                    <Input placeholder="BTCUSDT" />
-                  </Form.Item>
+                <Tabs
+                  activeKey={realSubTab}
+                  onChange={(key) => {
+                    setRealSubTab(key);
+                    if (key === 'library' && libraryData.length === 0) {
+                      fetchSymbolLibrary();
+                    }
+                  }}
+                  size="small"
+                  items={[
+                    {
+                      key: 'manual',
+                      label: '手动输入',
+                      children: (
+                        <Form
+                          form={realForm}
+                          layout="vertical"
+                          initialValues={{ price_source: 'binance' }}
+                          style={{ marginTop: 12 }}
+                        >
+                          <Form.Item
+                            name="symbol"
+                            label="交易对符号"
+                            rules={[{ required: true, message: '请输入交易对符号' }]}
+                            tooltip="例如：BTCUSDT"
+                          >
+                            <Input placeholder="BTCUSDT" />
+                          </Form.Item>
 
-                  <Form.Item
-                    name="name"
-                    label="名称"
-                    rules={[{ required: true, message: '请输入名称' }]}
-                  >
-                    <Input placeholder="比特币/USDT" />
-                  </Form.Item>
+                          <Form.Item
+                            name="name"
+                            label="名称"
+                            rules={[{ required: true, message: '请输入名称' }]}
+                          >
+                            <Input placeholder="比特币/USDT" />
+                          </Form.Item>
 
-                  <Form.Item
-                    name="external_symbol"
-                    label="外部符号"
-                    tooltip="API 数据源使用的符号，如果不同的话"
-                  >
-                    <Input placeholder="留空则使用 symbol" />
-                  </Form.Item>
+                          <Form.Item
+                            name="external_symbol"
+                            label="外部符号"
+                            tooltip="API 数据源使用的符号，如果不同的话"
+                          >
+                            <Input placeholder="留空则使用 symbol" />
+                          </Form.Item>
 
-                  <Form.Item
-                    name="price_source"
-                    label="数据源"
-                    rules={[{ required: true, message: '请选择数据源' }]}
-                  >
-                    <Select>
-                      <Select.Option value="binance">Binance</Select.Option>
-                      <Select.Option value="coingecko">CoinGecko</Select.Option>
-                    </Select>
-                  </Form.Item>
+                          <Form.Item
+                            name="price_source"
+                            label="数据源"
+                            rules={[{ required: true, message: '请选择数据源' }]}
+                          >
+                            <Select>
+                              <Select.Option value="binance">Binance</Select.Option>
+                              <Select.Option value="coingecko">CoinGecko</Select.Option>
+                            </Select>
+                          </Form.Item>
 
-                  <Form.Item>
-                    <Space>
-                      <Button onClick={() => setModalOpen(false)}>取消</Button>
-                      <Button type="primary" onClick={handleSubmitReal}>创建</Button>
-                    </Space>
-                  </Form.Item>
-                </Form>
+                          <Form.Item>
+                            <Space>
+                              <Button onClick={() => setModalOpen(false)}>取消</Button>
+                              <Button type="primary" onClick={handleSubmitReal}>创建</Button>
+                            </Space>
+                          </Form.Item>
+                        </Form>
+                      ),
+                    },
+                    {
+                      key: 'library',
+                      label: '从币安库选择',
+                      children: (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+                            <AntInput
+                              placeholder="搜索币种..."
+                              prefix={<SearchOutlined />}
+                              value={librarySearch}
+                              onChange={e => setLibrarySearch(e.target.value)}
+                              style={{ flex: 1 }}
+                            />
+                            <Button
+                              icon={<SyncOutlined spin={librarySyncing} />}
+                              onClick={handleSyncLibrary}
+                              loading={librarySyncing}
+                            >
+                              同步币安数据
+                            </Button>
+                          </div>
+                          <Table
+                            rowSelection={{
+                              selectedRowKeys: selectedLibrarySymbols,
+                              onChange: (keys) => setSelectedLibrarySymbols(keys as string[]),
+                            }}
+                            columns={libraryColumns}
+                            dataSource={filteredLibrary}
+                            rowKey="symbol"
+                            loading={libraryLoading}
+                            size="small"
+                            pagination={{ pageSize: 8, showSizeChanger: false }}
+                            scroll={{ y: 280 }}
+                          />
+                          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#666' }}>
+                              已选 {selectedLibrarySymbols.length} 个
+                            </span>
+                            <Space>
+                              <Button onClick={() => setModalOpen(false)}>取消</Button>
+                              <Button
+                                type="primary"
+                                onClick={handleAddFromLibrary}
+                                loading={addingFromLibrary}
+                                disabled={selectedLibrarySymbols.length === 0}
+                              >
+                                批量添加选中
+                              </Button>
+                            </Space>
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
               ),
             },
             {

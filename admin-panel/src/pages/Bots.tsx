@@ -30,6 +30,7 @@ export const Bots: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -75,18 +76,87 @@ export const Bots: React.FC = () => {
           welcome_message: values.welcome_message,
         });
         message.success('Bot 更新成功');
+        setModalOpen(false);
+        fetchBots();
       } else {
-        // Authorize bot with token + optional configuration fields
-        await apiClient.createBot({
-          token: values.token,
-          default_language: values.default_language,
-          welcome_message: values.welcome_message,
-        });
-        message.success('Bot 授权成功');
-      }
+        // Support multiple tokens (one per line)
+        const tokens: string[] = (values.token as string)
+          .split('\n')
+          .map((t: string) => t.trim())
+          .filter((t: string) => t.length > 0);
 
-      setModalOpen(false);
-      fetchBots();
+        if (tokens.length === 0) {
+          message.error('请输入至少一个 Bot Token');
+          return;
+        }
+
+        if (tokens.length === 1) {
+          setBatchLoading(true);
+          try {
+            await apiClient.createBot({
+              token: tokens[0],
+              default_language: values.default_language,
+              welcome_message: values.welcome_message,
+            });
+            message.success('Bot 授权成功');
+            setModalOpen(false);
+            fetchBots();
+          } finally {
+            setBatchLoading(false);
+          }
+        } else {
+          // Batch add
+          setBatchLoading(true);
+          let successCount = 0;
+          let failCount = 0;
+          const errors: string[] = [];
+
+          for (const token of tokens) {
+            try {
+              await apiClient.createBot({
+                token,
+                default_language: values.default_language,
+                welcome_message: values.welcome_message,
+              });
+              successCount++;
+            } catch (err: any) {
+              failCount++;
+              errors.push(`${token.substring(0, 10)}...: ${err.response?.data?.error || err.message}`);
+            }
+          }
+
+          setBatchLoading(false);
+
+          if (successCount > 0 && failCount === 0) {
+            message.success(`成功添加 ${successCount} 个 Bot`);
+          } else if (successCount > 0 && failCount > 0) {
+            Modal.warning({
+              title: `批量添加结果：成功 ${successCount} 个，失败 ${failCount} 个`,
+              content: (
+                <div>
+                  {errors.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: '#ff4d4f', marginBottom: 4 }}>{e}</div>
+                  ))}
+                </div>
+              ),
+            });
+          } else {
+            Modal.error({
+              title: `全部添加失败（共 ${failCount} 个）`,
+              content: (
+                <div>
+                  {errors.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, marginBottom: 4 }}>{e}</div>
+                  ))}
+                </div>
+              ),
+            });
+          }
+
+          setModalOpen(false);
+          fetchBots();
+        }
+      }
     } catch (error: any) {
       console.error('Failed to save bot:', error);
       message.error(error.response?.data?.error || '操作失败，请重试');
@@ -284,6 +354,7 @@ export const Bots: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         okText="保存"
         cancelText="取消"
+        confirmLoading={batchLoading}
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
@@ -292,9 +363,12 @@ export const Bots: React.FC = () => {
               name="token"
               label="Bot Token"
               rules={[{ required: true, message: '请输入 Bot Token' }]}
-              extra="粘贴从 @BotFather 获取的 Token，系统将自动验证并获取 Bot 信息"
+              extra="支持同时添加多个 Token，每行一个。粘贴从 @BotFather 获取的 Token，系统将自动验证并获取 Bot 信息"
             >
-              <Input.Password placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" />
+              <Input.TextArea
+                rows={4}
+                placeholder={"1234567890:ABCdefGHIjklMNOpqrsTUVwxyz\n9876543210:XYZabcDEFghiJKLmnoPQRstuVWX"}
+              />
             </Form.Item>
           )}
 

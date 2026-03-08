@@ -452,15 +452,22 @@ class BotManager {
 
     if (!instance) {
       // Bot not loaded yet - try to load on demand
+      console.log(`[BotManager] handleUpdate: bot ${botId} not in memory, loading on demand...`);
       await this.addBot(botId);
       instance = this.bots.get(botId);
     }
 
     if (!instance) {
+      console.error(`[BotManager] handleUpdate: bot ${botId} could not be loaded (not found or inactive)`);
       throw new Error(`Bot ${botId} not found or not active`);
     }
 
-    await instance.telegraf.handleUpdate(update);
+    try {
+      await instance.telegraf.handleUpdate(update);
+    } catch (err: any) {
+      console.error(`[BotManager] handleUpdate error for bot ${botId}:`, err?.message || err);
+      throw err;
+    }
   }
 
   getDefaultLanguage(botId: string): string {
