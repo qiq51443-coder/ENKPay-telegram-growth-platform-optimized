@@ -7,7 +7,7 @@ export const handleInvite = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 

@@ -342,6 +342,36 @@ class BotManager {
       });
 
       console.log(`BotManager: added bot ${botId}`);
+
+      // Auto-register webhook if BACKEND_URL is set and webhook is not already registered
+      const backendUrl = process.env.BACKEND_URL;
+      if (backendUrl) {
+        try {
+          const webhookResult = await query(
+            'SELECT webhook_url FROM bots WHERE id = $1',
+            [botId]
+          );
+          const existingWebhook = webhookResult.rows[0]?.webhook_url;
+          if (!existingWebhook || existingWebhook.trim() === '') {
+            const webhookTarget = `${backendUrl}/webhook/${botId}`;
+            const telegramRes = await axios.post(
+              `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
+              { url: webhookTarget }
+            );
+            if (telegramRes.data?.ok) {
+              await query(
+                'UPDATE bots SET webhook_url = $1 WHERE id = $2',
+                [webhookTarget, botId]
+              );
+              console.log(`BotManager: auto-registered webhook for bot ${botId}: ${webhookTarget}`);
+            } else {
+              console.warn(`BotManager: Telegram setWebhook failed for bot ${botId}:`, telegramRes.data);
+            }
+          }
+        } catch (webhookError) {
+          console.error(`BotManager: failed to auto-register webhook for bot ${botId}:`, webhookError);
+        }
+      }
     } catch (error) {
       console.error(`BotManager: failed to add bot ${botId}:`, error);
     }
