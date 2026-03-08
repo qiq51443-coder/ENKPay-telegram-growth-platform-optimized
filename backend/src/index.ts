@@ -139,6 +139,9 @@ const startServer = async () => {
     // Load all active bots into the bot manager
     await botManager.loadAllBots();
 
+    // Auto-register webhooks for bots that don't have one configured yet
+    await botManager.registerWebhooksIfNeeded();
+
     // Check Binance API connectivity
     await checkBinanceConnectivity();
 
