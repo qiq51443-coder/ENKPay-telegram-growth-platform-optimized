@@ -13,7 +13,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -36,7 +36,7 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 

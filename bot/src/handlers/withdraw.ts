@@ -40,7 +40,7 @@ export const handleWithdrawSelectNetwork = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -63,7 +63,7 @@ export const handleWithdrawSelectNetworkCallback = async (ctx: Context, networkI
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -134,7 +134,7 @@ export const handleWithdrawConfirm = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -171,7 +171,7 @@ export const handleWithdrawCancel = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
@@ -188,7 +188,7 @@ export const handleNumpadInput = async (ctx: Context, digit: string) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
@@ -218,7 +218,7 @@ export const handleNumpadDelete = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const state = await getUserState(user.id.toString());
 
@@ -245,7 +245,7 @@ export const handleNumpadConfirm = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
-    const botId = process.env.BOT_ID || 'default';
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());

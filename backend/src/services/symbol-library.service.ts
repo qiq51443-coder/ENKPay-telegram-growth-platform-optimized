@@ -1,7 +1,34 @@
 import axios from 'axios';
 import { query } from '../db';
 
-const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api.binance.com';
+const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api1.binance.com';
+
+// Fallback Binance API hosts tried in order when the primary returns an error
+// (HTTP 451 = "Unavailable For Legal Reasons" on some Render regions).
+const BINANCE_FALLBACK_URLS = [
+  BINANCE_API_URL,
+  'https://api1.binance.com',
+  'https://api2.binance.com',
+  'https://api.binance.com',
+].filter((v, i, arr) => arr.indexOf(v) === i); // deduplicate while preserving order
+
+async function binanceFetch(path: string, timeout = 30000): Promise<any> {
+  let lastError: any;
+  for (const base of BINANCE_FALLBACK_URLS) {
+    try {
+      const response = await axios.get(`${base}${path}`, { timeout });
+      return response.data;
+    } catch (err: any) {
+      lastError = err;
+      const status = err.response?.status;
+      // Retry on 451 (legal restriction) or 5xx; abort on other client errors
+      if (status && status < 500 && status !== 451) {
+        throw err;
+      }
+    }
+  }
+  throw lastError;
+}
 
 interface SymbolLibraryEntry {
   id: number;
@@ -31,11 +58,9 @@ interface PaginationResult<T> {
  * Returns the number of synced records.
  */
 export async function syncBinanceSymbols(): Promise<number> {
-  const response = await axios.get(`${BINANCE_API_URL}/api/v3/exchangeInfo`, {
-    timeout: 30000,
-  });
+  const data = await binanceFetch('/api/v3/exchangeInfo');
 
-  const symbols: any[] = response.data.symbols;
+  const symbols: any[] = data.symbols;
 
   // Filter: only USDT-quoted SPOT pairs that are currently TRADING
   const usdtSpotSymbols = symbols.filter(

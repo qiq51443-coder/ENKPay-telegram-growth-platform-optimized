@@ -41,9 +41,7 @@ export const handleLanguage = async (ctx: Context, user: User) => {
 
 export const handleLanguageChange = async (ctx: Context, user: User, newLang: string) => {
   try {
-    const botId = process.env.BOT_ID || 'default';
-
-    // Update user language
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     await updateUser(botId, user.id, { language_code: newLang });
 
     // Get webApp URL from settings for the keyboard
