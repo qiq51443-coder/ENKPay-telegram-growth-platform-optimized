@@ -130,9 +130,27 @@ export const Bots: React.FC = () => {
           if (successCount > 0 && failCount === 0) {
             message.success(`成功添加 ${successCount} 个 Bot`);
           } else if (successCount > 0 && failCount > 0) {
-            message.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
+            Modal.warning({
+              title: `批量添加结果：成功 ${successCount} 个，失败 ${failCount} 个`,
+              content: (
+                <div>
+                  {errors.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: '#ff4d4f', marginBottom: 4 }}>{e}</div>
+                  ))}
+                </div>
+              ),
+            });
           } else {
-            message.error(`全部失败（共 ${failCount} 个）`);
+            Modal.error({
+              title: `全部添加失败（共 ${failCount} 个）`,
+              content: (
+                <div>
+                  {errors.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, marginBottom: 4 }}>{e}</div>
+                  ))}
+                </div>
+              ),
+            });
           }
 
           setModalOpen(false);

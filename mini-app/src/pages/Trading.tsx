@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
-import { createChart, CandlestickSeries } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 
 interface TradingPair {
   id: string;
@@ -103,7 +103,7 @@ export const Trading: React.FC = () => {
       timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
+    const candleSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
       borderVisible: false,
@@ -131,8 +131,8 @@ export const Trading: React.FC = () => {
           candleSeries.setData(data);
           chart.timeScale().fitContent();
         }
-      } catch {
-        // Silently fail - chart will just be empty
+      } catch (err) {
+        console.warn('[Trading] Failed to load K-line data:', err);
       }
     };
 

@@ -481,7 +481,7 @@ export const NFTProducts: React.FC = () => {
                   noStyle
                   shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
                 >
-                  {({ getFieldValue: gfv }) => gfv('is_purchase_limited') ? (
+                  {({ getFieldValue: innerGetFieldValue }) => innerGetFieldValue('is_purchase_limited') ? (
                     <Form.Item name="max_purchases_per_user" label="每人限购次数">
                       <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
                     </Form.Item>
@@ -547,7 +547,7 @@ export const NFTProducts: React.FC = () => {
                   noStyle
                   shouldUpdate={(prev, cur) => prev.is_purchase_limited !== cur.is_purchase_limited}
                 >
-                  {({ getFieldValue: gfv }) => gfv('is_purchase_limited') ? (
+                  {({ getFieldValue: innerGetFieldValue }) => innerGetFieldValue('is_purchase_limited') ? (
                     <Form.Item name="max_purchases_per_user" label="每人限购次数">
                       <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
                     </Form.Item>
