@@ -3,19 +3,65 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// In-memory fallback cache
+const memoryCache = new Map<string, { value: string; expiresAt: number }>();
+let redisAvailable = false;
+
 const redis = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
 });
 
-redis.on('error', (err) => console.error('Redis Client Error', err));
-redis.on('connect', () => console.log('Redis connected'));
+redis.on('error', () => {
+  if (redisAvailable) {
+    console.warn('Redis connection lost, falling back to in-memory cache');
+    redisAvailable = false;
+  }
+});
+redis.on('connect', () => {
+  console.log('Redis connected');
+  redisAvailable = true;
+});
 
 export const connectRedis = async () => {
-  if (!redis.isOpen) {
-    await redis.connect();
+  if (!process.env.REDIS_URL) {
+    console.log('REDIS_URL not set, using in-memory cache');
+    return redis;
+  }
+  try {
+    if (!redis.isOpen) {
+      await redis.connect();
+      redisAvailable = true;
+    }
+  } catch (err) {
+    console.warn('Redis connect failed, using in-memory cache:', (err as Error).message);
+    redisAvailable = false;
   }
   return redis;
 };
+
+// Memory cache helpers
+function memGet(key: string): string | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function memSet(key: string, value: string, ttlSeconds: number): void {
+  memoryCache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+function memDel(key: string): void {
+  memoryCache.delete(key);
+}
+
+function memKeys(pattern: string): string[] {
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+  return Array.from(memoryCache.keys()).filter(k => regex.test(k));
+}
 
 // Cache TTL configuration
 export const CACHE_TTL = {
@@ -28,25 +74,58 @@ export const CACHE_TTL = {
 
 // Generic cache methods
 export async function getCache<T>(key: string): Promise<T | null> {
-  const data = await redis.get(key);
+  if (redisAvailable) {
+    try {
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (err) {
+      console.warn('Redis getCache error, falling back to memory:', (err as Error).message);
+      redisAvailable = false;
+    }
+  }
+  const data = memGet(key);
   return data ? JSON.parse(data) : null;
 }
 
 export async function setCache(key: string, value: any, ttl: number): Promise<void> {
-  await redis.set(key, JSON.stringify(value), {
-    EX: ttl,
-  });
+  const serialized = JSON.stringify(value);
+  if (redisAvailable) {
+    try {
+      await redis.set(key, serialized, { EX: ttl });
+      return;
+    } catch (err) {
+      console.warn('Redis setCache error, falling back to memory:', (err as Error).message);
+      redisAvailable = false;
+    }
+  }
+  memSet(key, serialized, ttl);
 }
 
 export async function deleteCache(key: string): Promise<void> {
-  await redis.del(key);
+  if (redisAvailable) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      console.warn('Redis deleteCache error, falling back to memory:', (err as Error).message);
+      redisAvailable = false;
+    }
+  }
+  memDel(key);
 }
 
 export async function deleteCachePattern(pattern: string): Promise<void> {
-  const keys = await redis.keys(pattern);
-  if (keys.length > 0) {
-    await redis.del(keys);
+  if (redisAvailable) {
+    try {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) await redis.del(keys);
+      return;
+    } catch (err) {
+      console.warn('Redis deleteCachePattern error, falling back to memory:', (err as Error).message);
+      redisAvailable = false;
+    }
   }
+  for (const k of memKeys(pattern)) memDel(k);
 }
 
 // User cache
@@ -64,21 +143,15 @@ export async function invalidateUserCache(telegramId: number) {
 
 // Settings cache management
 export const getSettings = async (botId: string) => {
-  const cached = await redis.get(`settings:${botId}`);
-  if (cached) {
-    return JSON.parse(cached);
-  }
-  return null;
+  return getCache(`settings:${botId}`);
 };
 
 export const setSettings = async (botId: string, settings: any) => {
-  await redis.set(`settings:${botId}`, JSON.stringify(settings), {
-    EX: CACHE_TTL.SETTINGS,
-  });
+  await setCache(`settings:${botId}`, settings, CACHE_TTL.SETTINGS);
 };
 
 export const invalidateSettings = async (botId: string) => {
-  await redis.del(`settings:${botId}`);
+  await deleteCache(`settings:${botId}`);
 };
 
 // All settings cache
@@ -135,38 +208,46 @@ export async function invalidateTutorialsCache() {
   await deleteCachePattern('tutorials:*');
 }
 
-// Pub/Sub for real-time synchronization
+// Pub/Sub for real-time synchronization (no-op when Redis unavailable)
 export const publishSettingsUpdate = async (botId: string) => {
-  await redis.publish('settings:update', JSON.stringify({ botId, timestamp: Date.now() }));
+  if (!redisAvailable) return;
+  try {
+    await redis.publish('settings:update', JSON.stringify({ botId, timestamp: Date.now() }));
+  } catch {}
 };
 
 export const publishGlobalSettingsUpdate = async () => {
-  await redis.publish('settings:update', JSON.stringify({ botId: null, timestamp: Date.now() }));
+  if (!redisAvailable) return;
+  try {
+    await redis.publish('settings:update', JSON.stringify({ botId: null, timestamp: Date.now() }));
+  } catch {}
 };
 
 export async function subscribeSettingsUpdate(callback: () => void) {
-  const subscriber = redis.duplicate();
-  await subscriber.connect();
-  await subscriber.subscribe('settings:update', () => {
-    callback();
-  });
-  return subscriber;
+  if (!redisAvailable) return null;
+  try {
+    const subscriber = redis.duplicate();
+    await subscriber.connect();
+    await subscriber.subscribe('settings:update', () => {
+      callback();
+    });
+    return subscriber;
+  } catch {
+    return null;
+  }
 }
 
 // User state management
 export const getUserState = async (userId: string) => {
-  const state = await redis.get(`user:state:${userId}`);
-  return state ? JSON.parse(state) : null;
+  return getCache(`user:state:${userId}`);
 };
 
 export const setUserState = async (userId: string, state: any, ttl = 3600) => {
-  await redis.set(`user:state:${userId}`, JSON.stringify(state), {
-    EX: ttl,
-  });
+  await setCache(`user:state:${userId}`, state, ttl);
 };
 
 export const clearUserState = async (userId: string) => {
-  await redis.del(`user:state:${userId}`);
+  await deleteCache(`user:state:${userId}`);
 };
 
 export { redis };
