@@ -6,8 +6,36 @@ import bcrypt from 'bcryptjs';
 import { logAuditAction } from '../utils/audit';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { botManager } from '../services/bot-manager.service';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
+
+// Multer configuration for image uploads
+const uploadsDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    cb(null, name);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // Configuration constants
 const DEFAULT_NEW_USER_CREDITS = parseInt(process.env.DEFAULT_NEW_USER_CREDITS || '3', 10);
@@ -843,6 +871,22 @@ router.get('/sweep/history', adminLimiter, authenticateAdmin, async (req: AuthRe
   } catch (error: any) {
     console.error('Sweep history error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// File upload endpoint
+router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (req: AuthRequest, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded. Please use field name "file"' });
+      return;
+    }
+    const backendUrl = process.env.BACKEND_URL || '';
+    const url = `${backendUrl}/uploads/${req.file.filename}`;
+    res.json({ url, filename: req.file.filename });
+  } catch (error: any) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: error.message || 'Upload failed' });
   }
 });
 

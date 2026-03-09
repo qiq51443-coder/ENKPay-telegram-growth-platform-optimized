@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { query } from '../db';
-import { redis, getCache, setCache } from '../utils/cache';
+import { getCache, setCache } from '../utils/cache';
 
 interface PriceData {
   price: number;
@@ -18,7 +18,13 @@ interface KlineData {
 }
 
 // Binance API base URL (configurable for mirrors/proxies)
-const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api.binance.com';
+// data-api.binance.vision is globally accessible without API key
+const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://data-api.binance.vision';
+const BINANCE_FALLBACK_URLS = [
+  'https://data-api.binance.vision',
+  'https://api.binance.com',
+  'https://api1.binance.com',
+];
 
 // Redis cache TTLs
 const CACHE_TTL = {
@@ -40,24 +46,42 @@ const KLINE_TTL_MAP: Record<string, number> = {
 };
 
 /**
+ * Try multiple Binance API URLs, returning the first successful response
+ */
+async function binanceFetch(path: string, params?: Record<string, any>): Promise<any> {
+  const urls = process.env.BINANCE_API_URL
+    ? [process.env.BINANCE_API_URL, ...BINANCE_FALLBACK_URLS.filter(u => u !== process.env.BINANCE_API_URL)]
+    : BINANCE_FALLBACK_URLS;
+
+  let lastError: any;
+  for (const baseUrl of urls) {
+    try {
+      const response = await axios.get(`${baseUrl}${path}`, { params, timeout: 5000 });
+      return response.data;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Check Binance API connectivity on startup
  */
 export async function checkBinanceConnectivity(): Promise<boolean> {
   try {
-    const response = await axios.get(`${BINANCE_API_URL}/api/v3/ping`, {
-      timeout: 5000,
-    });
+    await binanceFetch('/api/v3/ping');
     console.log('✓ Binance API connectivity check passed');
     return true;
   } catch (error: any) {
     console.error('✗ Binance API connectivity check failed:', error.message);
-    console.error(`  Please check BINANCE_API_URL: ${BINANCE_API_URL}`);
+    console.error(`  Tried URLs: ${BINANCE_FALLBACK_URLS.join(', ')}`);
     return false;
   }
 }
 
 /**
- * Get real-time price from Binance API with Redis caching
+ * Get real-time price from Binance API with caching
  * @param symbol Full Binance trading symbol (e.g. "BTCUSDT") or base symbol (e.g. "BTC")
  */
 export async function getRealTimePrice(symbol: string): Promise<PriceData> {
@@ -71,14 +95,10 @@ export async function getRealTimePrice(symbol: string): Promise<PriceData> {
   }
 
   try {
-    // Fetch from Binance
-    const response = await axios.get(
-      `${BINANCE_API_URL}/api/v3/ticker/price?symbol=${binanceSymbol}`,
-      { timeout: 5000 }
-    );
+    const data = await binanceFetch(`/api/v3/ticker/price`, { symbol: binanceSymbol });
 
     const priceData: PriceData = {
-      price: parseFloat(response.data.price),
+      price: parseFloat(data.price),
       timestamp: Date.now(),
     };
 
@@ -88,24 +108,12 @@ export async function getRealTimePrice(symbol: string): Promise<PriceData> {
     return priceData;
   } catch (error: any) {
     console.error(`Error fetching Binance price for ${binanceSymbol}:`, error.message);
-    
-    // Try to return last cached value even if expired
-    try {
-      const lastCached = await redis.get(cacheKey);
-      if (lastCached) {
-        console.warn(`Returning stale cached price for ${binanceSymbol}`);
-        return JSON.parse(lastCached);
-      }
-    } catch (cacheError) {
-      // Ignore cache errors
-    }
-    
     throw new Error(`Failed to fetch price for ${binanceSymbol}`);
   }
 }
 
 /**
- * Get 24h price change from Binance with Redis caching
+ * Get 24h price change from Binance with caching
  * @param symbol Full Binance trading symbol (e.g. "BTCUSDT") or base symbol (e.g. "BTC")
  */
 export async function get24hChange(symbol: string): Promise<number> {
@@ -119,36 +127,18 @@ export async function get24hChange(symbol: string): Promise<number> {
   }
 
   try {
-    const response = await axios.get(
-      `${BINANCE_API_URL}/api/v3/ticker/24hr?symbol=${binanceSymbol}`,
-      { timeout: 5000 }
-    );
-
-    const change = parseFloat(response.data.priceChangePercent);
-    
-    // Cache for 60 seconds
+    const data = await binanceFetch('/api/v3/ticker/24hr', { symbol: binanceSymbol });
+    const change = parseFloat(data.priceChangePercent);
     await setCache(cacheKey, change, CACHE_TTL.CHANGE_24H);
-    
     return change;
   } catch (error: any) {
     console.error(`Error fetching 24h change for ${binanceSymbol}:`, error.message);
-    
-    // Try to return last cached value
-    try {
-      const lastCached = await redis.get(cacheKey);
-      if (lastCached) {
-        return JSON.parse(lastCached);
-      }
-    } catch (cacheError) {
-      // Ignore cache errors
-    }
-    
     return 0;
   }
 }
 
 /**
- * Get K-line data from Binance with Redis caching
+ * Get K-line data from Binance with caching
  * @param symbol Full Binance trading symbol (e.g. "BTCUSDT") or base symbol (e.g. "BTC")
  */
 export async function getKlineData(
@@ -166,19 +156,9 @@ export async function getKlineData(
   }
 
   try {
-    const response = await axios.get(
-      `${BINANCE_API_URL}/api/v3/klines`,
-      {
-        params: {
-          symbol: binanceSymbol,
-          interval,
-          limit,
-        },
-        timeout: 5000,
-      }
-    );
+    const data = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval, limit });
 
-    const klineData = response.data.map((item: any) => ({
+    const klineData = data.map((item: any) => ({
       timestamp: item[0],
       open: parseFloat(item[1]),
       high: parseFloat(item[2]),
@@ -197,18 +177,6 @@ export async function getKlineData(
     return klineData;
   } catch (error: any) {
     console.error(`Error fetching kline data for ${binanceSymbol}:`, error.message);
-    
-    // Try to return last cached value
-    try {
-      const lastCached = await redis.get(cacheKey);
-      if (lastCached) {
-        console.warn(`Returning stale cached kline data for ${binanceSymbol}`);
-        return JSON.parse(lastCached);
-      }
-    } catch (cacheError) {
-      // Ignore cache errors
-    }
-    
     throw new Error(`Failed to fetch kline data for ${binanceSymbol}`);
   }
 }

@@ -206,7 +206,8 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       const settings = await getBotSettings(botId);
 
       const welcomeText = await buildWelcomeText(user, lang, settings);
-      const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL;
+      const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL ||
+        (process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/app` : null);
       const keyboardRows: any[][] = [
         [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
       ];
@@ -260,32 +261,119 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         const newLang = data.split('_')[1];
         try {
           await query('UPDATE users SET language_code = $1 WHERE id = $2', [newLang, user.id]);
-          await ctx.answerCbQuery(t(newLang, 'language_changed') || 'Language updated!');
-        } catch {
-          await ctx.answerCbQuery('Language updated!');
+        } catch (err) {
+          console.warn(`[bot ${botId}] Failed to update user language:`, err);
         }
+        await ctx.answerCbQuery(t(newLang, 'language_changed') || 'Language updated!');
+        // Delete the language selection message and show welcome with new language
+        try { await ctx.deleteMessage(); } catch {}
+        const updatedUser = { ...user, language_code: newLang };
+        const settings = await getBotSettings(botId);
+        const welcomeText = await buildWelcomeText(updatedUser, newLang, settings);
+        const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL ||
+          (process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/app` : null);
+        const keyboardRows: any[][] = [
+          [Markup.button.text(t(newLang, 'btn_my_wallet')), Markup.button.text(t(newLang, 'btn_invite'))],
+        ];
+        if (webAppUrl) {
+          keyboardRows.push([Markup.button.webApp(t(newLang, 'btn_open_app'), webAppUrl)]);
+        }
+        await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
         return;
       }
 
       if (data === 'wallet_deposit') {
         await ctx.answerCbQuery();
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+
+        // Load available deposit networks from DB, fall back to defaults
+        let networkButtons: any[] = [];
+        try {
+          const networksResult = await query(
+            `SELECT id, network_name, network_display FROM deposit_networks WHERE is_active = true ORDER BY network_name`,
+            []
+          );
+          if (networksResult.rows.length > 0) {
+            networkButtons = networksResult.rows.map((n: any) =>
+              [Markup.button.callback(`${n.network_display || n.network_name}`, `deposit_net_${n.id}`)]
+            );
+          }
+        } catch (err) {
+          console.warn(`[bot ${botId}] Failed to load deposit networks from DB, using defaults:`, err);
+        }
+
+        if (networkButtons.length === 0) {
+          networkButtons = [
+            [Markup.button.callback('TRC20 (USDT)', 'deposit_trc20')],
+            [Markup.button.callback('ERC20 (USDT)', 'deposit_erc20')],
+          ];
+        }
+
+        networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
+        try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
           `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n` +
           `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
           `${t(lang, 'select_network')}:`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback('TRC20 (USDT)', 'deposit_trc20')],
-            [Markup.button.callback('ERC20 (USDT)', 'deposit_erc20')],
-            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-          ])
+          Markup.inlineKeyboard(networkButtons)
         );
+        return;
+      }
+
+      // Handle deposit network selection (dynamic IDs from DB)
+      if (data.startsWith('deposit_net_')) {
+        await ctx.answerCbQuery();
+        const networkId = data.replace('deposit_net_', '');
+        try {
+          // Get network info
+          const netResult = await query(
+            `SELECT id, network_name, network_display, min_deposit_amount FROM deposit_networks WHERE id = $1`,
+            [networkId]
+          );
+          if (netResult.rows.length === 0) {
+            await ctx.reply(t(lang, 'error'));
+            return;
+          }
+          const network = netResult.rows[0];
+          const networkName = network.network_display || network.network_name;
+
+          // Get or generate user deposit address
+          const addrResult = await query(
+            `SELECT address FROM user_deposit_addresses WHERE user_id = $1 AND network_id = $2 LIMIT 1`,
+            [user.id, networkId]
+          );
+
+          let address: string;
+          if (addrResult.rows.length > 0) {
+            address = addrResult.rows[0].address;
+          } else {
+            address = t(lang, 'deposit_address_hint');
+          }
+
+          const minDeposit = network.min_deposit_amount
+            ? `\n💡 Min: <b>${parseFloat(String(network.min_deposit_amount)).toFixed(2)} USDT</b>`
+            : '';
+
+          try { await ctx.deleteMessage(); } catch {}
+          await ctx.replyWithHTML(
+            `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
+            `🌐 ${networkName}${minDeposit}\n\n` +
+            `<code>${address}</code>`,
+            Markup.inlineKeyboard([
+              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_deposit')],
+            ])
+          );
+        } catch (err) {
+          console.error('deposit_net_ error:', err);
+          await ctx.reply(t(lang, 'error'));
+        }
         return;
       }
 
       if (data === 'wallet_withdraw') {
         await ctx.answerCbQuery();
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
           `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n` +
           `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
@@ -302,6 +390,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data === 'wallet_transfer') {
         await ctx.answerCbQuery();
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
           `💸 <b>${t(lang, 'btn_transfer')}</b>\n\n` +
           `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
@@ -322,6 +411,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           [Markup.button.callback('🇯🇵 日本語', 'lang_ja')],
           [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
         ];
+        try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
           `🌐 <b>${t(lang, 'language_title')}</b>`,
           Markup.inlineKeyboard(langButtons)
@@ -331,6 +421,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
       if (data === 'wallet_support') {
         await ctx.answerCbQuery();
+        try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
           `🎧 <b>${t(lang, 'help_title')}</b>\n\n${t(lang, 'help_description')}`,
           Markup.inlineKeyboard([
@@ -342,16 +433,19 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
       if (data === 'wallet_back_to_wallet') {
         await ctx.answerCbQuery();
+        try { await ctx.deleteMessage(); } catch {}
         await handleWallet(ctx, botId, user, lang);
         return;
       }
 
       if (data === 'wallet_back') {
         await ctx.answerCbQuery();
-        // Show start menu
+        // Delete current message and show start menu
+        try { await ctx.deleteMessage(); } catch {}
         const settings = await getBotSettings(botId);
         const welcomeText = await buildWelcomeText(user, lang, settings);
-        const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL;
+        const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL ||
+          (process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/app` : null);
         const keyboardRows: any[][] = [
           [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
         ];

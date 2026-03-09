@@ -17,7 +17,7 @@ export const de: Record<string, string> = {
   feature_invite: '2-stufige Einladungsprämien',
 
   // Welcome message (legacy)
-  welcome_title: '🎉 Willkommen auf der Plattform!',
+  welcome_title: '🎉 Willkommen bei ENK Pay!',
   welcome_description: 'Erledige Aufgaben und verdiene Belohnungen!',
   welcome_register_prompt: '📝 Bitte zuerst registrieren:',
   welcome_after_register: 'Nach der Registrierung Aufgaben erledigen:',

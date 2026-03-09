@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Radio } from 'antd';
-import { PlusOutlined, TrophyOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Radio, Upload } from 'antd';
+import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadFile, UploadProps } from 'antd';
 import { apiClient } from '../services/api';
 
 interface Auction {
@@ -37,6 +38,7 @@ export const Auctions: React.FC = () => {
   const [drawMethod, setDrawMethod] = useState<'random' | 'manual'>('random');
   const [manualWinnerId, setManualWinnerId] = useState('');
   const [drawing, setDrawing] = useState(false);
+  const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export const Auctions: React.FC = () => {
 
   const handleOpenModal = () => {
     form.resetFields();
+    setImageFileList([]);
     setModalOpen(true);
   };
 
@@ -82,6 +85,7 @@ export const Auctions: React.FC = () => {
       message.success('夺宝创建成功');
       setModalOpen(false);
       form.resetFields();
+      setImageFileList([]);
       fetchAuctions();
     } catch (error: any) {
       console.error('Failed to create auction:', error);
@@ -260,8 +264,36 @@ export const Auctions: React.FC = () => {
           <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
             <Input placeholder="例如：限量藏品 No.001" />
           </Form.Item>
-          <Form.Item name="image_url" label="藏品图片URL">
-            <Input placeholder="https://example.com/image.jpg" />
+          <Form.Item name="image_url" label="藏品图片">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                name="file"
+                action="/api/admin/upload"
+                headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+                listType="picture"
+                fileList={imageFileList}
+                maxCount={1}
+                onChange={({ fileList, file }) => {
+                  setImageFileList(fileList);
+                  if (file.status === 'done' && file.response?.url) {
+                    form.setFieldValue('image_url', file.response.url);
+                    message.success('图片上传成功');
+                  } else if (file.status === 'error') {
+                    message.error('图片上传失败');
+                  }
+                }}
+                beforeUpload={(file) => {
+                  const isImage = file.type.startsWith('image/');
+                  if (!isImage) { message.error('只能上传图片文件'); return false; }
+                  const isLt10M = file.size / 1024 / 1024 < 10;
+                  if (!isLt10M) { message.error('图片大小不能超过10MB'); return false; }
+                  return true;
+                }}
+              >
+                <Button icon={<UploadOutlined />}>点击上传图片</Button>
+              </Upload>
+              <Input placeholder="或直接输入图片URL：https://example.com/image.jpg" />
+            </Space>
           </Form.Item>
           <Form.Item name="product_value" label="藏品总价值 (USDT)" rules={[{ required: true, message: '请输入总价值' }]}>
             <InputNumber min={1} step={1} style={{ width: '100%' }} placeholder="1000" />
