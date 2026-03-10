@@ -19,7 +19,7 @@ interface UserDetail {
   binding_status: string;
   account_status: string;
   platform_username?: string;
-  registered_at: string;
+  created_at: string;
   last_active_at?: string;
   withdraw_password?: string;
 }
@@ -162,9 +162,9 @@ export const UserDetail: React.FC = () => {
     },
     {
       title: '注册时间',
-      dataIndex: 'registered_at',
-      key: 'registered_at',
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
   ];
 
@@ -210,7 +210,7 @@ export const UserDetail: React.FC = () => {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="注册时间">
-                {new Date(user.registered_at).toLocaleString('zh-CN')}
+                {user.created_at ? new Date(user.created_at).toLocaleString('zh-CN') : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="最后活跃">
                 {user.last_active_at ? new Date(user.last_active_at).toLocaleString('zh-CN') : '-'}

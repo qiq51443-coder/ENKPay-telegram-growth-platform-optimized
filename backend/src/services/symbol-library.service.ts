@@ -12,7 +12,7 @@ const BINANCE_FALLBACK_URLS = [
   'https://api.binance.com',
 ].filter((v, i, arr) => arr.indexOf(v) === i); // deduplicate while preserving order
 
-async function binanceFetch(path: string, timeout = 30000): Promise<any> {
+async function binanceFetch(path: string, timeout = 15000): Promise<any> {
   let lastError: any;
   for (const base of BINANCE_FALLBACK_URLS) {
     try {
@@ -58,7 +58,14 @@ interface PaginationResult<T> {
  * Returns the number of synced records.
  */
 export async function syncBinanceSymbols(): Promise<number> {
-  const data = await binanceFetch('/api/v3/exchangeInfo');
+  let data: any;
+  try {
+    data = await binanceFetch('/api/v3/exchangeInfo');
+  } catch (err: any) {
+    console.error('[SymbolLibrary] Failed to fetch Binance exchangeInfo:', err instanceof Error ? err.message : String(err));
+    // Return 0 rather than throwing so callers can handle gracefully
+    return 0;
+  }
 
   const symbols: any[] = data.symbols;
 
