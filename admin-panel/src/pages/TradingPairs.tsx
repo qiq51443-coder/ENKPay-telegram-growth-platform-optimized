@@ -96,9 +96,14 @@ export const TradingPairs: React.FC = () => {
     setAddingFromLibrary(true);
     try {
       const response = await apiClient.addPairsFromLibrary(selectedLibrarySymbols);
-      const added = response.data?.added?.length || 0;
-      const skipped = response.data?.skipped?.length || 0;
-      message.success(`成功添加 ${added} 个，跳过 ${skipped} 个（已存在）`);
+      const added = response.added?.length || 0;
+      const skipped = response.skipped?.length || 0;
+      const errors = response.errors?.length || 0;
+      if (errors > 0) {
+        message.warning(`成功添加 ${added} 个，跳过 ${skipped} 个（已存在），失败 ${errors} 个`);
+      } else {
+        message.success(`成功添加 ${added} 个，跳过 ${skipped} 个（已存在）`);
+      }
       setSelectedLibrarySymbols([]);
       setModalOpen(false);
       fetchPairs();

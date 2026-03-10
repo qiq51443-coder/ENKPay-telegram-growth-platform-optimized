@@ -8,6 +8,11 @@ import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
 interface UserProfile {
   unique_id: string;
   balance: number;
+  nft_balance?: number;
+  red_packet_balance?: number;
+  red_packet_credits?: number;
+  account_status?: string;
+  wallet_tip_message?: string;
   username?: string;
   first_name?: string;
   last_name?: string;
@@ -253,9 +258,38 @@ export const Profile: React.FC = () => {
         <div style={{ textAlign: 'center', paddingTop: '8px', borderTop: `1px solid ${theme.border}` }}>
           <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '4px' }}>{t('account_balance')}</div>
           <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '24px' }}>
-            ${(profile?.balance || 0).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
+            ${parseFloat(String(profile?.balance || 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
           </div>
         </div>
+
+        {/* NFT & Red Packet balance row */}
+        <div style={{ display: 'flex', justifyContent: 'space-around', paddingTop: '12px', marginTop: '8px', borderTop: `1px solid ${theme.border}` }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>💎 NFT</div>
+            <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
+              ${parseFloat(String(profile?.nft_balance || 0)).toFixed(2)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('account_red_packet_credits') || '红包余额'}</div>
+            <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
+              {parseFloat(String(profile?.red_packet_balance ?? profile?.red_packet_credits ?? 0)).toFixed(2)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>📊 {t('account_account_status') || '状态'}</div>
+            <div style={{ color: profile?.account_status === 'active' ? '#22c55e' : '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
+              {profile?.account_status === 'active' ? (t('account_active') || '正常') : (t('account_pending') || '待审')}
+            </div>
+          </div>
+        </div>
+
+        {/* Tip message */}
+        {profile?.wallet_tip_message ? (
+          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.border}`, color: theme.textSecondary, fontSize: '12px', textAlign: 'center' }}>
+            💡 {profile.wallet_tip_message}
+          </div>
+        ) : null}
       </div>
 
       {/* Menu items */}

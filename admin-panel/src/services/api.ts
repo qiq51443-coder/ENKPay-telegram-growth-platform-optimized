@@ -570,6 +570,16 @@ class ApiClient {
     return response.data;
   }
 
+  async adjustBalance(userId: string, data: { amount: number; type: 'add' | 'subtract'; reason?: string }) {
+    const response = await this.client.post(`/users/${userId}/adjust-balance`, data);
+    return response.data;
+  }
+
+  async getUserInvitees(userId: string, params?: any) {
+    const response = await this.client.get(`/users/${userId}/invitees`, { params });
+    return response.data;
+  }
+
   // Trading Rules
   async getTradingRules(params?: any) {
     const response = await this.client.get('/admin/trading/rules', { params });

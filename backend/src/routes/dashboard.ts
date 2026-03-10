@@ -70,7 +70,7 @@ router.get('/overview', authenticateAdmin, async (req: AuthRequest, res) => {
         COUNT(*) FILTER (WHERE status = 'pending') as pending_withdrawals,
         COUNT(*) FILTER (WHERE status = 'approved') as approved_withdrawals,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected_withdrawals,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as withdrawals_today
+        COUNT(*) FILTER (WHERE w.created_at > NOW() - INTERVAL '24 hours') as withdrawals_today
       FROM withdrawals w
       JOIN users u ON w.user_id = u.id
       ${whereClause.replace('bot_id', 'u.bot_id')}

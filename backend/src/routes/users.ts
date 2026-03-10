@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import { query } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
@@ -184,11 +185,14 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const result = await query(
       `SELECT u.*, 
         COUNT(DISTINCT i.id) as invite_count,
-        (SELECT username FROM users WHERE id = u.invited_by) as invited_by_username
+        (SELECT username FROM users WHERE id = u.invited_by) as invited_by_username,
+        b.name as bot_name,
+        (u.withdraw_password IS NOT NULL) as withdraw_password_set
       FROM users u
       LEFT JOIN invitations i ON i.inviter_id = u.id
+      LEFT JOIN bots b ON u.bot_id = b.id
       WHERE u.id = $1
-      GROUP BY u.id`,
+      GROUP BY u.id, b.name`,
       [id]
     );
 
@@ -277,6 +281,38 @@ router.get('/:id/transactions', async (req, res) => {
     res.json({ transactions: result.rows });
   } catch (error) {
     console.error('Get transactions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get users invited by this user
+router.get('/:id/invitees', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const result = await query(
+      `SELECT u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.created_at, u.account_status
+       FROM users u
+       INNER JOIN invitations inv ON inv.invitee_id = u.id
+       WHERE inv.inviter_id = $1
+       ORDER BY u.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [id, Number(limit), offset]
+    );
+
+    const countResult = await query(
+      `SELECT COUNT(*) FROM invitations WHERE inviter_id = $1`,
+      [id]
+    );
+
+    res.json({
+      invitees: result.rows,
+      total: parseInt(countResult.rows[0].count),
+    });
+  } catch (error) {
+    console.error('Get invitees error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -394,6 +430,25 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
        VALUES ($1, $2, $3, $4, $5)`,
       [id, req.user?.id, numAmount, type, reason || '']
     );
+
+    // Notify user via Telegram bot
+    try {
+      const updatedUser = result.rows[0];
+      if (updatedUser.bot_id && updatedUser.telegram_id) {
+        const botResult = await query('SELECT token FROM bots WHERE id = $1', [updatedUser.bot_id]);
+        if (botResult.rows.length > 0) {
+          const token = botResult.rows[0].token;
+          const newBalance = parseFloat(String(updatedUser.balance)).toFixed(2);
+          const changeText = type === 'add' ? `+${numAmount.toFixed(2)}` : `-${numAmount.toFixed(2)}`;
+          const msgText = `💰 您的账户余额已被管理员调整\n变动金额: <b>${changeText} USDT</b>\n当前余额: <b>${newBalance} USDT</b>${reason ? `\n备注: ${reason}` : ''}`;
+          await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+            chat_id: updatedUser.telegram_id,
+            text: msgText,
+            parse_mode: 'HTML',
+          }).catch(() => {/* non-critical */});
+        }
+      }
+    } catch {/* non-critical */}
 
     res.json({ user: result.rows[0] });
   } catch (error) {
