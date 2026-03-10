@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, Input, Button, Space, Select, Modal, InputNumber, Form } from 'antd';
+import React, { useEffect, useState, Component } from 'react';
+import { Table, Tag, message, Input, Button, Space, Select, Modal, InputNumber, Form, Alert } from 'antd';
 import { SearchOutlined, EyeOutlined, LockOutlined, UnlockOutlined, DollarOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
@@ -19,12 +19,46 @@ interface User {
   binding_status: string;
   account_status: string;
   is_frozen?: boolean;
-  registered_at: string;
+  created_at: string;
 }
 
-export const Users: React.FC = () => {
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class UsersErrorBoundary extends Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[Users] Render error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert
+          type="error"
+          message="用户列表加载失败"
+          description={this.state.error?.message || '未知错误，请刷新页面重试。'}
+          showIcon
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -177,10 +211,10 @@ export const Users: React.FC = () => {
     },
     {
       title: '注册时间',
-      dataIndex: 'registered_at',
-      key: 'registered_at',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
     {
       title: '操作',
@@ -309,3 +343,9 @@ export const Users: React.FC = () => {
     </div>
   );
 };
+
+export const Users: React.FC = () => (
+  <UsersErrorBoundary>
+    <UsersPage />
+  </UsersErrorBoundary>
+);

@@ -71,11 +71,14 @@ export const Trading: React.FC = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [klineInterval, setKlineInterval] = useState('1m');
+  const [klineError, setKlineError] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
+  const lastKlineTimeRef = useRef<number>(0);
+  const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
 
   useEffect(() => {
     fetchPairs();
@@ -84,9 +87,33 @@ export const Trading: React.FC = () => {
     };
   }, []);
 
+  // Push real-time price tick into the last candle of the chart
+  useEffect(() => {
+    if (!selectedPair || !candleSeriesRef.current || lastKlineTimeRef.current === 0) return;
+    const priceInfo = prices[selectedPair.id];
+    if (!priceInfo || !priceInfo.price) return;
+    const newPrice = priceInfo.price;
+    const lastCandle = lastCandleRef.current;
+    if (!lastCandle) return;
+    const updatedCandle = {
+      time: lastKlineTimeRef.current,
+      open: lastCandle.open,
+      high: Math.max(lastCandle.high, newPrice),
+      low: Math.min(lastCandle.low, newPrice),
+      close: newPrice,
+    };
+    lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: newPrice };
+    try {
+      candleSeriesRef.current.update(updatedCandle);
+    } catch {
+      // ignore chart update errors
+    }
+  }, [prices, selectedPair]);
+
   // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
     if (!selectedPair || !chartContainerRef.current) return;
+    setKlineError(false);
 
     // Destroy old chart if exists
     if (chartRef.current) {
@@ -94,6 +121,7 @@ export const Trading: React.FC = () => {
       chartRef.current = null;
       candleSeriesRef.current = null;
     }
+    lastKlineTimeRef.current = 0;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -127,7 +155,7 @@ export const Trading: React.FC = () => {
       try {
         const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
         const raw: any[] = res.data?.data || [];
-        const data = raw.map((k: any) => ({
+        const candleData = raw.map((k: any) => ({
           time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
           open: Number(k.open),
           high: Number(k.high),
@@ -135,12 +163,16 @@ export const Trading: React.FC = () => {
           close: Number(k.close),
         })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
 
-        if (data.length > 0) {
-          candleSeries.setData(data);
+        if (candleData.length > 0) {
+          candleSeries.setData(candleData);
           chart.timeScale().fitContent();
+          const last = candleData[candleData.length - 1];
+          lastKlineTimeRef.current = last.time;
+          lastCandleRef.current = { open: last.open, high: last.high, low: last.low, close: last.close };
         }
       } catch (err) {
         console.warn('[Trading] Failed to load K-line data:', err);
+        setKlineError(true);
       }
     };
 
@@ -158,6 +190,8 @@ export const Trading: React.FC = () => {
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      lastKlineTimeRef.current = 0;
+      lastCandleRef.current = null;
     };
   }, [selectedPair, klineInterval]);
 
@@ -353,14 +387,31 @@ export const Trading: React.FC = () => {
           ref={chartContainerRef}
           style={{
             width: '100%',
-            height: '200px',
+            height: klineError ? '0px' : '200px',
             borderRadius: '12px',
             overflow: 'hidden',
+            marginBottom: klineError ? '0' : '12px',
+            backgroundColor: theme.bgCard,
+            border: klineError ? 'none' : `1px solid ${theme.border}`,
+          }}
+        />
+        {klineError && (
+          <div style={{
+            width: '100%',
+            height: '60px',
+            borderRadius: '12px',
             marginBottom: '12px',
             backgroundColor: theme.bgCard,
             border: `1px solid ${theme.border}`,
-          }}
-        />
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: theme.textSecondary,
+            fontSize: '13px',
+          }}>
+            📊 暂时无法显示K线图
+          </div>
+        )}
 
         {/* Result banner */}
         {resultMsg && (
