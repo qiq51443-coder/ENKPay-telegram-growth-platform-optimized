@@ -196,6 +196,20 @@ export const en = {
   // Transfer errors
   transfer_invalid_recipient_id: '❌ Invalid recipient ID, please try again',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ Insufficient balance. Your available balance is: {balance} USDT',
+  transfer_insufficient_balance: '❌ Insufficient balance for transfer. Available: {balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ Invalid address format for {network}. Please enter a valid address.',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ Withdrawal Submitted',
+  withdraw_success_order: 'Order ID',
+  withdraw_success_amount: 'Amount',
+  withdraw_success_network: 'Network',
+  withdraw_success_address: 'Address',
+
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *Deposit Credited*\n\n💰 Amount: {amount} USDT\n🌐 Network: {network}\n🔗 TX Hash: `{txHash}`\n\n💳 Current Balance: *{balance} USDT*\n\nThank you for your deposit!',
   withdraw_approved_notify: '✅ *Withdrawal Approved*\n\n💰 Amount: {amount} USDT\n💸 Fee: {fee} USDT\n📤 Actual: {actual} USDT\n📍 To: {address}\n\n💳 Current Balance: *{balance} USDT*',

@@ -191,6 +191,20 @@ export const ar: Record<string, string> = {
   btn_confirm: '✅ تأكيد',
   btn_cancel: '❌ إلغاء',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ رصيد غير كافٍ. رصيدك المتاح: {balance} USDT',
+  transfer_insufficient_balance: '❌ رصيد غير كافٍ للتحويل. المتاح: {balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ صيغة عنوان {network} غير صحيحة. يرجى إدخال عنوان صالح.',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ تم تقديم طلب السحب',
+  withdraw_success_order: 'رقم الطلب',
+  withdraw_success_amount: 'المبلغ',
+  withdraw_success_network: 'الشبكة',
+  withdraw_success_address: 'عنوان السحب',
+
   // Auction (Lucky Draw)
   auction_joined: '🎉 تم الانضمام بنجاح! حظًا موفقًا!',
   auction_won: '🏆 تهانينا! لقد فزت بالسحب!',

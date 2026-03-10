@@ -191,6 +191,20 @@ export const de: Record<string, string> = {
   btn_confirm: '✅ Bestätigen',
   btn_cancel: '❌ Abbrechen',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ Unzureichendes Guthaben. Ihr verfügbares Guthaben beträgt: {balance} USDT',
+  transfer_insufficient_balance: '❌ Unzureichendes Guthaben für Überweisung. Verfügbar: {balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ Ungültiges Adressformat für {network}. Bitte geben Sie eine gültige Adresse ein.',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ Auszahlungsantrag eingereicht',
+  withdraw_success_order: 'Bestell-ID',
+  withdraw_success_amount: 'Betrag',
+  withdraw_success_network: 'Netzwerk',
+  withdraw_success_address: 'Adresse',
+
   // Auction (Lucky Draw)
   auction_joined: '🎉 Erfolgreich teilgenommen! Viel Glück!',
   auction_won: '🏆 Herzlichen Glückwunsch! Sie haben die Verlosung gewonnen!',

@@ -190,6 +190,20 @@ export const zh = {
   btn_confirm: '✅ 确认',
   btn_cancel: '❌ 取消',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ 余额不足。您的可用余额为：{balance} USDT',
+  transfer_insufficient_balance: '❌ 转账余额不足。可用余额：{balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ {network} 地址格式不正确，请输入有效地址。',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ 提现申请已提交',
+  withdraw_success_order: '订单编号',
+  withdraw_success_amount: '提现金额',
+  withdraw_success_network: '网络',
+  withdraw_success_address: '提现地址',
+
   // Auction (Lucky Draw)
   auction_joined: '🎉 参与成功，祝您好运！',
   auction_won: '🏆 恭喜您赢得了夺宝活动！',

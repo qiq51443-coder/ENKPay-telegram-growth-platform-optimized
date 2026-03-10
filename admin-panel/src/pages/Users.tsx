@@ -184,13 +184,14 @@ const UsersPage: React.FC = () => {
       dataIndex: 'balance',
       key: 'balance',
       width: 100,
-      render: (balance: number) => <span style={{ fontFamily: 'monospace' }}>${balance?.toFixed(2) || '0.00'}</span>,
+      render: (balance: any) => <span style={{ fontFamily: 'monospace' }}>${parseFloat(balance || 0).toFixed(2)}</span>,
     },
     {
       title: '红包积分',
       dataIndex: 'red_packet_credits',
       key: 'red_packet_credits',
       width: 100,
+      render: (credits: any) => parseFloat(credits || 0).toFixed(2),
     },
     {
       title: '账号状态',
