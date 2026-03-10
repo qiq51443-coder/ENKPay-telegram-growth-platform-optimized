@@ -671,7 +671,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         let networkButtons: any[] = [];
         try {
           const networksResult = await query(
-            'SELECT id, network_name, network_display FROM deposit_networks WHERE is_active = true ORDER BY sort_order, network_name'
+            'SELECT DISTINCT ON (network_name) id, network_name, network_display FROM deposit_networks WHERE is_active = true ORDER BY network_name, sort_order'
           );
           if (networksResult.rows.length > 0) {
             networkButtons = networksResult.rows.map((n: any) =>

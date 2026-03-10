@@ -41,9 +41,9 @@ router.get('/overview', authenticateAdmin, async (req: AuthRequest, res) => {
       SELECT 
         COALESCE(SUM(amount), 0) as total_rewards,
         COUNT(*) as total_transactions,
-        COALESCE(SUM(amount) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'), 0) as rewards_today,
-        COALESCE(SUM(amount) FILTER (WHERE created_at > NOW() - INTERVAL '7 days'), 0) as rewards_this_week,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as transactions_today
+        COALESCE(SUM(amount) FILTER (WHERE t.created_at > NOW() - INTERVAL '24 hours'), 0) as rewards_today,
+        COALESCE(SUM(amount) FILTER (WHERE t.created_at > NOW() - INTERVAL '7 days'), 0) as rewards_this_week,
+        COUNT(*) FILTER (WHERE t.created_at > NOW() - INTERVAL '24 hours') as transactions_today
       FROM transactions t
       JOIN users u ON t.user_id = u.id
       ${whereClause.replace('bot_id', 'u.bot_id')}

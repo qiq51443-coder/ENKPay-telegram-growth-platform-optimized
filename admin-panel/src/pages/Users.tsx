@@ -58,6 +58,8 @@ export const Users: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch users:', error);
       message.error('获取用户列表失败');
+      setUsers([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
