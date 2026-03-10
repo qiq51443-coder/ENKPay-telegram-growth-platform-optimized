@@ -111,7 +111,7 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 80,
-      render: (id: string) => id.substring(0, 8),
+      render: (id: any) => String(id).substring(0, 8),
     },
     {
       title: '网络名称',
@@ -176,7 +176,7 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
     {
       title: '操作',

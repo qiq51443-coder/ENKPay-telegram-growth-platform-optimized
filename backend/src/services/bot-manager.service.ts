@@ -508,6 +508,36 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     }
   });
 
+  // ── ENK group command (in group/supergroup chats) ─────────────────────────
+  bot.on(message('text'), async (ctx, next) => {
+    try {
+      const chatType = ctx.chat?.type;
+      if (chatType !== 'group' && chatType !== 'supergroup') return next();
+      const text = (ctx.message as any).text?.trim() || '';
+      if (!/^(ENK|\/enk(@\S+)?)$/i.test(text)) return next();
+
+      const telegramId = ctx.from?.id;
+      if (!telegramId) return;
+
+      const userResult = await query(
+        'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2 LIMIT 1',
+        [telegramId, botId]
+      );
+
+      if (userResult.rows.length === 0) {
+        await ctx.reply('您还没有注册，请私信机器人开始使用。');
+        return;
+      }
+
+      const groupUser: User = userResult.rows[0];
+      const lang = resolveUserLang(groupUser, defaultLanguage);
+      const walletCard = await buildWalletCardText(groupUser, lang);
+      await ctx.replyWithHTML(walletCard);
+    } catch (error) {
+      console.error(`[bot ${botId}] ENK group command error:`, error);
+    }
+  });
+
   // ── Text message handler (menu navigation + multi-step state flows) ─────────
   bot.on(message('text'), async (ctx) => {
     try {
@@ -1117,19 +1147,49 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 // Wallet and invite handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Build the unified wallet card text for a user */
+async function buildWalletCardText(user: User, lang: string): Promise<string> {
+  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
+
+  // Fetch fresh data from DB
+  const freshResult = await query(
+    'SELECT balance, wallet_balance, red_packet_credits, account_status FROM users WHERE id = $1',
+    [user.id]
+  );
+  const fresh = freshResult.rows[0] || user;
+  const balance = parseFloat(String(fresh.balance ?? 0)).toFixed(2);
+  const nftBalance = parseFloat(String(fresh.wallet_balance ?? 0)).toFixed(2);
+  const redPacketBalance = parseFloat(String(fresh.red_packet_credits ?? 0)).toFixed(2);
+  const accountStatusKey = (fresh.account_status || user.account_status) === 'active' ? 'account_active' : 'account_pending';
+
+  // Fetch wallet_tip_message from system settings
+  let tipMessage = '';
+  try {
+    const tipResult = await query(
+      `SELECT value FROM system_settings WHERE key = 'wallet_tip_message' LIMIT 1`
+    );
+    tipMessage = tipResult.rows[0]?.value || '';
+    if (typeof tipMessage === 'string') tipMessage = tipMessage.replace(/^"|"$/g, '');
+  } catch {/* non-critical */}
+
+  let text =
+    `💼 <b>${t(lang, 'wallet_title')}</b>\n\n` +
+    `🆔 ID: <code>${displayId}</code>\n` +
+    `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
+    `💎 NFT: <b>${nftBalance} USDT</b>\n` +
+    `🧧 ${t(lang, 'account_red_packet_credits')}: <b>${redPacketBalance}</b>\n` +
+    `📊 ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
+
+  if (tipMessage) {
+    text += `\n💡 ${tipMessage}`;
+  }
+
+  return text;
+}
+
 async function handleWallet(ctx: Context, botId: string, user: User, lang: string) {
   const settings = await getBotSettings(botId);
-  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
-  const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
-  const redPacketCredits = user.red_packet_credits ?? 0;
-  const accountStatusKey = user.account_status === 'active' ? 'account_active' : 'account_pending';
-
-  const walletText =
-    `💼 <b>${t(lang, 'wallet_title')}</b>\n\n` +
-    `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
-    `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
-    `🎁 ${t(lang, 'account_red_packet_credits')}: <b>${redPacketCredits}</b>\n` +
-    `📊 ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
+  const walletText = await buildWalletCardText(user, lang);
 
   const supportButton = settings.support_telegram
     ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]

@@ -15,7 +15,8 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
 
     const result = await query(
       `SELECT id, unique_id, username, first_name, last_name, language_code,
-              balance, telegram_id
+              balance, telegram_id, wallet_balance, red_packet_credits,
+              account_status
        FROM users WHERE telegram_id = $1 LIMIT 1`,
       [telegramId]
     );
@@ -24,7 +25,25 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ success: true, user: result.rows[0] });
+    // Fetch wallet_tip_message from system settings
+    let walletTipMessage = '';
+    try {
+      const tipResult = await query(
+        `SELECT value FROM system_settings WHERE key = 'wallet_tip_message' LIMIT 1`
+      );
+      walletTipMessage = tipResult.rows[0]?.value || '';
+    } catch {/* non-critical */}
+
+    const user = result.rows[0];
+    res.json({
+      success: true,
+      user: {
+        ...user,
+        nft_balance: parseFloat(String(user.wallet_balance ?? 0)),
+        red_packet_balance: parseFloat(String(user.red_packet_credits ?? 0)),
+        wallet_tip_message: walletTipMessage,
+      },
+    });
   } catch (error: any) {
     console.error('Miniapp profile error:', error);
     res.status(500).json({ error: error.message });
