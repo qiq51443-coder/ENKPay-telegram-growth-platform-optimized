@@ -13,6 +13,7 @@ import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { generalLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
+import { waitForDb } from './db';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -126,7 +127,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Start server
 const startServer = async () => {
   try {
-    // Connect to Redis
+    // 1. Wait for DB to become reachable (handles Render cold starts)
+    await waitForDb();
+
+    // 2. Connect to Redis (optional, non-fatal)
     let redisAvailable = false;
     try {
       await connectRedis();
@@ -136,7 +140,7 @@ const startServer = async () => {
       console.warn('⚠ Redis connection failed, continuing without cache:', err);
     }
 
-    // Run database migrations (auto-create all tables)
+    // 3. Run database migrations (auto-create all tables)
     await runMigrations();
 
     // Initialise rate limiters (requires Redis; skipped gracefully if Redis is unavailable)
