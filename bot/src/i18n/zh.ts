@@ -17,7 +17,7 @@ export const zh = {
   feature_invite: '2级邀请奖励',
 
   // Welcome message (legacy)
-  welcome_title: '🎉 欢迎来到增长平台！',
+  welcome_title: '🎉 欢迎来到 ENK Pay！',
   welcome_description: '完成任务，赚取奖励！',
   welcome_register_prompt: '📝 请先在我们的平台注册：',
   welcome_after_register: '注册后，完成以下任务解锁奖励：',

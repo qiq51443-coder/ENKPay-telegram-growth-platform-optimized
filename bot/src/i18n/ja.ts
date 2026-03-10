@@ -17,7 +17,7 @@ export const ja: Record<string, string> = {
   feature_invite: '2段階招待報酬',
 
   // Welcome message (legacy)
-  welcome_title: '🎉 プラットフォームへようこそ！',
+  welcome_title: '🎉 ENK Pay へようこそ！',
   welcome_description: 'タスクを完了して報酬を獲得しましょう！',
   welcome_register_prompt: '📝 まず登録してください：',
   welcome_after_register: '登録後、以下のタスクを完了してください：',
