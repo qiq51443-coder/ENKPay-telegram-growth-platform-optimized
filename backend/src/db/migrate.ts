@@ -5,7 +5,12 @@ import * as path from 'path';
 export async function runMigrations(): Promise<void> {
   console.log('🔄 Running database migrations...');
 
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err: any) {
+    throw new Error(`Migration failed: could not connect to database. ${err.message}`);
+  }
 
   try {
     // Create migrations tracking table if it doesn't exist
