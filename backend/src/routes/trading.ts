@@ -79,12 +79,17 @@ router.get('/pairs/:id/kline', async (req, res) => {
     let klineData;
 
     if (pair.pair_type === 'real' && pair.binance_symbol) {
-      // Fetch real K-line data from Binance
-      klineData = await getKlineData(pair.binance_symbol, intervalStr, limitNum);
-      // Async cache to DB without blocking response
-      cacheKlineData(pairId, intervalStr, klineData).catch((err: any) => {
-        console.error('Failed to cache kline data:', err);
-      });
+      // Fetch real K-line data from Binance; fall back to empty array if unreachable
+      try {
+        klineData = await getKlineData(pair.binance_symbol, intervalStr, limitNum);
+        // Async cache to DB without blocking response
+        cacheKlineData(pairId, intervalStr, klineData).catch((err: any) => {
+          console.error('Failed to cache kline data:', err);
+        });
+      } catch (binanceErr) {
+        console.warn('Binance kline fetch failed, returning empty array:', binanceErr);
+        klineData = [];
+      }
     } else {
       // Return cached K-line data from DB for custom pairs
       klineData = await getCachedKlineData(pairId, intervalStr, limitNum);

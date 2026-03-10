@@ -355,7 +355,9 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
     const balRes = await query('SELECT wallet_balance FROM users WHERE id = $1', [user.id]);
     const balance = parseFloat(String(balRes.rows[0]?.wallet_balance ?? 0));
     if (balance < data.amount) {
-      await ctx.reply(t(lang, 'error'));
+      await ctx.reply(
+        t(lang, 'insufficient_balance').replace('{balance}', balance.toFixed(2))
+      );
       return;
     }
 
@@ -367,8 +369,26 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
       [user.id, networkIdInt, data.amount, data.address, orderId]
     );
 
+    // Resolve network display name
+    let networkName: string = data.networkName || '';
+    if (!networkName && networkIdInt) {
+      try {
+        const netRes = await query('SELECT network_display, network_name FROM deposit_networks WHERE id = $1 LIMIT 1', [networkIdInt]);
+        if (netRes.rows.length > 0) {
+          networkName = netRes.rows[0].network_display || netRes.rows[0].network_name;
+        }
+      } catch {}
+    }
+    if (!networkName) networkName = String(data.networkId || '-');
+
     await ctx.replyWithHTML(
-      `✅ ${t(lang, 'withdraw_success')}\n\n📋 Order: <code>${orderId}</code>`
+      `✅ <b>${t(lang, 'withdraw_success_title')}</b>\n\n` +
+      `┌─────────────────────────\n` +
+      `│ 📋 ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
+      `│ 💰 ${t(lang, 'withdraw_success_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
+      `│ 🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkName}</b>\n` +
+      `│ 📤 ${t(lang, 'withdraw_success_address')}: <code>${data.address}</code>\n` +
+      `└─────────────────────────`
     );
   } catch (err: any) {
     console.error('processWithdrawal error:', err);
@@ -385,7 +405,9 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
     const balRes = await query('SELECT wallet_balance FROM users WHERE id = $1', [user.id]);
     const balance = parseFloat(String(balRes.rows[0]?.wallet_balance ?? 0));
     if (balance < data.amount) {
-      await ctx.reply(t(lang, 'error'));
+      await ctx.reply(
+        t(lang, 'transfer_insufficient_balance').replace('{balance}', balance.toFixed(2))
+      );
       return;
     }
 
@@ -503,6 +525,22 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             const address = text.trim();
             if (!address) {
               await ctx.reply(t(lang, 'error'));
+              return;
+            }
+            // Validate address format based on selected network
+            const networkId: string = state.data?.networkId || '';
+            const net = networkId.toUpperCase();
+            let addressValid = true;
+            if (net === 'TRC' || net.includes('TRC')) {
+              addressValid = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
+            } else if (net === 'BSC' || net === 'ETH' || net.includes('BSC') || net.includes('ETH') || net.includes('ERC')) {
+              addressValid = /^0x[0-9a-fA-F]{40}$/.test(address);
+            }
+            if (!addressValid) {
+              const networkName: string = state.data?.networkName || networkId;
+              await ctx.reply(
+                t(lang, 'invalid_address').replace('{network}', networkName)
+              );
               return;
             }
             setUserState(userId, { step: 'withdraw_enter_amount', data: { ...state.data, address } });
@@ -684,8 +722,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
         if (networkButtons.length === 0) {
           networkButtons = [
-            [Markup.button.callback('TRC20 (USDT)', 'deposit_net_trc')],
-            [Markup.button.callback('ERC20 (USDT)', 'deposit_net_erc')],
+            [Markup.button.callback('TRC20 (USDT)', 'deposit_net_TRC')],
+            [Markup.button.callback('BSC (BEP20)', 'deposit_net_BSC')],
+            [Markup.button.callback('ETH (ERC20)', 'deposit_net_ETH')],
           ];
         }
 
@@ -776,8 +815,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
         if (networkButtons.length === 0) {
           networkButtons = [
-            [Markup.button.callback('TRC20 (USDT)', 'withdraw_net_trc')],
-            [Markup.button.callback('ERC20 (USDT)', 'withdraw_net_erc')],
+            [Markup.button.callback('TRC20 (USDT)', 'withdraw_net_TRC')],
+            [Markup.button.callback('BSC (BEP20)', 'withdraw_net_BSC')],
+            [Markup.button.callback('ETH (ERC20)', 'withdraw_net_ETH')],
           ];
         }
 

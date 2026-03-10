@@ -191,6 +191,20 @@ export const es: Record<string, string> = {
   btn_confirm: '✅ Confirmar',
   btn_cancel: '❌ Cancelar',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ Saldo insuficiente. Tu saldo disponible es: {balance} USDT',
+  transfer_insufficient_balance: '❌ Saldo insuficiente para la transferencia. Disponible: {balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ Formato de dirección inválido para {network}. Por favor ingresa una dirección válida.',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ Solicitud de retiro enviada',
+  withdraw_success_order: 'ID de orden',
+  withdraw_success_amount: 'Monto',
+  withdraw_success_network: 'Red',
+  withdraw_success_address: 'Dirección',
+
   // Auction (Lucky Draw)
   auction_joined: '🎉 ¡Participación exitosa! ¡Buena suerte!',
   auction_won: '🏆 ¡Felicitaciones! ¡Ganaste el sorteo!',

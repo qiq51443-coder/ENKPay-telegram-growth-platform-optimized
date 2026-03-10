@@ -147,7 +147,6 @@ export const handleTransferConfirm = async (ctx: Context) => {
     const state = await getUserState(user.id.toString());
 
     await ctx.answerCbQuery();
-    await clearUserState(user.id.toString());
 
     if (!state?.data) {
       await ctx.reply(t(lang, 'error'));
@@ -155,6 +154,18 @@ export const handleTransferConfirm = async (ctx: Context) => {
     }
 
     const { recipientId, recipientName, recipientUniqueId, recipientTelegramId, recipientLanguage, amount } = state.data;
+
+    // Balance check before proceeding
+    const userBalance = parseFloat(String((user as any).balance || 0));
+    if (userBalance < amount) {
+      await clearUserState(user.id.toString());
+      await ctx.reply(
+        t(lang, 'transfer_insufficient_balance').replace('{balance}', userBalance.toFixed(2))
+      );
+      return;
+    }
+
+    await clearUserState(user.id.toString());
 
     // Processing indicator
     await ctx.reply(t(lang, 'transfer_processing'));
@@ -185,7 +196,7 @@ export const handleTransferConfirm = async (ctx: Context) => {
           const rLang = recipientLanguage || 'en';
           const notifyMsg =
             `${t(rLang, 'transfer_received')}\n\n` +
-            `👤 From: <b>${user.first_name || user.username || '-'}</b>\n` +
+            `👤 From: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
             `💵 Amount: <b>${actualReceived.toFixed(2)} USDT</b>\n\n` +
             `💳 ${t(rLang, 'balance_updated_hint')}`;
           await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
@@ -195,7 +206,15 @@ export const handleTransferConfirm = async (ctx: Context) => {
       }
     } catch (err: any) {
       console.error('Transfer API error:', err);
-      await ctx.reply(err.response?.data?.error || t(lang, 'error'));
+      const apiError: string = err.response?.data?.error || '';
+      if (apiError.toLowerCase().includes('insufficient') || apiError.toLowerCase().includes('balance')) {
+        const currentBalance = parseFloat(String((user as any).balance || 0));
+        await ctx.reply(
+          t(lang, 'transfer_insufficient_balance').replace('{balance}', currentBalance.toFixed(2))
+        );
+      } else {
+        await ctx.reply(apiError || t(lang, 'error'));
+      }
     }
   } catch (error) {
     console.error('Transfer confirm error:', error);

@@ -191,6 +191,20 @@ export const ja: Record<string, string> = {
   btn_confirm: '✅ 確認',
   btn_cancel: '❌ キャンセル',
 
+  // Balance / withdrawal / transfer error messages
+  insufficient_balance: '❌ 残高不足です。利用可能残高：{balance} USDT',
+  transfer_insufficient_balance: '❌ 送金のための残高が不足しています。利用可能：{balance} USDT',
+
+  // Invalid address
+  invalid_address: '❌ {network}のアドレス形式が無効です。有効なアドレスを入力してください。',
+
+  // Withdrawal success card
+  withdraw_success_title: '✅ 出金申請が提出されました',
+  withdraw_success_order: '注文ID',
+  withdraw_success_amount: '金額',
+  withdraw_success_network: 'ネットワーク',
+  withdraw_success_address: 'アドレス',
+
   // Auction (Lucky Draw)
   auction_joined: '🎉 参加成功！幸運を祈ります！',
   auction_won: '🏆 おめでとうございます！抽選に当選しました！',

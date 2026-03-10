@@ -11,6 +11,19 @@ const NETWORKS = [
   { label: 'TRC (TRC20)', id: 'TRC' },
 ];
 
+/** Validate withdrawal address format based on network */
+function validateAddress(address: string, networkId: string): boolean {
+  const trimmed = address.trim();
+  const net = networkId.toUpperCase();
+  if (net === 'TRC' || net.includes('TRC')) {
+    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
+  }
+  if (net === 'BSC' || net === 'ETH' || net.includes('BSC') || net.includes('ETH') || net.includes('ERC')) {
+    return /^0x[0-9a-fA-F]{40}$/.test(trimmed);
+  }
+  return true; // unknown network – allow and let backend validate
+}
+
 function buildNumpad(lang: string, currentInput: string) {
   return Markup.inlineKeyboard([
     [
@@ -84,10 +97,19 @@ export const handleWithdrawEnterAddress = async (ctx: Context, user: any, addres
   try {
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
+    const networkId: string = state?.data?.networkId || '';
+
+    if (!validateAddress(address.trim(), networkId)) {
+      const networkLabel = NETWORKS.find(n => n.id === networkId)?.label || networkId;
+      await ctx.reply(
+        t(lang, 'invalid_address').replace('{network}', networkLabel)
+      );
+      return;
+    }
 
     await setUserState(user.id.toString(), {
       step: 'withdraw_enter_amount',
-      data: { ...state?.data, address },
+      data: { ...state?.data, address: address.trim() },
     });
 
     await ctx.reply(t(lang, 'withdraw_enter_amount'));
@@ -303,17 +325,48 @@ export const handleNumpadConfirm = async (ctx: Context) => {
 async function processWithdrawal(ctx: Context, user: any, lang: string, botId: string, data: any) {
   try {
     await clearUserState(user.id.toString());
+
+    // Client-side balance check before calling backend
+    const userBalance = parseFloat(String(user.balance || 0));
+    if (userBalance < data?.amount) {
+      await ctx.reply(
+        t(lang, 'insufficient_balance').replace('{balance}', userBalance.toFixed(2))
+      );
+      return;
+    }
+
     await ctx.reply(t(lang, 'withdraw_processing'));
 
-    await submitWithdraw(botId, {
+    const result = await submitWithdraw(botId, {
       user_id: user.id,
       network_id: data?.networkId,
       amount: data?.amount,
       to_address: data?.address,
     });
-    await ctx.reply(t(lang, 'withdraw_success'));
+
+    const orderId: string = result?.data?.order_id || result?.order_id || '-';
+    const networkLabel = NETWORKS.find(n => n.id === data?.networkId)?.label || data?.networkId || '-';
+
+    const successMessage =
+      `✅ <b>${t(lang, 'withdraw_success_title')}</b>\n\n` +
+      `┌─────────────────────────\n` +
+      `│ 📋 ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
+      `│ 💰 ${t(lang, 'withdraw_success_amount')}: <b>${Number(data?.amount).toFixed(2)} USDT</b>\n` +
+      `│ 🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkLabel}</b>\n` +
+      `│ 📤 ${t(lang, 'withdraw_success_address')}: <code>${data?.address}</code>\n` +
+      `└─────────────────────────`;
+
+    await ctx.replyWithHTML(successMessage);
   } catch (err: any) {
     console.error('Submit withdrawal error:', err);
-    await ctx.reply(err.response?.data?.error || t(lang, 'error'));
+    const apiError: string = err.response?.data?.error || '';
+    if (apiError.toLowerCase().includes('insufficient') || apiError.toLowerCase().includes('balance')) {
+      const userBalance = parseFloat(String(user.balance || 0));
+      await ctx.reply(
+        t(lang, 'insufficient_balance').replace('{balance}', userBalance.toFixed(2))
+      );
+    } else {
+      await ctx.reply(apiError || t(lang, 'error'));
+    }
   }
 }
