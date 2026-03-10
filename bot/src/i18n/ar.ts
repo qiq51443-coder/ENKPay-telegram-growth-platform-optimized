@@ -17,7 +17,7 @@ export const ar: Record<string, string> = {
   feature_invite: 'مكافآت دعوة مستوى 2',
 
   // Welcome message (legacy)
-  welcome_title: '🎉 مرحبًا بك في المنصة!',
+  welcome_title: '🎉 مرحبًا بك في ENK Pay!',
   welcome_description: 'أكمل المهام واكسب المكافآت!',
   welcome_register_prompt: '📝 يرجى التسجيل أولاً:',
   welcome_after_register: 'بعد التسجيل، أكمل المهام:',

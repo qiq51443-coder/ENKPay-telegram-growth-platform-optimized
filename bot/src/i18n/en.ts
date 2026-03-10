@@ -17,7 +17,7 @@ export const en = {
   feature_invite: '2-Level Invite Rewards',
 
   // Welcome message (legacy)
-  welcome_title: '🎉 Welcome to the Growth Platform!',
+  welcome_title: '🎉 Welcome to ENK Pay!',
   welcome_description: 'Complete tasks and earn rewards!',
   welcome_register_prompt: '📝 Please register on our platform first:',
   welcome_after_register: 'After registration, complete the tasks below to unlock rewards:',
