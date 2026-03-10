@@ -82,7 +82,7 @@ function generateOrderId(): string {
 /** Generate a unique 7-character user ID (avoids ambiguous chars O/0/I/l/1) */
 async function generateUserUniqueId(): Promise<string> {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     let id = '';
     for (let i = 0; i < 7; i++) {
       id += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -143,8 +143,11 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
     if (settingsResult.rows.length > 0 && settingsResult.rows[0].new_user_credits != null) {
       initialCredits = settingsResult.rows[0].new_user_credits;
     }
-  } catch {
-    // bot_settings table may not exist yet — use default
+  } catch (err: any) {
+    // bot_settings table may not exist yet — use default. Log non-table-missing errors.
+    if (!String(err?.message).includes('does not exist')) {
+      console.warn(`[bot ${botId}] Could not read bot_settings:`, err?.message);
+    }
   }
 
   if (existingAnyBot.rows.length > 0) {
@@ -903,7 +906,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         setUserState(user.id, { ...state, data: { ...state.data, passwordInput: current } });
         await ctx.answerCbQuery();
         try {
-          const promptKey = state.step.startsWith('withdraw') ? 'withdraw_enter_password' : 'withdraw_enter_password';
+          const promptKey = 'withdraw_enter_password'; // same key for both withdraw and transfer flows
           const promptText = (state.step === 'withdraw_set_password' || state.step === 'transfer_set_password')
             ? t(lang, 'withdraw_set_password')
             : t(lang, promptKey);

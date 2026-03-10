@@ -91,12 +91,14 @@ CREATE INDEX IF NOT EXISTS idx_user_deposit_addresses_user_id ON user_deposit_ad
 -- 7. withdrawal_records – add order_id column (also in migration 500, kept
 --    here with IF NOT EXISTS for safety)
 -- ─────────────────────────────────────────────────────────────────────────────
+-- order_id VARCHAR(11) matches generateOrderId() in bot-manager.service.ts (11 alphanumeric chars)
 ALTER TABLE withdrawal_records ADD COLUMN IF NOT EXISTS order_id VARCHAR(11) UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_withdrawal_records_order_id ON withdrawal_records(order_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. transfer_records – add order_id column
 -- ─────────────────────────────────────────────────────────────────────────────
+-- order_id VARCHAR(11) matches generateOrderId() in bot-manager.service.ts (11 alphanumeric chars)
 ALTER TABLE transfer_records ADD COLUMN IF NOT EXISTS order_id VARCHAR(11) UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_transfer_records_order_id ON transfer_records(order_id);
 
