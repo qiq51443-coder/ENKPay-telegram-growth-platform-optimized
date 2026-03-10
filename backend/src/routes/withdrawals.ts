@@ -103,7 +103,7 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
 
       // Deduct balance
       await query(
-        'UPDATE users SET balance = balance - $1 WHERE id = $2',
+        'UPDATE users SET balance = balance - $1, wallet_balance = COALESCE(wallet_balance, 0) - $1 WHERE id = $2',
         [withdrawal.amount, withdrawal.user_id]
       );
 

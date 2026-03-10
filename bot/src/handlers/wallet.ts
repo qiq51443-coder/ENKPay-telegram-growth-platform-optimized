@@ -22,7 +22,7 @@ export const handleWallet = async (ctx: Context) => {
     let balanceFetchFailed = false;
     try {
       const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
-        headers: { Authorization: `Bearer ${process.env.BOT_API_KEY}` },
+        headers: { 'X-Bot-Token': botId },
       });
       if (res.data?.user) {
         const u = res.data.user;

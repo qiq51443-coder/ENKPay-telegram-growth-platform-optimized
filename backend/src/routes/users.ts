@@ -437,16 +437,30 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
       [id, req.user?.id, numAmount, type, reason || '']
     );
 
+    // Insert transaction record
+    const updatedUser = result.rows[0];
+    const balanceAfter = parseFloat(String(updatedUser.wallet_balance ?? updatedUser.balance));
+    await query(
+      `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        id,
+        type === 'add' ? 'admin_credit' : 'admin_debit',
+        type === 'add' ? numAmount : -numAmount,
+        balanceAfter,
+        reason || (type === 'add' ? 'Admin balance credit' : 'Admin balance debit'),
+      ]
+    );
+
     // Notify user via Telegram bot
     try {
-      const updatedUser = result.rows[0];
       if (updatedUser.bot_id && updatedUser.telegram_id) {
         const botResult = await query('SELECT token FROM bots WHERE id = $1', [updatedUser.bot_id]);
         if (botResult.rows.length > 0) {
           const token = botResult.rows[0].token;
-          const newBalance = parseFloat(String(updatedUser.wallet_balance ?? updatedUser.balance)).toFixed(2);
+          const newBalance = balanceAfter.toFixed(2);
           const changeText = type === 'add' ? `+${numAmount.toFixed(2)}` : `-${numAmount.toFixed(2)}`;
-          const msgText = `💰 您的账户余额已被管理员调整\n变动金额: <b>${changeText} USDT</b>\n当前余额: <b>${newBalance} USDT</b>${reason ? `\n备注: ${reason}` : ''}`;
+          const msgText = `💰 Your account balance has been adjusted by an admin\nChange: <b>${changeText} USDT</b>\nCurrent balance: <b>${newBalance} USDT</b>${reason ? `\nNote: ${reason}` : ''}`;
           await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
             chat_id: updatedUser.telegram_id,
             text: msgText,
