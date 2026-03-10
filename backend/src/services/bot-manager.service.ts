@@ -107,12 +107,12 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
     [tgUser.id, botId]
   );
   if (existing.rows.length > 0) {
-    // Update username/name if changed
-    await query(
-      'UPDATE users SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW() WHERE id = $4',
+    // Update username/name if changed and return fresh data (including latest balance)
+    const updated = await query(
+      'UPDATE users SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW() WHERE id = $4 RETURNING *',
       [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, existing.rows[0].id]
     );
-    return existing.rows[0];
+    return updated.rows[0];
   }
 
   // Check if user exists for ANY other bot (cross-bot unification)
@@ -535,6 +535,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       await ctx.replyWithHTML(walletCard);
     } catch (error) {
       console.error(`[bot ${botId}] ENK group command error:`, error);
+      return next(); // IMPORTANT: call next() on error so private chat handlers still run
     }
   });
 
@@ -1153,12 +1154,13 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
 
   // Fetch fresh data from DB
   const freshResult = await query(
-    'SELECT balance, wallet_balance, red_packet_credits, account_status FROM users WHERE id = $1',
+    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, account_status FROM users WHERE id = $1',
     [user.id]
   );
   const fresh = freshResult.rows[0] || user;
-  const balance = parseFloat(String(fresh.balance ?? 0)).toFixed(2);
-  const nftBalance = parseFloat(String(fresh.wallet_balance ?? 0)).toFixed(2);
+  // wallet_balance is the operational balance used for transfers/withdrawals
+  const balance = parseFloat(String(fresh.wallet_balance ?? fresh.balance ?? 0)).toFixed(2);
+  const nftBalance = parseFloat(String(fresh.nft_balance ?? 0)).toFixed(2);
   const redPacketBalance = parseFloat(String(fresh.red_packet_credits ?? 0)).toFixed(2);
   const accountStatusKey = (fresh.account_status || user.account_status) === 'active' ? 'account_active' : 'account_pending';
 
@@ -1223,7 +1225,20 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
   }
   botUsername = botUsername || 'your_bot';
 
-  const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || user.invite_code;
+  let displayId: string | undefined;
+  try {
+    const primaryId = await getPrimaryUniqueId(user.telegram_id);
+    displayId = primaryId || undefined;
+  } catch (err) {
+    console.error(`[bot ${botId}] getPrimaryUniqueId error:`, err);
+  }
+  displayId = displayId || user.unique_id || user.robot_user_id || user.invite_code;
+
+  if (!displayId) {
+    await ctx.reply(t(lang, 'error'));
+    return;
+  }
+
   const inviteLink = `https://t.me/${botUsername}?start=REF_${displayId}`;
   const shareText = `${t(lang, 'invite_title')}\n\n${t(lang, 'invite_description')}\n\n${inviteLink}`;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;

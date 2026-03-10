@@ -414,9 +414,15 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
 
     const delta = type === 'add' ? numAmount : -numAmount;
 
-    // delta is negative for subtract operations; the (balance + $1) >= 0 check prevents negative balances
+    // delta is negative for subtract operations; both balance >= 0 checks prevent negative balances
     const result = await query(
-      'UPDATE users SET balance = balance + $1 WHERE id = $2 AND (balance + $1) >= 0 RETURNING *',
+      `UPDATE users
+       SET balance = balance + $1,
+           wallet_balance = COALESCE(wallet_balance, 0) + $1
+       WHERE id = $2
+         AND (balance + $1) >= 0
+         AND (COALESCE(wallet_balance, 0) + $1) >= 0
+       RETURNING *`,
       [delta, id]
     );
 
@@ -438,7 +444,7 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
         const botResult = await query('SELECT token FROM bots WHERE id = $1', [updatedUser.bot_id]);
         if (botResult.rows.length > 0) {
           const token = botResult.rows[0].token;
-          const newBalance = parseFloat(String(updatedUser.balance)).toFixed(2);
+          const newBalance = parseFloat(String(updatedUser.wallet_balance ?? updatedUser.balance)).toFixed(2);
           const changeText = type === 'add' ? `+${numAmount.toFixed(2)}` : `-${numAmount.toFixed(2)}`;
           const msgText = `💰 您的账户余额已被管理员调整\n变动金额: <b>${changeText} USDT</b>\n当前余额: <b>${newBalance} USDT</b>${reason ? `\n备注: ${reason}` : ''}`;
           await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
