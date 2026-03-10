@@ -286,7 +286,7 @@ router.get('/:id/transactions', async (req, res) => {
 });
 
 // Get users invited by this user
-router.get('/:id/invitees', authenticateAdmin, async (req: AuthRequest, res) => {
+router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
