@@ -15,7 +15,7 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
 
     const result = await query(
       `SELECT id, unique_id, username, first_name, last_name, language_code,
-              balance, telegram_id, wallet_balance, red_packet_credits,
+              balance, telegram_id, wallet_balance, nft_balance, red_packet_credits,
               account_status
        FROM users WHERE telegram_id = $1 LIMIT 1`,
       [telegramId]
@@ -39,7 +39,9 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
       success: true,
       user: {
         ...user,
-        nft_balance: parseFloat(String(user.wallet_balance ?? 0)),
+        // wallet_balance is the canonical operational balance (used for transfers/withdrawals)
+        balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
+        nft_balance: parseFloat(String(user.nft_balance ?? 0)),
         red_packet_balance: parseFloat(String(user.red_packet_credits ?? 0)),
         wallet_tip_message: walletTipMessage,
       },

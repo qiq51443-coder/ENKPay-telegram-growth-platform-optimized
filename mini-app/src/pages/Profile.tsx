@@ -8,6 +8,7 @@ import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
 interface UserProfile {
   unique_id: string;
   balance: number;
+  wallet_balance?: number;
   nft_balance?: number;
   red_packet_balance?: number;
   red_packet_credits?: number;
@@ -136,6 +137,24 @@ export const Profile: React.FC = () => {
   useEffect(() => {
     if (initData) {
       fetchProfile();
+
+      // Re-fetch when user returns to the page (tab focus / visibility change)
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          fetchProfile();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Also poll every 30 seconds while visible
+      const interval = setInterval(() => {
+        if (!document.hidden) fetchProfile();
+      }, 30000);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        clearInterval(interval);
+      };
     } else {
       setLoading(false);
     }
@@ -256,9 +275,18 @@ export const Profile: React.FC = () => {
         </div>
 
         <div style={{ textAlign: 'center', paddingTop: '8px', borderTop: `1px solid ${theme.border}` }}>
-          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '4px' }}>{t('account_balance')}</div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ color: theme.textSecondary, fontSize: '12px' }}>{t('account_balance')}</div>
+            <button
+              onClick={fetchProfile}
+              style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '14px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+              title="Refresh"
+            >
+              🔄
+            </button>
+          </div>
           <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '24px' }}>
-            ${parseFloat(String(profile?.balance || 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
+            ${parseFloat(String(profile?.wallet_balance ?? profile?.balance ?? 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
           </div>
         </div>
 
