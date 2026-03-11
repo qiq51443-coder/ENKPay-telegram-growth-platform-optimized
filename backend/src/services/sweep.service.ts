@@ -84,7 +84,7 @@ export async function deriveTronPrivateKey(
  * Sweep ERC-20 tokens from a user deposit address to the hot wallet.
  *
  * Returns the tx hash on success, or null if there was nothing to sweep
- * (zero balance or insufficient ETH/BNB for gas).
+ * (zero balance, insufficient ETH/BNB for gas, or invalid hot wallet address).
  */
 export async function sweepEthAddress(
   fromAddress: string,
@@ -95,6 +95,12 @@ export async function sweepEthAddress(
 ): Promise<string | null> {
   if (!ethers) {
     console.warn('ethers not available — skipping ETH sweep');
+    return null;
+  }
+
+  // Validate hot wallet address format: 0x + 40 hex chars
+  if (!/^0x[0-9a-fA-F]{40}$/.test(toAddress)) {
+    console.warn(`Invalid hot wallet ETH address format: ${toAddress}. Skipping sweep.`);
     return null;
   }
 
@@ -109,10 +115,20 @@ export async function sweepEthAddress(
 
   // Check that the address has enough native coin for gas
   const nativeBalance: bigint = await provider.getBalance(fromAddress);
-  const gasEstimate = await token.transfer.estimateGas(toAddress, balance);
-  const feeData = await provider.getFeeData();
-  const gasPrice = feeData.gasPrice || 0n;
-  const gasCost = gasEstimate * gasPrice;
+
+  let gasEstimate: bigint;
+  let gasCost: bigint;
+  try {
+    gasEstimate = await token.transfer.estimateGas(toAddress, balance);
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice || 0n;
+    gasCost = gasEstimate * gasPrice;
+  } catch (err: any) {
+    console.warn(
+      `Gas estimation failed for ${fromAddress}: ${err.message || String(err)}. Skipping sweep.`
+    );
+    return null;
+  }
 
   if (nativeBalance < gasCost) {
     console.warn(
@@ -141,6 +157,12 @@ export async function sweepTronAddress(
 ): Promise<string | null> {
   if (!TronWeb) {
     console.warn('tronweb not available — skipping Tron sweep');
+    return null;
+  }
+
+  // Validate hot wallet TRON address format: T + 33 Base58 chars = 34 chars total
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(toAddress)) {
+    console.warn(`Invalid hot wallet TRON address format: ${toAddress}. Skipping sweep.`);
     return null;
   }
 
