@@ -18,7 +18,7 @@ interface Withdrawal {
     telegram_id: number;
     username?: string;
     first_name?: string;
-    balance: number;
+    wallet_balance: number;
   };
 }
 
@@ -124,7 +124,7 @@ export const Withdrawals: React.FC = () => {
       width: 100,
       render: (_: any, record: Withdrawal) => (
         <span style={{ fontFamily: 'monospace' }}>
-          ${record.user?.balance?.toFixed(2) || '0.00'}
+          ${record.user?.wallet_balance?.toFixed(2) || '0.00'}
         </span>
       ),
     },
@@ -261,7 +261,7 @@ export const Withdrawals: React.FC = () => {
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: '#666', marginBottom: 4 }}>用户余额</div>
               <div style={{ fontFamily: 'monospace' }}>
-                ${selectedWithdrawal.user?.balance?.toFixed(2) || '0.00'}
+                ${selectedWithdrawal.user?.wallet_balance?.toFixed(2) || '0.00'}
               </div>
             </div>
             <div>

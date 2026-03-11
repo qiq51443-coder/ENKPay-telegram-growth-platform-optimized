@@ -11,6 +11,10 @@ import { generateOrderId } from '../utils/orderId';
 
 const router = express.Router();
 
+// Withdraw password security settings
+const WITHDRAW_PASSWORD_MAX_ATTEMPTS = 5;
+const WITHDRAW_PASSWORD_LOCK_MINUTES = 15;
+
 // Apply rate limiting to all wallet routes
 router.use(walletLimiter);
 
@@ -29,6 +33,29 @@ router.get('/networks', authenticateBot, async (req: AuthRequest, res) => {
     res.json({ success: true, data: result.rows });
   } catch (error: any) {
     console.error('Get networks error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/wallet/networks/:id
+ * Get a single deposit network by id (for bot efficiency — avoids fetching full list)
+ */
+router.get('/networks/:id', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT id, network_name, network_display, chain_name, min_deposit_amount, is_active
+       FROM deposit_networks
+       WHERE id = $1 AND is_active = true`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Network not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Get network error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -166,27 +193,44 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid transfer amount' });
     }
 
-    // Validate transfer
+    // Validate transfer (amount/format checks only — balance re-checked inside transaction)
     const validation = await validateTransfer(from_user_id, transferAmount);
     if (!validation.valid) {
       return res.status(400).json({ error: validation.error });
     }
 
-    // Find recipient user by robot_user_id or username
+    // Get sender's bot_id to restrict recipient search to the same bot
+    const senderBotResult = await query(
+      `SELECT bot_id FROM users WHERE id = $1`,
+      [from_user_id]
+    );
+    if (senderBotResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Sender not found' });
+    }
+    const senderBotId = senderBotResult.rows[0].bot_id;
+
+    // Find recipient user by robot_user_id or username, restricted to the same bot
     const recipientResult = await query(
       `SELECT id, telegram_id, username, first_name 
        FROM users 
-       WHERE robot_user_id = $1 OR username = $1`,
-      [to_identifier]
+       WHERE (robot_user_id = $1 OR username = $1) AND bot_id = $2`,
+      [to_identifier, senderBotId]
     );
 
     if (recipientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Recipient user not found' });
     }
 
+    // Guard against duplicate usernames across edge cases
+    if (recipientResult.rows.length > 1) {
+      return res.status(400).json({
+        error: 'Ambiguous recipient: multiple users found with that identifier. Please use a unique ID.',
+      });
+    }
+
     const recipient = recipientResult.rows[0];
 
-    if (recipient.id === from_user_id) {
+    if (String(recipient.id) === String(from_user_id)) {
       return res.status(400).json({ error: 'Cannot transfer to yourself' });
     }
 
@@ -205,6 +249,17 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
 
     // Perform transfer in transaction
     await transaction(async (client) => {
+      // Lock sender row and re-validate balance inside the transaction (prevents double-spend)
+      const senderRow = await client.query(
+        `SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`,
+        [from_user_id]
+      );
+      if (senderRow.rows.length === 0) throw new Error('Sender not found');
+      const senderBalance = parseFloat(senderRow.rows[0].wallet_balance) || 0;
+      if (senderBalance < totalCost) {
+        throw new Error(`Insufficient balance. Available: ${senderBalance.toFixed(2)} USDT, Required: ${totalCost.toFixed(2)} USDT`);
+      }
+
       // Deduct from sender
       await client.query(
         `UPDATE users 
@@ -360,6 +415,17 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
 
     // Create withdrawal record and freeze balance
     const result = await transaction(async (client) => {
+      // Lock user row and re-validate balance inside transaction (prevents double-spend)
+      const userRow = await client.query(
+        `SELECT wallet_balance, frozen_balance FROM users WHERE id = $1 FOR UPDATE`,
+        [user_id]
+      );
+      if (userRow.rows.length === 0) throw new Error('User not found');
+      const availBalance = parseFloat(userRow.rows[0].wallet_balance) || 0;
+      if (availBalance < totalCost) {
+        throw new Error(`Insufficient balance. Available: ${availBalance.toFixed(2)} USDT, Required: ${totalCost.toFixed(2)} USDT`);
+      }
+
       // Deduct from wallet_balance and add to frozen_balance
       await client.query(
         `UPDATE users 
@@ -576,8 +642,8 @@ router.post('/withdraw-password', authenticateBot, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'user_id and password are required' });
     }
 
-    if (!/^\d{4}$/.test(password)) {
-      return res.status(400).json({ error: 'Password must be exactly 4 digits' });
+    if (!/^\d{6,}$/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 6 digits' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -612,7 +678,8 @@ router.post('/verify-withdraw-password', authenticateBot, async (req: AuthReques
     }
 
     const result = await query(
-      `SELECT withdraw_password FROM users WHERE id = $1`,
+      `SELECT withdraw_password, withdraw_password_attempts, withdraw_password_locked_until
+       FROM users WHERE id = $1`,
       [user_id]
     );
 
@@ -620,12 +687,42 @@ router.post('/verify-withdraw-password', authenticateBot, async (req: AuthReques
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const storedHash = result.rows[0].withdraw_password;
+    const { withdraw_password: storedHash, withdraw_password_attempts, withdraw_password_locked_until } = result.rows[0];
+
+    // Check lockout
+    if (withdraw_password_locked_until && new Date(withdraw_password_locked_until) > new Date()) {
+      const remaining = Math.ceil((new Date(withdraw_password_locked_until).getTime() - Date.now()) / 60000);
+      return res.status(429).json({ valid: false, error: `Account locked due to too many failed attempts. Try again in ${remaining} minute(s).` });
+    }
+
     if (!storedHash) {
       return res.json({ valid: false });
     }
 
     const valid = await bcrypt.compare(password, storedHash);
+
+    if (!valid) {
+      const attempts = (withdraw_password_attempts || 0) + 1;
+      if (attempts >= WITHDRAW_PASSWORD_MAX_ATTEMPTS) {
+        const lockedUntil = new Date(Date.now() + WITHDRAW_PASSWORD_LOCK_MINUTES * 60 * 1000);
+        await query(
+          `UPDATE users SET withdraw_password_attempts = $1, withdraw_password_locked_until = $2 WHERE id = $3`,
+          [attempts, lockedUntil, user_id]
+        );
+        return res.status(429).json({ valid: false, error: `Too many failed attempts. Account locked for ${WITHDRAW_PASSWORD_LOCK_MINUTES} minutes.` });
+      }
+      await query(
+        `UPDATE users SET withdraw_password_attempts = $1 WHERE id = $2`,
+        [attempts, user_id]
+      );
+    } else {
+      // Reset on success
+      await query(
+        `UPDATE users SET withdraw_password_attempts = 0, withdraw_password_locked_until = NULL WHERE id = $1`,
+        [user_id]
+      );
+    }
+
     res.json({ valid });
   } catch (error: any) {
     console.error('Verify withdraw password error:', error);

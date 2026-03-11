@@ -4,6 +4,12 @@ import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
 import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
+/**
+ * @deprecated This router operates on the legacy `withdrawals` table.
+ * New withdrawal requests are stored in `withdrawal_records` and managed via
+ * `wallet-admin.ts` (`/api/admin/wallet/withdrawals`).
+ * This route is kept for backwards compatibility with the admin panel.
+ */
 const router = express.Router();
 
 // Get all withdrawals
@@ -14,7 +20,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     let queryText = `
       SELECT w.*, 
-        u.telegram_id, u.username, u.first_name, u.balance as user_balance,
+        u.telegram_id, u.username, u.first_name, u.wallet_balance as user_balance,
         b.name as bot_name
       FROM withdrawals w
       JOIN users u ON w.user_id = u.id
@@ -47,7 +53,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
         telegram_id: row.telegram_id,
         username: row.username,
         first_name: row.first_name,
-        balance: row.user_balance
+        wallet_balance: row.user_balance,
       }
     }));
 
