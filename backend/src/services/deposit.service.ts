@@ -18,6 +18,22 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
 // exposure window. Ensure the process is not core-dumped in production.
 const mnemonicCache = new Map<number, string>();
 
+/**
+ * Clear the in-memory mnemonic cache.
+ * Must be called whenever a network's hd_mnemonic is created or updated via the
+ * admin panel so that the next address derivation picks up the fresh mnemonic.
+ *
+ * @param networkId - If provided, only that network's entry is cleared.
+ *                    If omitted, the entire cache is cleared.
+ */
+export function clearMnemonicCache(networkId?: number): void {
+  if (networkId !== undefined) {
+    mnemonicCache.delete(networkId);
+  } else {
+    mnemonicCache.clear();
+  }
+}
+
 // Try to import crypto libraries
 let ethers: any = null;
 let TronWeb: any = null;

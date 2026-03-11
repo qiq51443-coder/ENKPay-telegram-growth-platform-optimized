@@ -1,7 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
-import { encrypt, decrypt, addManualDepositAddress } from '../services/deposit.service';
+import { encrypt, decrypt, addManualDepositAddress, clearMnemonicCache } from '../services/deposit.service';
 import TelegramAPI from '../utils/telegram';
 import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
@@ -17,7 +17,8 @@ router.get('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       `SELECT 
          id, network_name, network_display, chain_name, currency,
          master_address, hd_derivation_path, min_confirmations,
-         scan_interval_seconds, min_deposit_amount, deposit_fee,
+         scan_interval_seconds, min_deposit_amount, max_deposit_amount, deposit_fee,
+         contract_address, decimals,
          is_active, sort_order, explorer_url, created_at, updated_at
        FROM deposit_networks
        ORDER BY sort_order, id`
@@ -95,8 +96,9 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       `INSERT INTO deposit_networks 
        (network_name, network_display, chain_name, currency, master_address,
         hd_derivation_path, hd_mnemonic_encrypted, min_confirmations,
-        scan_interval_seconds, min_deposit_amount, deposit_fee, explorer_url, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        scan_interval_seconds, min_deposit_amount, max_deposit_amount, deposit_fee,
+        contract_address, decimals, explorer_url, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         network_name,
@@ -109,7 +111,10 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
         min_confirmations,
         scan_interval_seconds,
         min_deposit_amount,
+        max_deposit_amount || null,
         deposit_fee,
+        contract_address || null,
+        decimal_places !== undefined ? Number(decimal_places) : null,
         explorer_url,
         resolvedSortOrder,
       ]
@@ -117,14 +122,14 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const network = result.rows[0];
 
+    // Clear mnemonic cache so the next derivation picks up the new mnemonic
+    if (encryptedMnemonic && network.id) {
+      clearMnemonicCache(Number(network.id));
+    }
+
     res.json({
       success: true,
-      data: {
-        ...network,
-        contract_address: contract_address || null,
-        decimal_places: decimal_places || null,
-        max_deposit_amount: max_deposit_amount || null,
-      },
+      data: network,
       message: 'Deposit network created successfully',
     });
   } catch (error: any) {
@@ -150,7 +155,10 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       'min_confirmations',
       'scan_interval_seconds',
       'min_deposit_amount',
+      'max_deposit_amount',
       'deposit_fee',
+      'contract_address',
+      'decimals',
       'is_active',
       'sort_order',
       'explorer_url',
@@ -162,6 +170,13 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
         params.push(req.body[field]);
         paramCount++;
       }
+    }
+
+    // Accept decimal_places as an alias for the decimals column
+    if (req.body.decimal_places !== undefined && req.body.decimals === undefined) {
+      updateFields.decimals = `$${paramCount}`;
+      params.push(Number(req.body.decimal_places));
+      paramCount++;
     }
 
     if (req.body.hd_mnemonic) {
@@ -189,6 +204,12 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Network not found' });
+    }
+
+    // Clear mnemonic cache whenever the mnemonic is updated so the next
+    // address derivation picks up the fresh value.
+    if (req.body.hd_mnemonic) {
+      clearMnemonicCache(Number(id));
     }
 
     res.json({
