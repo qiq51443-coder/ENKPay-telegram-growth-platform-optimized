@@ -1,5 +1,5 @@
 import { Context } from 'telegraf';
-import { getOrCreateUser, getUserLanguage } from '../services/user';
+import { getOrCreateUser } from '../services/user';
 import { handleInvite } from './invite';
 import { handleWallet } from './wallet';
 import { handleStart } from './start';
@@ -22,7 +22,7 @@ export const handleMenu = async (ctx: Context) => {
       user = await getOrCreateUser(ctx, botId);
     } catch (userError) {
       console.error('Menu handler: getOrCreateUser failed:', userError);
-      return;
+      // Continue without user - handleWallet will use fallback
     }
 
     const text = ctx.message.text;
@@ -35,7 +35,7 @@ export const handleMenu = async (ctx: Context) => {
     };
 
     if (buttons.wallet.includes(text)) {
-      await handleWallet(ctx);
+      await handleWallet(ctx, user);
     } else if (buttons.invite.includes(text)) {
       await handleInvite(ctx);
     } else if (buttons.back.includes(text)) {
@@ -43,6 +43,5 @@ export const handleMenu = async (ctx: Context) => {
     }
   } catch (error) {
     console.error('Menu handler error:', error);
-    await ctx.reply(t('en', 'error'));
   }
 };

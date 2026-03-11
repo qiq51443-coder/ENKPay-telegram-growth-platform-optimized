@@ -1,35 +1,66 @@
 import { Context, Markup } from 'telegraf';
-import { getOrCreateUser, getUserLanguage } from '../services/user';
+import { getOrCreateUser, getUserLanguage, User } from '../services/user';
 import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 import axios from 'axios';
 
-export const handleWallet = async (ctx: Context) => {
+export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
   try {
     if (!ctx.from) return;
 
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
 
-    const user = await getOrCreateUser(ctx, botId);
+    // Use preloaded user if available; otherwise fetch; fall back to ctx.from on failure
+    let user: User | undefined = preloadedUser;
+    if (!user) {
+      try {
+        user = await getOrCreateUser(ctx, botId);
+      } catch (err) {
+        console.error('[handleWallet] getOrCreateUser failed, using fallback:', err);
+        user = {
+          id: String(ctx.from.id),
+          bot_id: botId,
+          telegram_id: ctx.from.id,
+          username: ctx.from.username,
+          first_name: ctx.from.first_name,
+          language_code: ctx.from.language_code || 'en',
+          robot_user_id: String(ctx.from.id),
+          invite_code: '',
+          balance: 0,
+          platform_bound: false,
+          platform_status: 'pending',
+          account_status: 'active',
+          channel_followed: false,
+          group_joined: false,
+          follow_reward_unlocked: false,
+          bind_reward_unlocked: false,
+          red_packet_credits: 0,
+          registered_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        } as User;
+      }
+    }
+
     const lang = getUserLanguage(user);
 
     // Fetch latest balance details from backend
-    let balance = Number(user.balance) || 0;
-    let rewardBalance = Number(user.reward_balance) || 0;
-    let frozenBalance = Number(user.frozen_balance) || 0;
+    let balance = parseFloat(String(user.balance)) || 0;
+    let rewardBalance = parseFloat(String(user.reward_balance ?? 0)) || 0;
     let nftHoldings = 0;
     let balanceFetchFailed = false;
     try {
+      const botToken = process.env.BOT_TOKEN || botId;
       const res = await axios.get(`${backendUrl}/api/users/telegram/${ctx.from.id}`, {
-        headers: { 'X-Bot-Token': botId },
+        headers: { 'X-Bot-Token': botToken },
+        timeout: 5000,
       });
       if (res.data?.user) {
         const u = res.data.user;
-        if (u.balance !== undefined) balance = parseFloat(u.balance);
-        if (u.reward_balance !== undefined) rewardBalance = parseFloat(u.reward_balance);
-        if (u.frozen_balance !== undefined) frozenBalance = parseFloat(u.frozen_balance);
-        if (u.nft_holdings_value !== undefined) nftHoldings = parseFloat(u.nft_holdings_value);
+        if (u.wallet_balance !== undefined) balance = parseFloat(String(u.wallet_balance)) || 0;
+        else if (u.balance !== undefined) balance = parseFloat(String(u.balance)) || 0;
+        if (u.reward_balance !== undefined) rewardBalance = parseFloat(String(u.reward_balance)) || 0;
+        if (u.nft_holdings_value !== undefined) nftHoldings = parseFloat(String(u.nft_holdings_value)) || 0;
       }
     } catch {
       balanceFetchFailed = true;
@@ -42,9 +73,10 @@ export const handleWallet = async (ctx: Context) => {
       supportUsername = settings?.support_telegram || '';
     } catch {}
 
+    const displayId = user.unique_id || user.robot_user_id || String(ctx.from.id);
     const message =
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
-      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
+      `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
       `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
       `🎁 ${t(lang, 'redpacket_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
       `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n` +
@@ -72,6 +104,8 @@ export const handleWallet = async (ctx: Context) => {
     ]));
   } catch (error) {
     console.error('Wallet handler error:', error);
-    await ctx.reply(t('en', 'error'));
+    try {
+      await ctx.reply(t('en', 'error'));
+    } catch {}
   }
 };

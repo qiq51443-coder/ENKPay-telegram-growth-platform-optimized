@@ -74,14 +74,23 @@ export const UserDetail: React.FC = () => {
   const handleUpdateBalance = async () => {
     try {
       const values = await form.validateFields();
-      const amount = parseFloat(values.amount);
-      if (isNaN(amount) || amount === 0) {
-        message.error('请输入有效金额');
+      const addAmount = parseFloat(values.add_amount || '0') || 0;
+      const subtractAmount = parseFloat(values.subtract_amount || '0') || 0;
+
+      if (addAmount === 0 && subtractAmount === 0) {
+        message.error('请输入增加或减少金额');
         return;
       }
-      const type = amount > 0 ? 'add' : 'subtract';
+      if (addAmount > 0 && subtractAmount > 0) {
+        message.error('不能同时填写增加和减少金额');
+        return;
+      }
+
+      const amount = addAmount > 0 ? addAmount : subtractAmount;
+      const type = addAmount > 0 ? 'add' : 'subtract';
+
       await apiClient.adjustBalance(id!, {
-        amount: Math.abs(amount),
+        amount,
         type,
         reason: values.reason || '',
       });
@@ -329,16 +338,37 @@ export const UserDetail: React.FC = () => {
         cancelText="取消"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
+          <Descriptions bordered column={1} size="small" style={{ marginBottom: 16 }}>
+            <Descriptions.Item label="当前余额">
+              <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>
+                ${balance.toFixed(2)} USDT
+              </span>
+            </Descriptions.Item>
+          </Descriptions>
           <Form.Item
-            name="amount"
-            label="调整金额"
-            rules={[{ required: true, message: '请输入调整金额' }]}
-            extra="正数为增加，负数为减少"
+            name="add_amount"
+            label="增加余额 (USDT)"
+            extra="输入要增加的金额（正数）"
           >
             <InputNumber
               style={{ width: '100%' }}
+              min={0}
               step={0.01}
-              placeholder="例如: 10 或 -5"
+              precision={2}
+              placeholder="例如: 10.00"
+            />
+          </Form.Item>
+          <Form.Item
+            name="subtract_amount"
+            label="减少余额 (USDT)"
+            extra="输入要减少的金额（正数）"
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              step={0.01}
+              precision={2}
+              placeholder="例如: 5.00"
             />
           </Form.Item>
           <Form.Item name="reason" label="备注">

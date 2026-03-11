@@ -166,7 +166,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
         if (data === 'wallet_back') {
           await handleStart(ctx);
         } else {
-          await handleWallet(ctx);
+          await handleWallet(ctx, user);
         }
         return;
       }
