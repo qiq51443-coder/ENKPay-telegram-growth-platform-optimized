@@ -153,6 +153,7 @@ export const zh = {
 
   // Deposit flow
   select_network: '请选择网络',
+  no_networks_configured: '当前暂无可用网络，请联系管理员配置充值网络。',
   deposit_address: '充值地址',
   copy_address: '📋 复制地址',
   deposit_address_hint: '请向此地址转入USDT',
