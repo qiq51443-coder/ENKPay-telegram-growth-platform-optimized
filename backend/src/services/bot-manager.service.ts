@@ -113,7 +113,20 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
       'UPDATE users SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW() WHERE id = $4 RETURNING *',
       [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, existing.rows[0].id]
     );
-    return updated.rows[0];
+    const user = updated.rows[0];
+    // Backfill unique_id for canonical rows that are missing it (users registered before migration 902)
+    if (!user.unique_id) {
+      try {
+        const newUniqueId = await generateUserUniqueId();
+        await query('UPDATE users SET unique_id = $1 WHERE id = $2 AND unique_id IS NULL', [newUniqueId, user.id]);
+        // Re-read from DB to get the actual stored value (another concurrent request may have set it first)
+        const refreshed = await query('SELECT unique_id FROM users WHERE id = $1', [user.id]);
+        user.unique_id = refreshed.rows[0]?.unique_id ?? null;
+      } catch (err: any) {
+        console.warn(`[bot ${botId}] Failed to backfill unique_id for user ${user.id}:`, err?.message);
+      }
+    }
+    return user;
   }
 
   // Check if user exists for ANY other bot (cross-bot unification)

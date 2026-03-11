@@ -64,11 +64,15 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     }
 
     // Calculate reward unlock progress
-    const configResult = await query(
-      `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
-    );
-    const rewardTradeRatio = configResult.rows.length > 0
-      ? parseFloat(configResult.rows[0].value) : 1.0;
+    let rewardTradeRatio = 1.0;
+    try {
+      const configResult = await query(
+        `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
+      );
+      if (configResult.rows.length > 0) {
+        rewardTradeRatio = parseFloat(configResult.rows[0].value) || 1.0;
+      }
+    } catch {/* platform_config table may not exist — use default ratio */}
     const rewardBal = parseFloat(String(user.reward_balance ?? 0));
     const rewardTraded = parseFloat(String(user.reward_unlock_traded ?? 0));
     const rewardUnlockRequired = rewardBal * rewardTradeRatio;
