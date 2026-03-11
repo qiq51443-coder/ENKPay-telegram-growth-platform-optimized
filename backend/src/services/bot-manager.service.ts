@@ -698,6 +698,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       }
     } catch (error) {
       console.error(`[bot ${botId}] Text message error:`, error);
+      try { await ctx.reply(t(defaultLanguage, 'error')); } catch (replyErr) {
+        console.error(`[bot ${botId}] Failed to send error reply:`, replyErr);
+      }
     }
   });
 
@@ -1190,26 +1193,33 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
 }
 
 async function handleWallet(ctx: Context, botId: string, user: User, lang: string) {
-  const settings = await getBotSettings(botId);
-  const walletText = await buildWalletCardText(user, lang);
+  try {
+    const settings = await getBotSettings(botId);
+    const walletText = await buildWalletCardText(user, lang);
 
-  const supportButton = settings.support_telegram
-    ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]
-    : [Markup.button.callback(t(lang, 'btn_support'), 'wallet_support')];
+    const supportButton = settings.support_telegram
+      ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]
+      : [Markup.button.callback(t(lang, 'btn_support'), 'wallet_support')];
 
-  await ctx.replyWithHTML(
-    walletText,
-    Markup.inlineKeyboard([
-      [
-        Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
-        Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
-      ],
-      [Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer')],
-      supportButton,
-      [Markup.button.callback(t(lang, 'btn_language'), 'wallet_language')],
-      [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')],
-    ])
-  );
+    await ctx.replyWithHTML(
+      walletText,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
+          Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
+        ],
+        [Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer')],
+        supportButton,
+        [Markup.button.callback(t(lang, 'btn_language'), 'wallet_language')],
+        [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')],
+      ])
+    );
+  } catch (error) {
+    console.error(`[handleWallet bot=${botId}] Error building wallet card:`, error);
+    try { await ctx.reply(t(lang, 'error')); } catch (replyErr) {
+      console.error(`[handleWallet bot=${botId}] Failed to send error reply:`, replyErr);
+    }
+  }
 }
 
 async function handleInvite(ctx: Context, botId: string, user: User, lang: string) {
