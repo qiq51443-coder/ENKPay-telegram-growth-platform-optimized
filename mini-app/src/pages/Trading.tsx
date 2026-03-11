@@ -70,6 +70,7 @@ export const Trading: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -86,6 +87,12 @@ export const Trading: React.FC = () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Track active order from order history
+  useEffect(() => {
+    const active = orders.find(o => o.status === 'active' || o.status === 'pending');
+    setActiveOrder(active || null);
+  }, [orders]);
 
   // Push real-time price tick into the last candle of the chart
   useEffect(() => {
@@ -517,30 +524,41 @@ export const Trading: React.FC = () => {
         </div>
 
         {/* UP/DOWN buttons */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-          <button
-            onClick={() => openConfirm('up')}
-            disabled={!amount || Number(amount) <= 0 || countdown !== null}
-            style={{
-              flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-              backgroundColor: '#26a69a', color: '#fff', fontSize: '18px', fontWeight: '700',
-              cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null) ? 0.5 : 1,
-            }}
-          >
-            {t('btn_up')}
-          </button>
-          <button
-            onClick={() => openConfirm('down')}
-            disabled={!amount || Number(amount) <= 0 || countdown !== null}
-            style={{
-              flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-              backgroundColor: '#ef5350', color: '#fff', fontSize: '18px', fontWeight: '700',
-              cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null) ? 0.5 : 1,
-            }}
-          >
-            {t('btn_down')}
-          </button>
-        </div>
+        {activeOrder && countdown !== null ? (
+          <div style={{ textAlign: 'center', color: theme.textSecondary, padding: '12px 0', marginBottom: '16px', backgroundColor: theme.bgCard, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
+            <div style={{ marginBottom: 6 }}>当前持仓：
+              <span style={{ color: activeOrder.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 'bold' }}>
+                {activeOrder.direction === 'up' ? `📈 ${t('btn_up')}` : `📉 ${t('btn_down')}`}
+              </span>
+            </div>
+            <div style={{ fontSize: '13px' }}>金额：{activeOrder.amount} USDT · 等待结算...</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+            <button
+              onClick={() => openConfirm('up')}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+              style={{
+                flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
+                backgroundColor: '#26a69a', color: '#fff', fontSize: '18px', fontWeight: '700',
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+              }}
+            >
+              {t('btn_up')}
+            </button>
+            <button
+              onClick={() => openConfirm('down')}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+              style={{
+                flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
+                backgroundColor: '#ef5350', color: '#fff', fontSize: '18px', fontWeight: '700',
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+              }}
+            >
+              {t('btn_down')}
+            </button>
+          </div>
+        )}
 
         {/* Order history toggle */}
         <button

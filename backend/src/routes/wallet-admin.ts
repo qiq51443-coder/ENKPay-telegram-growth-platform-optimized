@@ -2,6 +2,8 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt, addManualDepositAddress } from '../services/deposit.service';
+import TelegramAPI from '../utils/telegram';
+import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
 const router = express.Router();
 
@@ -481,8 +483,51 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         );
       }
 
-      return { action };
+      return { action, withdrawal };
     });
+
+    // Notify user via Telegram after transaction completes
+    try {
+      const userResult = await query(
+        `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name,
+                b.token AS bot_token
+         FROM users u
+         JOIN bots b ON u.bot_id = b.id
+         WHERE u.id = $1 AND b.is_active = true`,
+        [result.withdrawal.user_id]
+      );
+      if (userResult.rows.length > 0) {
+        const { telegram_id, language_code, bot_token } = userResult.rows[0];
+        const lang = language_code || 'en';
+        const tg = new TelegramAPI(bot_token);
+        if (action === 'approved') {
+          const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
+          const message = formatNotification(template, {
+            amount: parseFloat(result.withdrawal.amount).toFixed(2),
+            fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
+            actual: parseFloat(result.withdrawal.actual_amount || result.withdrawal.amount).toFixed(2),
+            address: result.withdrawal.to_address || '',
+            balance: parseFloat(userResult.rows[0].wallet_balance || '0').toFixed(2),
+          });
+          await tg.sendMessage(telegram_id, message);
+        } else {
+          const updatedUser = await query(
+            'SELECT wallet_balance FROM users WHERE id = $1',
+            [result.withdrawal.user_id]
+          );
+          const restoredBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
+          const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
+          const msg = formatNotification(template, {
+            amount: parseFloat(result.withdrawal.amount).toFixed(2),
+            balance: restoredBalance,
+            reason: admin_note || '-',
+          });
+          await tg.sendMessage(telegram_id, msg);
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Failed to notify user of withdrawal review:', notifyErr);
+    }
 
     res.json({
       success: true,
