@@ -14,10 +14,14 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
     const result = await query(
-      `SELECT id, unique_id, username, first_name, last_name, language_code,
+      `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
               balance, telegram_id, wallet_balance, nft_balance, red_packet_credits,
+              reward_balance, reward_unlock_traded, frozen_balance,
+              total_recharged, total_withdrawn,
               account_status
-       FROM users WHERE telegram_id = $1 LIMIT 1`,
+     FROM users WHERE telegram_id = $1
+       -- Use the earliest record in case of duplicates (telegram_id should be unique)
+       ORDER BY created_at ASC LIMIT 1`,
       [telegramId]
     );
 
@@ -35,14 +39,46 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     } catch {/* non-critical */}
 
     const user = result.rows[0];
+
+    // Calculate reward unlock progress
+    const configResult = await query(
+      `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
+    );
+    const rewardTradeRatio = configResult.rows.length > 0
+      ? parseFloat(configResult.rows[0].value) : 1.0;
+    const rewardBal = parseFloat(String(user.reward_balance ?? 0));
+    const rewardTraded = parseFloat(String(user.reward_unlock_traded ?? 0));
+    const rewardUnlockRequired = rewardBal * rewardTradeRatio;
+    const rewardUnlockProgress = rewardUnlockRequired > 0
+      ? Math.round(Math.min(100, (rewardTraded / rewardUnlockRequired) * 100) * 100) / 100
+      : 100;
+
     res.json({
       success: true,
       user: {
-        ...user,
-        // wallet_balance is the canonical operational balance (used for transfers/withdrawals)
+        // Identifiers
+        unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
+        telegram_id: user.telegram_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        username: user.username,
+        language_code: user.language_code,
+        // Balances
+        // wallet_balance is the canonical operational balance (transfers/withdrawals)
         balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
+        wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
+        reward_balance: rewardBal,
         nft_balance: parseFloat(String(user.nft_balance ?? 0)),
+        frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
         red_packet_balance: parseFloat(String(user.red_packet_credits ?? 0)),
+        red_packet_credits: parseFloat(String(user.red_packet_credits ?? 0)),
+        total_recharged: parseFloat(String(user.total_recharged ?? 0)),
+        total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
+        // Reward unlock progress
+        reward_unlock_progress: rewardUnlockProgress,
+        reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
+        // Status
+        account_status: user.account_status,
         wallet_tip_message: walletTipMessage,
       },
     });

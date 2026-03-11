@@ -9,9 +9,13 @@ interface UserProfile {
   unique_id: string;
   balance: number;
   wallet_balance?: number;
+  reward_balance?: number;
+  reward_unlock_progress?: number;
+  reward_unlock_required?: number;
   nft_balance?: number;
   red_packet_balance?: number;
   red_packet_credits?: number;
+  frozen_balance?: number;
   account_status?: string;
   wallet_tip_message?: string;
   username?: string;
@@ -311,6 +315,30 @@ export const Profile: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Reward balance & unlock progress */}
+        {(profile?.reward_balance ?? 0) > 0 && (
+          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ color: theme.textSecondary, fontSize: '11px' }}>🎁 {t('account_red_packet_credits') || '红包余额'}（打码解锁）</span>
+              <span style={{ color: '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
+                ${parseFloat(String(profile.reward_balance)).toFixed(2)} USDT
+              </span>
+            </div>
+            <div style={{ height: '4px', backgroundColor: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${profile?.reward_unlock_progress ?? 0}%`,
+                backgroundColor: '#f59e0b',
+                borderRadius: '2px',
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+            <div style={{ color: theme.textSecondary, fontSize: '10px', marginTop: '2px', textAlign: 'right' }}>
+              {(profile?.reward_unlock_progress ?? 0).toFixed(1)}% · 需交易 {(profile?.reward_unlock_required ?? 0).toFixed(2)} USDT 解锁
+            </div>
+          </div>
+        )}
 
         {/* Tip message */}
         {profile?.wallet_tip_message ? (

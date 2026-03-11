@@ -269,6 +269,7 @@ export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
 
 /**
  * Get price for any trading pair (real or custom)
+ * For real pairs the response includes change24h from the Binance 24hr ticker.
  */
 export async function getPairPrice(pairId: number): Promise<PriceData> {
   const pairResult = await query(
@@ -285,7 +286,10 @@ export async function getPairPrice(pairId: number): Promise<PriceData> {
   if (pair.pair_type === 'real') {
     // Use binance_symbol from DB if available, else fall back to external_symbol or symbol
     const symbol = pair.binance_symbol || pair.external_symbol || pair.symbol;
-    return await getRealTimePrice(symbol);
+    const priceData = await getRealTimePrice(symbol);
+    // Enrich with 24h change (cached separately for 60 s)
+    const change24h = await get24hChange(symbol);
+    return { ...priceData, change24h };
   } else {
     // Get custom price
     return await getCustomPairPrice(pairId);

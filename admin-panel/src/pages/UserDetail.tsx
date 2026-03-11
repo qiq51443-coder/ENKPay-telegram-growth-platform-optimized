@@ -16,6 +16,8 @@ interface UserDetail {
   robot_user_id?: string;
   balance: number;
   wallet_balance?: number;
+  reward_balance?: number;
+  nft_balance?: number;
   red_packet_credits: number;
   binding_status: string;
   account_status: string;
@@ -202,8 +204,10 @@ export const UserDetail: React.FC = () => {
     );
   }
 
-  const balance = parseFloat(String(user.balance ?? 0));
-  const nftBalance = parseFloat(String(user.wallet_balance ?? 0));
+  // wallet_balance is the operational balance; nft_balance is NFT asset value (display only)
+  const walletBalance = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
+  const rewardBalance = parseFloat(String(user.reward_balance ?? 0));
+  const nftBalance = parseFloat(String(user.nft_balance ?? 0));
 
   return (
     <div>
@@ -265,14 +269,19 @@ export const UserDetail: React.FC = () => {
             }
           >
             <Descriptions bordered column={2}>
-              <Descriptions.Item label="余额 (USDT)">
+              <Descriptions.Item label="可用余额 (USDT)">
                 <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  ${balance.toFixed(2)}
+                  ${walletBalance.toFixed(2)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="NFT 藏品价值余额">
+              <Descriptions.Item label="NFT 藏品价值 (不可转账)">
                 <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                   ${nftBalance.toFixed(2)}
+                </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="红包余额 (打码解锁)">
+                <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                  ${rewardBalance.toFixed(2)}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="红包积分">
@@ -341,7 +350,7 @@ export const UserDetail: React.FC = () => {
           <Descriptions bordered column={1} size="small" style={{ marginBottom: 16 }}>
             <Descriptions.Item label="当前余额">
               <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>
-                ${balance.toFixed(2)} USDT
+                ${walletBalance.toFixed(2)} USDT
               </span>
             </Descriptions.Item>
           </Descriptions>
