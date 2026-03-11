@@ -49,6 +49,9 @@ export interface SweepResult {
   error?: string;
 }
 
+// Number of consecutive sweep failures before emitting an [ALERT] log
+const SWEEP_ALERT_THRESHOLD = 3;
+
 /**
  * Derive an Ethereum/BSC private key (hex with 0x prefix) from an HD mnemonic.
  */
@@ -201,6 +204,7 @@ export async function sweepAllPendingAddresses(options?: {
        uda.user_id,
        uda.address,
        uda.hd_index,
+       uda.sweep_failure_count,
        dn.id AS network_id,
        dn.chain_name,
        dn.contract_address,
@@ -210,7 +214,14 @@ export async function sweepAllPendingAddresses(options?: {
        dn.rpc_url
      FROM user_deposit_addresses uda
      JOIN deposit_networks dn ON uda.network_id = dn.id
-     WHERE uda.is_active = true AND dn.is_active = true ${networksFilter}
+     -- Only sweep addresses that have at least one confirmed (credited) deposit
+     WHERE uda.is_active = true AND dn.is_active = true
+       AND EXISTS (
+         SELECT 1 FROM deposit_records dr
+         WHERE dr.to_address = uda.address
+           AND dr.network_id = uda.network_id
+           AND dr.status IN ('confirmed', 'credited')
+       ) ${networksFilter}
      ORDER BY uda.id`,
     params
   );
@@ -312,7 +323,7 @@ export async function sweepAllPendingAddresses(options?: {
     const recordedAmount = sweptAmount ?? 0;
 
     if (status === 'broadcast' && txHash) {
-      // Persist sweep record in DB
+      // Persist sweep record and reset failure count on success
       try {
         await transaction(async (client: any) => {
           await client.query(
@@ -320,6 +331,10 @@ export async function sweepAllPendingAddresses(options?: {
                (network_id, from_address, to_address, amount, tx_hash, status)
              VALUES ($1, $2, $3, $4, $5, 'broadcast')`,
             [network_id, address, hotWallet, recordedAmount, txHash]
+          );
+          await client.query(
+            `UPDATE user_deposit_addresses SET sweep_failure_count = 0 WHERE id = $1`,
+            [row.address_id]
           );
         });
       } catch (dbErr: any) {
@@ -334,6 +349,18 @@ export async function sweepAllPendingAddresses(options?: {
              VALUES ($1, $2, $3, $4, NULL, 'failed', $5)`,
             [network_id, address, hotWallet, recordedAmount, errorMessage]
           );
+          // Increment failure counter; alert after 3 consecutive failures
+          const failureCount = (row.sweep_failure_count || 0) + 1;
+          await client.query(
+            `UPDATE user_deposit_addresses SET sweep_failure_count = $1 WHERE id = $2`,
+            [failureCount, row.address_id]
+          );
+          if (failureCount >= SWEEP_ALERT_THRESHOLD) {
+            console.error(
+              `[ALERT] Sweep for address ${address} (network ${network_id}) has failed ${failureCount} consecutive time(s). ` +
+              `Last error: ${errorMessage}`
+            );
+          }
         });
       } catch (dbErr: any) {
         console.error('Failed to insert failed sweep_record:', dbErr.message);

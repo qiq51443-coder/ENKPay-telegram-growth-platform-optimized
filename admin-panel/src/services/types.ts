@@ -152,7 +152,7 @@ export interface TutorialStep {
 export interface Withdrawal {
   id: string;
   user_id: string;
-  user?: User;
+  user?: User & { wallet_balance: number };
   amount: number;
   wallet_address: string;
   status: 'pending' | 'approved' | 'rejected' | 'completed';

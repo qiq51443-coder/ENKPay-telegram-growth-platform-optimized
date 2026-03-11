@@ -68,15 +68,14 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
 
     await ctx.answerCbQuery();
 
-    // Get network display info
+    // Get network display info via single-network endpoint (avoids fetching full list)
     let networkLabel = networkId;
     let minDeposit = '';
     try {
-      const netRes = await api.get('/api/wallet/networks', {
+      const netRes = await api.get(`/api/wallet/networks/${networkId}`, {
         headers: { 'X-Bot-Token': botId },
       });
-      const networks: any[] = netRes.data?.data || [];
-      const net = networks.find((n: any) => String(n.id) === String(networkId));
+      const net = netRes.data?.data;
       if (net) {
         networkLabel = net.network_display || net.network_name;
         if (net.min_deposit_amount) {
