@@ -4,6 +4,7 @@ import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { getPairPrice, getKlineData, getCachedKlineData, cacheKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
+import { autoUnlockRewardBalance } from '../services/balance.service';
 
 const router = express.Router();
 
@@ -495,6 +496,11 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
       };
     });
+
+    // Fire-and-forget: check if reward balance can be auto-unlocked after this trade
+    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRewardBalance failed:', err)
+    );
 
     res.json({
       success: true,

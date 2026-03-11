@@ -2,7 +2,7 @@ import { Telegraf, Context, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
-import { query } from '../db';
+import { query, transaction } from '../db';
 import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES } from '../i18n';
 import { generateUserDepositAddress } from './deposit.service';
 
@@ -414,34 +414,42 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
 
     const orderId = generateOrderId();
 
-    // Execute in a transaction
-    await query('BEGIN');
-    try {
-      await query(
+    // Execute in a transaction (uses a dedicated client to ensure atomicity)
+    await transaction(async (client) => {
+      // Lock the sender row and verify balance
+      const balCheck = await client.query(
+        'SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE',
+        [user.id]
+      );
+      if (balCheck.rows.length === 0) {
+        throw new Error('USER_NOT_FOUND');
+      }
+      const currentBalance = parseFloat(String(balCheck.rows[0].wallet_balance ?? 0));
+      if (currentBalance < data.amount) {
+        throw new Error('INSUFFICIENT_BALANCE:' + currentBalance.toFixed(2));
+      }
+
+      await client.query(
         `UPDATE users
          SET wallet_balance = wallet_balance - $1,
              total_transferred_out = COALESCE(total_transferred_out, 0) + $1
          WHERE id = $2`,
         [data.amount, user.id]
       );
-      await query(
+      await client.query(
         `UPDATE users
          SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
              total_transferred_in = COALESCE(total_transferred_in, 0) + $1
          WHERE id = $2`,
         [data.amount, data.recipientId]
       );
-      await query(
+      await client.query(
         `INSERT INTO transfer_records
           (from_user_id, to_user_id, amount, fee, actual_received, status, order_id)
          VALUES ($1, $2, $3, 0, $3, 'completed', $4)`,
         [user.id, data.recipientId, data.amount, orderId]
       );
-      await query('COMMIT');
-    } catch (err) {
-      await query('ROLLBACK');
-      throw err;
-    }
+    });
 
     await ctx.replyWithHTML(
       `✅ ${t(lang, 'transfer_success')}\n\n📋 Order: <code>${orderId}</code>`
@@ -460,7 +468,14 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
     }
   } catch (err: any) {
     console.error('processTransfer error:', err);
-    await ctx.reply(t(lang, 'error'));
+    if (err.message?.startsWith('INSUFFICIENT_BALANCE:')) {
+      const bal = err.message.replace('INSUFFICIENT_BALANCE:', '');
+      await ctx.reply(
+        t(lang, 'transfer_insufficient_balance').replace('{balance}', bal)
+      );
+    } else {
+      await ctx.reply(t(lang, 'error'));
+    }
   }
 }
 
