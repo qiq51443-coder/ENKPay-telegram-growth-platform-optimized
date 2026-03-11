@@ -63,13 +63,15 @@ router.get('/networks/:id', authenticateBot, async (req: AuthRequest, res) => {
 /**
  * Resolve a network identifier (numeric id or chain_name string like 'BSC', 'ETH', 'TRC')
  * to a numeric network id. Returns null if the network is not found.
+ * Falls back to matching by network_name so that bot network IDs like 'TRC'
+ * resolve correctly even when chain_name is stored as 'TRON'.
  */
 async function resolveNetworkId(networkId: string | number): Promise<number | null> {
   if (!isNaN(Number(networkId))) {
     return parseInt(networkId as string);
   }
   const result = await query(
-    `SELECT id FROM deposit_networks WHERE chain_name = $1 AND is_active = true LIMIT 1`,
+    `SELECT id FROM deposit_networks WHERE (chain_name = $1 OR network_name = $1) AND is_active = true LIMIT 1`,
     [networkId]
   );
   if (result.rows.length === 0) {
