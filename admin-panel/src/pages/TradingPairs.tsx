@@ -55,8 +55,9 @@ export const TradingPairs: React.FC = () => {
     setFetchError('');
     try {
       const response = await apiClient.getTradingPairs();
-      const data = response.data;
-      setPairs(Array.isArray(data) ? data : []);
+      // response is already response.data = { success, data, pagination }
+      const list = response?.data ?? response;
+      setPairs(Array.isArray(list) ? list : []);
     } catch (error: any) {
       console.error('Failed to fetch trading pairs:', error);
       const errMsg = error.response?.data?.error || error.message || '未知错误';
@@ -72,10 +73,12 @@ export const TradingPairs: React.FC = () => {
     setLibraryLoading(true);
     try {
       const response = await apiClient.getSymbolLibrary({ limit: 500 });
-      setLibraryData(response.data || []);
-    } catch (error) {
+      const list = response?.data ?? response;
+      setLibraryData(Array.isArray(list) ? list : []);
+    } catch (error: any) {
       console.error('Failed to fetch symbol library:', error);
-      message.error('获取币安币种库失败');
+      message.warning('获取币安币种库失败，可手动输入交易对');
+      setLibraryData([]);
     } finally {
       setLibraryLoading(false);
     }
@@ -351,6 +354,24 @@ export const TradingPairs: React.FC = () => {
       ),
     },
   ];
+
+  if (fetchError && pairs.length === 0 && !loading) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          type="error"
+          message="加载交易对失败"
+          description={fetchError}
+          showIcon
+          action={
+            <Button size="small" onClick={fetchPairs}>
+              重试
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

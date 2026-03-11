@@ -446,6 +446,17 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
       if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
 
+      // Check for existing active order on this pair
+      const existingOrderResult = await client.query(
+        `SELECT id FROM trading_orders 
+         WHERE user_id = $1 AND pair_id = $2 AND status IN ('active', 'pending')
+         LIMIT 1`,
+        [user_id, pair_id]
+      );
+      if (existingOrderResult.rows.length > 0) {
+        throw new Error('You already have an active order for this trading pair. Please wait for settlement before placing a new order.');
+      }
+
       // Check user balance
       const userResult = await client.query(
         'SELECT wallet_balance FROM users WHERE id = $1',

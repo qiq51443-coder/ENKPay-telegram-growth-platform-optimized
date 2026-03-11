@@ -303,9 +303,9 @@ export const Profile: React.FC = () => {
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('account_red_packet_credits') || '红包余额'}</div>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('account_red_packet_credits') || '红包积分'}</div>
             <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
-              {parseFloat(String(profile?.red_packet_balance ?? profile?.red_packet_credits ?? 0)).toFixed(2)}
+              {parseInt(String(profile?.red_packet_credits ?? 0))}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>

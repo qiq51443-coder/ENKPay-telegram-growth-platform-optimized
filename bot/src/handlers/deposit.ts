@@ -130,14 +130,12 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
           [Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop')],
-          [Markup.button.callback('« ' + t(lang, 'btn_deposit'), 'wallet_deposit')],
           [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
         ]),
       });
     } catch {
       await ctx.replyWithHTML(message, Markup.inlineKeyboard([
         [Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop')],
-        [Markup.button.callback('« ' + t(lang, 'btn_deposit'), 'wallet_deposit')],
         [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
       ]));
     }
