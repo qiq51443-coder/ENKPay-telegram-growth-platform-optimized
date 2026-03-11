@@ -63,12 +63,13 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: `Invalid binance_symbol: "${binance_symbol}" does not exist on Binance` });
     }
 
+    const effectiveName = display_name || symbol;
     const result = await query(
       `INSERT INTO trading_pairs 
-       (symbol, display_name, pair_type, binance_symbol, base_currency, quote_currency)
-       VALUES ($1, $2, 'real', $3, $4, $5)
+       (symbol, name, display_name, pair_type, binance_symbol, base_currency, quote_currency)
+       VALUES ($1, $2, $3, 'real', $4, $5, $6)
        RETURNING *`,
-      [symbol, display_name || symbol, binance_symbol, base_currency, quote_currency]
+      [symbol, effectiveName, effectiveName, binance_symbol, base_currency, quote_currency]
     );
 
     res.json({
@@ -96,12 +97,13 @@ router.post('/pairs/custom', authenticateAdmin, async (req: AuthRequest, res) =>
 
     const result = await transaction(async (client) => {
       // Create pair
+      const effectiveName = display_name || symbol;
       const pairResult = await client.query(
         `INSERT INTO trading_pairs 
-         (symbol, display_name, pair_type, base_currency, quote_currency)
-         VALUES ($1, $2, 'custom', $3, $4)
+         (symbol, name, display_name, pair_type, base_currency, quote_currency)
+         VALUES ($1, $2, $3, 'custom', $4, $5)
          RETURNING *`,
-        [symbol, display_name || symbol, base_currency, quote_currency]
+        [symbol, effectiveName, effectiveName, base_currency, quote_currency]
       );
 
       const pair = pairResult.rows[0];
