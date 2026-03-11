@@ -48,13 +48,43 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       min_confirmations = 1,
       scan_interval_seconds = 30,
       min_deposit_amount = 10,
+      max_deposit_amount,
       deposit_fee = 0,
+      contract_address,
+      decimal_places,
       explorer_url,
-      sort_order = 0,
+      sort_order,
     } = req.body;
 
     if (!network_name || !network_display || !chain_name || !hd_derivation_path) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate numeric fields
+    if (isNaN(Number(min_deposit_amount)) || Number(min_deposit_amount) < 0) {
+      return res.status(400).json({ error: 'min_deposit_amount must be a non-negative number' });
+    }
+    if (max_deposit_amount !== undefined && (isNaN(Number(max_deposit_amount)) || Number(max_deposit_amount) <= 0)) {
+      return res.status(400).json({ error: 'max_deposit_amount must be a positive number' });
+    }
+    if (max_deposit_amount !== undefined && Number(max_deposit_amount) <= Number(min_deposit_amount)) {
+      return res.status(400).json({ error: 'max_deposit_amount must be greater than min_deposit_amount' });
+    }
+
+    // Check uniqueness of network_name
+    const existing = await query(
+      'SELECT id FROM deposit_networks WHERE network_name = $1',
+      [network_name]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: `Network name '${network_name}' already exists` });
+    }
+
+    // Auto-compute sort_order if not provided
+    let resolvedSortOrder = sort_order;
+    if (resolvedSortOrder === undefined || resolvedSortOrder === null) {
+      const maxOrderResult = await query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM deposit_networks');
+      resolvedSortOrder = maxOrderResult.rows[0].next_order;
     }
 
     const encryptedMnemonic = hd_mnemonic ? encrypt(hd_mnemonic) : null;
@@ -79,13 +109,20 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
         min_deposit_amount,
         deposit_fee,
         explorer_url,
-        sort_order,
+        resolvedSortOrder,
       ]
     );
 
+    const network = result.rows[0];
+
     res.json({
       success: true,
-      data: result.rows[0],
+      data: {
+        ...network,
+        contract_address: contract_address || null,
+        decimal_places: decimal_places || null,
+        max_deposit_amount: max_deposit_amount || null,
+      },
       message: 'Deposit network created successfully',
     });
   } catch (error: any) {

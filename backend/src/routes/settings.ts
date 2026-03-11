@@ -64,7 +64,14 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       invite_reward,
       new_user_credits,
       screenshot_reward_credits,
-      welcome_message
+      welcome_message,
+      // Wallet settings
+      support_telegram,
+      wallet_tip_message,
+      transfer_min_amount,
+      withdraw_min_amount,
+      withdraw_fee_rate,
+      deposit_confirm_blocks,
     } = req.body;
 
     const updates: string[] = [];
@@ -118,6 +125,30 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       params.push(JSON.stringify(welcome_message));
       updates.push(`welcome_message = $${params.length}`);
     }
+    if (support_telegram !== undefined) {
+      params.push(support_telegram);
+      updates.push(`support_telegram = $${params.length}`);
+    }
+    if (wallet_tip_message !== undefined) {
+      params.push(wallet_tip_message);
+      updates.push(`wallet_tip_message = $${params.length}`);
+    }
+    if (transfer_min_amount !== undefined) {
+      params.push(transfer_min_amount);
+      updates.push(`transfer_min_amount = $${params.length}`);
+    }
+    if (withdraw_min_amount !== undefined) {
+      params.push(withdraw_min_amount);
+      updates.push(`withdraw_min_amount = $${params.length}`);
+    }
+    if (withdraw_fee_rate !== undefined) {
+      params.push(withdraw_fee_rate);
+      updates.push(`withdraw_fee_rate = $${params.length}`);
+    }
+    if (deposit_confirm_blocks !== undefined) {
+      params.push(deposit_confirm_blocks);
+      updates.push(`deposit_confirm_blocks = $${params.length}`);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No updates provided' });
@@ -131,7 +162,7 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       // Create new settings
       params.push(botId);
       result = await query(
-        `INSERT INTO bot_settings (bot_id, ${updates.map((u, i) => u.split(' = ')[0]).join(', ')})
+        `INSERT INTO bot_settings (bot_id, ${updates.map((u) => u.split(' = ')[0]).join(', ')})
          VALUES ($${params.length}, ${updates.map((_, i) => `$${i + 1}`).join(', ')})
          RETURNING *`,
         params
