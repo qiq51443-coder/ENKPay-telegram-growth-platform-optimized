@@ -3,6 +3,34 @@ import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { api } from '../services/api';
 import { t } from '../i18n';
 
+// Simple in-memory cache for the networks list to avoid a backend round-trip on every address display
+let networksCache: { data: any[]; ts: number } | null = null;
+let networksFetchInFlight: Promise<any[]> | null = null;
+const NETWORKS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function fetchNetworks(botId: string): Promise<any[]> {
+  const now = Date.now();
+  if (networksCache && now - networksCache.ts < NETWORKS_CACHE_TTL) {
+    return networksCache.data;
+  }
+  // Deduplicate concurrent in-flight requests (Node.js single-threaded, but async)
+  if (!networksFetchInFlight) {
+    networksFetchInFlight = api
+      .get('/api/wallet/networks', { headers: { 'X-Bot-Token': botId } })
+      .then((res) => {
+        const networks: any[] = res.data?.data || [];
+        networksCache = { data: networks, ts: Date.now() };
+        networksFetchInFlight = null;
+        return networks;
+      })
+      .catch((err) => {
+        networksFetchInFlight = null;
+        throw err;
+      });
+  }
+  return networksFetchInFlight;
+}
+
 export const handleDepositSelectNetwork = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
@@ -11,18 +39,15 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
-    // Dynamically load active networks from backend
+    // Dynamically load active networks from backend (cached)
     let networkButtons: ReturnType<typeof Markup.button.callback>[][] = [];
     try {
-      const res = await api.get('/api/wallet/networks', {
-        headers: { 'X-Bot-Token': botId },
-      });
-      const networks: any[] = res.data?.data || [];
+      const networks = await fetchNetworks(botId);
       const active = networks.filter((n: any) => n.is_active);
       networkButtons = active.map((n: any) => [
         Markup.button.callback(
           n.network_display || n.network_name,
-          `deposit_network:${n.id}`
+          `deposit_net_${n.id}`
         ),
       ]);
     } catch (err) {
@@ -105,13 +130,13 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
         await ctx.editMessageText(errMsg, {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_network:${networkId}`)],
+            [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_net_${networkId}`)],
             [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
           ]),
         });
       } catch {
         await ctx.replyWithHTML(errMsg, Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_network:${networkId}`)],
+          [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_net_${networkId}`)],
           [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
         ]));
       }

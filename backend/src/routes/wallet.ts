@@ -261,13 +261,16 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       }
 
       // Deduct from sender
-      await client.query(
+      const deductResult = await client.query(
         `UPDATE users 
          SET wallet_balance = wallet_balance - $1,
              total_transferred_out = total_transferred_out + $2
-         WHERE id = $3`,
+         WHERE id = $3 AND wallet_balance >= $1`,
         [totalCost, transferAmount, from_user_id]
       );
+      if (deductResult.rowCount === 0) {
+        throw new Error('Insufficient balance');
+      }
 
       // Add to recipient
       await client.query(
@@ -339,6 +342,10 @@ router.get('/deposit-address/:userId', authenticateBot, async (req: AuthRequest,
   try {
     const { userId } = req.params;
     const { network_id } = req.query;
+
+    if (isNaN(Number(userId))) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
 
     if (network_id) {
       // Resolve network_id: support numeric id or chain_name string (e.g. 'BSC', 'ETH', 'TRC')
@@ -427,13 +434,16 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
       }
 
       // Deduct from wallet_balance and add to frozen_balance
-      await client.query(
+      const deductResult = await client.query(
         `UPDATE users 
          SET wallet_balance = wallet_balance - $1,
              frozen_balance = frozen_balance + $1
-         WHERE id = $2`,
+         WHERE id = $2 AND wallet_balance >= $1`,
         [totalCost, user_id]
       );
+      if (deductResult.rowCount === 0) {
+        throw new Error('Insufficient balance');
+      }
 
       // Create withdrawal record
       const insertResult = await client.query(

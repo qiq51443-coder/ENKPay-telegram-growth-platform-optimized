@@ -11,6 +11,13 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
   console.warn(`WARNING: WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ${ENCRYPTION_KEY?.length ?? 0}). Wallet features will be disabled.`);
 }
 
+// In-memory mnemonic cache: networkId → decrypted mnemonic
+// Avoids repeated AES decryption on every address derivation request.
+// Security note: mnemonics are already held in process memory during derivation;
+// caching them reduces CPU overhead without introducing a meaningfully wider
+// exposure window. Ensure the process is not core-dumped in production.
+const mnemonicCache = new Map<number, string>();
+
 // Try to import crypto libraries
 let ethers: any = null;
 let TronWeb: any = null;
@@ -176,14 +183,18 @@ export async function generateUserDepositAddress(
 
   const network = networkResult.rows[0];
 
-  // Decrypt mnemonic outside the transaction to reduce lock hold time
+  // Decrypt mnemonic — use in-memory cache to avoid repeated AES decryption
   if (!network.hd_mnemonic_encrypted) {
     throw new Error(
       `HD mnemonic not configured for network ${network.network_name}. Please configure in admin panel.`
     );
   }
 
-  const mnemonic = decrypt(network.hd_mnemonic_encrypted);
+  let mnemonic = mnemonicCache.get(networkId);
+  if (!mnemonic) {
+    mnemonic = decrypt(network.hd_mnemonic_encrypted);
+    mnemonicCache.set(networkId, mnemonic);
+  }
 
   // HD-7: Validate mnemonic integrity after decryption
   if (ethers && !ethers.Mnemonic.isValidMnemonic(mnemonic)) {
@@ -193,7 +204,7 @@ export async function generateUserDepositAddress(
   // In a single transaction: acquire advisory lock → allocate index → derive address → insert
   const address = await transaction(async (client: any) => {
     // Acquire an advisory lock keyed by network_id to serialize index allocation
-    await client.query('SELECT pg_advisory_xact_lock($1)', [networkId]);
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [networkId]);
 
     // Double-check: another concurrent request may have inserted while we were waiting
     const doubleCheck = await client.query(
