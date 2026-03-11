@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS balance_adjustments (
 INSERT INTO system_settings (key, value, description, category, is_public)
 VALUES (
   'wallet_tip_message',
-  '',
+  '""',
   '钱包页提示语 / Wallet page tip message',
   'general',
   false
