@@ -153,6 +153,7 @@ export const en = {
 
   // Deposit flow
   select_network: 'Please select a network',
+  no_networks_configured: 'No networks are currently available. Please contact the administrator to configure deposit networks.',
   deposit_address: 'Deposit Address',
   copy_address: '📋 Copy Address',
   deposit_address_hint: 'Please transfer USDT to this address',

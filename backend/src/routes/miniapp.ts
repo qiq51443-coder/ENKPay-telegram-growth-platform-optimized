@@ -13,14 +13,15 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
+    // Use the canonical (earliest-created) record for consistent data across bots
     const result = await query(
       `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
               balance, telegram_id, wallet_balance, nft_balance, red_packet_credits,
               reward_balance, reward_unlock_traded, frozen_balance,
               total_recharged, total_withdrawn,
+              invite_code, invited_by,
               account_status
-     FROM users WHERE telegram_id = $1
-       -- Use the earliest record in case of duplicates (telegram_id should be unique)
+       FROM users WHERE telegram_id = $1
        ORDER BY created_at ASC LIMIT 1`,
       [telegramId]
     );
@@ -39,6 +40,28 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     } catch {/* non-critical */}
 
     const user = result.rows[0];
+
+    // Count direct invites
+    let inviteCount = 0;
+    try {
+      const inviteCountResult = await query(
+        `SELECT COUNT(*) AS cnt FROM users WHERE invited_by = $1`,
+        [user.id]
+      );
+      inviteCount = parseInt(inviteCountResult.rows[0]?.cnt ?? '0', 10);
+    } catch {/* non-critical */}
+
+    // Resolve inviter unique_id for display
+    let invitedByUniqueId: string | null = null;
+    if (user.invited_by) {
+      try {
+        const inviterResult = await query(
+          `SELECT unique_id FROM users WHERE id = $1 LIMIT 1`,
+          [user.invited_by]
+        );
+        invitedByUniqueId = inviterResult.rows[0]?.unique_id || null;
+      } catch {/* non-critical */}
+    }
 
     // Calculate reward unlock progress
     const configResult = await query(
@@ -63,6 +86,9 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
         last_name: user.last_name,
         username: user.username,
         language_code: user.language_code,
+        invite_code: user.invite_code || user.unique_id,
+        invited_by: invitedByUniqueId,
+        invite_count: inviteCount,
         // Balances
         // wallet_balance is the canonical operational balance (transfers/withdrawals)
         balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
@@ -90,26 +116,61 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
 
 /**
  * GET /api/miniapp/transactions
- * Get current user's transaction history
+ * Get current user's transaction history from transfer_records, deposit_records,
+ * and withdrawal_records (UNION query).
  */
 router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
+    // Use canonical user id for consistent cross-bot query
     const userResult = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
       [telegramId]
     );
     if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const userId = userResult.rows[0].id;
 
-    const { limit = 50 } = req.query;
+    const parsedLimit = parseInt(String(req.query.limit ?? '50'), 10);
+    const limitNum = isNaN(parsedLimit) || parsedLimit <= 0 ? 50 : Math.min(parsedLimit, 200);
+
     const result = await query(
-      `SELECT id, type, amount, balance_after, description, created_at
-       FROM transactions WHERE user_id = $1
-       ORDER BY created_at DESC LIMIT $2`,
-      [userId, Number(limit)]
+      `SELECT id, type, amount, status, created_at, description
+       FROM (
+         -- Incoming transfers
+         SELECT id::text, 'transfer_in' AS type, amount::numeric, status,
+                created_at, NULL AS description
+         FROM transfer_records
+         WHERE to_user_id = $1
+
+         UNION ALL
+
+         -- Outgoing transfers
+         SELECT id::text, 'transfer_out' AS type, amount::numeric, status,
+                created_at, NULL AS description
+         FROM transfer_records
+         WHERE from_user_id = $1
+
+         UNION ALL
+
+         -- Deposits
+         SELECT id::text, 'deposit' AS type, amount::numeric, status,
+                created_at, tx_hash AS description
+         FROM deposit_records
+         WHERE user_id = $1
+
+         UNION ALL
+
+         -- Withdrawals
+         SELECT id::text, 'withdrawal' AS type, amount::numeric, status,
+                created_at, to_address AS description
+         FROM withdrawal_records
+         WHERE user_id = $1
+       ) AS combined
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [userId, limitNum]
     );
 
     res.json({ success: true, transactions: result.rows });

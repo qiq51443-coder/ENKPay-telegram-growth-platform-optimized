@@ -232,6 +232,43 @@ async function getUnifiedBalance(telegramId: number): Promise<number> {
   return parseFloat(String(result.rows[0]?.wallet_balance ?? 0));
 }
 
+/**
+ * Return the UUID of the canonical (earliest-created) user record for a given
+ * Telegram ID.  All balance reads/writes must go through this record so that a
+ * user's balance is consistent regardless of which bot they interact with.
+ */
+async function getCanonicalUserId(telegramId: number): Promise<string | null> {
+  const result = await query(
+    'SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [telegramId]
+  );
+  return result.rows[0]?.id || null;
+}
+
+/**
+ * Resolve a network identifier (either a numeric string or a chain/network
+ * name such as "TRC" / "TRON") to the integer primary key in deposit_networks.
+ * Returns null if no matching network is found.
+ */
+async function resolveNetworkId(networkId: string): Promise<number | null> {
+  // Fast path: already an integer string
+  const asInt = parseInt(networkId, 10);
+  if (!isNaN(asInt) && String(asInt) === networkId.trim()) return asInt;
+  // Slow path: look up by network_name or chain_name (case-insensitive)
+  try {
+    const result = await query(
+      `SELECT id FROM deposit_networks
+       WHERE UPPER(network_name) = UPPER($1) OR UPPER(chain_name) = UPPER($1)
+       LIMIT 1`,
+      [networkId]
+    );
+    if (result.rows.length > 0) return result.rows[0].id;
+  } catch (err: any) {
+    console.warn('[resolveNetworkId] DB lookup failed for networkId:', networkId, err?.message);
+  }
+  return null;
+}
+
 async function getBotSettings(botId: string): Promise<Record<string, any>> {
   const settings: Record<string, any> = {};
   try {
@@ -328,47 +365,58 @@ function resolveWebAppUrl(settings: Record<string, any>): string | null {
 // Core business logic
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Submit a withdrawal record to the database */
+/** Submit a withdrawal record to the database and atomically freeze the balance */
 async function processWithdrawal(ctx: Context, user: User, lang: string, data: any): Promise<void> {
   try {
     await ctx.reply(t(lang, 'withdraw_processing'));
 
-    // Resolve numeric network_id
-    let networkIdInt: number | null = null;
-    if (data.networkId && !isNaN(parseInt(String(data.networkId)))) {
-      networkIdInt = parseInt(String(data.networkId));
-    } else if (data.networkId) {
-      try {
-        const netResult = await query(
-          'SELECT id FROM deposit_networks WHERE network_name = $1 LIMIT 1',
-          [data.networkId]
-        );
-        if (netResult.rows.length > 0) networkIdInt = netResult.rows[0].id;
-      } catch {}
-    }
-
+    // Resolve numeric network_id (supports both integer strings and names like "TRC")
+    const networkIdInt = await resolveNetworkId(String(data.networkId || ''));
     if (!networkIdInt) {
       await ctx.reply(t(lang, 'error'));
       return;
     }
 
-    // Verify sufficient balance
-    const balRes = await query('SELECT wallet_balance FROM users WHERE id = $1', [user.id]);
-    const balance = parseFloat(String(balRes.rows[0]?.wallet_balance ?? 0));
-    if (balance < data.amount) {
-      await ctx.reply(
-        t(lang, 'insufficient_balance').replace('{balance}', balance.toFixed(2))
-      );
+    // Use the canonical user record so that balance is consistent across bots
+    const canonicalId = await getCanonicalUserId(user.telegram_id);
+    if (!canonicalId) {
+      await ctx.reply(t(lang, 'error'));
       return;
     }
 
     const orderId = generateOrderId();
-    await query(
-      `INSERT INTO withdrawal_records
-        (user_id, network_id, amount, fee, actual_amount, to_address, status, order_id)
-       VALUES ($1, $2, $3, 0, $3, $4, 'pending', $5)`,
-      [user.id, networkIdInt, data.amount, data.address, orderId]
-    );
+
+    // Atomically verify balance, deduct it, and create the withdrawal record
+    await transaction(async (client) => {
+      const balCheck = await client.query(
+        'SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE',
+        [canonicalId]
+      );
+      if (balCheck.rows.length === 0) {
+        console.error(`[processWithdrawal] Canonical user not found for id=${canonicalId} (telegram_id=${user.telegram_id})`);
+        throw new Error('USER_NOT_FOUND');
+      }
+
+      const balance = parseFloat(String(balCheck.rows[0].wallet_balance ?? 0));
+      if (balance < data.amount) {
+        throw new Error('INSUFFICIENT_BALANCE:' + balance.toFixed(2));
+      }
+
+      await client.query(
+        `UPDATE users
+         SET wallet_balance = wallet_balance - $1,
+             total_withdrawn = COALESCE(total_withdrawn, 0) + $1
+         WHERE id = $2`,
+        [data.amount, canonicalId]
+      );
+
+      await client.query(
+        `INSERT INTO withdrawal_records
+          (user_id, network_id, amount, fee, actual_amount, to_address, status, order_id)
+         VALUES ($1, $2, $3, 0, $3, $4, 'pending', $5)`,
+        [canonicalId, networkIdInt, data.amount, data.address, orderId]
+      );
+    });
 
     // Resolve network display name
     let networkName: string = data.networkName || '';
@@ -393,7 +441,14 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
     );
   } catch (err: any) {
     console.error('processWithdrawal error:', err);
-    await ctx.reply(t(lang, 'error'));
+    if (err.message?.startsWith('INSUFFICIENT_BALANCE:')) {
+      const bal = err.message.replace('INSUFFICIENT_BALANCE:', '');
+      await ctx.reply(
+        t(lang, 'insufficient_balance').replace('{balance}', bal)
+      );
+    } else {
+      await ctx.reply(t(lang, 'error'));
+    }
   }
 }
 
@@ -402,13 +457,22 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
   try {
     await ctx.reply(t(lang, 'transfer_processing'));
 
-    // Verify sufficient balance
-    const balRes = await query('SELECT wallet_balance FROM users WHERE id = $1', [user.id]);
-    const balance = parseFloat(String(balRes.rows[0]?.wallet_balance ?? 0));
-    if (balance < data.amount) {
-      await ctx.reply(
-        t(lang, 'transfer_insufficient_balance').replace('{balance}', balance.toFixed(2))
-      );
+    // Use the canonical user record so that balance is consistent across bots
+    const canonicalSenderId = await getCanonicalUserId(user.telegram_id);
+    if (!canonicalSenderId) {
+      await ctx.reply(t(lang, 'error'));
+      return;
+    }
+
+    // Resolve canonical receiver id (data.recipientId from unique_id lookup is
+    // already canonical; use data.recipientTelegramId as a secondary source)
+    let canonicalRecipientId: string | null = data.recipientId || null;
+    if (data.recipientTelegramId) {
+      const resolved = await getCanonicalUserId(Number(data.recipientTelegramId));
+      if (resolved) canonicalRecipientId = resolved;
+    }
+    if (!canonicalRecipientId) {
+      await ctx.reply(t(lang, 'error'));
       return;
     }
 
@@ -419,7 +483,7 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
       // Lock the sender row and verify balance
       const balCheck = await client.query(
         'SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE',
-        [user.id]
+        [canonicalSenderId]
       );
       if (balCheck.rows.length === 0) {
         throw new Error('USER_NOT_FOUND');
@@ -434,20 +498,20 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
          SET wallet_balance = wallet_balance - $1,
              total_transferred_out = COALESCE(total_transferred_out, 0) + $1
          WHERE id = $2`,
-        [data.amount, user.id]
+        [data.amount, canonicalSenderId]
       );
       await client.query(
         `UPDATE users
          SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
              total_transferred_in = COALESCE(total_transferred_in, 0) + $1
          WHERE id = $2`,
-        [data.amount, data.recipientId]
+        [data.amount, canonicalRecipientId]
       );
       await client.query(
         `INSERT INTO transfer_records
           (from_user_id, to_user_id, amount, fee, actual_received, status, order_id)
          VALUES ($1, $2, $3, 0, $3, 'completed', $4)`,
-        [user.id, data.recipientId, data.amount, orderId]
+        [canonicalSenderId, canonicalRecipientId, data.amount, orderId]
       );
     });
 
@@ -640,7 +704,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               await ctx.reply(t(lang, 'transfer_invalid_recipient_id'));
               return;
             }
-            if (recipient.id === user.id) {
+            if (recipient.telegram_id === user.telegram_id) {
               await ctx.reply(t(lang, 'error'));
               return;
             }
@@ -771,11 +835,14 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         }
 
         if (networkButtons.length === 0) {
-          networkButtons = [
-            [Markup.button.callback('TRC20 (USDT)', 'deposit_net_TRC')],
-            [Markup.button.callback('BSC (BEP20)', 'deposit_net_BSC')],
-            [Markup.button.callback('ETH (ERC20)', 'deposit_net_ETH')],
-          ];
+          try { await ctx.deleteMessage(); } catch {}
+          await ctx.replyWithHTML(
+            `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n⚠️ ${t(lang, 'no_networks_configured')}`,
+            Markup.inlineKeyboard([
+              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+            ])
+          );
+          return;
         }
 
         networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
@@ -792,11 +859,17 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       // ── Deposit: show address for selected network ──────────────────────────
       if (data.startsWith('deposit_net_')) {
         await ctx.answerCbQuery();
-        const networkId = data.replace('deposit_net_', '');
+        const rawNetworkId = data.replace('deposit_net_', '');
         try {
+          // resolveNetworkId supports both integer ids and name-based ids (e.g. "TRC")
+          const numericId = await resolveNetworkId(rawNetworkId);
+          if (!numericId) {
+            await ctx.reply(t(lang, 'error'));
+            return;
+          }
           const netResult = await query(
             'SELECT id, network_name, network_display, min_deposit_amount FROM deposit_networks WHERE id = $1',
-            [networkId]
+            [numericId]
           );
           if (netResult.rows.length === 0) {
             await ctx.reply(t(lang, 'error'));
@@ -870,11 +943,14 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         } catch {}
 
         if (networkButtons.length === 0) {
-          networkButtons = [
-            [Markup.button.callback('TRC20 (USDT)', 'withdraw_net_TRC')],
-            [Markup.button.callback('BSC (BEP20)', 'withdraw_net_BSC')],
-            [Markup.button.callback('ETH (ERC20)', 'withdraw_net_ETH')],
-          ];
+          try { await ctx.deleteMessage(); } catch {}
+          await ctx.replyWithHTML(
+            `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n⚠️ ${t(lang, 'no_networks_configured')}`,
+            Markup.inlineKeyboard([
+              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+            ])
+          );
+          return;
         }
 
         networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
@@ -891,21 +967,26 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       // ── Withdraw: network selected → prompt for address ─────────────────────
       if (data.startsWith('withdraw_net_')) {
         await ctx.answerCbQuery();
-        const networkId = data.replace('withdraw_net_', '');
-        let networkName = networkId.toUpperCase();
+        const rawNetworkId = data.replace('withdraw_net_', '');
+        let networkName = rawNetworkId.toUpperCase();
+        let resolvedNetworkId: string | number = rawNetworkId;
         try {
-          const netResult = await query(
-            'SELECT id, network_name, network_display FROM deposit_networks WHERE id = $1',
-            [networkId]
-          );
-          if (netResult.rows.length > 0) {
-            networkName = netResult.rows[0].network_display || netResult.rows[0].network_name;
+          const numericId = await resolveNetworkId(rawNetworkId);
+          if (numericId) {
+            resolvedNetworkId = numericId;
+            const netResult = await query(
+              'SELECT id, network_name, network_display FROM deposit_networks WHERE id = $1',
+              [numericId]
+            );
+            if (netResult.rows.length > 0) {
+              networkName = netResult.rows[0].network_display || netResult.rows[0].network_name;
+            }
           }
         } catch {}
 
         setUserState(user.id, {
           step: 'withdraw_enter_address',
-          data: { networkId, networkName },
+          data: { networkId: resolvedNetworkId, networkName },
         });
         try { await ctx.deleteMessage(); } catch {}
         await ctx.reply(t(lang, 'withdraw_enter_address'));
@@ -1177,10 +1258,12 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 async function buildWalletCardText(user: User, lang: string): Promise<string> {
   const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
 
-  // Fetch fresh data from DB
+  // Always read balance from the canonical user record so it stays consistent
+  // regardless of which bot the user is currently interacting with.
+  const canonicalId = await getCanonicalUserId(user.telegram_id) || user.id;
   const freshResult = await query(
     'SELECT balance, wallet_balance, nft_balance, red_packet_credits, account_status FROM users WHERE id = $1',
-    [user.id]
+    [canonicalId]
   );
   const fresh = freshResult.rows[0] || user;
   // wallet_balance is the operational balance used for transfers/withdrawals
