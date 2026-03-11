@@ -7,7 +7,7 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'X-Bot-Token': BOT_ID || '', // Use Bot ID for authentication
+    // X-Bot-Token is passed per-request by each function that requires bot authentication
   },
 });
 

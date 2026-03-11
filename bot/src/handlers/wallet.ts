@@ -15,9 +15,9 @@ export const handleWallet = async (ctx: Context) => {
     const lang = getUserLanguage(user);
 
     // Fetch latest balance details from backend
-    let balance = user.balance || 0;
-    let rewardBalance = user.reward_balance || 0;
-    let frozenBalance = user.frozen_balance || 0;
+    let balance = Number(user.balance) || 0;
+    let rewardBalance = Number(user.reward_balance) || 0;
+    let frozenBalance = Number(user.frozen_balance) || 0;
     let nftHoldings = 0;
     let balanceFetchFailed = false;
     try {

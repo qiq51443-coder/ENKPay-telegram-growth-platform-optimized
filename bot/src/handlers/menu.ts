@@ -16,7 +16,15 @@ export const handleMenu = async (ctx: Context) => {
     if (!ctx.from || !ctx.message || !('text' in ctx.message)) return;
 
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
-    const user = await getOrCreateUser(ctx, botId);
+
+    let user;
+    try {
+      user = await getOrCreateUser(ctx, botId);
+    } catch (userError) {
+      console.error('Menu handler: getOrCreateUser failed:', userError);
+      return;
+    }
+
     const text = ctx.message.text;
 
     // Match menu buttons in any language
