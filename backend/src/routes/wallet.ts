@@ -15,6 +15,25 @@ const router = express.Router();
 router.use(walletLimiter);
 
 /**
+ * GET /api/wallet/networks
+ * Get active deposit networks (for bot dynamic network selection)
+ */
+router.get('/networks', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT id, network_name, network_display, chain_name, min_deposit_amount, is_active
+       FROM deposit_networks
+       WHERE is_active = true
+       ORDER BY sort_order, network_name`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get networks error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Resolve a network identifier (numeric id or chain_name string like 'BSC', 'ETH', 'TRC')
  * to a numeric network id. Returns null if the network is not found.
  */

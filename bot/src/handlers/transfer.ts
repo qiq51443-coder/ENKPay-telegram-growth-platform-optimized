@@ -155,16 +155,6 @@ export const handleTransferConfirm = async (ctx: Context) => {
 
     const { recipientId, recipientName, recipientUniqueId, recipientTelegramId, recipientLanguage, amount } = state.data;
 
-    // Balance check before proceeding
-    const userBalance = parseFloat(String((user as any).balance || 0));
-    if (userBalance < amount) {
-      await clearUserState(user.id.toString());
-      await ctx.reply(
-        t(lang, 'transfer_insufficient_balance').replace('{balance}', userBalance.toFixed(2))
-      );
-      return;
-    }
-
     await clearUserState(user.id.toString());
 
     // Processing indicator
@@ -207,14 +197,7 @@ export const handleTransferConfirm = async (ctx: Context) => {
     } catch (err: any) {
       console.error('Transfer API error:', err);
       const apiError: string = err.response?.data?.error || '';
-      if (apiError.toLowerCase().includes('insufficient') || apiError.toLowerCase().includes('balance')) {
-        const currentBalance = parseFloat(String((user as any).balance || 0));
-        await ctx.reply(
-          t(lang, 'transfer_insufficient_balance').replace('{balance}', currentBalance.toFixed(2))
-        );
-      } else {
-        await ctx.reply(apiError || t(lang, 'error'));
-      }
+      await ctx.reply(apiError || t(lang, 'error'));
     }
   } catch (error) {
     console.error('Transfer confirm error:', error);

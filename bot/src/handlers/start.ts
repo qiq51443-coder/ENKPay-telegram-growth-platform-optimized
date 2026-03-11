@@ -45,7 +45,7 @@ export const handleStart = async (ctx: Context) => {
     const welcomeText = settings.welcome_message ||
       `🎉 ${t(lang, 'welcome_title')}\n\n` +
       `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-      `💰 ${t(lang, 'your_balance')}: <b>${(user.balance || 0).toFixed(2)}</b>\n\n` +
+      `💰 ${t(lang, 'your_balance')}: <b>${((user as any).wallet_balance ?? user.balance ?? 0).toFixed(2)}</b>\n\n` +
       t(lang, 'welcome_description');
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';

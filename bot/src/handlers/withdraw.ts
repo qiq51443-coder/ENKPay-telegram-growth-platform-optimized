@@ -326,15 +326,6 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
   try {
     await clearUserState(user.id.toString());
 
-    // Client-side balance check before calling backend
-    const userBalance = parseFloat(String(user.balance || 0));
-    if (userBalance < data?.amount) {
-      await ctx.reply(
-        t(lang, 'insufficient_balance').replace('{balance}', userBalance.toFixed(2))
-      );
-      return;
-    }
-
     await ctx.reply(t(lang, 'withdraw_processing'));
 
     const result = await submitWithdraw(botId, {
@@ -360,13 +351,6 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
   } catch (err: any) {
     console.error('Submit withdrawal error:', err);
     const apiError: string = err.response?.data?.error || '';
-    if (apiError.toLowerCase().includes('insufficient') || apiError.toLowerCase().includes('balance')) {
-      const userBalance = parseFloat(String(user.balance || 0));
-      await ctx.reply(
-        t(lang, 'insufficient_balance').replace('{balance}', userBalance.toFixed(2))
-      );
-    } else {
-      await ctx.reply(apiError || t(lang, 'error'));
-    }
+    await ctx.reply(apiError || t(lang, 'error'));
   }
 }
