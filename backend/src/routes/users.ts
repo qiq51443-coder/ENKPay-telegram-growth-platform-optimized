@@ -415,10 +415,13 @@ router.post('/:id/adjust-balance', adminLimiter, authenticateAdmin, async (req: 
     const delta = type === 'add' ? numAmount : -numAmount;
 
     // delta is negative for subtract operations; both balance >= 0 checks prevent negative balances
+    // When adding balance (delta > 0), also increment total_recharged so withdrawal/transfer
+    // restrictions based on total_recharged are correctly satisfied.
     const result = await query(
       `UPDATE users
        SET balance = balance + $1,
-           wallet_balance = COALESCE(wallet_balance, 0) + $1
+           wallet_balance = COALESCE(wallet_balance, 0) + $1,
+           total_recharged = CASE WHEN $1 > 0 THEN COALESCE(total_recharged, 0) + $1 ELSE total_recharged END
        WHERE id = $2
          AND (balance + $1) >= 0
          AND (COALESCE(wallet_balance, 0) + $1) >= 0

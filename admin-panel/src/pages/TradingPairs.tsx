@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs, Input as AntInput } from 'antd';
+import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs, Input as AntInput, Alert } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, SyncOutlined, SearchOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -28,6 +28,7 @@ interface SymbolLibraryItem {
 export const TradingPairs: React.FC = () => {
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string>('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('real');
@@ -51,12 +52,17 @@ export const TradingPairs: React.FC = () => {
 
   const fetchPairs = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const response = await apiClient.getTradingPairs();
-      setPairs(response.data || []);
-    } catch (error) {
+      const data = response.data;
+      setPairs(Array.isArray(data) ? data : []);
+    } catch (error: any) {
       console.error('Failed to fetch trading pairs:', error);
-      message.error('获取交易对列表失败');
+      const errMsg = error.response?.data?.error || error.message || '未知错误';
+      setFetchError(errMsg);
+      message.error(`获取交易对列表失败: ${errMsg}`);
+      setPairs([]);
     } finally {
       setLoading(false);
     }
@@ -357,6 +363,18 @@ export const TradingPairs: React.FC = () => {
           添加交易对
         </Button>
       </div>
+
+      {fetchError && (
+        <Alert
+          type="error"
+          message="加载失败"
+          description={fetchError}
+          showIcon
+          style={{ marginBottom: 16 }}
+          closable
+          onClose={() => setFetchError('')}
+        />
+      )}
 
       <Table
         columns={columns}
