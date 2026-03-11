@@ -43,13 +43,17 @@ export async function getUserBalance(userId: number): Promise<UserBalance> {
 
   const user = result.rows[0];
 
-  // Get reward_trade_ratio from platform_config (default to 1.0 = 100%)
+  // Get reward_trade_ratio and require_deposit_before_withdraw from platform_config
   const configResult = await query(
-    `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
+    `SELECT key, value FROM platform_config WHERE key IN ('reward_trade_ratio', 'require_deposit_before_withdraw')`
   );
-  const rewardTradeRatio = configResult.rows.length > 0 
-    ? parseFloat(configResult.rows[0].value) 
-    : 1.0;
+  const rewardTradeRatioRow = configResult.rows.find((r: { key: string; value: string }) => r.key === 'reward_trade_ratio');
+  const rewardTradeRatio = rewardTradeRatioRow ? parseFloat(rewardTradeRatioRow.value) : 1.0;
+  const requireDepositRow = configResult.rows.find((r: { key: string; value: string }) => r.key === 'require_deposit_before_withdraw');
+  // Default false: admin-credited balances are always withdrawable unless explicitly configured
+  const requireDepositBeforeWithdraw = requireDepositRow
+    ? (requireDepositRow.value === 'true' || requireDepositRow.value === '1')
+    : false;
 
   // Calculate required trading volume to unlock all rewards
   const rewardUnlockRequired = user.reward_balance * rewardTradeRatio;
@@ -63,17 +67,21 @@ export async function getUserBalance(userId: number): Promise<UserBalance> {
   // reward_balance cannot be transferred or withdrawn until trading requirement is met
   const availableForTransfer = user.wallet_balance;
 
-  // For withdrawal, check if:
+  // For withdrawal, optionally enforce:
   // 1. Total recharged >= 10 USDT
   // 2. Reward unlock progress >= 100%
+  // Both checks are gated by the require_deposit_before_withdraw platform config key
+  // (default false) so that admin-credited balances are always withdrawable.
   let availableForWithdrawal = user.wallet_balance;
   
-  const minDeposit = 10; // From platform_config: deposit_min_amount
-  if (user.total_recharged < minDeposit) {
-    availableForWithdrawal = 0;
-  } else if (rewardUnlockProgress < 100) {
-    // If rewards not fully unlocked, cannot withdraw
-    availableForWithdrawal = 0;
+  if (requireDepositBeforeWithdraw) {
+    const minDeposit = 10; // From platform_config: deposit_min_amount
+    if (user.total_recharged < minDeposit) {
+      availableForWithdrawal = 0;
+    } else if (rewardUnlockProgress < 100) {
+      // If rewards not fully unlocked, cannot withdraw
+      availableForWithdrawal = 0;
+    }
   }
 
   return {
@@ -108,12 +116,17 @@ export async function validateTransfer(
 ): Promise<{ valid: boolean; error?: string }> {
   // Get platform config
   const configResult = await query(
-    `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate')`
+    `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate', 'require_trade_before_transfer')`
   );
   const config: Record<string, number> = {};
   configResult.rows.forEach((row: { key: string; value: string }) => {
     config[row.key] = parseFloat(row.value);
   });
+  const requireTradeRow = configResult.rows.find((row: { key: string; value: string }) => row.key === 'require_trade_before_transfer');
+  // Default false: admin-credited users are not blocked from transferring
+  const requireTrade = requireTradeRow
+    ? (requireTradeRow.value === 'true' || requireTradeRow.value === '1')
+    : false;
 
   const minAmount = config.transfer_min_amount || 10;
   const feeRate = config.transfer_fee_rate || 0.02;
@@ -126,8 +139,8 @@ export async function validateTransfer(
   // Get user balance
   const balance = await getUserBalance(fromUserId);
 
-  // Check if first trade is done
-  if (!balance.is_first_trade_done) {
+  // Check if first trade is done (only enforced when require_trade_before_transfer = true)
+  if (requireTrade && !balance.is_first_trade_done) {
     return { valid: false, error: 'You must complete at least one trade before transferring' };
   }
 
@@ -160,12 +173,17 @@ export async function validateWithdrawal(
 ): Promise<{ valid: boolean; error?: string }> {
   // Get platform config
   const configResult = await query(
-    `SELECT key, value FROM platform_config WHERE key IN ('withdraw_min_amount', 'withdraw_fee_rate', 'deposit_min_amount')`
+    `SELECT key, value FROM platform_config WHERE key IN ('withdraw_min_amount', 'withdraw_fee_rate', 'deposit_min_amount', 'require_deposit_before_withdraw')`
   );
   const config: Record<string, number> = {};
   configResult.rows.forEach((row: { key: string; value: string }) => {
     config[row.key] = parseFloat(row.value);
   });
+  const requireDepositRow = configResult.rows.find((row: { key: string; value: string }) => row.key === 'require_deposit_before_withdraw');
+  // Default false: admin-credited balances are always withdrawable unless explicitly configured
+  const requireDeposit = requireDepositRow
+    ? (requireDepositRow.value === 'true' || requireDepositRow.value === '1')
+    : false;
 
   const minAmount = config.withdraw_min_amount || 10;
   const feeRate = config.withdraw_fee_rate || 0.02;
@@ -179,16 +197,16 @@ export async function validateWithdrawal(
   // Get user balance
   const balance = await getUserBalance(userId);
 
-  // Check if total recharged >= minimum deposit
-  if (balance.total_recharged < minDeposit) {
+  // Check if total recharged >= minimum deposit (only enforced when require_deposit_before_withdraw = true)
+  if (requireDeposit && balance.total_recharged < minDeposit) {
     return {
       valid: false,
       error: `You must deposit at least ${minDeposit} USDT before making a withdrawal`,
     };
   }
 
-  // Check reward unlock progress
-  if (balance.reward_unlock_progress < 100) {
+  // Check reward unlock progress (only enforced when require_deposit_before_withdraw = true)
+  if (requireDeposit && balance.reward_unlock_progress < 100) {
     return {
       valid: false,
       error: `You must complete trading volume to unlock rewards before withdrawal. Progress: ${balance.reward_unlock_progress}% (Required: ${balance.reward_unlock_required} USDT)`,

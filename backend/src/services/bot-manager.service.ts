@@ -4,6 +4,7 @@ import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import { query } from '../db';
 import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES } from '../i18n';
+import { generateUserDepositAddress } from './deposit.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Interfaces
@@ -789,13 +790,20 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           const network = netResult.rows[0];
           const networkLabel = network.network_display || network.network_name;
 
-          // Look up existing deposit address for this user + network
+          // Look up existing deposit address, or auto-generate one if missing
           const addrResult = await query(
             'SELECT address FROM user_deposit_addresses WHERE user_id = $1 AND network_id = $2 LIMIT 1',
             [user.id, network.id]
           );
 
-          const address = addrResult.rows[0]?.address || '';
+          let address = addrResult.rows[0]?.address || '';
+          if (!address) {
+            try {
+              address = await generateUserDepositAddress(user.id, network.id);
+            } catch (genErr) {
+              console.error(`[bot ${botId}] Failed to generate deposit address for user ${user.id} on network ${network.id} (${networkLabel}):`, genErr);
+            }
+          }
           const minDeposit = network.min_deposit_amount
             ? `\n💡 Min: <b>${parseFloat(String(network.min_deposit_amount)).toFixed(2)} USDT</b>`
             : '';
