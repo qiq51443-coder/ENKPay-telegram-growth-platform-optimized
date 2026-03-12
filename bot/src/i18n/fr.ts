@@ -220,11 +220,18 @@ export const fr: Record<string, string> = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *Dépôt Crédité*\n\n💰 Montant : {amount} USDT\n🌐 Réseau : {network}\n🔗 Hash TX : `{txHash}`\n\n💳 Solde Actuel : *{balance} USDT*\n\nMerci pour votre dépôt !',
-  withdraw_approved_notify: '✅ *Retrait Approuvé*\n\n💰 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n📤 Net : {actual} USDT\n📍 Adresse : {address}\n\n💳 Solde Actuel : *{balance} USDT*',
-  withdraw_rejected_notify: '❌ *Retrait Rejeté*\n\n💰 Montant : {amount} USDT\n💳 Solde Restauré : *{balance} USDT*\n\n📝 Raison : {reason}',
+  withdraw_approved_notify: '✅ *Retrait Approuvé*\n\n📋 Commande: `{order_id}`\n🌐 Réseau: {network}\n💰 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n📤 Net : {actual} USDT\n📍 Adresse : {address}\n🕐 Examiné: {time}\n\n💳 Solde Actuel : *{balance} USDT*',
+  withdraw_rejected_notify: '❌ *Retrait Rejeté*\n\n📋 Commande: `{order_id}`\n🌐 Réseau: {network}\n💰 Montant : {amount} USDT\n📍 Adresse: {address}\n🕐 Heure: {time}\n💳 Solde Restauré : *{balance} USDT*\n\n📝 Raison : {reason}',
   transfer_sent_notify: '📤 *Transfert Envoyé*\n\n👤 Vers : {recipient}\n💵 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n✅ Livré : {actual} USDT\n\n💳 Solde Actuel : *{balance} USDT*',
   transfer_received_notify: '📥 *Transfert Reçu*\n\n👤 De : {sender}\n✅ Montant : {amount} USDT\n\n💳 Solde Actuel : *{balance} USDT*',
 
   // Balance hint (shown in bot-side messages when exact balance is not available inline)
   balance_updated_hint: 'Solde mis à jour, veuillez vérifier votre portefeuille 💳',
+
+  // Withdrawal pending flow
+  withdraw_submitted: 'Demande de retrait soumise, en attente de vérification de l\'administrateur',
+  withdraw_submitted_time: 'Soumis le',
+  withdraw_pending_info: 'Vous serez notifié une fois la vérification terminée',
+  withdraw_balance_hint: 'Solde actuel : {balance} USDT',
+  withdraw_fee_hint: 'Frais : {fee} USDT ({fee_rate}%), montant réel reçu : {actual} USDT',
 };

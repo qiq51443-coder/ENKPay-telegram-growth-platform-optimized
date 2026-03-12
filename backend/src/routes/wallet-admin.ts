@@ -521,6 +521,26 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         const { telegram_id, language_code, bot_token } = userResult.rows[0];
         const lang = language_code || 'en';
         const tg = new TelegramAPI(bot_token);
+
+        // Resolve network display name for notification
+        let networkDisplay = '-';
+        try {
+          const netRow = await query(
+            'SELECT network_display, network_name FROM deposit_networks WHERE id = $1 LIMIT 1',
+            [result.withdrawal.network_id]
+          );
+          if (netRow.rows.length > 0) {
+            networkDisplay = netRow.rows[0].network_display || netRow.rows[0].network_name;
+          }
+        } catch {}
+
+        const reviewedAt = result.withdrawal.reviewed_at
+          ? new Date(result.withdrawal.reviewed_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+          : new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        const createdAt = result.withdrawal.created_at
+          ? new Date(result.withdrawal.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+          : '-';
+
         if (action === 'approved') {
           const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
           const message = formatNotification(template, {
@@ -529,6 +549,8 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
             actual: parseFloat(result.withdrawal.actual_amount || result.withdrawal.amount).toFixed(2),
             address: result.withdrawal.to_address || '',
+            network: networkDisplay,
+            time: reviewedAt,
             balance: parseFloat(userResult.rows[0].wallet_balance || '0').toFixed(2),
           });
           await tg.sendMessage(telegram_id, message);
@@ -542,6 +564,9 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           const msg = formatNotification(template, {
             order_id: result.withdrawal.order_id || '-',
             amount: parseFloat(result.withdrawal.amount).toFixed(2),
+            address: result.withdrawal.to_address || '',
+            network: networkDisplay,
+            time: reviewedAt,
             balance: restoredBalance,
             reason: admin_note || '-',
           });

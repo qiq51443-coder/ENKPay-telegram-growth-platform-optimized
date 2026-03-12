@@ -220,11 +220,18 @@ export const de: Record<string, string> = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *Einzahlung Gutgeschrieben*\n\n💰 Betrag: {amount} USDT\n🌐 Netzwerk: {network}\n🔗 TX-Hash: `{txHash}`\n\n💳 Aktuelles Guthaben: *{balance} USDT*\n\nVielen Dank für Ihre Einzahlung!',
-  withdraw_approved_notify: '✅ *Auszahlung Genehmigt*\n\n💰 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n📤 Auszahlung: {actual} USDT\n📍 Adresse: {address}\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
-  withdraw_rejected_notify: '❌ *Auszahlung Abgelehnt*\n\n💰 Betrag: {amount} USDT\n💳 Guthaben Wiederhergestellt: *{balance} USDT*\n\n📝 Grund: {reason}',
+  withdraw_approved_notify: '✅ *Auszahlung Genehmigt*\n\n📋 Bestellung: `{order_id}`\n🌐 Netzwerk: {network}\n💰 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n📤 Auszahlung: {actual} USDT\n📍 Adresse: {address}\n🕐 Geprüft: {time}\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
+  withdraw_rejected_notify: '❌ *Auszahlung Abgelehnt*\n\n📋 Bestellung: `{order_id}`\n🌐 Netzwerk: {network}\n💰 Betrag: {amount} USDT\n📍 Adresse: {address}\n🕐 Zeit: {time}\n💳 Guthaben Wiederhergestellt: *{balance} USDT*\n\n📝 Grund: {reason}',
   transfer_sent_notify: '📤 *Überweisung Gesendet*\n\n👤 An: {recipient}\n💵 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n✅ Übermittelt: {actual} USDT\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
   transfer_received_notify: '📥 *Überweisung Erhalten*\n\n👤 Von: {sender}\n✅ Betrag: {amount} USDT\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
 
   // Balance hint (shown in bot-side messages when exact balance is not available inline)
   balance_updated_hint: 'Guthaben aktualisiert, bitte Wallet prüfen 💳',
+
+  // Withdrawal pending flow
+  withdraw_submitted: 'Auszahlungsantrag eingereicht, warte auf Admin-Überprüfung',
+  withdraw_submitted_time: 'Eingereicht am',
+  withdraw_pending_info: 'Sie werden benachrichtigt, sobald die Überprüfung abgeschlossen ist',
+  withdraw_balance_hint: 'Aktuelles Guthaben: {balance} USDT',
+  withdraw_fee_hint: 'Gebühr: {fee} USDT ({fee_rate}%), tatsächlich erhalten: {actual} USDT',
 };

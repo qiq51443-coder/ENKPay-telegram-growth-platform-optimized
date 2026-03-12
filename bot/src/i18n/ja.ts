@@ -220,11 +220,18 @@ export const ja: Record<string, string> = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *入金が反映されました*\n\n💰 金額：{amount} USDT\n🌐 ネットワーク：{network}\n🔗 TXハッシュ：`{txHash}`\n\n💳 現在の残高：*{balance} USDT*\n\nご入金ありがとうございます！',
-  withdraw_approved_notify: '✅ *出金が承認されました*\n\n💰 金額：{amount} USDT\n💸 手数料：{fee} USDT\n📤 実際の金額：{actual} USDT\n📍 アドレス：{address}\n\n💳 現在の残高：*{balance} USDT*',
-  withdraw_rejected_notify: '❌ *出金が拒否されました*\n\n💰 金額：{amount} USDT\n💳 残高が復元されました：*{balance} USDT*\n\n📝 理由：{reason}',
+  withdraw_approved_notify: '✅ *出金が承認されました*\n\n📋 注文番号：`{order_id}`\n🌐 ネットワーク：{network}\n💰 金額：{amount} USDT\n💸 手数料：{fee} USDT\n📤 実際の金額：{actual} USDT\n📍 アドレス：{address}\n🕐 審査時間：{time}\n\n💳 現在の残高：*{balance} USDT*',
+  withdraw_rejected_notify: '❌ *出金が拒否されました*\n\n📋 注文番号：`{order_id}`\n🌐 ネットワーク：{network}\n💰 金額：{amount} USDT\n📍 アドレス：{address}\n🕐 時間：{time}\n💳 残高が復元されました：*{balance} USDT*\n\n📝 理由：{reason}',
   transfer_sent_notify: '📤 *送金が完了しました*\n\n👤 送先：{recipient}\n💵 金額：{amount} USDT\n💸 手数料：{fee} USDT\n✅ 到達金額：{actual} USDT\n\n💳 現在の残高：*{balance} USDT*',
   transfer_received_notify: '📥 *送金を受け取りました*\n\n👤 送信者：{sender}\n✅ 金額：{amount} USDT\n\n💳 現在の残高：*{balance} USDT*',
 
   // Balance hint (shown in bot-side messages when exact balance is not available inline)
   balance_updated_hint: '残高が更新されました。ウォレットをご確認ください 💳',
+
+  // Withdrawal pending flow
+  withdraw_submitted: '出金申請が提出されました。管理者のレビューをお待ちください',
+  withdraw_submitted_time: '提出日時',
+  withdraw_pending_info: 'レビューが完了次第、通知が届きます',
+  withdraw_balance_hint: '現在の残高：{balance} USDT',
+  withdraw_fee_hint: '手数料：{fee} USDT（{fee_rate}%）、実際の受取金額：{actual} USDT',
 };
