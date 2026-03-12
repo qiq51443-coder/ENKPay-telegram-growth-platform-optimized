@@ -66,7 +66,7 @@ router.post('/authorize', authenticateAdmin, async (req: AuthRequest, res) => {
  */
 router.post('/groups/register', async (req, res) => {
   try {
-    const { bot_id, group_id, group_name, group_type } = req.body;
+    const { bot_id, group_id, group_name, group_type, country, language, member_count } = req.body;
 
     if (!bot_id || !group_id) {
       return res.status(400).json({ error: 'bot_id and group_id are required' });
@@ -74,11 +74,14 @@ router.post('/groups/register', async (req, res) => {
 
     // Upsert the group
     await query(
-      `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, country, language, member_count)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (bot_id, group_id)
-       DO UPDATE SET group_name = EXCLUDED.group_name, joined_at = NOW()`,
-      [bot_id, group_id, group_name || '', group_type || 'group']
+       DO UPDATE SET group_name = EXCLUDED.group_name,
+         country = COALESCE(EXCLUDED.country, authorized_groups.country),
+         language = COALESCE(EXCLUDED.language, authorized_groups.language),
+         member_count = COALESCE(EXCLUDED.member_count, authorized_groups.member_count)`,
+      [bot_id, group_id, group_name || '', group_type || 'group', country || null, language || null, member_count || null]
     );
 
     res.json({ success: true });

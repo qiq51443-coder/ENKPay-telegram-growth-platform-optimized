@@ -379,6 +379,16 @@ export const RedPackets: React.FC = () => {
               <Select.Option value="ja">🇯🇵 日本語</Select.Option>
             </Select>
           </Form.Item>
+
+          <Form.Item name="claim_condition" label="领取条件" initialValue="all_users">
+            <Select>
+              <Select.Option value="all_users">所有用户可领取</Select.Option>
+              <Select.Option value="first_follow">仅首次关注 Bot 用户</Select.Option>
+              <Select.Option value="deposited">仅充值用户</Select.Option>
+              <Select.Option value="trade_volume_100">即时交易流水 ≥ 100 USDT</Select.Option>
+              <Select.Option value="trade_volume_200">即时交易流水 ≥ 200 USDT</Select.Option>
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
 

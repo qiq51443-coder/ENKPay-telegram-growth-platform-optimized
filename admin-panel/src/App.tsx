@@ -18,7 +18,6 @@ import {
   LineChartOutlined,
   HeartOutlined,
   WalletOutlined,
-  ClockCircleOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
@@ -92,10 +91,6 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       label: 'NFT 管理',
       children: [
         {
-          key: 'nft-categories',
-          label: <Link to="/nft-categories">NFT 分类</Link>,
-        },
-        {
           key: 'nft-products',
           label: <Link to="/nft-products">NFT 产品</Link>,
         },
@@ -144,6 +139,10 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           label: <Link to="/wallet-networks">充值网络</Link>,
         },
         {
+          key: 'sweep',
+          label: <Link to="/sweep">归集管理</Link>,
+        },
+        {
           key: 'deposit-records',
           label: <Link to="/deposit-records">充值记录</Link>,
         },
@@ -152,8 +151,12 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           label: <Link to="/transfer-records">转账记录</Link>,
         },
         {
-          key: 'sweep',
-          label: <Link to="/sweep">归集管理</Link>,
+          key: 'withdrawals',
+          label: <Link to="/withdrawals">提现记录</Link>,
+        },
+        {
+          key: 'orders',
+          label: <Link to="/orders">订单管理</Link>,
         },
       ],
     },
@@ -161,11 +164,6 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'bots',
       icon: <RobotOutlined />,
       label: <Link to="/bots">Bot 管理</Link>,
-    },
-    {
-      key: 'orders',
-      icon: <ClockCircleOutlined />,
-      label: <Link to="/orders">订单管理</Link>,
     },
     {
       key: 'red-packets',
@@ -210,7 +208,20 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} width={220}>
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        width={220}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+        }}
+      >
         <div
           style={{
             height: '64px',
@@ -233,9 +244,12 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           style={{ borderRight: 0 }}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ marginLeft: collapsed ? 80 : 220 }}>
         <Header
           style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
             padding: '0 16px',
             background: '#fff',
             display: 'flex',

@@ -16,7 +16,6 @@ interface User {
   robot_user_id?: string;
   balance: number;
   reward_balance?: number;
-  red_packet_credits: number;
   binding_status: string;
   account_status: string;
   is_frozen?: boolean;
@@ -194,13 +193,6 @@ const UsersPage: React.FC = () => {
       key: 'reward_balance',
       width: 120,
       render: (v: any) => <span style={{ fontFamily: 'monospace' }}>${parseFloat(v || 0).toFixed(2)}</span>,
-    },
-    {
-      title: '红包积分',
-      dataIndex: 'red_packet_credits',
-      key: 'red_packet_credits',
-      width: 80,
-      render: (credits: any) => parseInt(credits || 0),
     },
     {
       title: '账号状态',

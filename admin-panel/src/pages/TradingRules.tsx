@@ -4,7 +4,6 @@ import {
   Button,
   Drawer,
   Form,
-  Input,
   InputNumber,
   Select,
   Switch,
@@ -21,14 +20,12 @@ const { Option } = Select;
 export const TradingRules: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [rules, setRules] = useState([]);
-  const [pairs, setPairs] = useState([]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
     fetchRules();
-    fetchPairs();
   }, []);
 
   const fetchRules = async () => {
@@ -43,34 +40,16 @@ export const TradingRules: React.FC = () => {
     }
   };
 
-  const fetchPairs = async () => {
-    try {
-      const response = await api.getTradingPairs();
-      setPairs(response.data || []);
-    } catch (error: any) {
-      message.error(error.response?.data?.error || '获取交易对列表失败');
-    }
-  };
-
   const handleCreate = () => {
     setEditingRule(null);
     form.resetFields();
-    form.setFieldsValue({ 
-      odds: 1.95, 
-      min_bet: 1.0, 
-      max_bet: 10000.0, 
-      duration_seconds: 60,
-      is_active: true 
-    });
+    form.setFieldsValue({ odds: 1.95, min_bet: 1.0, max_bet: 10000.0, duration_seconds: 60, is_active: true });
     setDrawerVisible(true);
   };
 
   const handleEdit = (record: any) => {
     setEditingRule(record);
     form.setFieldsValue({
-      pair_id: record.pair_id,
-      rule_name: record.rule_name,
-      direction: record.direction,
       odds: parseFloat(record.odds),
       min_bet: parseFloat(record.min_bet),
       max_bet: parseFloat(record.max_bet),
@@ -112,6 +91,13 @@ export const TradingRules: React.FC = () => {
     }
   };
 
+  const durationLabel = (seconds: number) => {
+    if (seconds === 60) return '1分钟';
+    if (seconds === 300) return '5分钟';
+    if (seconds === 600) return '10分钟';
+    return `${seconds}秒`;
+  };
+
   const columns = [
     {
       title: 'ID',
@@ -120,25 +106,10 @@ export const TradingRules: React.FC = () => {
       width: 80,
     },
     {
-      title: '交易对',
-      dataIndex: 'pair_display_name',
-      key: 'pair_display_name',
-      render: (text: string, record: any) => text || record.pair_symbol,
-    },
-    {
-      title: '规则名称',
-      dataIndex: 'rule_name',
-      key: 'rule_name',
-    },
-    {
-      title: '方向',
-      dataIndex: 'direction',
-      key: 'direction',
-      render: (direction: string) => (
-        <Tag color={direction === 'up' ? 'green' : 'red'}>
-          {direction === 'up' ? '涨' : '跌'}
-        </Tag>
-      ),
+      title: '时段',
+      dataIndex: 'duration_seconds',
+      key: 'duration_seconds',
+      render: (seconds: number) => durationLabel(seconds),
     },
     {
       title: '赔率',
@@ -147,22 +118,16 @@ export const TradingRules: React.FC = () => {
       render: (odds: any) => parseFloat(odds).toFixed(2),
     },
     {
-      title: '最小下注',
+      title: '最低投注',
       dataIndex: 'min_bet',
       key: 'min_bet',
       render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
     },
     {
-      title: '最大下注',
+      title: '最高投注',
       dataIndex: 'max_bet',
       key: 'max_bet',
       render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
-    },
-    {
-      title: '持续时间',
-      dataIndex: 'duration_seconds',
-      key: 'duration_seconds',
-      render: (seconds: number) => `${seconds}秒`,
     },
     {
       title: '状态',
@@ -218,47 +183,26 @@ export const TradingRules: React.FC = () => {
 
       <Drawer
         title={editingRule ? '编辑交易规则' : '新建交易规则'}
-        width={600}
+        width={480}
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
-            name="pair_id"
-            label="交易对"
-            rules={[{ required: true, message: '请选择交易对' }]}
+            name="duration_seconds"
+            label="时段"
+            rules={[{ required: true, message: '请选择时段' }]}
           >
-            <Select placeholder="选择交易对">
-              {pairs.map((pair: any) => (
-                <Option key={pair.id} value={pair.id}>
-                  {pair.display_name || pair.symbol}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="rule_name"
-            label="规则名称"
-            rules={[{ required: true, message: '请输入规则名称' }]}
-          >
-            <Input placeholder="例如：BTC 1分钟涨" />
-          </Form.Item>
-
-          <Form.Item
-            name="direction"
-            label="预定方向"
-            rules={[{ required: true, message: '请选择方向' }]}
-          >
-            <Select placeholder="选择方向">
-              <Option value="up">涨（绿）</Option>
-              <Option value="down">跌（红）</Option>
+            <Select placeholder="选择时段">
+              <Option value={60}>1分钟（60秒）</Option>
+              <Option value={300}>5分钟（300秒）</Option>
+              <Option value={600}>10分钟（600秒）</Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             name="odds"
-            label="赔率（倍数）"
+            label="赔率"
             rules={[{ required: true, message: '请输入赔率' }]}
           >
             <InputNumber
@@ -273,8 +217,8 @@ export const TradingRules: React.FC = () => {
 
           <Form.Item
             name="min_bet"
-            label="最小下注金额（USDT）"
-            rules={[{ required: true, message: '请输入最小下注金额' }]}
+            label="最低投注金额（USDT）"
+            rules={[{ required: true, message: '请输入最低投注金额' }]}
           >
             <InputNumber
               min={0.01}
@@ -287,8 +231,8 @@ export const TradingRules: React.FC = () => {
 
           <Form.Item
             name="max_bet"
-            label="最大下注金额（USDT）"
-            rules={[{ required: true, message: '请输入最大下注金额' }]}
+            label="最高投注金额（USDT）"
+            rules={[{ required: true, message: '请输入最高投注金额' }]}
           >
             <InputNumber
               min={1}
@@ -296,20 +240,6 @@ export const TradingRules: React.FC = () => {
               precision={2}
               style={{ width: '100%' }}
               placeholder="例如：10000.00"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="duration_seconds"
-            label="每轮持续时间（秒）"
-            rules={[{ required: true, message: '请输入持续时间' }]}
-          >
-            <InputNumber
-              min={10}
-              max={3600}
-              step={10}
-              style={{ width: '100%' }}
-              placeholder="例如：60"
             />
           </Form.Item>
 

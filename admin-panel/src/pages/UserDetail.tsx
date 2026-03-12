@@ -18,7 +18,7 @@ interface UserDetail {
   wallet_balance?: number;
   reward_balance?: number;
   nft_balance?: number;
-  red_packet_credits: number;
+  red_packet_balance?: number;
   binding_status: string;
   account_status: string;
   platform_username?: string;
@@ -329,11 +329,6 @@ export const UserDetail: React.FC = () => {
               <Descriptions.Item label="红包余额 (打码解锁)">
                 <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                   ${rewardBalance.toFixed(2)}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="红包积分">
-                <span style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                  {user.red_packet_credits ?? 0}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="提现密码状态">

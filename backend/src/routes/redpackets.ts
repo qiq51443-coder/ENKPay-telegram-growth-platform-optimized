@@ -10,7 +10,7 @@ const router = express.Router();
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -50,10 +50,10 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const isRandom = is_random === false ? false : true;
 
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10)
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours]
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users']
     );
 
     const redPacket = result.rows[0];
@@ -203,14 +203,42 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Already claimed' });
     }
 
-    // Check user credits
-    const userResult = await query(
-      'SELECT red_packet_credits FROM users WHERE id = $1',
-      [user_id]
-    );
+    // Check claim condition
+    const condition = redPacket.claim_condition || 'all_users';
+    if (condition !== 'all_users') {
+      const userInfoResult = await query('SELECT * FROM users WHERE id = $1', [user_id]);
+      if (userInfoResult.rows.length === 0) {
+        return res.status(403).json({ error: 'User not found' });
+      }
 
-    if (userResult.rows.length === 0 || userResult.rows[0].red_packet_credits <= 0) {
-      return res.status(400).json({ error: 'Insufficient credits' });
+      if (condition === 'first_follow') {
+        const txCount = await query('SELECT COUNT(*) FROM transactions WHERE user_id = $1', [user_id]);
+        if (parseInt(txCount.rows[0].count) > 0) {
+          return res.status(403).json({ error: '仅首次关注 Bot 的新用户可领取' });
+        }
+      }
+
+      if (condition === 'deposited') {
+        const depositCount = await query(
+          "SELECT COUNT(*) FROM deposit_records WHERE user_id = $1 AND status = 'confirmed'",
+          [user_id]
+        );
+        if (parseInt(depositCount.rows[0].count) === 0) {
+          return res.status(403).json({ error: '仅充值用户可领取' });
+        }
+      }
+
+      if (condition === 'trade_volume_100' || condition === 'trade_volume_200') {
+        const requiredVolume = condition === 'trade_volume_100' ? 100 : 200;
+        const volumeResult = await query(
+          "SELECT COALESCE(SUM(amount), 0) as total_volume FROM trading_orders WHERE user_id = $1 AND status = 'settled'",
+          [user_id]
+        );
+        const totalVolume = parseFloat(volumeResult.rows[0].total_volume);
+        if (totalVolume < requiredVolume) {
+          return res.status(403).json({ error: `需要即时交易流水达到 ${requiredVolume} USDT 才可领取` });
+        }
+      }
     }
 
     // Calculate claim amount based on is_random flag
@@ -234,12 +262,6 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
     // Use transaction
     const { transaction } = await import('../db');
     const result = await transaction(async (client) => {
-      // Deduct credit
-      await client.query(
-        'UPDATE users SET red_packet_credits = red_packet_credits - 1 WHERE id = $1',
-        [user_id]
-      );
-
       // Check if this is the user's first red packet claim
       const isNewUserResult = await client.query(
         'SELECT COUNT(*) as claim_count FROM red_packet_claims WHERE user_id = $1',
