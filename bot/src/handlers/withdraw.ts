@@ -404,15 +404,18 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
 
     const orderId: string = result?.data?.order_id || result?.order_id || '-';
     const networkLabel = data?.networkLabel || data?.networkId || '-';
+    const submitTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
     const successMessage =
-      `✅ <b>${t(lang, 'withdraw_success_title')}</b>\n\n` +
+      `⏳ <b>${t(lang, 'withdraw_submitted')}</b>\n\n` +
       `┌─────────────────────────\n` +
       `│ 📋 ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
       `│ 💰 ${t(lang, 'withdraw_success_amount')}: <b>${Number(data?.amount).toFixed(2)} USDT</b>\n` +
       `│ 🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkLabel}</b>\n` +
       `│ 📤 ${t(lang, 'withdraw_success_address')}: <code>${data?.address}</code>\n` +
-      `└─────────────────────────`;
+      `│ 🕐 ${t(lang, 'withdraw_submitted_time')}: ${submitTime}\n` +
+      `└─────────────────────────\n\n` +
+      `ℹ️ ${t(lang, 'withdraw_pending_info')}`;
 
     await ctx.replyWithHTML(successMessage);
   } catch (err: any) {

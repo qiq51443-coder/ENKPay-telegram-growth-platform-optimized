@@ -232,11 +232,18 @@ export const zh = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *充值成功*\n\n💰 金额：{amount} USDT\n🌐 网络：{network}\n🔗 交易哈希：`{txHash}`\n\n💳 当前余额：*{balance} USDT*\n\n感谢您的充值！',
-  withdraw_approved_notify: '✅ *提现已批准*\n\n💰 提现金额：{amount} USDT\n💸 手续费：{fee} USDT\n📤 实际到账：{actual} USDT\n📍 到账地址：{address}\n\n💳 当前余额：*{balance} USDT*',
-  withdraw_rejected_notify: '❌ *提现已拒绝*\n\n💰 提现金额：{amount} USDT\n💳 余额已退回：*{balance} USDT*\n\n📝 拒绝原因：{reason}',
+  withdraw_approved_notify: '✅ *提现已批准*\n\n📋 订单号：`{order_id}`\n🌐 网络：{network}\n💰 提现金额：{amount} USDT\n💸 手续费：{fee} USDT\n📤 实际到账：{actual} USDT\n📍 到账地址：{address}\n🕐 审核时间：{time}\n\n💳 当前余额：*{balance} USDT*',
+  withdraw_rejected_notify: '❌ *提现已拒绝*\n\n📋 订单号：`{order_id}`\n🌐 网络：{network}\n💰 提现金额：{amount} USDT\n📍 地址：{address}\n🕐 时间：{time}\n💳 余额已退回：*{balance} USDT*\n\n📝 拒绝原因：{reason}',
   transfer_sent_notify: '📤 *转账成功*\n\n👤 收款方：{recipient}\n💵 转账金额：{amount} USDT\n💸 手续费：{fee} USDT\n✅ 实际到账：{actual} USDT\n\n💳 当前余额：*{balance} USDT*',
   transfer_received_notify: '📥 *收到转账*\n\n👤 汇款方：{sender}\n✅ 到账金额：{amount} USDT\n\n💳 当前余额：*{balance} USDT*',
 
   // Balance hint (shown in bot-side messages when exact balance is not available inline)
   balance_updated_hint: '余额已更新，请查看钱包 💳',
+
+  // Withdrawal pending flow
+  withdraw_submitted: '提现申请已提交，等待管理员审核',
+  withdraw_submitted_time: '提交时间',
+  withdraw_pending_info: '审核通过后将收到通知',
+  withdraw_balance_hint: '当前余额：{balance} USDT',
+  withdraw_fee_hint: '手续费：{fee} USDT（{fee_rate}%），实际到账：{actual} USDT',
 };

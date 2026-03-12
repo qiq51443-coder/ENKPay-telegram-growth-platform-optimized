@@ -400,9 +400,22 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
       return;
     }
 
+    // Read withdrawal fee rate from platform config (default 2%)
+    let feeRate = 0.02;
+    try {
+      const cfgRow = await query(`SELECT value FROM platform_config WHERE key = 'withdraw_fee_rate'`);
+      if (cfgRow.rows.length > 0) {
+        const parsed = parseFloat(cfgRow.rows[0].value);
+        if (!isNaN(parsed)) feeRate = parsed;
+      }
+    } catch {}
+
+    const fee = data.amount * feeRate;
+    const actualAmount = data.amount - fee;
+
     const orderId = generateOrderId();
 
-    // Atomically verify balance, deduct it, and create the withdrawal record
+    // Atomically verify balance, freeze it, and create the withdrawal record
     await transaction(async (client) => {
       const balCheck = await client.query(
         'SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE',
@@ -418,10 +431,11 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
         throw new Error('INSUFFICIENT_BALANCE:' + balance.toFixed(2));
       }
 
+      // Freeze balance: deduct from wallet_balance and add to frozen_balance
       await client.query(
         `UPDATE users
          SET wallet_balance = wallet_balance - $1,
-             total_withdrawn = COALESCE(total_withdrawn, 0) + $1
+             frozen_balance = COALESCE(frozen_balance, 0) + $1
          WHERE id = $2`,
         [data.amount, canonicalId]
       );
@@ -429,8 +443,8 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
       await client.query(
         `INSERT INTO withdrawal_records
           (user_id, network_id, amount, fee, actual_amount, to_address, status, order_id)
-         VALUES ($1, $2, $3, 0, $3, $4, 'pending', $5)`,
-        [canonicalId, networkIdInt, data.amount, data.address, orderId]
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)`,
+        [canonicalId, networkIdInt, data.amount, fee, actualAmount, data.address, orderId]
       );
     });
 
@@ -446,14 +460,18 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
     }
     if (!networkName) networkName = String(data.networkId || '-');
 
+    const submitTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+
     await ctx.replyWithHTML(
-      `✅ <b>${t(lang, 'withdraw_success_title')}</b>\n\n` +
+      `⏳ <b>${t(lang, 'withdraw_submitted')}</b>\n\n` +
       `┌─────────────────────────\n` +
       `│ 📋 ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
       `│ 💰 ${t(lang, 'withdraw_success_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
       `│ 🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkName}</b>\n` +
       `│ 📤 ${t(lang, 'withdraw_success_address')}: <code>${data.address}</code>\n` +
-      `└─────────────────────────`
+      `│ 🕐 ${t(lang, 'withdraw_submitted_time')}: ${submitTime}\n` +
+      `└─────────────────────────\n\n` +
+      `ℹ️ ${t(lang, 'withdraw_pending_info')}`
     );
   } catch (err: any) {
     console.error('processWithdrawal error:', err);
@@ -658,17 +676,17 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               await ctx.reply(t(lang, 'error'));
               return;
             }
-            // Validate address format based on selected network
-            const networkId: string = state.data?.networkId || '';
-            const net = networkId.toUpperCase();
+            // Validate address format based on chain_name stored in state
+            const chainName: string = state.data?.chainName || state.data?.networkId || '';
+            const chain = chainName.toUpperCase();
             let addressValid = true;
-            if (net === 'TRC' || net.includes('TRC')) {
+            if (chain === 'TRON' || chain.includes('TRC')) {
               addressValid = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
-            } else if (net === 'BSC' || net === 'ETH' || net.includes('BSC') || net.includes('ETH') || net.includes('ERC')) {
+            } else if (chain === 'ETH' || chain === 'ETHEREUM' || chain === 'BSC' || chain === 'BNB' || chain.includes('ERC') || chain.includes('BEP')) {
               addressValid = /^0x[0-9a-fA-F]{40}$/.test(address);
             }
             if (!addressValid) {
-              const networkName: string = state.data?.networkName || networkId;
+              const networkName: string = state.data?.networkName || state.data?.networkId || '';
               await ctx.reply(
                 t(lang, 'invalid_address').replace('{network}', networkName),
                 Markup.inlineKeyboard([
@@ -691,14 +709,45 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               await ctx.reply(t(lang, 'error'));
               return;
             }
+
+            // Check balance before showing confirmation
+            let availableBalance = 0;
+            try {
+              const balRow = await query('SELECT wallet_balance FROM users WHERE id = $1', [user.id]);
+              availableBalance = parseFloat(String(balRow.rows[0]?.wallet_balance ?? 0));
+            } catch {}
+
+            if (amount > availableBalance) {
+              await ctx.reply(
+                t(lang, 'insufficient_balance').replace('{balance}', availableBalance.toFixed(2)),
+                Markup.inlineKeyboard([
+                  [Markup.button.callback(t(lang, 'btn_cancel'), 'wallet_back_to_wallet')],
+                ])
+              );
+              return;
+            }
+
+            // Read fee rate from platform config (default 2%)
+            let feeRate = 0.02;
+            try {
+              const cfgRow = await query(`SELECT value FROM platform_config WHERE key = 'withdraw_fee_rate'`);
+              if (cfgRow.rows.length > 0) {
+                const parsed = parseFloat(cfgRow.rows[0].value);
+                if (!isNaN(parsed)) feeRate = parsed;
+              }
+            } catch {}
+            const fee = amount * feeRate;
+            const actualAmount = amount - fee;
+
             const d: Record<string, any> = { ...state.data, amount };
             setUserState(userId, { step: 'withdraw_need_password', data: d });
 
             const confirmMsg =
               `📤 <b>${t(lang, 'withdraw_confirm_info')}</b>\n\n` +
-              `🌐 Network: <b>${d.networkName || d.networkId}</b>\n` +
-              `📍 Address: <code>${d.address}</code>\n` +
-              `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
+              `🌐 ${t(lang, 'withdraw_success_network')}: <b>${d.networkName || d.networkId}</b>\n` +
+              `📍 ${t(lang, 'withdraw_success_address')}: <code>${d.address}</code>\n` +
+              `💵 ${t(lang, 'withdraw_success_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
+              `💸 ${t(lang, 'withdraw_fee_hint').replace('{fee}', fee.toFixed(2)).replace('{fee_rate}', (feeRate * 100).toFixed(0)).replace('{actual}', actualAmount.toFixed(2))}`;
 
             await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
               [
@@ -1037,23 +1086,25 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         const rawNetworkId = data.replace('withdraw_net_', '');
         let networkName = rawNetworkId.toUpperCase();
         let resolvedNetworkId: string | number = rawNetworkId;
+        let chainName = rawNetworkId.toUpperCase();
         try {
           const numericId = await resolveNetworkId(rawNetworkId);
           if (numericId) {
             resolvedNetworkId = numericId;
             const netResult = await query(
-              'SELECT id, network_name, network_display FROM deposit_networks WHERE id = $1',
+              'SELECT id, network_name, network_display, chain_name FROM deposit_networks WHERE id = $1',
               [numericId]
             );
             if (netResult.rows.length > 0) {
               networkName = netResult.rows[0].network_display || netResult.rows[0].network_name;
+              chainName = netResult.rows[0].chain_name || networkName;
             }
           }
         } catch {}
 
         setUserState(user.id, {
           step: 'withdraw_enter_address',
-          data: { networkId: resolvedNetworkId, networkName },
+          data: { networkId: resolvedNetworkId, networkName, chainName },
         });
         try { await ctx.deleteMessage(); } catch {}
         await ctx.reply(t(lang, 'withdraw_enter_address'), Markup.inlineKeyboard([
