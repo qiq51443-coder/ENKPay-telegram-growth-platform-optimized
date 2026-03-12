@@ -53,6 +53,10 @@ const KLINE_INTERVALS = [
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 
+const DEFAULT_RULES: TradingRule[] = [
+  { id: 'default', duration_seconds: 60, odds: 1.95, min_bet: 1, max_bet: 1000 },
+];
+
 export const Trading: React.FC = () => {
   const { t } = useLang();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
@@ -124,38 +128,46 @@ export const Trading: React.FC = () => {
 
     // Destroy old chart if exists
     if (chartRef.current) {
-      chartRef.current.remove();
+      try { chartRef.current.remove(); } catch {}
       chartRef.current = null;
       candleSeriesRef.current = null;
     }
     lastKlineTimeRef.current = 0;
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 200,
-      layout: {
-        background: { color: 'transparent' },
-        textColor: '#9e9e9e',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255,255,255,0.05)' },
-        horzLines: { color: 'rgba(255,255,255,0.05)' },
-      },
-      crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
-      timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
-    });
+    let chart: any = null;
+    let candleSeries: any = null;
+    try {
+      chart = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 200,
+        layout: {
+          background: { color: 'transparent' },
+          textColor: '#9e9e9e',
+        },
+        grid: {
+          vertLines: { color: 'rgba(255,255,255,0.05)' },
+          horzLines: { color: 'rgba(255,255,255,0.05)' },
+        },
+        crosshair: { mode: 1 },
+        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+        timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+      });
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
+      chartRef.current = chart;
+      candleSeriesRef.current = candleSeries;
+    } catch (chartErr) {
+      console.warn('[Trading] createChart failed:', chartErr);
+      setKlineError(true);
+      return;
+    }
 
     // Load K-line data
     const fetchKline = async () => {
@@ -194,7 +206,7 @@ export const Trading: React.FC = () => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
+      try { chart.remove(); } catch {}
       chartRef.current = null;
       candleSeriesRef.current = null;
       lastKlineTimeRef.current = 0;
@@ -244,7 +256,15 @@ export const Trading: React.FC = () => {
     setResultMsg(null);
     try {
       const res = await api.get(`/trading/pairs/${pair.id}/rules`);
-      const ruleList: TradingRule[] = res.data?.data || [];
+      let ruleList: TradingRule[] = res.data?.data || [];
+      if (ruleList.length === 0) {
+        // try global rules endpoint
+        const globalRes = await api.get('/trading/rules').catch(() => ({ data: null }));
+        ruleList = globalRes.data?.data || globalRes.data?.rules || [];
+      }
+      if (ruleList.length === 0) {
+        ruleList = DEFAULT_RULES;
+      }
       setRules(ruleList);
       const firstMatch = ruleList.find((r) => r.duration_seconds === selectedDuration) || ruleList[0];
       if (firstMatch) {
@@ -252,7 +272,9 @@ export const Trading: React.FC = () => {
         setSelectedOdds(firstMatch.odds);
       }
     } catch {
-      setRules([]);
+      setRules(DEFAULT_RULES);
+      setSelectedDuration(DEFAULT_RULES[0].duration_seconds);
+      setSelectedOdds(DEFAULT_RULES[0].odds);
     }
   };
 
@@ -627,6 +649,11 @@ export const Trading: React.FC = () => {
   return (
     <div style={{ padding: '16px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('trading_title')}</h1>
+      {pairs.length === 0 && (
+        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
+          {t('no_trading_pairs') || '暂无可交易品种'}
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {pairs.map((pair) => {
           const info = prices[pair.id] || { price: 0, change24h: 0 };

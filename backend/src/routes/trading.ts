@@ -349,6 +349,25 @@ router.get('/my-orders', authenticateBot, async (req: AuthRequest, res) => {
 });
 
 /**
+ * GET /api/trading/rules
+ * Get all active trading rules (no pair filter, for miniApp use)
+ */
+router.get('/rules', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, duration_seconds, odds, min_bet, max_bet, is_active
+       FROM trading_rules
+       WHERE is_active = true
+       ORDER BY duration_seconds ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get trading rules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/trading/pairs/:id/rules
  * Get trading rules for a pair, optionally filtered by duration
  */
