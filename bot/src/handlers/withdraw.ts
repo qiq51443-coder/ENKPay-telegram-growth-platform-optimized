@@ -132,7 +132,9 @@ export const handleWithdrawSelectNetworkCallback = async (ctx: Context, networkI
     });
 
     await ctx.answerCbQuery();
-    await ctx.reply(t(lang, 'withdraw_enter_address'));
+    await ctx.reply(t(lang, 'withdraw_enter_address'), Markup.inlineKeyboard([
+      [Markup.button.callback(t(lang, 'btn_cancel'), 'withdraw_cancel')],
+    ]));
   } catch (error) {
     console.error('Withdraw network callback error:', error);
   }
@@ -148,7 +150,8 @@ export const handleWithdrawEnterAddress = async (ctx: Context, user: any, addres
 
     if (!validateAddress(address.trim(), chainName)) {
       await ctx.reply(
-        t(lang, 'invalid_address').replace('{network}', networkLabel)
+        t(lang, 'invalid_address').replace('{network}', networkLabel),
+        Markup.inlineKeyboard([[Markup.button.callback(t(lang, 'btn_cancel'), 'withdraw_cancel')]])
       );
       return;
     }
@@ -158,7 +161,9 @@ export const handleWithdrawEnterAddress = async (ctx: Context, user: any, addres
       data: { ...state?.data, address: address.trim() },
     });
 
-    await ctx.reply(t(lang, 'withdraw_enter_amount'));
+    await ctx.reply(t(lang, 'withdraw_enter_amount'), Markup.inlineKeyboard([
+      [Markup.button.callback(t(lang, 'btn_cancel'), 'withdraw_cancel')],
+    ]));
   } catch (error) {
     console.error('Withdraw enter address error:', error);
   }

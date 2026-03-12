@@ -162,6 +162,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
           data === 'deposit_back' || data === 'withdraw_back' ||
           data === 'transfer_back' || data === 'language_back' ||
           data === 'support_back') {
+        await clearUserState(user.id.toString());
         await ctx.answerCbQuery();
         if (data === 'wallet_back') {
           await handleStart(ctx);
