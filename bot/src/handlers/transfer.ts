@@ -169,14 +169,15 @@ export const handleTransferConfirm = async (ctx: Context) => {
 
       const fee: number = result?.data?.fee ?? 0;
       const actualReceived: number = result?.data?.actual_received ?? amount;
+      const orderId: string = result?.data?.order_id || '-';
 
       const successMsg =
         `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
-        `👤 To: <b>${recipientName || recipientUniqueId || '-'}</b>\n` +
-        `💵 Amount: <b>${amount.toFixed(2)} USDT</b>\n` +
-        `💸 Fee: <b>${fee.toFixed(2)} USDT</b>\n` +
-        `✅ Delivered: <b>${actualReceived.toFixed(2)} USDT</b>\n\n` +
-        `💳 ${t(lang, 'balance_updated_hint')}`;
+        `📋 ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+        `👤 ${t(lang, 'transfer_to')}: <b>${recipientName || recipientUniqueId || '-'}</b>\n` +
+        `💵 ${t(lang, 'transfer_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
+        `💸 ${t(lang, 'transfer_fee')}: <b>${fee.toFixed(2)} USDT</b>\n` +
+        `✅ ${t(lang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
 
       await ctx.replyWithHTML(successMsg);
 
@@ -185,10 +186,10 @@ export const handleTransferConfirm = async (ctx: Context) => {
         try {
           const rLang = recipientLanguage || 'en';
           const notifyMsg =
-            `${t(rLang, 'transfer_received')}\n\n` +
-            `👤 From: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
-            `💵 Amount: <b>${actualReceived.toFixed(2)} USDT</b>\n\n` +
-            `💳 ${t(rLang, 'balance_updated_hint')}`;
+            `💰 <b>${t(rLang, 'transfer_received')}</b>\n\n` +
+            `📋 ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+            `👤 ${t(rLang, 'transfer_from')}: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
+            `✅ ${t(rLang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
           await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
         } catch (notifyErr) {
           console.error('Failed to notify recipient:', notifyErr);

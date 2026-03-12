@@ -580,6 +580,16 @@ class ApiClient {
     return response.data;
   }
 
+  async getUserStats() {
+    const response = await this.client.get('/admin/stats/users');
+    return response.data;
+  }
+
+  async getUserLinkedBots(telegramId: number | string) {
+    const response = await this.client.get(`/admin/users/${telegramId}/bots`);
+    return response.data;
+  }
+
   // Trading Rules
   async getTradingRules(params?: any) {
     const response = await this.client.get('/admin/trading/rules', { params });

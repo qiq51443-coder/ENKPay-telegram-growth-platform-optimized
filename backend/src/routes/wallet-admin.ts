@@ -524,6 +524,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         if (action === 'approved') {
           const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
           const message = formatNotification(template, {
+            order_id: result.withdrawal.order_id || '-',
             amount: parseFloat(result.withdrawal.amount).toFixed(2),
             fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
             actual: parseFloat(result.withdrawal.actual_amount || result.withdrawal.amount).toFixed(2),
@@ -539,6 +540,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           const restoredBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
           const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
           const msg = formatNotification(template, {
+            order_id: result.withdrawal.order_id || '-',
             amount: parseFloat(result.withdrawal.amount).toFixed(2),
             balance: restoredBalance,
             reason: admin_note || '-',

@@ -184,6 +184,12 @@ export const es: Record<string, string> = {
   transfer_received: '💰 Recibiste una transferencia',
   transfer_notify_sender: '📤 Detalles de transferencia (Remitente)',
   transfer_notify_receiver: '📥 Detalles de transferencia (Destinatario)',
+  transfer_order_id: '📋 Número de pedido',
+  transfer_to: '👤 Para',
+  transfer_from: '👤 De',
+  transfer_amount: '💵 Monto',
+  transfer_fee: '💸 Tarifa',
+  transfer_delivered: '✅ Entregado',
 
   // Numpad
   numpad_confirm: '✅ Confirmar',

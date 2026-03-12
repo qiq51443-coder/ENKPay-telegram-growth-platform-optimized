@@ -21,6 +21,7 @@ interface User {
   account_status: string;
   is_frozen?: boolean;
   created_at: string;
+  bot_count?: number;
 }
 
 interface ErrorBoundaryState {
@@ -224,6 +225,13 @@ const UsersPage: React.FC = () => {
       key: 'created_at',
       width: 160,
       render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '关联机器人',
+      dataIndex: 'bot_count',
+      key: 'bot_count',
+      width: 100,
+      render: (count: number | undefined) => count != null ? count : '-',
     },
     {
       title: '操作',

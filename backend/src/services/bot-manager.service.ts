@@ -167,12 +167,14 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
   if (existingAnyBot.rows.length > 0) {
     // User exists for another bot — create linked entry copying shared identity/balance fields
     const source = existingAnyBot.rows[0];
+    // Reuse the existing unique_id so the user has one consistent ID across all bots
+    const uniqueIdToUse = source.unique_id || await generateUserUniqueId().catch(() => `U${Date.now().toString(36).toUpperCase().slice(-6)}`);
     const createResult = await query(
       `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code,
        invited_by, red_packet_credits, wallet_balance, reward_balance, frozen_balance,
        platform_username, platform_bound, platform_status, account_status,
-       channel_followed, group_joined, follow_reward_unlocked, bind_reward_unlocked, last_active_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+       channel_followed, group_joined, follow_reward_unlocked, bind_reward_unlocked, unique_id, last_active_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
        ON CONFLICT (bot_id, telegram_id) DO UPDATE SET last_active_at = NOW()
        RETURNING *`,
       [
@@ -195,6 +197,7 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
         source.group_joined,
         source.follow_reward_unlocked,
         source.bind_reward_unlocked,
+        uniqueIdToUse,
       ]
     );
     return createResult.rows[0];
@@ -529,7 +532,10 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
     });
 
     await ctx.replyWithHTML(
-      `✅ ${t(lang, 'transfer_success')}\n\n📋 Order: <code>${orderId}</code>`
+      `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
+      `📋 ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+      `👤 ${t(lang, 'transfer_to')}: <b>${data.recipientName || data.recipientUniqueId || '-'}</b>\n` +
+      `💵 ${t(lang, 'transfer_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>`
     );
 
     // Notify recipient
@@ -537,9 +543,10 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
       try {
         const rLang = data.recipientLanguage || 'en';
         const notifyMsg =
-          `${t(rLang, 'transfer_received')}\n\n` +
-          `👤 From: <b>${user.first_name || user.username || '-'}</b>\n` +
-          `💵 Amount: <b>${Number(data.amount).toFixed(2)} USDT</b>`;
+          `💰 <b>${t(rLang, 'transfer_received')}</b>\n\n` +
+          `📋 ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+          `👤 ${t(rLang, 'transfer_from')}: <b>${user.first_name || user.username || '-'}</b>\n` +
+          `✅ ${t(rLang, 'transfer_delivered')}: <b>${Number(data.amount).toFixed(2)} USDT</b>`;
         await ctx.telegram.sendMessage(data.recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
       } catch {}
     }

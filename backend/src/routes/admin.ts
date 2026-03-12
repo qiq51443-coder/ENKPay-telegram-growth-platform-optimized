@@ -440,6 +440,60 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
 });
 
 // ============================================
+// User Statistics API
+// ============================================
+
+/**
+ * GET /api/admin/stats/users
+ * Returns user statistics: total unique users, new today, active 7d, per-bot breakdown
+ */
+router.get('/stats/users', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [uniqueUsers, totalRecords, newToday, active7d, byBot] = await Promise.all([
+      query(`SELECT COUNT(DISTINCT telegram_id) AS total_unique_users FROM users`),
+      query(`SELECT COUNT(*) AS total_user_records FROM users`),
+      query(`SELECT COUNT(DISTINCT telegram_id) AS new_users_today FROM users WHERE created_at >= CURRENT_DATE`),
+      query(`SELECT COUNT(DISTINCT telegram_id) AS active_users_7d FROM users WHERE last_active_at >= NOW() - INTERVAL '7 days'`),
+      query(`SELECT b.name AS bot_name, COUNT(u.id) AS user_count FROM users u JOIN bots b ON u.bot_id = b.id GROUP BY b.name ORDER BY user_count DESC`),
+    ]);
+
+    res.json({
+      total_unique_users: parseInt(uniqueUsers.rows[0]?.total_unique_users ?? 0),
+      total_user_records: parseInt(totalRecords.rows[0]?.total_user_records ?? 0),
+      new_users_today: parseInt(newToday.rows[0]?.new_users_today ?? 0),
+      active_users_7d: parseInt(active7d.rows[0]?.active_users_7d ?? 0),
+      users_by_bot: byBot.rows.map(r => ({ bot_name: r.bot_name, user_count: parseInt(r.user_count) })),
+    });
+  } catch (error) {
+    console.error('Get user stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/admin/users/:telegramId/bots
+ * Returns the list of bots a user (by telegram_id) is registered with
+ */
+router.get('/users/:telegramId/bots', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { telegramId } = req.params;
+    const result = await query(
+      `SELECT u.id, u.bot_id, b.name AS bot_name, b.username AS bot_username,
+              u.created_at, u.last_active_at, u.account_status
+       FROM users u
+       JOIN bots b ON u.bot_id = b.id
+       WHERE u.telegram_id = $1
+       ORDER BY u.created_at ASC`,
+      [telegramId]
+    );
+    res.json({ bots: result.rows });
+  } catch (error) {
+    console.error('Get user bots error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
 // Admin User Management
 // ============================================
 

@@ -184,6 +184,12 @@ export const ar: Record<string, string> = {
   transfer_received: '💰 استلمت تحويلاً',
   transfer_notify_sender: '📤 تفاصيل التحويل (المرسل)',
   transfer_notify_receiver: '📥 تفاصيل التحويل (المستلم)',
+  transfer_order_id: '📋 رقم الطلب',
+  transfer_to: '👤 إلى',
+  transfer_from: '👤 من',
+  transfer_amount: '💵 المبلغ',
+  transfer_fee: '💸 الرسوم',
+  transfer_delivered: '✅ تم التسليم',
 
   // Numpad
   numpad_confirm: '✅ تأكيد',

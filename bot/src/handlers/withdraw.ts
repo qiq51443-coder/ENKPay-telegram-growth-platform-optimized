@@ -1,24 +1,50 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
-import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword } from '../services/api';
+import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword, getWalletNetworks, getUserBalance } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
 
-const NETWORKS = [
-  { label: 'BSC (BEP20)', id: 'BSC' },
-  { label: 'ETH (ERC20)', id: 'ETH' },
-  { label: 'TRC (TRC20)', id: 'TRC' },
-];
+interface NetworkInfo {
+  id: number;
+  network_name: string;
+  network_display: string;
+  chain_name: string;
+}
 
-/** Validate withdrawal address format based on network */
-function validateAddress(address: string, networkId: string): boolean {
+// Cache of active networks: refreshed every 5 minutes
+let networksCache: NetworkInfo[] | null = null;
+let networksCacheExpiry = 0;
+
+async function getActiveNetworks(botId: string): Promise<NetworkInfo[]> {
+  const now = Date.now();
+  if (networksCache && now < networksCacheExpiry) {
+    return networksCache;
+  }
+  try {
+    const networks = await getWalletNetworks(botId);
+    if (networks && networks.length > 0) {
+      networksCache = networks;
+      networksCacheExpiry = now + 5 * 60 * 1000;
+    }
+    return networksCache || [];
+  } catch {
+    return networksCache || [];
+  }
+}
+
+function getNetworkLabel(network: NetworkInfo): string {
+  return network.network_display || network.network_name;
+}
+
+/** Validate withdrawal address format based on chain name */
+function validateAddress(address: string, chainName: string): boolean {
   const trimmed = address.trim();
-  const net = networkId.toUpperCase();
-  if (net === 'TRC' || net.includes('TRC')) {
+  const chain = chainName.toUpperCase();
+  if (chain === 'TRON') {
     return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
   }
-  if (net === 'BSC' || net === 'ETH' || net.includes('BSC') || net.includes('ETH') || net.includes('ERC')) {
+  if (chain === 'ETH' || chain === 'ETHEREUM' || chain === 'BSC' || chain === 'BNB' || chain === 'POLYGON' || chain === 'MATIC') {
     return /^0x[0-9a-fA-F]{40}$/.test(trimmed);
   }
   return true; // unknown network – allow and let backend validate
@@ -57,14 +83,27 @@ export const handleWithdrawSelectNetwork = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
+    const networks = await getActiveNetworks(botId);
+    if (!networks || networks.length === 0) {
+      await ctx.editMessageText(
+        `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n${t(lang, 'error')}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]]) }
+      );
+      return;
+    }
+
+    const networkButtons = networks.map(n => Markup.button.callback(getNetworkLabel(n), `withdraw_network:${n.id}`));
+    const rows: any[][] = [];
+    for (let i = 0; i < networkButtons.length; i += 2) {
+      rows.push(networkButtons.slice(i, i + 2));
+    }
+    rows.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
+
     await ctx.editMessageText(
       `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n${t(lang, 'withdraw_select_network')}`,
       {
         parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          NETWORKS.map(n => Markup.button.callback(n.label, `withdraw_network:${n.id}`)),
-          [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-        ]),
+        ...Markup.inlineKeyboard(rows),
       }
     );
   } catch (error) {
@@ -80,10 +119,16 @@ export const handleWithdrawSelectNetworkCallback = async (ctx: Context, networkI
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
+    // Look up network info for label and chain name
+    const networks = await getActiveNetworks(botId);
+    const network = networks.find(n => String(n.id) === String(networkId));
+    const networkLabel = network ? getNetworkLabel(network) : networkId;
+    const chainName = network?.chain_name || networkId;
+
     // Save network in state and prompt for address
     await setUserState(user.id.toString(), {
       step: 'withdraw_enter_address',
-      data: { networkId },
+      data: { networkId, networkLabel, chainName },
     });
 
     await ctx.answerCbQuery();
@@ -98,9 +143,10 @@ export const handleWithdrawEnterAddress = async (ctx: Context, user: any, addres
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
     const networkId: string = state?.data?.networkId || '';
+    const chainName: string = state?.data?.chainName || networkId;
+    const networkLabel: string = state?.data?.networkLabel || networkId;
 
-    if (!validateAddress(address.trim(), networkId)) {
-      const networkLabel = NETWORKS.find(n => n.id === networkId)?.label || networkId;
+    if (!validateAddress(address.trim(), chainName)) {
       await ctx.reply(
         t(lang, 'invalid_address').replace('{network}', networkLabel)
       );
@@ -123,10 +169,25 @@ export const handleWithdrawEnterAmount = async (ctx: Context, user: any, amount:
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
     const numAmount = parseFloat(amount);
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
 
     if (isNaN(numAmount) || numAmount <= 0) {
       await ctx.reply(t(lang, 'error'));
       return;
+    }
+
+    // Check balance before proceeding
+    try {
+      const balData = await getUserBalance(botId, user.id.toString());
+      const available = parseFloat(String(balData?.wallet_balance ?? 0));
+      if (available < numAmount) {
+        await ctx.reply(
+          t(lang, 'insufficient_balance').replace('{balance}', available.toFixed(2))
+        );
+        return;
+      }
+    } catch {
+      // If balance check fails, let the backend validate
     }
 
     await setUserState(user.id.toString(), {
@@ -135,11 +196,12 @@ export const handleWithdrawEnterAmount = async (ctx: Context, user: any, amount:
     });
 
     const d = state?.data || {};
+    const networkLabel = d.networkLabel || d.networkId || '';
     const confirmMsg =
       `📤 <b>${t(lang, 'withdraw_confirm_info')}</b>\n\n` +
-      `🌐 Network: <b>${d.networkId || ''}</b>\n` +
-      `📍 Address: <code>${d.address || ''}</code>\n` +
-      `💵 Amount: <b>${numAmount.toFixed(2)} USDT</b>`;
+      `🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkLabel}</b>\n` +
+      `📍 ${t(lang, 'withdraw_success_address')}: <code>${d.address || ''}</code>\n` +
+      `💵 ${t(lang, 'withdraw_success_amount')}: <b>${numAmount.toFixed(2)} USDT</b>`;
 
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
       [
@@ -336,7 +398,7 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
     });
 
     const orderId: string = result?.data?.order_id || result?.order_id || '-';
-    const networkLabel = NETWORKS.find(n => n.id === data?.networkId)?.label || data?.networkId || '-';
+    const networkLabel = data?.networkLabel || data?.networkId || '-';
 
     const successMessage =
       `✅ <b>${t(lang, 'withdraw_success_title')}</b>\n\n` +

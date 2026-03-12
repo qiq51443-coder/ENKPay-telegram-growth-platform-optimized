@@ -90,7 +90,8 @@ async function notifyTransferParties(
   recipientDisplayName: string,
   amount: number,
   fee: number,
-  actualReceived: number
+  actualReceived: number,
+  orderId: string
 ): Promise<void> {
   // Fetch sender info (telegram_id, language_code, updated balance, bot_token)
   const senderResult = await query(
@@ -119,6 +120,7 @@ async function notifyTransferParties(
         const lang = language_code || 'en';
         const template = getNotifyTemplate(lang, 'transfer_sent_notify');
         const message = formatNotification(template, {
+          order_id: orderId,
           recipient: recipientDisplayName,
           amount: amount.toFixed(2),
           fee: fee.toFixed(2),
@@ -144,6 +146,7 @@ async function notifyTransferParties(
           : String(senderId);
         const template = getNotifyTemplate(lang, 'transfer_received_notify');
         const message = formatNotification(template, {
+          order_id: orderId,
           sender: senderDisplay,
           amount: actualReceived.toFixed(2),
           balance: parseFloat(wallet_balance || '0').toFixed(2),
@@ -327,7 +330,8 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       recipient.first_name || recipient.username || String(recipient.id),
       transferAmount,
       fee,
-      actualReceived
+      actualReceived,
+      transferOrderId
     ).catch((err) => console.error('Transfer notification failed:', err));
   } catch (error: any) {
     console.error('Transfer error:', error);

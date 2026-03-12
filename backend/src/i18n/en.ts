@@ -184,6 +184,12 @@ export const en = {
   transfer_received: '💰 You received a transfer',
   transfer_notify_sender: '📤 Transfer Details (Sender)',
   transfer_notify_receiver: '📥 Transfer Details (Receiver)',
+  transfer_order_id: '📋 Order ID',
+  transfer_to: '👤 To',
+  transfer_from: '👤 From',
+  transfer_amount: '💵 Amount',
+  transfer_fee: '💸 Fee',
+  transfer_delivered: '✅ Delivered',
 
   // Numpad
   numpad_confirm: '✅ Confirm',
