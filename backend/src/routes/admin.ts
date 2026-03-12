@@ -454,7 +454,7 @@ router.get('/stats/users', adminLimiter, authenticateAdmin, async (req: AuthRequ
       query(`SELECT COUNT(*) AS total_user_records FROM users`),
       query(`SELECT COUNT(DISTINCT telegram_id) AS new_users_today FROM users WHERE created_at >= CURRENT_DATE`),
       query(`SELECT COUNT(DISTINCT telegram_id) AS active_users_7d FROM users WHERE last_active_at >= NOW() - INTERVAL '7 days'`),
-      query(`SELECT b.name AS bot_name, COUNT(u.id) AS user_count FROM users u JOIN bots b ON u.bot_id = b.id GROUP BY b.name ORDER BY user_count DESC`),
+      query(`SELECT b.username AS bot_username, b.name AS bot_name, COUNT(u.id) AS user_count FROM users u JOIN bots b ON u.bot_id = b.id GROUP BY b.id, b.username, b.name ORDER BY user_count DESC`),
     ]);
 
     res.json({
@@ -462,7 +462,10 @@ router.get('/stats/users', adminLimiter, authenticateAdmin, async (req: AuthRequ
       total_user_records: parseInt(totalRecords.rows[0]?.total_user_records ?? 0),
       new_users_today: parseInt(newToday.rows[0]?.new_users_today ?? 0),
       active_users_7d: parseInt(active7d.rows[0]?.active_users_7d ?? 0),
-      users_by_bot: byBot.rows.map(r => ({ bot_name: r.bot_name, user_count: parseInt(r.user_count) })),
+      users_by_bot: byBot.rows.map(r => ({
+          bot_name: r.bot_username ? `@${r.bot_username}` : r.bot_name,
+          user_count: parseInt(r.user_count),
+        })),
     });
   } catch (error) {
     console.error('Get user stats error:', error);

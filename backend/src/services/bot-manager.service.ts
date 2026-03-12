@@ -670,12 +670,17 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             if (!addressValid) {
               const networkName: string = state.data?.networkName || networkId;
               await ctx.reply(
-                t(lang, 'invalid_address').replace('{network}', networkName)
+                t(lang, 'invalid_address').replace('{network}', networkName),
+                Markup.inlineKeyboard([
+                  [Markup.button.callback(t(lang, 'btn_cancel'), 'wallet_back_to_wallet')],
+                ])
               );
               return;
             }
             setUserState(userId, { step: 'withdraw_enter_amount', data: { ...state.data, address } });
-            await ctx.reply(t(lang, 'withdraw_enter_amount'));
+            await ctx.reply(t(lang, 'withdraw_enter_amount'), Markup.inlineKeyboard([
+              [Markup.button.callback(t(lang, 'btn_cancel'), 'wallet_back_to_wallet')],
+            ]));
             return;
           }
 
@@ -1051,7 +1056,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           data: { networkId: resolvedNetworkId, networkName },
         });
         try { await ctx.deleteMessage(); } catch {}
-        await ctx.reply(t(lang, 'withdraw_enter_address'));
+        await ctx.reply(t(lang, 'withdraw_enter_address'), Markup.inlineKeyboard([
+          [Markup.button.callback(t(lang, 'btn_cancel'), 'wallet_back_to_wallet')],
+        ]));
         return;
       }
 
@@ -1233,6 +1240,15 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         } else {
           await processTransfer(ctx, user, lang, opData);
         }
+        return;
+      }
+
+      // ── Withdraw: cancel → clear state and return to wallet ────────────────
+      if (data === 'withdraw_cancel') {
+        clearUserState(user.id);
+        await ctx.answerCbQuery();
+        try { await ctx.deleteMessage(); } catch {}
+        await handleWallet(ctx, botId, user, lang);
         return;
       }
 

@@ -2,6 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { getOrCreateUser } from '../services/user';
 import { getSettings } from '../services/settings';
 import { t, isSupportedLang } from '../i18n';
+import { clearUserState } from '../utils/state';
 import axios from 'axios';
 
 export const handleStart = async (ctx: Context) => {
@@ -23,6 +24,9 @@ export const handleStart = async (ctx: Context) => {
 
     // Get or create user
     const user = await getOrCreateUser(ctx, botId, inviteCodeUsed);
+
+    // Clear any in-progress flow state so /start always shows a clean view
+    await clearUserState(user.id.toString()).catch((err) => console.error('Failed to clear user state on /start:', err));
 
     // Language priority: Telegram user language (if supported) > Bot default_language > 'en'
     let lang = 'en';

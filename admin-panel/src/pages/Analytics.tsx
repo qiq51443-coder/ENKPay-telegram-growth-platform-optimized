@@ -67,7 +67,7 @@ export const Analytics: React.FC = () => {
   }
 
   const botColumns = [
-    { title: 'Bot 名称', dataIndex: 'bot_name', key: 'bot_name' },
+    { title: 'Bot 账号', dataIndex: 'bot_name', key: 'bot_name' },
     { title: '用户数', dataIndex: 'user_count', key: 'user_count' },
   ];
 
