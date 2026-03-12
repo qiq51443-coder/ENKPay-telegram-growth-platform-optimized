@@ -154,9 +154,15 @@ export const en = {
   // Deposit flow
   select_network: 'Please select a network',
   no_networks_configured: 'No networks are currently available. Please contact the administrator to configure deposit networks.',
+  deposit_select_network_title: 'Please select a deposit network:',
   deposit_address: 'Deposit Address',
   copy_address: '📋 Copy Address',
   deposit_address_hint: 'Please transfer USDT to this address',
+  deposit_generating_address: 'Generating address, please wait...',
+  deposit_change_network: '« Change Network',
+  deposit_back_to_wallet: '« Back to Wallet',
+  deposit_retry: '🔄 Retry',
+  deposit_address_not_available: 'Address temporarily unavailable, please try again later',
 
   // Withdraw flow
   withdraw_select_network: 'Please select withdrawal network',

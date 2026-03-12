@@ -154,9 +154,15 @@ export const es: Record<string, string> = {
 
   // Deposit flow
   select_network: 'Por favor selecciona una red',
+  deposit_select_network_title: 'Por favor selecciona una red de depósito:',
   deposit_address: 'Dirección de depósito',
   copy_address: '📋 Copiar dirección',
   deposit_address_hint: 'Por favor transfiere USDT a esta dirección',
+  deposit_generating_address: 'Generando dirección, por favor espera...',
+  deposit_change_network: '« Cambiar Red',
+  deposit_back_to_wallet: '« Volver a la Billetera',
+  deposit_retry: '🔄 Reintentar',
+  deposit_address_not_available: 'Dirección temporalmente no disponible, por favor inténtalo más tarde',
 
   // Withdraw flow
   withdraw_select_network: 'Por favor selecciona la red de retiro',

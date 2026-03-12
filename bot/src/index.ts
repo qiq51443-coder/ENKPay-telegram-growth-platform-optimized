@@ -171,8 +171,8 @@ function createBotInstance(entry: BotEntry): Telegraf {
         return;
       }
 
-      if (data.startsWith('deposit_network:')) {
-        const networkId = data.split(':')[1];
+      if (data.startsWith('deposit_net_')) {
+        const networkId = data.replace('deposit_net_', '');
         await handleDepositShowAddress(ctx, networkId);
         return;
       }

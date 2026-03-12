@@ -35,6 +35,8 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
 
+    await ctx.answerCbQuery().catch(() => {});
+
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
@@ -67,9 +69,9 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
       return;
     }
 
-    networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
+    networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
 
-    const msgText = `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'select_network')}`;
+    const msgText = `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`;
     try {
       await ctx.editMessageText(msgText, {
         parse_mode: 'HTML',
@@ -87,11 +89,38 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
   try {
     if (!ctx.from) return;
 
+    await ctx.answerCbQuery().catch(() => {});
+
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
-    await ctx.answerCbQuery();
+    // Show loading state immediately; track the sent message so we can edit it later
+    const loadingMsg = `📥 <b>${t(lang, 'deposit_address')}</b>\n\n⏳ ${t(lang, 'deposit_generating_address')}`;
+    let loadingSent: { chat: { id: number }; message_id: number } | null = null;
+    try {
+      await ctx.editMessageText(loadingMsg, { parse_mode: 'HTML' });
+    } catch {
+      loadingSent = (await ctx.replyWithHTML(loadingMsg).catch(() => null)) as { chat: { id: number }; message_id: number } | null;
+    }
+
+    // Helper: edit the loading message if we sent one via reply, otherwise use ctx.editMessageText
+    const editOrReply = async (html: string, keyboard: any) => {
+      if (loadingSent) {
+        try {
+          await ctx.telegram.editMessageText(
+            loadingSent!.chat.id, loadingSent!.message_id, undefined, html,
+            { parse_mode: 'HTML', ...keyboard }
+          );
+          return;
+        } catch {}
+      }
+      try {
+        await ctx.editMessageText(html, { parse_mode: 'HTML', ...keyboard });
+      } catch {
+        await ctx.replyWithHTML(html, keyboard);
+      }
+    };
 
     // Get network display info via single-network endpoint (avoids fetching full list)
     let networkLabel = networkId;
@@ -125,21 +154,14 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
       const errMsg =
         `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
         `🌐 ${networkLabel}${minDeposit}\n\n` +
-        `⚠️ ${t(lang, 'deposit_address_hint')}`;
-      try {
-        await ctx.editMessageText(errMsg, {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_net_${networkId}`)],
-            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-          ]),
-        });
-      } catch {
-        await ctx.replyWithHTML(errMsg, Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 ' + t(lang, 'btn_deposit'), `deposit_net_${networkId}`)],
-          [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-        ]));
-      }
+        `⚠️ ${t(lang, 'deposit_address_not_available')}`;
+      await editOrReply(errMsg, Markup.inlineKeyboard([
+        [
+          Markup.button.callback(t(lang, 'deposit_retry'), `deposit_net_${networkId}`),
+          Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+        ],
+        [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
+      ]));
       return;
     }
 
@@ -149,20 +171,13 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
       `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
       `<code>${address}</code>`;
 
-    try {
-      await ctx.editMessageText(message, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop')],
-          [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-        ]),
-      });
-    } catch {
-      await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-        [Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop')],
-        [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-      ]));
-    }
+    await editOrReply(message, Markup.inlineKeyboard([
+      [
+        Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop'),
+        Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+      ],
+      [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
+    ]));
   } catch (error) {
     console.error('Deposit show address error:', error);
   }
