@@ -838,6 +838,28 @@ router.put('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthReque
   }
 });
 
+// PATCH /groups/:id/status — toggle group active status
+router.patch('/groups/:id/status', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be a boolean' });
+    }
+
+    await query(
+      'UPDATE authorized_groups SET is_active = $1, updated_at = NOW() WHERE id = $2',
+      [is_active, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Toggle group status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // DELETE /groups/:id — deactivate or remove a group
 router.delete('/groups/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {

@@ -493,12 +493,10 @@ router.post('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
     } = req.body;
 
     if (!pair_id || !rule_name || !direction) {
-      return res.status(400).json({
-        error: 'pair_id, rule_name, and direction are required',
-      });
+      // pair_id, rule_name and direction are optional for global rules
     }
 
-    if (!['up', 'down'].includes(direction)) {
+    if (direction && !['up', 'down'].includes(direction)) {
       return res.status(400).json({
         error: 'direction must be "up" or "down"',
       });
@@ -511,10 +509,10 @@ router.post('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
-        pair_id,
+        pair_id || null,
         session_id || null,
-        rule_name,
-        direction,
+        rule_name || null,
+        direction || null,
         odds,
         min_bet,
         max_bet,

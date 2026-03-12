@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, message, Popconfirm, Modal, Form, Input, Select } from 'antd';
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, GiftOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 interface Group {
@@ -24,6 +25,7 @@ export const Groups: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [editForm] = Form.useForm();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchGroups();
@@ -54,6 +56,20 @@ export const Groups: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to delete group:', error);
       message.error(error.response?.data?.error || '删除失败');
+    }
+  };
+
+  const handleToggleStatus = async (record: Group) => {
+    try {
+      const newStatus = !record.is_active;
+      await axios.patch(`/api/admin/groups/${record.id}/status`, { is_active: newStatus }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      message.success(newStatus ? '群组已启用' : '群组已禁用');
+      fetchGroups();
+    } catch (error: any) {
+      console.error('Failed to toggle group status:', error);
+      message.error(error.response?.data?.error || '操作失败');
     }
   };
 
@@ -140,9 +156,26 @@ export const Groups: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 150,
+      width: 220,
       render: (_: any, record: Group) => (
         <Space>
+          <Button
+            type="text"
+            size="small"
+            icon={<GiftOutlined />}
+            onClick={() => navigate('/red-packets')}
+          >
+            发红包
+          </Button>
+          <Button
+            type="text"
+            size="small"
+            icon={record.is_active ? <StopOutlined /> : <CheckCircleOutlined />}
+            danger={record.is_active}
+            onClick={() => handleToggleStatus(record)}
+          >
+            {record.is_active ? '禁用' : '启用'}
+          </Button>
           <Button
             type="text"
             size="small"
@@ -182,7 +215,7 @@ export const Groups: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1200 }}
       />
 
       <Modal

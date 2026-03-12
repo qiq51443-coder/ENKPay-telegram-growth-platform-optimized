@@ -360,7 +360,7 @@ router.get('/pairs/:id/rules', async (req, res) => {
     let queryText = `
       SELECT id, duration_seconds, odds, min_bet, max_bet, is_active
       FROM trading_rules
-      WHERE pair_id = $1 AND is_active = true
+      WHERE (pair_id = $1 OR pair_id IS NULL) AND is_active = true
     `;
     const params: any[] = [id];
 
