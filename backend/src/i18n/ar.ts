@@ -154,9 +154,15 @@ export const ar: Record<string, string> = {
 
   // Deposit flow
   select_network: 'يرجى اختيار شبكة',
+  deposit_select_network_title: 'يرجى اختيار شبكة الإيداع:',
   deposit_address: 'عنوان الإيداع',
   copy_address: '📋 نسخ العنوان',
   deposit_address_hint: 'يرجى تحويل USDT إلى هذا العنوان',
+  deposit_generating_address: 'جارٍ إنشاء العنوان، يرجى الانتظار...',
+  deposit_change_network: '« تغيير الشبكة',
+  deposit_back_to_wallet: '« العودة إلى المحفظة',
+  deposit_retry: '🔄 إعادة المحاولة',
+  deposit_address_not_available: 'العنوان غير متاح مؤقتاً، يرجى المحاولة لاحقاً',
 
   // Withdraw flow
   withdraw_select_network: 'يرجى اختيار شبكة السحب',

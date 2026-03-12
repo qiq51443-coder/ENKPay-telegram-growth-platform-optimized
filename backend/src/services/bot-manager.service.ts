@@ -830,8 +830,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
       // ── Deposit: show network list ──────────────────────────────────────────
       if (data === 'wallet_deposit') {
-        await ctx.answerCbQuery();
-        const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        await ctx.answerCbQuery().catch(() => {});
 
         let networkButtons: any[] = [];
         try {
@@ -852,18 +851,16 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           await ctx.replyWithHTML(
             `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n⚠️ ${t(lang, 'no_networks_configured')}`,
             Markup.inlineKeyboard([
-              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+              [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
             ])
           );
           return;
         }
 
-        networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
+        networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
         try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
-          `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n` +
-          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
-          `${t(lang, 'select_network')}:`,
+          `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`,
           Markup.inlineKeyboard(networkButtons)
         );
         return;
@@ -871,13 +868,43 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
       // ── Deposit: show address for selected network ──────────────────────────
       if (data.startsWith('deposit_net_')) {
-        await ctx.answerCbQuery();
+        await ctx.answerCbQuery().catch(() => {});
         const rawNetworkId = data.replace('deposit_net_', '');
+
+        // Show loading state immediately
+        const loadingText =
+          `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
+          `⏳ ${t(lang, 'deposit_generating_address')}`;
+        try { await ctx.deleteMessage(); } catch {}
+        const loadingMsg = await ctx.replyWithHTML(loadingText).catch(() => null);
+
+        const editOrReply = async (html: string, keyboard: any) => {
+          if (loadingMsg) {
+            try {
+              await ctx.telegram.editMessageText(
+                loadingMsg.chat.id, loadingMsg.message_id, undefined, html,
+                { parse_mode: 'HTML', ...keyboard }
+              );
+              return;
+            } catch {}
+          }
+          await ctx.replyWithHTML(html, keyboard);
+        };
+
         try {
           // resolveNetworkId supports both integer ids and name-based ids (e.g. "TRC")
           const numericId = await resolveNetworkId(rawNetworkId);
           if (!numericId) {
-            await ctx.reply(t(lang, 'error'));
+            await editOrReply(
+              `📥 <b>${t(lang, 'deposit_address')}</b>\n\n⚠️ ${t(lang, 'deposit_address_not_available')}`,
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(t(lang, 'deposit_retry'), data),
+                  Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+                ],
+                [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
+              ])
+            );
             return;
           }
           const netResult = await query(
@@ -885,7 +912,16 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             [numericId]
           );
           if (netResult.rows.length === 0) {
-            await ctx.reply(t(lang, 'error'));
+            await editOrReply(
+              `📥 <b>${t(lang, 'deposit_address')}</b>\n\n⚠️ ${t(lang, 'deposit_address_not_available')}`,
+              Markup.inlineKeyboard([
+                [
+                  Markup.button.callback(t(lang, 'deposit_retry'), data),
+                  Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+                ],
+                [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
+              ])
+            );
             return;
           }
           const network = netResult.rows[0];
@@ -909,25 +945,31 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             ? `\n💡 Min: <b>${parseFloat(String(network.min_deposit_amount)).toFixed(2)} USDT</b>`
             : '';
 
-          try { await ctx.deleteMessage(); } catch {}
           if (!address) {
-            await ctx.replyWithHTML(
+            await editOrReply(
               `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
               `🌐 ${networkLabel}${minDeposit}\n\n` +
-              `⏳ ${t(lang, 'deposit_address_hint')}`,
+              `⚠️ ${t(lang, 'deposit_address_not_available')}`,
               Markup.inlineKeyboard([
-                [Markup.button.callback('« ' + t(lang, 'btn_deposit'), 'wallet_deposit')],
-                [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+                [
+                  Markup.button.callback(t(lang, 'deposit_retry'), data),
+                  Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+                ],
+                [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
               ])
             );
           } else {
-            await ctx.replyWithHTML(
+            await editOrReply(
               `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
               `🌐 ${networkLabel}${minDeposit}\n\n` +
+              `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
               `<code>${address}</code>`,
               Markup.inlineKeyboard([
-                [Markup.button.callback(t(lang, 'copy_address'), 'copy_noop')],
-                [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+                [
+                  Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop'),
+                  Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
+                ],
+                [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
               ])
             );
           }

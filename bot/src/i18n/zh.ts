@@ -153,9 +153,15 @@ export const zh = {
 
   // Deposit flow
   select_network: '请选择网络',
+  deposit_select_network_title: '请选择充值网络：',
   deposit_address: '充值地址',
   copy_address: '📋 复制地址',
   deposit_address_hint: '请向此地址转入USDT',
+  deposit_generating_address: '正在生成地址，请稍候...',
+  deposit_change_network: '« 更换网络',
+  deposit_back_to_wallet: '« 返回钱包',
+  deposit_retry: '🔄 重试',
+  deposit_address_not_available: '地址暂时不可用，请稍后重试',
 
   // Withdraw flow
   withdraw_select_network: '请选择提现网络',
