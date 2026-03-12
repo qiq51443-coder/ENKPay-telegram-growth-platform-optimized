@@ -184,7 +184,7 @@ export const handleWithdrawEnterAmount = async (ctx: Context, user: any, amount:
     // Check balance before proceeding
     try {
       const balData = await getUserBalance(botId, user.id.toString());
-      const available = parseFloat(String(balData?.wallet_balance ?? 0));
+      const available = parseFloat(String(balData?.available_for_withdrawal ?? balData?.wallet_balance ?? 0));
       if (available < numAmount) {
         await ctx.reply(
           t(lang, 'insufficient_balance').replace('{balance}', available.toFixed(2))

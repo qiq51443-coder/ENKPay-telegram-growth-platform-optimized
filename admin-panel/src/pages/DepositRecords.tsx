@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, Select, Input } from 'antd';
+import { Table, Tag, message, Select, Input, Button, Space } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface DepositRecord {
@@ -32,6 +33,8 @@ export const DepositRecords: React.FC = () => {
 
   useEffect(() => {
     fetchRecords();
+    const interval = setInterval(fetchRecords, 30000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const fetchRecords = async () => {
@@ -162,7 +165,7 @@ export const DepositRecords: React.FC = () => {
       </div>
 
       <div style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8 }}>
-        <div style={{ display: 'flex', gap: 16 }}>
+        <Space wrap>
           <Select
             placeholder="筛选状态"
             value={statusFilter}
@@ -184,7 +187,11 @@ export const DepositRecords: React.FC = () => {
             style={{ width: 200 }}
             allowClear
           />
-        </div>
+          <Button onClick={fetchRecords} icon={<ReloadOutlined />} loading={loading}>
+            刷新
+          </Button>
+          <span style={{ color: '#999', fontSize: 12 }}>每30秒自动刷新</span>
+        </Space>
       </div>
 
       <Table

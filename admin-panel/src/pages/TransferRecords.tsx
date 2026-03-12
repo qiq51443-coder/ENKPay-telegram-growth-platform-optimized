@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, DatePicker, Space } from 'antd';
+import { Table, Tag, message, DatePicker, Space, Button } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -33,6 +34,8 @@ export const TransferRecords: React.FC = () => {
 
   useEffect(() => {
     fetchRecords();
+    const interval = setInterval(fetchRecords, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchRecords = async () => {
@@ -161,7 +164,7 @@ export const TransferRecords: React.FC = () => {
       </div>
 
       <div style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8 }}>
-        <Space>
+        <Space wrap>
           <span>时间范围：</span>
           <RangePicker
             showTime
@@ -169,6 +172,10 @@ export const TransferRecords: React.FC = () => {
             onChange={handleDateRangeChange}
             onOk={fetchRecords}
           />
+          <Button onClick={fetchRecords} icon={<ReloadOutlined />} loading={loading}>
+            刷新
+          </Button>
+          <span style={{ color: '#999', fontSize: 12 }}>每30秒自动刷新</span>
         </Space>
       </div>
 
