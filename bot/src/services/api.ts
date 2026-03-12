@@ -170,6 +170,20 @@ export const getUserByUniqueId = async (botId: string, uniqueId: string) => {
   }
 };
 
+export const getWalletNetworks = async (botId: string) => {
+  const response = await api.get('/api/wallet/networks', {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data.data as Array<{ id: number; network_name: string; network_display: string; chain_name: string }>;
+};
+
+export const getUserBalance = async (botId: string, userId: string) => {
+  const response = await api.get(`/api/wallet/balance/${userId}`, {
+    headers: { 'X-Bot-Token': botId },
+  });
+  return response.data.data;
+};
+
 export const getSystemSetting = async (key: string) => {
   try {
     const response = await api.get(`/api/settings/public/${key}`);

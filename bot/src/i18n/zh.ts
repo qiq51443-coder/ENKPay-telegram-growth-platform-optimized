@@ -183,6 +183,12 @@ export const zh = {
   transfer_received: '💰 你收到一笔转账',
   transfer_notify_sender: '📤 转账详情（发送方）',
   transfer_notify_receiver: '📥 转账详情（接收方）',
+  transfer_order_id: '📋 订单号',
+  transfer_to: '👤 收款方',
+  transfer_from: '👤 汇款方',
+  transfer_amount: '💵 金额',
+  transfer_fee: '💸 手续费',
+  transfer_delivered: '✅ 实际到账',
 
   // Numpad
   numpad_confirm: '✅ 确认',

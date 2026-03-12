@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Spin, Typography } from 'antd';
+import { Card, Row, Col, Statistic, Spin, Typography, Table } from 'antd';
 import {
   UserOutlined,
   WalletOutlined,
@@ -8,6 +8,8 @@ import {
   RiseOutlined,
   ArrowUpOutlined,
   ArrowDownOutlined,
+  TeamOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -23,8 +25,17 @@ interface AnalyticsStats {
   total_claimed_amount: number;
 }
 
+interface UserStats {
+  total_unique_users: number;
+  total_user_records: number;
+  new_users_today: number;
+  active_users_7d: number;
+  users_by_bot: Array<{ bot_name: string; user_count: number }>;
+}
+
 export const Analytics: React.FC = () => {
   const [stats, setStats] = useState<AnalyticsStats | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,10 +44,13 @@ export const Analytics: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/api/admin/dashboard/stats', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      setStats(response.data);
+      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+      const [generalRes, userRes] = await Promise.all([
+        axios.get('/api/admin/dashboard/stats', { headers }).catch(() => ({ data: null })),
+        axios.get('/api/admin/stats/users', { headers }).catch(() => ({ data: null })),
+      ]);
+      if (generalRes.data) setStats(generalRes.data);
+      if (userRes.data) setUserStats(userRes.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -52,33 +66,76 @@ export const Analytics: React.FC = () => {
     );
   }
 
+  const botColumns = [
+    { title: 'Bot 名称', dataIndex: 'bot_name', key: 'bot_name' },
+    { title: '用户数', dataIndex: 'user_count', key: 'user_count' },
+  ];
+
   return (
     <div>
       <Title level={2}>数据统计</Title>
 
+      <Title level={4} style={{ marginTop: 24 }}>用户统计</Title>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="用户总数"
-              value={stats?.total_users || 0}
+              title="唯一用户总数（去重）"
+              value={userStats?.total_unique_users ?? stats?.total_users ?? 0}
               prefix={<UserOutlined />}
               valueStyle={{ color: '#3f8600' }}
             />
           </Card>
         </Col>
 
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="今日新增用户"
-              value={stats?.new_today || 0}
+              value={userStats?.new_users_today ?? stats?.new_today ?? 0}
               prefix={<RiseOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
 
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="近7天活跃用户"
+              value={userStats?.active_users_7d ?? 0}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="用户记录总数（含多 Bot）"
+              value={userStats?.total_user_records ?? 0}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {userStats?.users_by_bot && userStats.users_by_bot.length > 0 && (
+        <Card title="各 Bot 用户分布" style={{ marginTop: 16 }}>
+          <Table
+            dataSource={userStats.users_by_bot}
+            columns={botColumns}
+            rowKey="bot_name"
+            pagination={false}
+            size="small"
+          />
+        </Card>
+      )}
+
+      <Title level={4} style={{ marginTop: 24 }}>财务统计</Title>
+      <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={8}>
           <Card>
             <Statistic

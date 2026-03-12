@@ -62,8 +62,13 @@ export const WalletNetworks: React.FC = () => {
     try {
       const values = await form.validateFields();
       // Map form field deposit_fee_percent to backend field deposit_fee
-      const { deposit_fee_percent, ...rest } = values;
-      const submitData = { ...rest, deposit_fee: deposit_fee_percent };
+      const { deposit_fee_percent, hd_mnemonic, ...rest } = values;
+      const submitData: any = { ...rest, deposit_fee: deposit_fee_percent };
+
+      // Only include hd_mnemonic if the user actually typed something
+      if (hd_mnemonic && hd_mnemonic.trim()) {
+        submitData.hd_mnemonic = hd_mnemonic.trim();
+      }
       
       if (editingNetwork) {
         await apiClient.updateWalletNetwork(editingNetwork.id, submitData);
@@ -335,16 +340,17 @@ export const WalletNetworks: React.FC = () => {
             <Input placeholder="https://..." />
           </Form.Item>
 
-          {!editingNetwork && (
-            <Form.Item
-              name="hd_mnemonic"
-              label="HD 助记词"
-              rules={[{ required: true, message: '请输入 HD 助记词' }]}
-              tooltip="用于生成用户充值地址，请妥善保管"
-            >
-              <Input.TextArea rows={2} placeholder="12 或 24 个单词的助记词" />
-            </Form.Item>
-          )}
+          <Form.Item
+            name="hd_mnemonic"
+            label="HD 助记词（BIP39）"
+            rules={editingNetwork ? [] : [{ required: true, message: '请输入 HD 助记词' }]}
+            tooltip="12或24个英文单词，用空格分隔。提交后加密存储，不可查看。"
+          >
+            <Input.Password
+              placeholder={editingNetwork ? '已配置（如需修改请重新输入）' : '12 或 24 个英文单词，用空格分隔'}
+              visibilityToggle
+            />
+          </Form.Item>
 
           <Form.Item
             name="min_deposit_amount"

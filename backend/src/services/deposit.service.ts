@@ -242,12 +242,15 @@ export async function generateUserDepositAddress(
     // Derive address while holding the lock (HD derivation is typically < 100 ms)
     let derivedAddress: string;
     try {
-      if (network.chain_name === 'TRON') {
+      const chainUpper = network.chain_name?.toUpperCase();
+      if (chainUpper === 'TRON') {
         derivedAddress = await deriveTronAddress(mnemonic, network.hd_derivation_path, hdIndex);
-      } else if (network.chain_name === 'ETH') {
+      } else if (chainUpper === 'ETH' || chainUpper === 'ETHEREUM') {
         derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
-      } else if (network.chain_name === 'BSC') {
+      } else if (chainUpper === 'BSC' || chainUpper === 'BNB') {
         derivedAddress = await deriveBnbAddress(mnemonic, network.hd_derivation_path, hdIndex);
+      } else if (chainUpper === 'POLYGON' || chainUpper === 'MATIC') {
+        derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
       } else {
         throw new Error(`Unsupported chain: ${network.chain_name}`);
       }

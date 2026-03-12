@@ -41,6 +41,7 @@ export const UserDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [invitees, setInvitees] = useState([]);
+  const [linkedBots, setLinkedBots] = useState<any[]>([]);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [form] = Form.useForm();
 
@@ -70,6 +71,16 @@ export const UserDetail: React.FC = () => {
       setInvitees(data.invitees || []);
     } catch (error) {
       console.error('Failed to fetch invitees:', error);
+    }
+  };
+
+  const fetchLinkedBots = async () => {
+    if (!user?.telegram_id) return;
+    try {
+      const response = await apiClient.get(`/admin/users/${user.telegram_id}/bots`);
+      setLinkedBots((response as any).data?.bots || []);
+    } catch (error) {
+      console.error('Failed to fetch linked bots:', error);
     }
   };
 
@@ -162,8 +173,41 @@ export const UserDetail: React.FC = () => {
     },
   ];
 
-  const inviteeColumns = [
+  const linkedBotColumns = [
     {
+      title: 'Bot 名称',
+      dataIndex: 'bot_name',
+      key: 'bot_name',
+    },
+    {
+      title: 'Bot 用户名',
+      dataIndex: 'bot_username',
+      key: 'bot_username',
+      render: (v: string) => v ? `@${v}` : '-',
+    },
+    {
+      title: '注册时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '最后活跃',
+      dataIndex: 'last_active_at',
+      key: 'last_active_at',
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'account_status',
+      key: 'account_status',
+      render: (status: string) => (
+        <Tag color={status === 'active' ? 'success' : 'warning'}>{status || '-'}</Tag>
+      ),
+    },
+  ];
+
+  const inviteeColumns = [    {
       title: 'Telegram ID',
       dataIndex: 'telegram_id',
       key: 'telegram_id',
@@ -221,7 +265,10 @@ export const UserDetail: React.FC = () => {
 
       <h2>用户详情</h2>
 
-      <Tabs defaultActiveKey="info" onChange={(key) => { if (key === 'invitations' && invitees.length === 0) fetchInvitees(); }}>
+      <Tabs defaultActiveKey="info" onChange={(key) => {
+        if (key === 'invitations' && invitees.length === 0) fetchInvitees();
+        if (key === 'bots') fetchLinkedBots();
+      }}>
         <TabPane tab="基本信息" key="info">
           <Card>
             <Descriptions bordered column={2}>
@@ -333,6 +380,17 @@ export const UserDetail: React.FC = () => {
               dataSource={invitees}
               rowKey="id"
               pagination={{ pageSize: 10 }}
+            />
+          </Card>
+        </TabPane>
+
+        <TabPane tab="关联机器人" key="bots">
+          <Card title={`该用户关注的机器人 (共 ${linkedBots.length} 个)`}>
+            <Table
+              columns={linkedBotColumns}
+              dataSource={linkedBots}
+              rowKey="id"
+              pagination={false}
             />
           </Card>
         </TabPane>
