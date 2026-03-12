@@ -162,13 +162,37 @@ async function notifyTransferParties(
 
 /**
  * GET /api/wallet/balance/:userId
- * Get user balance details with unlock progress
+ * Get user balance details with unlock progress.
+ * Resolves the canonical user (earliest-created record for the same telegram_id)
+ * so that balance is always read from the authoritative record regardless of
+ * which bot's user-record UUID was passed by the caller.
  */
 router.get('/balance/:userId', authenticateBot, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
-    const balance = await getUserBalance(parseInt(userId));
-    
+
+    // Look up the user to obtain their telegram_id
+    const userRow = await query(
+      `SELECT id, telegram_id FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (userRow.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Resolve the canonical user (earliest-created record for this telegram_id)
+    const telegramId = userRow.rows[0].telegram_id;
+    const canonicalRow = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [telegramId]
+    );
+    if (canonicalRow.rows.length === 0) {
+      return res.status(404).json({ error: 'Canonical user record not found' });
+    }
+    const canonicalId = canonicalRow.rows[0].id;
+
+    const balance = await getUserBalance(parseInt(canonicalId));
+
     res.json({
       success: true,
       data: balance,

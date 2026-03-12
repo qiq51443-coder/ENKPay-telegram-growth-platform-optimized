@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, Button, Popconfirm, Modal, Input, Select } from 'antd';
-import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { Table, Tag, message, Button, Popconfirm, Modal, Input, Select, Space } from 'antd';
+import { CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 const { TextArea } = Input;
@@ -32,6 +32,8 @@ export const Withdrawals: React.FC = () => {
 
   useEffect(() => {
     fetchWithdrawals();
+    const interval = setInterval(fetchWithdrawals, 30000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const fetchWithdrawals = async () => {
@@ -177,18 +179,24 @@ export const Withdrawals: React.FC = () => {
       </div>
 
       <div style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8 }}>
-        <Select
-          placeholder="筛选状态"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 150 }}
-        >
-          <Select.Option value="">全部</Select.Option>
-          <Select.Option value="pending">待处理</Select.Option>
-          <Select.Option value="approved">已批准</Select.Option>
-          <Select.Option value="rejected">已拒绝</Select.Option>
-          <Select.Option value="completed">已完成</Select.Option>
-        </Select>
+        <Space wrap>
+          <Select
+            placeholder="筛选状态"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            style={{ width: 150 }}
+          >
+            <Select.Option value="">全部</Select.Option>
+            <Select.Option value="pending">待处理</Select.Option>
+            <Select.Option value="approved">已批准</Select.Option>
+            <Select.Option value="rejected">已拒绝</Select.Option>
+            <Select.Option value="completed">已完成</Select.Option>
+          </Select>
+          <Button onClick={fetchWithdrawals} icon={<ReloadOutlined />} loading={loading}>
+            刷新
+          </Button>
+          <span style={{ color: '#999', fontSize: 12 }}>每30秒自动刷新</span>
+        </Space>
       </div>
 
       <Table
