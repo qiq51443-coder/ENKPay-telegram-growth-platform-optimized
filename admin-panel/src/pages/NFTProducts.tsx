@@ -62,7 +62,7 @@ export const NFTProducts: React.FC = () => {
   const fetchCategories = async () => {
     try {
       const response = await apiClient.getNFTCategories();
-      setCategories(response.categories || []);
+      setCategories(response.categories || response.data || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
@@ -299,10 +299,9 @@ export const NFTProducts: React.FC = () => {
         >
           <Form.Item
             name="category_id"
-            label="分类"
-            rules={[{ required: true, message: '请选择分类' }]}
+            label="分类（可选）"
           >
-            <Select placeholder="选择分类">
+            <Select placeholder="选择分类（可不选）" allowClear>
               {categories.map(cat => (
                 <Select.Option key={cat.id} value={cat.id}>{cat.name}</Select.Option>
               ))}

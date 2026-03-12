@@ -142,6 +142,15 @@ export const Profile: React.FC = () => {
     if (initData) {
       fetchProfile();
 
+      // Sync Telegram user info to backend
+      if (tgUser) {
+        api.post('/miniapp/sync-user', {
+          first_name: tgUser.first_name,
+          username: tgUser.username,
+          language_code: tgUser.language_code,
+        }, { headers: { 'X-Telegram-Init-Data': initData } }).catch(() => {/* ignore sync errors */});
+      }
+
       // Re-fetch when user returns to the page (tab focus / visibility change)
       const handleVisibilityChange = () => {
         if (!document.hidden) {
@@ -303,13 +312,13 @@ export const Profile: React.FC = () => {
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('account_red_packet_balance') || '红包余额'}</div>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('red_packet_balance') || '红包余额 (USDT)'}</div>
             <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
               ${parseFloat(String(profile?.red_packet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '10px' }}>USDT</span>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>📊 {t('account_account_status') || '状态'}</div>
+            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>📊 {t('account_status') || '账户状态'}</div>
             <div style={{ color: profile?.account_status === 'active' ? '#22c55e' : '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
               {profile?.account_status === 'active' ? (t('account_active') || '正常') : (t('account_pending') || '待审')}
             </div>
@@ -320,7 +329,7 @@ export const Profile: React.FC = () => {
         {(profile?.reward_balance ?? 0) > 0 && (
           <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ color: theme.textSecondary, fontSize: '11px' }}>🎁 {t('account_red_packet_credits') || '红包余额'}（打码解锁）</span>
+              <span style={{ color: theme.textSecondary, fontSize: '11px' }}>🎁 {t('reward_balance') || '奖励余额'}（打码解锁）</span>
               <span style={{ color: '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
                 ${parseFloat(String(profile.reward_balance)).toFixed(2)} USDT
               </span>

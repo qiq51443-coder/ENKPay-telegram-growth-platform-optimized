@@ -234,4 +234,38 @@ router.post('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, re
   }
 });
 
+/**
+ * POST /api/miniapp/sync-user
+ * Sync Telegram user info (first_name, username, language_code) to DB
+ */
+router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { first_name, username, language_code } = req.body;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (first_name !== undefined) { updates.push(`first_name = $${idx++}`); values.push(first_name); }
+    if (username !== undefined) { updates.push(`username = $${idx++}`); values.push(username); }
+    if (language_code !== undefined) { updates.push(`language_code = $${idx++}`); values.push(language_code); }
+
+    if (updates.length > 0) {
+      values.push(telegramId);
+      await query(
+        `UPDATE users SET ${updates.join(', ')} WHERE telegram_id = $${idx}`,
+        values
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Miniapp sync-user error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

@@ -10,6 +10,8 @@ interface Withdrawal {
   user_id: string;
   amount: number;
   wallet_address: string;
+  network_name?: string;
+  network_display?: string;
   status: string;
   admin_note?: string;
   created_at: string;
@@ -42,8 +44,8 @@ export const Withdrawals: React.FC = () => {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
       
-      const response = await apiClient.getWithdrawals(params);
-      setWithdrawals(response.withdrawals || []);
+      const response = await apiClient.getWithdrawalRecords(params);
+      setWithdrawals(response.records || response.withdrawals || []);
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);
       message.error('获取提现列表失败');
@@ -62,7 +64,7 @@ export const Withdrawals: React.FC = () => {
     if (!selectedWithdrawal) return;
 
     try {
-      await apiClient.reviewWithdrawal(selectedWithdrawal.id, {
+      await apiClient.reviewWithdrawalNew(selectedWithdrawal.id, {
         status,
         admin_note: adminNote,
       });

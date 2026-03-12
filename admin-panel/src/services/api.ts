@@ -352,7 +352,10 @@ class ApiClient {
   // NFT API
   async getNFTCategories() {
     const response = await this.client.get('/nft/categories');
-    return response.data;
+    // Handle both { data: [...] } and { categories: [...] } response shapes
+    const raw = response.data;
+    const categories = raw?.data || raw?.categories || [];
+    return { ...raw, categories };
   }
 
   async createNFTCategory(data: any) {
