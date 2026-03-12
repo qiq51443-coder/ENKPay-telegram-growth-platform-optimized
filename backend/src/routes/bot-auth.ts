@@ -77,7 +77,7 @@ router.post('/groups/register', async (req, res) => {
       `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, country, language, member_count)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (bot_id, group_id)
-       DO UPDATE SET group_name = EXCLUDED.group_name, joined_at = NOW(),
+       DO UPDATE SET group_name = EXCLUDED.group_name,
          country = COALESCE(EXCLUDED.country, authorized_groups.country),
          language = COALESCE(EXCLUDED.language, authorized_groups.language),
          member_count = COALESCE(EXCLUDED.member_count, authorized_groups.member_count)`,

@@ -492,10 +492,6 @@ router.post('/rules', authenticateAdmin, async (req: AuthRequest, res) => {
       is_active = true,
     } = req.body;
 
-    if (!pair_id || !rule_name || !direction) {
-      // pair_id, rule_name and direction are optional for global rules
-    }
-
     if (direction && !['up', 'down'].includes(direction)) {
       return res.status(400).json({
         error: 'direction must be "up" or "down"',
