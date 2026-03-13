@@ -84,7 +84,7 @@ export const Profile: React.FC = () => {
     } catch {
       if (tgUser) {
         setProfile({
-          unique_id: 'N/A',
+          unique_id: String(tgUser.id),
           balance: 0,
           username: tgUser.username,
           first_name: tgUser.first_name,
@@ -322,12 +322,6 @@ export const Profile: React.FC = () => {
             <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('red_packet_balance') || '红包余额 (USDT)'}</div>
             <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
               ${parseFloat(String(profile?.red_packet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '10px' }}>USDT</span>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>📊 {t('account_status') || '账户状态'}</div>
-            <div style={{ color: profile?.account_status === 'active' ? '#22c55e' : '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
-              {profile?.account_status === 'active' ? (t('account_active') || '正常') : (t('account_pending') || '待审')}
             </div>
           </div>
         </div>
