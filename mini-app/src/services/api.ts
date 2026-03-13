@@ -118,3 +118,11 @@ export async function redeemAuction(resultId: string, initData: string) {
   });
   return response.data;
 }
+
+export async function authSync(initData: string) {
+  const response = await api.post('/miniapp/auth-sync', {}, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
+  return response.data;
+}
+

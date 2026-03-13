@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
-import { api } from '../services/api';
+import { api, setInitData } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useTelegram } from '../hooks/useTelegram';
 import { createChart } from 'lightweight-charts';
@@ -96,6 +96,13 @@ export const Trading: React.FC = () => {
   const candleSeriesRef = useRef<any>(null);
   const lastKlineTimeRef = useRef<number>(0);
   const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
+
+  // Set global initData header so all requests carry it automatically
+  useEffect(() => {
+    if (initData) {
+      setInitData(initData);
+    }
+  }, [initData]);
 
   useEffect(() => {
     fetchPairs();
@@ -255,6 +262,7 @@ export const Trading: React.FC = () => {
   };
 
   const fetchBalance = async () => {
+    if (!initData) return;
     try {
       const res = await api.get('/miniapp/profile', {
         headers: { 'X-Telegram-Init-Data': initData },
@@ -357,6 +365,9 @@ export const Trading: React.FC = () => {
         : Date.now() + selectedDuration * 1000;
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
+      // Refresh balance and order history after placing order
+      fetchBalance();
+      fetchOrderHistory();
     } catch (e: any) {
       const msg = e?.response?.data?.hint
         || e?.response?.data?.error
@@ -386,7 +397,6 @@ export const Trading: React.FC = () => {
     try {
       const res = await api.get('/trading/orders/my', {
         params: { limit: 50, status: 'settled' },
-        headers: { 'X-Telegram-Init-Data': initData },
       });
       const order = res.data?.data?.find((o: any) => o.id === orderId);
       if (order) {
@@ -396,13 +406,14 @@ export const Trading: React.FC = () => {
       }
     } catch {}
     fetchOrderHistory();
+    fetchBalance(); // refresh balance after settlement
   };
 
   const fetchOrderHistory = async () => {
+    if (!initData) return;
     try {
       const res = await api.get('/trading/orders/my', {
         params: { limit: 20 },
-        headers: { 'X-Telegram-Init-Data': initData },
       });
       setOrders(res.data?.data || []);
     } catch {}

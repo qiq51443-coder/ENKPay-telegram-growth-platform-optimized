@@ -1,5 +1,5 @@
 import express from 'express';
-import { query } from '../db';
+import { query, transaction } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 
 const router = express.Router();
@@ -319,6 +319,82 @@ router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     res.json({ success: true });
   } catch (error: any) {
     console.error('Miniapp sync-user error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/miniapp/auth-sync
+ * One-shot: validate Telegram initData, upsert the user record, and return the canonical profile.
+ * Replaces the separate sync-user + profile round-trip that caused #N/A / $0.00 on first open.
+ */
+router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const tgUser = req.telegramUser;
+    if (!tgUser?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const telegramId = tgUser.id;
+    const firstName = tgUser.first_name || '';
+    const username = tgUser.username || null;
+    const languageCode = tgUser.language_code || 'zh';
+
+    // Two-step upsert wrapped in a transaction to minimise the race window.
+    // (telegram_id has no unique constraint in this schema, so ON CONFLICT is not available.)
+    await transaction(async (client) => {
+      // Step 1: update existing record if present
+      await client.query(
+        `UPDATE users SET first_name=$2, username=$3, language_code=$4, updated_at=NOW()
+         WHERE telegram_id=$1`,
+        [telegramId, firstName, username, languageCode]
+      );
+      // Step 2: insert only if no record was found
+      await client.query(
+        `INSERT INTO users (telegram_id, first_name, username, language_code, wallet_balance, created_at, updated_at)
+         SELECT $1, $2, $3, $4, 0, NOW(), NOW()
+         WHERE NOT EXISTS (SELECT 1 FROM users WHERE telegram_id = $1)`,
+        [telegramId, firstName, username, languageCode]
+      );
+    });
+
+    // Fetch canonical profile (same fields as /profile)
+    const result = await query(
+      `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
+              balance, telegram_id, wallet_balance, nft_balance,
+              COALESCE(red_packet_credits, 0) AS red_packet_balance,
+              reward_balance, reward_unlock_traded, frozen_balance,
+              total_recharged, total_withdrawn,
+              invite_code, invited_by,
+              account_status
+       FROM users WHERE telegram_id = $1
+       ORDER BY created_at ASC LIMIT 1`,
+      [telegramId]
+    );
+
+    const user = result.rows[0];
+
+    res.json({
+      success: true,
+      user: {
+        unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
+        telegram_id: user.telegram_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        username: user.username,
+        language_code: user.language_code,
+        invite_code: user.invite_code || user.unique_id,
+        balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
+        wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
+        reward_balance: parseFloat(String(user.reward_balance ?? 0)),
+        nft_balance: parseFloat(String(user.nft_balance ?? 0)),
+        frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
+        red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
+        total_recharged: parseFloat(String(user.total_recharged ?? 0)),
+        total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
+        account_status: user.account_status,
+      },
+    });
+  } catch (error: any) {
+    console.error('Miniapp auth-sync error:', error);
     res.status(500).json({ error: error.message });
   }
 });
