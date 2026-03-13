@@ -66,7 +66,14 @@ export function authenticateMiniApp(
       const initData = req.headers['x-telegram-init-data'] as string;
 
       if (!initData) {
-        res.status(401).json({ error: 'Missing Telegram init data' });
+        console.warn('[miniapp-auth] REJECTED: Missing X-Telegram-Init-Data header', {
+          path: req.path,
+          ip: req.ip,
+        });
+        res.status(401).json({
+          error: 'Missing Telegram init data',
+          hint: 'This endpoint must be called from within a Telegram Mini App.',
+        });
         return;
       }
 
@@ -74,7 +81,11 @@ export function authenticateMiniApp(
       const params = new URLSearchParams(initData);
       const hash = params.get('hash');
       if (!hash) {
-        res.status(401).json({ error: 'Missing hash in init data' });
+        console.warn('[miniapp-auth] REJECTED: hash field missing from init data', { path: req.path });
+        res.status(401).json({
+          error: 'Missing hash in init data',
+          hint: 'The Telegram WebApp initData does not contain a hash field.',
+        });
         return;
       }
 
@@ -94,25 +105,49 @@ export function authenticateMiniApp(
       }
 
       if (candidateTokens.length === 0) {
-        res.status(500).json({ error: 'No bot token configured' });
+        console.error(
+          '[miniapp-auth] MISCONFIGURATION: No bot tokens available. ' +
+          'Set BOT_TOKEN env var or ensure active bots exist in the database.'
+        );
+        res.status(500).json({
+          error: 'No bot token configured',
+          hint: 'Server misconfiguration: set BOT_TOKEN environment variable or add an active bot in the database.',
+        });
         return;
       }
 
       // Try each token until one matches
       const valid = candidateTokens.some(token => computeHash(dataCheckString, token) === hash);
       if (!valid) {
-        res.status(401).json({ error: 'Invalid init data signature' });
+        console.warn('[miniapp-auth] REJECTED: HMAC hash mismatch', {
+          path: req.path,
+          candidateCount: candidateTokens.length,
+        });
+        res.status(401).json({
+          error: 'Invalid init data signature',
+          hint: 'Ensure the Mini App is opened via the correct Telegram bot and BOT_TOKEN matches.',
+        });
         return;
       }
 
-      // Optionally check auth_date to prevent replay attacks (allow up to 1 hour)
+      // Check auth_date to prevent replay attacks (allow up to 1 hour)
       const authDate = params.get('auth_date');
       if (authDate) {
         const ageSeconds = Math.floor(Date.now() / 1000) - parseInt(authDate, 10);
         if (ageSeconds > 3600) {
-          res.status(401).json({ error: 'Init data has expired' });
+          console.warn('[miniapp-auth] REJECTED: Init data expired', {
+            path: req.path,
+            ageSeconds,
+          });
+          res.status(401).json({
+            error: 'Init data has expired',
+            hint: 'Please restart the Telegram Mini App to refresh your session.',
+          });
           return;
         }
+      } else {
+        // auth_date missing is unusual but non-fatal; log for diagnostics
+        console.warn('[miniapp-auth] WARNING: auth_date field missing from init data', { path: req.path });
       }
 
       // Extract user info
@@ -120,14 +155,25 @@ export function authenticateMiniApp(
       if (userParam) {
         try {
           req.telegramUser = JSON.parse(userParam);
-        } catch {
-          // user param may be malformed; continue without it
+        } catch (parseErr: any) {
+          // Malformed user param – log and continue without user info
+          console.warn('[miniapp-auth] WARNING: Failed to parse user param from init data', {
+            path: req.path,
+            error: parseErr?.message,
+          });
         }
+      }
+
+      if (!req.telegramUser?.id) {
+        console.warn('[miniapp-auth] WARNING: No Telegram user ID extracted from init data', {
+          path: req.path,
+          hasUserParam: Boolean(userParam),
+        });
       }
 
       next();
     } catch (error) {
-      console.error('MiniApp auth error:', error);
+      console.error('[miniapp-auth] Unexpected error during authentication:', error);
       res.status(401).json({ error: 'Authentication failed' });
     }
   })();

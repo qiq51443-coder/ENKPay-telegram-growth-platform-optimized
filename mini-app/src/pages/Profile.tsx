@@ -61,6 +61,7 @@ export const Profile: React.FC = () => {
   const { lang, setLang, t } = useLang();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [view, setView] = useState<ProfileView>('main');
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -71,6 +72,7 @@ export const Profile: React.FC = () => {
   const [agreementLoading, setAgreementLoading] = useState(false);
 
   const fetchProfile = async () => {
+    setAuthError(null);
     try {
       if (initData) {
         const data = await getUserProfile(initData);
@@ -90,15 +92,23 @@ export const Profile: React.FC = () => {
           username: tgUser.username,
           first_name: tgUser.first_name,
         });
+      } else {
+        // Neither initData nor tgUser available: app is not opened inside Telegram
+        setAuthError(t('open_in_telegram') || '请在 Telegram 中打开此应用');
       }
-    } catch {
+    } catch (err: any) {
+      const hint = err?.response?.data?.hint || err?.response?.data?.error;
       if (tgUser) {
+        // Show basic Telegram info with an auth error notice
         setProfile({
           unique_id: String(tgUser.id),
           balance: 0,
           username: tgUser.username,
           first_name: tgUser.first_name,
         });
+        if (hint) setAuthError(hint);
+      } else {
+        setAuthError(hint || t('open_in_telegram') || '请在 Telegram 中打开此应用');
       }
     } finally {
       setLoading(false);
@@ -271,6 +281,22 @@ export const Profile: React.FC = () => {
   return (
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('profile_title')}</h1>
+
+      {/* Auth error banner */}
+      {authError && (
+        <div style={{
+          backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '14px 16px',
+          marginBottom: '16px', border: '1px solid #ef5350',
+          color: '#ef5350', fontSize: '13px', lineHeight: '1.5',
+        }}>
+          ⚠️ {authError}
+          {!tgUser?.id && (
+            <div style={{ marginTop: '6px', color: '#aaa', fontSize: '12px' }}>
+              请通过 Telegram 中的 Bot 入口打开本应用，或重新启动 WebApp。
+            </div>
+          )}
+        </div>
+      )}
 
       {/* User info card */}
       <div style={{

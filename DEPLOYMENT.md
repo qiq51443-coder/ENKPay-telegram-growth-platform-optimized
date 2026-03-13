@@ -384,4 +384,199 @@ For issues and support:
 
 ---
 
-*Last updated: 2024*
+## Trading Feature Setup
+
+The instant-trading (Quick Session) feature requires additional database
+migrations and background services beyond the base setup.
+
+### Required Migration
+
+Run the trading schema migration **before** starting the backend:
+
+```bash
+docker-compose exec postgres psql -U telegram -d telegram_growth \
+  -f /migrations/200_trading_rules_and_settlement.sql
+```
+
+Or directly:
+```bash
+psql "$DATABASE_URL" -f backend/db/migrations/200_trading_rules_and_settlement.sql
+```
+
+> If this step is skipped the `/api/trading/quick-session` endpoint returns
+> `503 Trading feature is not ready`.  Check `/api/trading/health` to confirm
+> which tables are missing.
+
+### Required: At Least One Trading Pair + Rule
+
+After running the migration, seed at least one active pair and one rule:
+
+```sql
+-- Insert a BTC/USDT trading pair (real = live Binance price)
+INSERT INTO trading_pairs (symbol, display_name, pair_type, binance_symbol, is_active)
+VALUES ('BTC', 'BTC/USDT', 'real', 'BTCUSDT', true);
+
+-- Insert a 1-minute trading rule for the pair (replace <pair_id> with the id above)
+INSERT INTO trading_rules (pair_id, duration_seconds, odds, min_bet, max_bet, is_active)
+VALUES (<pair_id>, 60, 1.95, 1, 10000, true);
+```
+
+### Required Background Job: Auto-Settle
+
+Trading orders are settled by the `auto-settle` job which runs every 10 seconds.
+Make sure the backend process starts this job (it is started automatically in
+`backend/src/index.ts` via `startAutoSettle()`).  Confirm it is running:
+
+```bash
+docker-compose logs backend | grep "auto-settle"
+```
+
+### Optional: Redis for Price Cache
+
+Real-time prices are cached in Redis (`REDIS_URL` env var).  Without Redis the
+platform falls back to direct Binance API calls for each request.  Set:
+
+```env
+REDIS_URL=redis://redis:6379
+```
+
+### Verify Trading Readiness
+
+```bash
+curl https://yourdomain.com/api/trading/health
+# Returns: {"status":"ok",...} when ready
+# Returns: {"status":"migration_required",...} when migrations are missing
+```
+
+---
+
+## Multi-Bot + MiniApp Configuration
+
+When running **multiple bots**, the Telegram Mini App authenticates the user via
+`initData` signed with the **bot token that opened the WebApp**.
+
+### How Token Validation Works
+
+The backend (`backend/src/middleware/miniapp-auth.ts`) tries tokens in order:
+
+1. `BOT_TOKEN` environment variable (highest priority)
+2. All tokens from `bots` table where `is_active = true` (DB-sourced)
+
+The first token that produces a matching HMAC hash is accepted.
+
+### Correct Multi-Bot Setup
+
+1. **Add every bot token to the `bots` table** with `is_active = true`.
+2. Keep `BOT_TOKEN` set to the **primary / default bot token** in `.env`.
+3. All additional bots must be registered in DB (Step 8 of this guide).
+
+```sql
+-- Verify active bots
+SELECT id, name, username, is_active FROM bots WHERE is_active = true;
+```
+
+### Common Mistake: Token Mismatch
+
+If `BOT_TOKEN` in `.env` belongs to Bot A but the user opens the Mini App via
+Bot B, authentication fails with `401 Invalid init data signature`.
+
+Fix: ensure Bot B's token is present in the `bots` table with `is_active = true`
+(the middleware will try it as a fallback candidate).
+
+```sql
+UPDATE bots SET is_active = true WHERE username = 'your_bot_b_username';
+```
+
+### Nginx: Preserve X-Telegram-Init-Data Header
+
+Make sure your Nginx proxy does **not** strip or modify custom headers:
+
+```nginx
+location /api/ {
+    proxy_pass http://localhost:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    # Do NOT add proxy_hide_header or header filtering here
+}
+```
+
+---
+
+## Troubleshooting
+
+### MiniApp Shows ID:#N/A or Balance = 0
+
+**Cause A – App opened outside Telegram (development/testing)**
+
+The Telegram WebApp SDK is not available in a regular browser, so `initData` is
+empty and `tgUser` is `undefined`.  This is expected behaviour outside Telegram.
+
+Fix: always test the Mini App via the bot link inside Telegram.
+
+**Cause B – Bot token mismatch (production)**
+
+The `X-Telegram-Init-Data` signature cannot be verified because `BOT_TOKEN` or
+the DB tokens do not match the bot that opened the WebApp.
+
+Diagnosis:
+```bash
+# Check backend logs for the exact error
+docker-compose logs backend | grep "miniapp-auth"
+# Look for: REJECTED: HMAC hash mismatch  or  No bot tokens available
+```
+
+Fix: add the correct bot token to the `bots` table (see Multi-Bot section above).
+
+**Cause C – Duplicate telegram_id records in the database**
+
+The miniApp reads the oldest user record (`ORDER BY created_at ASC LIMIT 1`)
+but a newer duplicate record holds the actual balance.
+
+Diagnosis:
+```sql
+SELECT telegram_id, COUNT(*), SUM(wallet_balance)
+FROM users
+GROUP BY telegram_id HAVING COUNT(*) > 1;
+```
+
+Fix: run the one-time deduplication helper:
+```bash
+psql "$DATABASE_URL" -f scripts/fix_duplicate_users.sql
+```
+Uncomment the `BEGIN … COMMIT` block in that file first; review the preview
+output before committing.
+
+---
+
+### Instant Trading Not Working
+
+**Symptom:** Button disabled, or API returns 503 / 500.
+
+1. **Check trading readiness endpoint:**
+   ```bash
+   curl https://yourdomain.com/api/trading/health
+   ```
+   If `status` is `migration_required`, run the `200_trading_rules_and_settlement.sql`
+   migration (see Trading Feature Setup above).
+
+2. **No active trading pairs or rules:**
+   ```sql
+   SELECT * FROM trading_pairs WHERE is_active = true;
+   SELECT * FROM trading_rules WHERE is_active = true;
+   ```
+   Seed at least one pair + rule if the tables are empty.
+
+3. **Auth failure when placing order:**
+   Check backend logs for `[miniapp-auth] REJECTED`.  The order API uses the
+   same Telegram initData auth as the profile page – fix the token mismatch first.
+
+4. **Auto-settle job not running:**
+   Orders stay in `active` state indefinitely if the settle job is down.
+   ```bash
+   docker-compose logs backend | grep -E "(auto-settle|settlement)"
+   ```
+
+---
+
+*Last updated: 2026*

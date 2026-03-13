@@ -211,8 +211,29 @@ router.get('/announcements', async (req, res) => {
 });
 
 /**
+ * Resolve the canonical (earliest-created) user ID for a given Telegram ID.
+ * Logs a warning when multiple records exist so operators can detect and
+ * clean up duplicates via the deduplication script in scripts/fix_duplicate_users.sql.
+ */
+async function getCanonicalUserId(telegramId: number): Promise<string | null> {
+  const result = await query(
+    `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC`,
+    [telegramId]
+  );
+  if (result.rows.length === 0) return null;
+  if (result.rows.length > 1) {
+    console.warn(
+      `[miniapp] WARNING: ${result.rows.length} user records found for telegram_id=${telegramId}. ` +
+      `Using canonical id=${result.rows[0].id} (oldest). ` +
+      `Run scripts/fix_duplicate_users.sql to resolve duplicates.`
+    );
+  }
+  return result.rows[0].id;
+}
+
+/**
  * POST /api/miniapp/language
- * Update user's language preference
+ * Update user's language preference (targets canonical record)
  */
 router.post('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
@@ -222,9 +243,12 @@ router.post('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, re
     const lang = language_code || language;
     if (!lang) return res.status(400).json({ error: 'language_code is required' });
 
+    const canonicalId = await getCanonicalUserId(telegramId);
+    if (!canonicalId) return res.status(404).json({ error: 'User not found' });
+
     await query(
-      `UPDATE users SET language_code = $1 WHERE telegram_id = $2`,
-      [lang, telegramId]
+      `UPDATE users SET language_code = $1 WHERE id = $2`,
+      [lang, canonicalId]
     );
 
     res.json({ success: true });
@@ -246,9 +270,12 @@ router.put('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, res
     const lang = language_code || language;
     if (!lang) return res.status(400).json({ error: 'language_code is required' });
 
+    const canonicalId = await getCanonicalUserId(telegramId);
+    if (!canonicalId) return res.status(404).json({ error: 'User not found' });
+
     await query(
-      `UPDATE users SET language_code = $1 WHERE telegram_id = $2`,
-      [lang, telegramId]
+      `UPDATE users SET language_code = $1 WHERE id = $2`,
+      [lang, canonicalId]
     );
 
     res.json({ success: true });
@@ -260,7 +287,8 @@ router.put('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, res
 
 /**
  * POST /api/miniapp/sync-user
- * Sync Telegram user info (first_name, username, language_code) to DB
+ * Sync Telegram user info (first_name, username, language_code) to the canonical DB record.
+ * Targets the earliest-created user record to stay consistent with /profile reads.
  */
 router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
@@ -268,6 +296,9 @@ router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { first_name, username, language_code } = req.body;
+
+    const canonicalId = await getCanonicalUserId(telegramId);
+    if (!canonicalId) return res.status(404).json({ error: 'User not found' });
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -278,9 +309,9 @@ router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     if (language_code !== undefined) { updates.push(`language_code = $${idx++}`); values.push(language_code); }
 
     if (updates.length > 0) {
-      values.push(telegramId);
+      values.push(canonicalId);
       await query(
-        `UPDATE users SET ${updates.join(', ')} WHERE telegram_id = $${idx}`,
+        `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`,
         values
       );
     }
