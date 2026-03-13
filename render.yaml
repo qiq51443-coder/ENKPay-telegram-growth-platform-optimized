@@ -3,9 +3,15 @@ services:
     name: telegram-growth-platform
     runtime: node
     region: singapore
-    plan: free
-    buildCommand: cd backend && npm run render-build
-    startCommand: cd backend && npm start
+    plan: starter
+    buildCommand: |
+      cd mini-app && npm ci && npm run build && cd .. && \
+      cd admin-panel && npm ci && npm run build && cd .. && \
+      cd backend && npm ci && npm run build && \
+      mkdir -p dist/public/admin dist/public/app && \
+      cp -r ../admin-panel/dist/. dist/public/admin/ && \
+      cp -r ../mini-app/dist/. dist/public/app/
+    startCommand: cd backend && node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -29,6 +35,14 @@ services:
       - key: BINANCE_API_URL
         value: https://api.binance.com
       - key: BACKEND_URL
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_DOMAIN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: WEBAPP_URL
         sync: false
 
 databases:
