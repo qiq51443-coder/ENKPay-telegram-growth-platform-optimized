@@ -49,10 +49,4 @@ databases:
   - name: telegram-growth-db
     databaseName: telegram_growth
     region: singapore
-    plan: free
-
-  - type: redis
-    name: telegram-growth-redis
-    region: singapore
-    plan: free
-    maxmemoryPolicy: noeviction
+    plan: starter

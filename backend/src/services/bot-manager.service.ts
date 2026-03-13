@@ -102,44 +102,50 @@ async function generateUserUniqueId(): Promise<string> {
 async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: string): Promise<User> {
   const tgUser = ctx.from!;
 
-  // Try to find existing user for this specific bot
+  // ── 1. Look up by telegram_id only (single account per user) ──────────
   const existing = await query(
-    'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2',
-    [tgUser.id, botId]
+    `SELECT * FROM users WHERE telegram_id = $1`,
+    [tgUser.id]
   );
+
   if (existing.rows.length > 0) {
-    // Update username/name if changed and return fresh data (including latest balance)
+    // Update profile fields and last_active_at
     const updated = await query(
-      'UPDATE users SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW() WHERE id = $4 RETURNING *',
+      `UPDATE users 
+       SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW()
+       WHERE id = $4 RETURNING *`,
       [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, existing.rows[0].id]
     );
     const user = updated.rows[0];
-    // Backfill unique_id for canonical rows that are missing it (users registered before migration 902)
+
+    // Record bot membership (upsert)
+    await query(
+      `INSERT INTO user_bot_memberships (user_id, bot_id, last_active_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id, bot_id) DO UPDATE SET last_active_at = NOW()`,
+      [user.id, botId]
+    ).catch((err: any) => { console.warn(`[bot ${botId}] Failed to upsert membership:`, err?.message); });
+
+    // Backfill unique_id if missing
     if (!user.unique_id) {
       try {
         const newUniqueId = await generateUserUniqueId();
         await query('UPDATE users SET unique_id = $1 WHERE id = $2 AND unique_id IS NULL', [newUniqueId, user.id]);
-        // Re-read from DB to get the actual stored value (another concurrent request may have set it first)
         const refreshed = await query('SELECT unique_id FROM users WHERE id = $1', [user.id]);
         user.unique_id = refreshed.rows[0]?.unique_id ?? null;
       } catch (err: any) {
-        console.warn(`[bot ${botId}] Failed to backfill unique_id for user ${user.id}:`, err?.message);
+        console.warn(`[bot ${botId}] Failed to backfill unique_id:`, err?.message);
       }
     }
     return user;
   }
 
-  // Check if user exists for ANY other bot (cross-bot unification)
-  const existingAnyBot = await query(
-    'SELECT * FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1',
-    [tgUser.id]
-  );
-
+  // ── 2. Brand new user ─────────────────────────────────────────────────
   // Resolve inviter
   let invitedBy = null;
   if (inviteCodeUsed) {
     const inviterResult = await query(
-      'SELECT id FROM users WHERE unique_id = $1 OR invite_code = $1',
+      'SELECT id FROM users WHERE unique_id = $1 OR invite_code = $1 LIMIT 1',
       [inviteCodeUsed]
     );
     if (inviterResult.rows.length > 0) {
@@ -164,46 +170,7 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
     }
   }
 
-  if (existingAnyBot.rows.length > 0) {
-    // User exists for another bot — create linked entry copying shared identity/balance fields
-    const source = existingAnyBot.rows[0];
-    // Reuse the existing unique_id so the user has one consistent ID across all bots
-    const uniqueIdToUse = source.unique_id || await generateUserUniqueId().catch(() => `U${Date.now().toString(36).toUpperCase().slice(-6)}`);
-    const createResult = await query(
-      `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code,
-       invited_by, red_packet_credits, wallet_balance, reward_balance, frozen_balance,
-       platform_username, platform_bound, platform_status, account_status,
-       channel_followed, group_joined, follow_reward_unlocked, bind_reward_unlocked, unique_id, last_active_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
-       ON CONFLICT (bot_id, telegram_id) DO UPDATE SET last_active_at = NOW()
-       RETURNING *`,
-      [
-        botId,
-        tgUser.id,
-        tgUser.username || null,
-        tgUser.first_name || null,
-        tgUser.last_name || null,
-        source.language_code || tgUser.language_code || 'en',
-        invitedBy || source.invited_by,
-        source.red_packet_credits ?? initialCredits,
-        source.wallet_balance ?? 0,
-        source.reward_balance ?? 0,
-        source.frozen_balance ?? 0,
-        source.platform_username,
-        source.platform_bound,
-        source.platform_status,
-        source.account_status,
-        source.channel_followed,
-        source.group_joined,
-        source.follow_reward_unlocked,
-        source.bind_reward_unlocked,
-        uniqueIdToUse,
-      ]
-    );
-    return createResult.rows[0];
-  }
-
-  // Brand new user — generate unique_id
+  // Generate unique_id
   let newUniqueId: string;
   try {
     newUniqueId = await generateUserUniqueId();
@@ -211,14 +178,16 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
     newUniqueId = `U${Date.now().toString(36).toUpperCase().slice(-6)}`;
   }
 
+  // Insert single record — no bot_id dependency for identity
   const createResult = await query(
-    `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code,
-     invited_by, red_packet_credits, wallet_balance, reward_balance, frozen_balance, unique_id)
+    `INSERT INTO users 
+       (bot_id, telegram_id, username, first_name, last_name, language_code,
+        invited_by, red_packet_credits, wallet_balance, reward_balance, frozen_balance, unique_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 0, 0, $9)
-     ON CONFLICT (bot_id, telegram_id) DO UPDATE SET last_active_at = NOW()
+     ON CONFLICT (telegram_id) DO UPDATE SET last_active_at = NOW()
      RETURNING *`,
     [
-      botId,
+      botId, // records first-touch bot
       tgUser.id,
       tgUser.username || null,
       tgUser.first_name || null,
@@ -229,7 +198,18 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
       newUniqueId,
     ]
   );
-  return createResult.rows[0];
+
+  const newUser = createResult.rows[0];
+
+  // Record bot membership
+  await query(
+    `INSERT INTO user_bot_memberships (user_id, bot_id)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id, bot_id) DO NOTHING`,
+    [newUser.id, botId]
+  ).catch((err: any) => { console.warn(`[bot ${botId}] Failed to insert membership:`, err?.message); });
+
+  return newUser;
 }
 
 async function getPrimaryUniqueId(telegramId: number): Promise<string | null> {

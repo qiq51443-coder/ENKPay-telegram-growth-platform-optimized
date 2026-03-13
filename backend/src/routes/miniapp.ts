@@ -1,5 +1,5 @@
 import express from 'express';
-import { query, transaction } from '../db';
+import { query } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { generateUniqueIdCandidate, generateUniqueUserId } from '../utils/uniqueId';
 
@@ -38,7 +38,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
     // Use canonical user id for consistent cross-bot query
     const userResult = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      `SELECT id FROM users WHERE telegram_id = $1`,
       [telegramId]
     );
     if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -119,23 +119,15 @@ router.get('/announcements', async (req, res) => {
 });
 
 /**
- * Resolve the canonical (earliest-created) user ID for a given Telegram ID.
- * Logs a warning when multiple records exist so operators can detect and
- * clean up duplicates via the deduplication script in scripts/fix_duplicate_users.sql.
+ * Resolve the canonical user ID for a given Telegram ID.
+ * Since migration 020 guarantees telegram_id is unique, this is a direct lookup.
  */
 async function getCanonicalUserId(telegramId: number): Promise<string | null> {
   const result = await query(
-    `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC`,
+    `SELECT id FROM users WHERE telegram_id = $1`,
     [telegramId]
   );
   if (result.rows.length === 0) return null;
-  if (result.rows.length > 1) {
-    console.warn(
-      `[miniapp] WARNING: ${result.rows.length} user records found for telegram_id=${telegramId}. ` +
-      `Using canonical id=${result.rows[0].id} (oldest). ` +
-      `Run scripts/fix_duplicate_users.sql to resolve duplicates.`
-    );
-  }
   return result.rows[0].id;
 }
 
@@ -244,8 +236,7 @@ async function buildCanonicalProfile(telegramId: number) {
             total_recharged, total_withdrawn,
             invite_code, invited_by,
             account_status
-     FROM users WHERE telegram_id = $1
-     ORDER BY created_at ASC LIMIT 1`,
+     FROM users WHERE telegram_id = $1`,
     [telegramId]
   );
   if (result.rows.length === 0) return null;
@@ -337,7 +328,7 @@ async function buildCanonicalProfile(telegramId: number) {
 /**
  * POST /api/miniapp/auth-sync
  * One-shot: validate Telegram initData, upsert the user record, and return the canonical profile.
- * Replaces the separate sync-user + profile round-trip that caused #N/A / $0.00 on first open.
+ * Uses ON CONFLICT (telegram_id) for a true atomic UPSERT — guaranteed by migration 020.
  */
 router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
@@ -349,8 +340,7 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     const username = tgUser.username || null;
     const languageCode = tgUser.language_code || 'zh';
 
-    // Pre-generate a unique_id candidate (only used if a new record needs to be inserted).
-    // The DB trigger (trigger_set_user_ids) will also generate robot_user_id and invite_code.
+    // Pre-generate a unique_id candidate (only used if a brand-new record is inserted).
     let newUniqueId: string;
     try {
       newUniqueId = await generateUniqueUserId();
@@ -358,32 +348,19 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
       newUniqueId = generateUniqueIdCandidate();
     }
 
-    // Two-step upsert wrapped in a transaction to minimise the race window.
-    // (telegram_id has no unique constraint in this schema, so ON CONFLICT is not available.)
-    // Only the canonical (oldest) record is updated to avoid clobbering non-canonical duplicates.
-    await transaction(async (client) => {
-      // Step 1: update only the canonical (oldest) record if present.
-      // Never overwrite bot_id, unique_id, invite_code, or balance fields.
-      await client.query(
-        `UPDATE users SET first_name=$2, username=$3, language_code=$4, updated_at=NOW()
-         WHERE id = (
-           SELECT id FROM users WHERE telegram_id=$1 ORDER BY created_at ASC LIMIT 1
-         )`,
-        [telegramId, firstName, username, languageCode]
-      );
-      // Step 2: insert only if no record exists at all, with complete field set so
-      // the DB trigger (trigger_set_user_ids) can generate robot_user_id and invite_code.
-      await client.query(
-        `INSERT INTO users (
-           telegram_id, first_name, username, language_code,
-           wallet_balance, reward_balance, frozen_balance,
-           unique_id, created_at, updated_at
-         )
-         SELECT $1, $2, $3, $4, 0, 0, 0, $5, NOW(), NOW()
-         WHERE NOT EXISTS (SELECT 1 FROM users WHERE telegram_id = $1)`,
-        [telegramId, firstName, username, languageCode, newUniqueId]
-      );
-    });
+    // Single-step true UPSERT on telegram_id — guaranteed unique by migration 020.
+    await query(
+      `INSERT INTO users (telegram_id, first_name, username, language_code,
+                          wallet_balance, reward_balance, frozen_balance,
+                          red_packet_credits, unique_id, updated_at)
+       VALUES ($1, $2, $3, $4, 0, 0, 0, 3, $5, NOW())
+       ON CONFLICT (telegram_id) DO UPDATE
+         SET first_name    = EXCLUDED.first_name,
+             username      = COALESCE(EXCLUDED.username, users.username),
+             language_code = EXCLUDED.language_code,
+             updated_at    = NOW()`,
+      [telegramId, firstName, username, languageCode, newUniqueId]
+    );
 
     const userProfile = await buildCanonicalProfile(telegramId);
     if (!userProfile) {
