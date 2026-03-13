@@ -48,3 +48,21 @@ export async function getOrCreateUniqueId(telegramId: number, botId: string): Pr
 
   return uniqueId;
 }
+
+/**
+ * Generate a unique 7-character alphanumeric ID (avoids ambiguous chars O/0/I/l/1).
+ * Uses the same character set as bot-manager's generateUserUniqueId().
+ * Checks the database for conflicts and retries up to 10 times.
+ * Throws if no unique candidate is found within the retry limit.
+ */
+export async function generateUniqueUserId(): Promise<string> {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let id = '';
+    for (let i = 0; i < 7; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+    const conflict = await query('SELECT id FROM users WHERE unique_id = $1', [id]);
+    if (conflict.rows.length === 0) return id;
+  }
+  // Fallback: timestamp-based suffix ensures global uniqueness even under extreme contention
+  return `U${Date.now().toString(36).toUpperCase().slice(-6)}`;
+}

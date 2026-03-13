@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
+import { generateUniqueIdCandidate, generateUniqueUserId } from '../utils/uniqueId';
 
 const router = express.Router();
 
@@ -348,11 +349,21 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     const username = tgUser.username || null;
     const languageCode = tgUser.language_code || 'zh';
 
+    // Pre-generate a unique_id candidate (only used if a new record needs to be inserted).
+    // The DB trigger (trigger_set_user_ids) will also generate robot_user_id and invite_code.
+    let newUniqueId: string;
+    try {
+      newUniqueId = await generateUniqueUserId();
+    } catch {
+      newUniqueId = generateUniqueIdCandidate();
+    }
+
     // Two-step upsert wrapped in a transaction to minimise the race window.
     // (telegram_id has no unique constraint in this schema, so ON CONFLICT is not available.)
     // Only the canonical (oldest) record is updated to avoid clobbering non-canonical duplicates.
     await transaction(async (client) => {
-      // Step 1: update only the canonical (oldest) record if present
+      // Step 1: update only the canonical (oldest) record if present.
+      // Never overwrite bot_id, unique_id, invite_code, or balance fields.
       await client.query(
         `UPDATE users SET first_name=$2, username=$3, language_code=$4, updated_at=NOW()
          WHERE id = (
@@ -360,12 +371,17 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
          )`,
         [telegramId, firstName, username, languageCode]
       );
-      // Step 2: insert only if no record exists at all
+      // Step 2: insert only if no record exists at all, with complete field set so
+      // the DB trigger (trigger_set_user_ids) can generate robot_user_id and invite_code.
       await client.query(
-        `INSERT INTO users (telegram_id, first_name, username, language_code, wallet_balance, created_at, updated_at)
-         SELECT $1, $2, $3, $4, 0, NOW(), NOW()
+        `INSERT INTO users (
+           telegram_id, first_name, username, language_code,
+           wallet_balance, reward_balance, frozen_balance,
+           unique_id, created_at, updated_at
+         )
+         SELECT $1, $2, $3, $4, 0, 0, 0, $5, NOW(), NOW()
          WHERE NOT EXISTS (SELECT 1 FROM users WHERE telegram_id = $1)`,
-        [telegramId, firstName, username, languageCode]
+        [telegramId, firstName, username, languageCode, newUniqueId]
       );
     });
 
