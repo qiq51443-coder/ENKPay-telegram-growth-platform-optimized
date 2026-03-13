@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { useTelegram } from '../hooks/useTelegram';
 
 interface Product {
   id: string;
@@ -30,6 +31,7 @@ function formatAmount(price: number): string {
 
 export const Products: React.FC = () => {
   const { t } = useLang();
+  const { initData } = useTelegram();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -59,7 +61,9 @@ export const Products: React.FC = () => {
     setPurchasing(true);
     setPurchaseMsg('');
     try {
-      await api.post(`/nft/products/${selected.id}/purchase`, {});
+      await api.post(`/nft/products/${selected.id}/purchase`, {}, {
+        headers: initData ? { 'X-Telegram-Init-Data': initData } : {},
+      });
       setPurchaseMsg('✅ ' + t('product_purchase_success'));
       setTimeout(() => {
         setShowPurchase(false);

@@ -41,7 +41,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Sync language preference to backend (non-critical)
     const initData = window.Telegram?.WebApp?.initData;
     if (initData) {
-      api.post('/profile/language', { language: newLang }, {
+      api.post('/miniapp/language', { language: newLang }, {
         headers: { 'X-Telegram-Init-Data': initData },
       }).catch(() => {/* non-critical */});
     }

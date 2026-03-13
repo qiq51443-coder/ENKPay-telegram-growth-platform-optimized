@@ -15,7 +15,6 @@ router.get('/categories', async (req, res) => {
     const result = await query(
       `SELECT id, name, description, icon_url, sort_order, is_active, created_at
        FROM nft_categories
-       WHERE is_active = true
        ORDER BY sort_order, id`
     );
 
