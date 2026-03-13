@@ -91,7 +91,7 @@ export const zh = {
   account_balance: '余额',
   account_platform_status: '平台状态',
   account_account_status: '账户状态',
-  account_red_packet_credits: '红包积分',
+  account_red_packet_credits: '红包余额 (USDT)',
   account_bound: '已绑定',
   account_unbound: '未绑定',
   account_active: '活跃',
@@ -149,7 +149,7 @@ export const zh = {
 
   // Wallet extra info
   nft_holdings: 'NFT 藏品持有价值',
-  redpacket_balance: '红包余额',
+  redpacket_balance: '红包余额 (USDT)',
 
   // Deposit flow
   select_network: '请选择网络',

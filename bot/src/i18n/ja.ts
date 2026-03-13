@@ -92,7 +92,7 @@ export const ja: Record<string, string> = {
   account_balance: '残高',
   account_platform_status: 'プラットフォームステータス',
   account_account_status: 'アカウントステータス',
-  account_red_packet_credits: 'レッドパケットクレジット',
+  account_red_packet_credits: 'レッドパケット残高 (USDT)',
   account_bound: '連携済み',
   account_unbound: '未連携',
   account_active: 'アクティブ',
@@ -150,7 +150,7 @@ export const ja: Record<string, string> = {
 
   // Wallet extra info
   nft_holdings: 'NFT保有価値',
-  redpacket_balance: 'レッドパケット残高',
+  redpacket_balance: 'レッドパケット残高 (USDT)',
 
   // Deposit flow
   select_network: 'ネットワークを選択してください',

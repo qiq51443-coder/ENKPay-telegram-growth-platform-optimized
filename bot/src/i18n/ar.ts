@@ -92,7 +92,7 @@ export const ar: Record<string, string> = {
   account_balance: 'الرصيد',
   account_platform_status: 'حالة المنصة',
   account_account_status: 'حالة الحساب',
-  account_red_packet_credits: 'رصيد الحزمة الحمراء',
+  account_red_packet_credits: 'رصيد الحزمة الحمراء (USDT)',
   account_bound: 'مرتبط',
   account_unbound: 'غير مرتبط',
   account_active: 'نشط',
@@ -150,7 +150,7 @@ export const ar: Record<string, string> = {
 
   // Wallet extra info
   nft_holdings: 'قيمة NFT المحتفظ بها',
-  redpacket_balance: 'رصيد الحزمة الحمراء',
+  redpacket_balance: 'رصيد الحزمة الحمراء (USDT)',
 
   // Deposit flow
   select_network: 'يرجى اختيار شبكة',

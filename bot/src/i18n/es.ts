@@ -92,7 +92,7 @@ export const es: Record<string, string> = {
   account_balance: 'Saldo',
   account_platform_status: 'Estado de plataforma',
   account_account_status: 'Estado de cuenta',
-  account_red_packet_credits: 'Créditos sobre rojo',
+  account_red_packet_credits: 'Saldo de sobre rojo (USDT)',
   account_bound: 'Vinculado',
   account_unbound: 'No vinculado',
   account_active: 'Activo',
@@ -150,7 +150,7 @@ export const es: Record<string, string> = {
 
   // Wallet extra info
   nft_holdings: 'Valor de NFT en posesión',
-  redpacket_balance: 'Saldo de sobre rojo',
+  redpacket_balance: 'Saldo de sobre rojo (USDT)',
 
   // Deposit flow
   select_network: 'Por favor selecciona una red',
