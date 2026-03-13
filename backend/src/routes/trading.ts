@@ -9,9 +9,64 @@ import { autoUnlockRewardBalance } from '../services/balance.service';
 const router = express.Router();
 
 /**
- * GET /api/trading/pairs
- * List active trading pairs
+ * Check whether the PostgreSQL error is a "relation does not exist" error,
+ * which typically means a required database migration has not been run.
  */
+function isMissingTableError(err: any): boolean {
+  // PostgreSQL error code 42P01 = "undefined_table"
+  return err?.code === '42P01' || /relation .* does not exist/i.test(err?.message ?? '');
+}
+
+/**
+ * GET /api/trading/health
+ * Check trading feature readiness (tables present, at least one active pair).
+ * Returns 200 when ready, 503 when migrations are missing, 500 on other errors.
+ */
+router.get('/health', async (_req, res) => {
+  const checks: Record<string, boolean | string> = {};
+  try {
+    await query('SELECT 1 FROM trading_pairs LIMIT 1');
+    checks.trading_pairs = true;
+  } catch (err: any) {
+    checks.trading_pairs = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_rules LIMIT 1');
+    checks.trading_rules = true;
+  } catch (err: any) {
+    checks.trading_rules = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_sessions LIMIT 1');
+    checks.trading_sessions = true;
+  } catch (err: any) {
+    checks.trading_sessions = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_orders LIMIT 1');
+    checks.trading_orders = true;
+  } catch (err: any) {
+    checks.trading_orders = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+
+  const allOk = Object.values(checks).every(v => v === true);
+  const hasMissingMigration = Object.values(checks).some(v => v === 'missing_migration');
+
+  if (allOk) {
+    return res.json({ status: 'ok', checks });
+  }
+
+  const status = hasMissingMigration ? 503 : 500;
+  return res.status(status).json({
+    status: hasMissingMigration ? 'migration_required' : 'error',
+    message: hasMissingMigration
+      ? 'Trading feature is not ready. Please run: backend/db/migrations/200_trading_rules_and_settlement.sql'
+      : 'Trading health check failed',
+    checks,
+  });
+});
+
+
 router.get('/pairs', async (req, res) => {
   try {
     const result = await query(
@@ -29,6 +84,13 @@ router.get('/pairs', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Get pairs error:', error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'Required database migrations have not been applied. ' +
+              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -595,6 +657,13 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     });
   } catch (error: any) {
     console.error('Quick session error:', error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'Required database migrations have not been applied. ' +
+              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -611,7 +680,7 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
     const { limit = 50 } = req.query;
 
     const userResult = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
       [telegramId]
     );
     if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -634,6 +703,13 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
     res.json({ success: true, data: result.rows });
   } catch (error: any) {
     console.error('Get my orders error:', error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'Required database migrations have not been applied. ' +
+              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });

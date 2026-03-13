@@ -86,6 +86,7 @@ export const Trading: React.FC = () => {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   // Available balance: wallet_balance + red_packet_balance
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -327,18 +328,21 @@ export const Trading: React.FC = () => {
 
   const openConfirm = (dir: 'up' | 'down') => {
     if (!amount || Number(amount) <= 0) return;
+    setOrderError(null);
     setConfirmDirection(dir);
     setConfirmOpen(true);
   };
 
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
-    if (!tgUser?.id) {
-      alert(t('open_in_telegram') || '请在 Telegram 中打开此应用后再进行交易');
+    if (!initData || !tgUser?.id) {
+      setOrderError(t('open_in_telegram') || '请在 Telegram 中打开此应用后再进行交易');
+      setConfirmOpen(false);
       return;
     }
     setSubmitting(true);
     setConfirmOpen(false);
+    setOrderError(null);
     try {
       const res = await api.post('/trading/quick-session', {
         pair_id: selectedPair.id,
@@ -354,7 +358,10 @@ export const Trading: React.FC = () => {
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
     } catch (e: any) {
-      alert(e?.response?.data?.error || t('order_failed'));
+      const msg = e?.response?.data?.hint
+        || e?.response?.data?.error
+        || t('order_failed');
+      setOrderError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -598,6 +605,21 @@ export const Trading: React.FC = () => {
           )}
         </div>
 
+        {/* Order error banner */}
+        {orderError && (
+          <div style={{
+            backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '12px',
+            marginBottom: '12px', border: '1px solid #ef5350',
+            color: '#ef5350', fontSize: '13px', textAlign: 'center',
+          }}>
+            ⚠️ {orderError}
+            <button
+              onClick={() => setOrderError(null)}
+              style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#ef5350', cursor: 'pointer', fontSize: '14px' }}
+            >✕</button>
+          </div>
+        )}
+
         {/* UP/DOWN buttons */}
         {activeOrder && countdown !== null ? (
           <div style={{ textAlign: 'center', color: theme.textSecondary, padding: '12px 0', marginBottom: '16px', backgroundColor: theme.bgCard, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
@@ -612,22 +634,24 @@ export const Trading: React.FC = () => {
           <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
             <button
               onClick={() => openConfirm('up')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData}
+              title={!initData ? (t('open_in_telegram') || '请在 Telegram 中打开') : undefined}
               style={{
                 flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
                 backgroundColor: '#26a69a', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData) ? 0.5 : 1,
               }}
             >
               {t('btn_up')}
             </button>
             <button
               onClick={() => openConfirm('down')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData}
+              title={!initData ? (t('open_in_telegram') || '请在 Telegram 中打开') : undefined}
               style={{
                 flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
                 backgroundColor: '#ef5350', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData) ? 0.5 : 1,
               }}
             >
               {t('btn_down')}
@@ -702,6 +726,16 @@ export const Trading: React.FC = () => {
   return (
     <div style={{ padding: '16px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('trading_title')}</h1>
+      {/* Auth warning: app not opened inside Telegram */}
+      {!initData && !tgUser?.id && (
+        <div style={{
+          backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '16px',
+          marginBottom: '16px', border: '1px solid #ef5350',
+          color: '#ef5350', fontSize: '14px', textAlign: 'center',
+        }}>
+          ⚠️ {t('open_in_telegram') || '请在 Telegram 中打开此应用以使用交易功能'}
+        </div>
+      )}
       {pairs.length === 0 && (
         <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
           {t('no_trading_pairs') || '暂无可交易品种'}
