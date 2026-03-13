@@ -235,6 +235,30 @@ router.post('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, re
 });
 
 /**
+ * PUT /api/miniapp/language
+ * Update user's language preference (alias for POST, supports both methods)
+ */
+router.put('/language', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+    const { language_code, language } = req.body;
+    const lang = language_code || language;
+    if (!lang) return res.status(400).json({ error: 'language_code is required' });
+
+    await query(
+      `UPDATE users SET language_code = $1 WHERE telegram_id = $2`,
+      [lang, telegramId]
+    );
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Miniapp language PUT error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/miniapp/sync-user
  * Sync Telegram user info (first_name, username, language_code) to DB
  */

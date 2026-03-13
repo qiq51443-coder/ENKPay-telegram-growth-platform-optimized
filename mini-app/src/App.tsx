@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LoadingScreen } from './components/LoadingScreen';
 import { BottomNav } from './components/BottomNav';
 import { AnnouncementModal } from './components/AnnouncementModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Trading } from './pages/Trading';
 import { Auction } from './pages/Auction';
 import { Products } from './pages/Products';
@@ -61,12 +62,12 @@ function AppContent() {
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'trading': return <Trading />;
-      case 'auction': return <Auction />;
-      case 'products': return <Products />;
-      case 'charity': return <Charity />;
-      case 'profile': return <Profile />;
-      default: return <Trading />;
+      case 'trading': return <ErrorBoundary><Trading /></ErrorBoundary>;
+      case 'auction': return <ErrorBoundary><Auction /></ErrorBoundary>;
+      case 'products': return <ErrorBoundary><Products /></ErrorBoundary>;
+      case 'charity': return <ErrorBoundary><Charity /></ErrorBoundary>;
+      case 'profile': return <ErrorBoundary><Profile /></ErrorBoundary>;
+      default: return <ErrorBoundary><Trading /></ErrorBoundary>;
     }
   };
 

@@ -155,6 +155,7 @@ const zh: Translations = {
   account_active: '正常',
   account_suspended: '已暂停',
   account_frozen: '已冻结',
+  available_balance: '可用余额',
 };
 
 const en: Translations = {
@@ -300,6 +301,7 @@ const en: Translations = {
   account_active: 'Active',
   account_suspended: 'Suspended',
   account_frozen: 'Frozen',
+  available_balance: 'Available Balance',
 };
 
 const fr: Translations = {
@@ -430,6 +432,7 @@ const fr: Translations = {
   account_active: 'Actif',
   account_suspended: 'Suspendu',
   account_frozen: 'Gelé',
+  available_balance: 'Solde disponible',
 };
 
 const de: Translations = {
@@ -560,6 +563,7 @@ const de: Translations = {
   account_active: 'Aktiv',
   account_suspended: 'Gesperrt',
   account_frozen: 'Eingefroren',
+  available_balance: 'Verfügbares Guthaben',
 };
 
 const es: Translations = {
@@ -690,6 +694,7 @@ const es: Translations = {
   account_active: 'Activo',
   account_suspended: 'Suspendido',
   account_frozen: 'Congelado',
+  available_balance: 'Saldo disponible',
 };
 
 const ar: Translations = {
@@ -820,6 +825,7 @@ const ar: Translations = {
   account_active: 'نشط',
   account_suspended: 'معلق',
   account_frozen: 'مجمد',
+  available_balance: 'الرصيد المتاح',
 };
 
 const ja: Translations = {
@@ -950,6 +956,7 @@ const ja: Translations = {
   account_active: 'アクティブ',
   account_suspended: '停止中',
   account_frozen: '凍結中',
+  available_balance: '利用可能残高',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };
