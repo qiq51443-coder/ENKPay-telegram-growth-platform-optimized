@@ -45,7 +45,8 @@ export const Withdrawals: React.FC = () => {
       if (statusFilter) params.status = statusFilter;
       
       const response = await apiClient.getWithdrawalRecords(params);
-      setWithdrawals(response.data || response.records || response.withdrawals || []);
+      const list = response.data || response.records || response.withdrawals || [];
+      setWithdrawals(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);
       message.error('获取提现列表失败');
@@ -109,7 +110,7 @@ export const Withdrawals: React.FC = () => {
       width: 100,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-          ${amount?.toFixed(2)}
+          ${parseFloat(String(amount ?? 0)).toFixed(2)}
         </span>
       ),
     },
@@ -259,7 +260,7 @@ export const Withdrawals: React.FC = () => {
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: '#666', marginBottom: 4 }}>提现金额</div>
               <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                ${selectedWithdrawal.amount.toFixed(2)}
+                ${parseFloat(String(selectedWithdrawal.amount ?? 0)).toFixed(2)}
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>

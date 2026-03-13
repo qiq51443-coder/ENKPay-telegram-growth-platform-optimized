@@ -53,7 +53,8 @@ export const RedPackets: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiClient.getRedPackets();
-      setRedPackets(response.redPackets || []);
+      const list = response.redPackets || response.data || [];
+      setRedPackets(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Failed to fetch red packets:', error);
       message.error('获取红包列表失败');
@@ -135,7 +136,7 @@ export const RedPackets: React.FC = () => {
       key: 'total_amount',
       width: 100,
       render: (amount: number) => (
-        <span style={{ fontFamily: 'monospace' }}>${amount.toFixed(2)}</span>
+        <span style={{ fontFamily: 'monospace' }}>${parseFloat(String(amount ?? 0)).toFixed(2)}</span>
       ),
     },
     {
@@ -157,7 +158,7 @@ export const RedPackets: React.FC = () => {
             {record.claimed_count} / {record.total_count} 个
           </div>
           <div style={{ fontSize: '12px', color: '#666' }}>
-            ${record.claimed_amount.toFixed(2)} / ${record.total_amount.toFixed(2)}
+            ${parseFloat(String(record.claimed_amount ?? 0)).toFixed(2)} / ${parseFloat(String(record.total_amount ?? 0)).toFixed(2)}
           </div>
         </div>
       ),
@@ -225,7 +226,7 @@ export const RedPackets: React.FC = () => {
       dataIndex: 'amount',
       key: 'amount',
       render: (amount: number) => (
-        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>${amount.toFixed(2)}</span>
+        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>${parseFloat(String(amount ?? 0)).toFixed(2)}</span>
       ),
     },
     {

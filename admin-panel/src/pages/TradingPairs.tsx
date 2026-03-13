@@ -277,8 +277,8 @@ export const TradingPairs: React.FC = () => {
       dataIndex: 'current_price',
       key: 'current_price',
       width: 120,
-      render: (price: number) => price ? (
-        <span style={{ fontFamily: 'monospace' }}>${price.toFixed(4)}</span>
+      render: (price: number) => price != null ? (
+        <span style={{ fontFamily: 'monospace' }}>${Number(price).toFixed(4)}</span>
       ) : '-',
     },
     {
@@ -288,10 +288,10 @@ export const TradingPairs: React.FC = () => {
       width: 100,
       render: (change: number) => change !== undefined && change !== null ? (
         <span style={{ 
-          color: change >= 0 ? '#52c41a' : '#ff4d4f',
+          color: Number(change) >= 0 ? '#52c41a' : '#ff4d4f',
           fontWeight: 'bold'
         }}>
-          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+          {Number(change) >= 0 ? '+' : ''}{Number(change).toFixed(2)}%
         </span>
       ) : '-',
     },

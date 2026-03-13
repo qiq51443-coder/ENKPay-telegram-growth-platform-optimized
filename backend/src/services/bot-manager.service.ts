@@ -1416,7 +1416,7 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
     `🆔 ID: <code>${displayId}</code>\n` +
     `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
     `💎 NFT: <b>${nftBalance} USDT</b>\n` +
-    `🧧 ${t(lang, 'account_red_packet_credits')}: <b>${redPacketBalance}</b>\n` +
+    `🧧 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance}</b>\n` +
     `📊 ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
 
   if (tipMessage) {

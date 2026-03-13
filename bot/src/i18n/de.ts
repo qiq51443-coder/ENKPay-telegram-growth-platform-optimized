@@ -92,7 +92,7 @@ export const de: Record<string, string> = {
   account_balance: 'Guthaben',
   account_platform_status: 'Plattformstatus',
   account_account_status: 'Kontostatus',
-  account_red_packet_credits: 'Rotes-Paket-Guthaben',
+  account_red_packet_credits: 'Rotes-Paket-Guthaben (USDT)',
   account_bound: 'Verknüpft',
   account_unbound: 'Nicht verknüpft',
   account_active: 'Aktiv',
@@ -150,7 +150,7 @@ export const de: Record<string, string> = {
 
   // Wallet extra info
   nft_holdings: 'NFT-Bestandswert',
-  redpacket_balance: 'Rotes-Paket-Guthaben',
+  redpacket_balance: 'Rotes-Paket-Guthaben (USDT)',
 
   // Deposit flow
   select_network: 'Bitte Netzwerk auswählen',

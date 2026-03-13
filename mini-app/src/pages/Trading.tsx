@@ -55,6 +55,11 @@ const KLINE_INTERVALS = [
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
 
+const safeFixed = (v: any, d = 2): string => {
+  const n = Number(v);
+  return isNaN(n) ? `0.${'0'.repeat(d)}` : n.toFixed(d);
+};
+
 const DEFAULT_RULES: TradingRule[] = [
   { id: 'default', duration_seconds: 60, odds: 1.95, min_bet: 1, max_bet: 1000 },
 ];
@@ -403,7 +408,7 @@ export const Trading: React.FC = () => {
           <h2 style={{ margin: 0, color: theme.text, fontSize: '18px' }}>{selectedPair.display_name}</h2>
           {availableBalance !== null && (
             <div style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textSecondary }}>
-              {t('available_balance') || 'Available Balance'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${availableBalance.toFixed(2)}</span>
+              {t('available_balance') || 'Available Balance'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${safeFixed(availableBalance)}</span>
             </div>
           )}
         </div>
@@ -414,7 +419,7 @@ export const Trading: React.FC = () => {
             ${priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: '14px', color: priceColor(priceInfo.change24h), marginTop: '4px' }}>
-            {priceInfo.change24h >= 0 ? '▲' : '▼'} {Math.abs(priceInfo.change24h).toFixed(2)}% 24h
+            {priceInfo.change24h >= 0 ? '▲' : '▼'} {safeFixed(Math.abs(Number(priceInfo.change24h)))}% 24h
           </div>
         </div>
 
@@ -480,7 +485,7 @@ export const Trading: React.FC = () => {
               {resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
             </div>
             <div style={{ color: '#fff', fontSize: '16px', marginTop: '4px' }}>
-              {resultMsg.win ? `+${resultMsg.profit.toFixed(2)} USDT` : `${resultMsg.profit.toFixed(2)} USDT`}
+              {resultMsg.win ? `+${safeFixed(resultMsg.profit)} USDT` : `${safeFixed(resultMsg.profit)} USDT`}
             </div>
           </div>
         )}
@@ -531,7 +536,7 @@ export const Trading: React.FC = () => {
         {/* Odds display */}
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ color: theme.textSecondary }}>{t('odds')}</span>
-          <span style={{ color: '#f0b90b', fontWeight: '600' }}>{selectedOdds.toFixed(2)}x</span>
+          <span style={{ color: '#f0b90b', fontWeight: '600' }}>{safeFixed(selectedOdds)}x</span>
         </div>
 
         {/* Amount input */}
@@ -568,7 +573,7 @@ export const Trading: React.FC = () => {
           />
           {amountNum > 0 && (
             <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '6px' }}>
-              {t('expected_profit')}: +{expectedProfit.toFixed(2)} USDT
+              {t('expected_profit')}: +{safeFixed(expectedProfit)} USDT
             </div>
           )}
         </div>
@@ -651,8 +656,8 @@ export const Trading: React.FC = () => {
                   [t('order_direction'), confirmDirection === 'up' ? t('order_up') : t('order_down')],
                   [t('order_amount'), `${amount} USDT`],
                   [t('order_duration'), `${selectedDuration}${t('order_seconds')}`],
-                  [t('order_odds_label'), `${selectedOdds.toFixed(2)}x`],
-                  [t('order_expected_yield'), `+${(Number(amount) * (selectedOdds - 1)).toFixed(2)} USDT`],
+                  [t('order_odds_label'), `${safeFixed(selectedOdds)}x`],
+                  [t('order_expected_yield'), `+${safeFixed(Number(amount) * (selectedOdds - 1))} USDT`],
                 ].map(([label, val]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: theme.textSecondary }}>{label}</span>
@@ -707,7 +712,7 @@ export const Trading: React.FC = () => {
                     ${info.price > 0 ? info.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '--'}
                   </div>
                   <div style={{ color: priceColor(info.change24h), fontSize: '13px' }}>
-                    {info.change24h >= 0 ? '+' : ''}{info.change24h.toFixed(2)}%
+                    {info.change24h >= 0 ? '+' : ''}{safeFixed(info.change24h)}%
                   </div>
                 </div>
               </div>

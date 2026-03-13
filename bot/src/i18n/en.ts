@@ -91,7 +91,7 @@ export const en = {
   account_balance: 'Balance',
   account_platform_status: 'Platform Status',
   account_account_status: 'Account Status',
-  account_red_packet_credits: 'Red Packet Credits',
+  account_red_packet_credits: 'Red Packet Balance (USDT)',
   account_bound: 'Bound',
   account_unbound: 'Unbound',
   account_active: 'Active',
@@ -149,7 +149,7 @@ export const en = {
 
   // Wallet extra info
   nft_holdings: 'NFT Holdings Value',
-  redpacket_balance: 'Red Packet Balance',
+  redpacket_balance: 'Red Packet Balance (USDT)',
 
   // Deposit flow
   select_network: 'Please select a network',
