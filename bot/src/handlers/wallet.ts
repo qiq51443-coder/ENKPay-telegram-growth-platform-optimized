@@ -46,9 +46,10 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
     const lang = getUserLanguage(user);
 
     // Fetch latest balance details from backend
-    let balance = parseFloat(String(user.balance)) || 0;
-    let rewardBalance = parseFloat(String(user.reward_balance ?? 0)) || 0;
-    let nftHoldings = 0;
+    let balance = parseFloat(String(user.wallet_balance ?? user.balance)) || 0;
+    // red_packet_balance is the canonical field; fall back to red_packet_credits for older records
+    let redPacketBalance = parseFloat(String(user.red_packet_balance ?? user.red_packet_credits ?? 0)) || 0;
+    let nftBalance = 0;
     let balanceFetchFailed = false;
     try {
       const botToken = process.env.BOT_TOKEN || botId;
@@ -58,10 +59,14 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       });
       if (res.data?.user) {
         const u = res.data.user;
+        // wallet_balance is the canonical balance field
         if (u.wallet_balance !== undefined) balance = parseFloat(String(u.wallet_balance)) || 0;
         else if (u.balance !== undefined) balance = parseFloat(String(u.balance)) || 0;
-        if (u.reward_balance !== undefined) rewardBalance = parseFloat(String(u.reward_balance)) || 0;
-        if (u.nft_holdings_value !== undefined) nftHoldings = parseFloat(String(u.nft_holdings_value)) || 0;
+        // red_packet_balance is the canonical red packet field (not reward_balance)
+        if (u.red_packet_balance !== undefined) redPacketBalance = parseFloat(String(u.red_packet_balance)) || 0;
+        else if (u.red_packet_credits !== undefined) redPacketBalance = parseFloat(String(u.red_packet_credits)) || 0;
+        // nft_balance is the canonical NFT field
+        if (u.nft_balance !== undefined) nftBalance = parseFloat(String(u.nft_balance)) || 0;
       }
     } catch {
       balanceFetchFailed = true;
@@ -79,8 +84,8 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
       `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
       `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
-      `🎁 ${t(lang, 'redpacket_balance')}: <b>${rewardBalance.toFixed(2)}</b>\n` +
-      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftHoldings.toFixed(2)}</b>\n` +
+      `🎁 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance.toFixed(2)}</b>\n` +
+      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftBalance.toFixed(2)}</b>\n` +
       (balanceFetchFailed ? `\n${t(lang, 'balance_stale_warning')}` : '');
 
     const supportButton = supportUsername

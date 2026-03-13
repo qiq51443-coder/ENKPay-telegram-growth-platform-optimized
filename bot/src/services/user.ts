@@ -14,6 +14,7 @@ export interface User {
   invite_code: string;
   invited_by?: string;
   balance: number;
+  wallet_balance?: number;
   reward_balance?: number;
   frozen_balance?: number;
   platform_username?: string;
@@ -26,6 +27,7 @@ export interface User {
   bind_reward_unlocked: boolean;
   red_packet_credits?: number;
   red_packet_balance?: number;
+  nft_balance?: number;
   registered_at: string;
   created_at: string;
 }

@@ -270,9 +270,15 @@ export const Trading: React.FC = () => {
       });
       const user = res.data?.user;
       if (user) {
-        const walletBal = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
-        const redPacketBal = parseFloat(String(user.red_packet_balance ?? user.red_packet_credits ?? 0));
-        setAvailableBalance(walletBal + redPacketBal);
+        // Prefer the backend-computed tradable_balance (wallet_balance + red_packet_balance).
+        // Fall back to a manual sum for backward compatibility with older backend versions.
+        if (user.tradable_balance !== undefined) {
+          setAvailableBalance(parseFloat(String(user.tradable_balance)));
+        } else {
+          const walletBal = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
+          const redPacketBal = parseFloat(String(user.red_packet_balance ?? user.red_packet_credits ?? 0));
+          setAvailableBalance(walletBal + redPacketBal);
+        }
       }
     } catch {
       // non-critical

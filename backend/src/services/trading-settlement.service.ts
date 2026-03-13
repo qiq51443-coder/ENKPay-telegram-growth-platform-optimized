@@ -114,13 +114,13 @@ export async function settleSession(
       let payout = 0;
 
       if (isWin) {
-        // User wins: receives back (amount × odds)
+        // User wins: receives back (amount × odds) into wallet_balance
         payout = amount * orderOdds;
         profit = payout - amount; // Net profit
         winningOrders++;
         totalPayout += payout;
 
-        // Credit user's wallet
+        // Credit user's wallet with full payout
         await client.query(
           `UPDATE users
            SET wallet_balance = wallet_balance + $1
@@ -132,6 +132,15 @@ export async function settleSession(
         profit = -amount; // Net loss
         losingOrders++;
       }
+
+      // Increment reward_unlock_traded by the bet amount for ALL settled orders (win or lose).
+      // This tracks cumulative trading volume required to unlock reward_balance.
+      await client.query(
+        `UPDATE users
+         SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + $1
+         WHERE id = $2`,
+        [amount, order.user_id]
+      );
 
       // Update order
       await client.query(

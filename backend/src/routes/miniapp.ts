@@ -298,7 +298,13 @@ async function buildCanonicalProfile(telegramId: number) {
     ? Math.round(Math.min(100, (rewardTraded / rewardUnlockRequired) * 100) * 100) / 100
     : 100;
 
+  const walletBalance = parseFloat(String(user.wallet_balance ?? 0));
+  const redPacketBalance = parseFloat(String(user.red_packet_balance ?? 0));
+
   return {
+    // Internal DB identifier — stable reference for trading and other server-side operations
+    id: user.id,
+    // Display / user-facing identifier (falls back through robot_user_id → telegram_id)
     unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
     telegram_id: user.telegram_id,
     first_name: user.first_name,
@@ -308,18 +314,22 @@ async function buildCanonicalProfile(telegramId: number) {
     invite_code: user.invite_code || user.unique_id,
     invited_by: invitedByUniqueId,
     invite_count: inviteCount,
-    balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
-    wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
+    // balance kept for backward compatibility (equals wallet_balance)
+    balance: walletBalance,
+    wallet_balance: walletBalance,
     reward_balance: rewardBal,
     nft_balance: parseFloat(String(user.nft_balance ?? 0)),
     frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
-    red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
+    red_packet_balance: redPacketBalance,
     total_recharged: parseFloat(String(user.total_recharged ?? 0)),
     total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
     reward_unlock_progress: rewardUnlockProgress,
     reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
     account_status: user.account_status,
     wallet_tip_message: walletTipMessage,
+    // tradable_balance: combined amount available for instant trading
+    // Business rule: wallet_balance + red_packet_balance may both be used for trading
+    tradable_balance: parseFloat((walletBalance + redPacketBalance).toFixed(2)),
   };
 }
 
