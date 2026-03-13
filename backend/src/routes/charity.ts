@@ -70,7 +70,7 @@ router.get('/projects', async (req, res) => {
     let queryText = `
       SELECT 
         id, title, description, image_url, goal_amount, raised_amount,
-        status, start_date, end_date, created_at, updated_at,
+        status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
         ambassador_telegram, is_active
       FROM charity_projects
       WHERE 1=1
@@ -164,7 +164,7 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `INSERT INTO charity_projects 
-       (title, description, image_url, goal_amount, start_date, end_date,
+       (title, description, image_url, goal_amount, start_at, end_at,
         organization, website_url, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
        RETURNING *`,
@@ -207,8 +207,8 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       'description',
       'image_url',
       'goal_amount',
-      'start_date',
-      'end_date',
+      'start_at',
+      'end_at',
       'organization',
       'website_url',
       'status',
@@ -287,7 +287,7 @@ router.post('/donate', authenticateBot, async (req: AuthRequest, res) => {
       const project = projectResult.rows[0];
 
       // Check if project ended
-      if (project.end_date && new Date() > new Date(project.end_date)) {
+      if (project.end_at && new Date() > new Date(project.end_at)) {
         throw new Error('Project has ended');
       }
 
