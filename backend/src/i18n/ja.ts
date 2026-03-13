@@ -122,7 +122,6 @@ export const ja: Record<string, string> = {
   // Red Packet
   redpacket_claim: 'レッドパケットを受け取る',
   redpacket_claimed: '✅ {amount}を受け取りました！',
-  redpacket_no_credits: '❌ クレジットが必要です。',
   redpacket_already_claimed: 'このレッドパケットはすでに受け取りました。',
   redpacket_finished: 'このレッドパケットはすべて受け取られました。',
 

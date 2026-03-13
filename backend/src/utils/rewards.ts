@@ -36,35 +36,6 @@ export const addReward = async (
   });
 };
 
-export const addRedPacketCredits = async (userId: string, credits: number) => {
-  if (!Number.isInteger(credits) || credits <= 0) {
-    throw new Error('Credits must be a positive integer');
-  }
-
-  const result = await query(
-    `UPDATE users 
-     SET red_packet_credits = red_packet_credits + $1 
-     WHERE id = $2 
-     RETURNING red_packet_credits`,
-    [credits, userId]
-  );
-  return result.rows[0]?.red_packet_credits || 0;
-};
-
-export const deductRedPacketCredits = async (userId: string, credits: number = 1) => {
-  const result = await query(
-    `UPDATE users 
-     SET red_packet_credits = GREATEST(red_packet_credits - $1, 0)
-     WHERE id = $2 AND red_packet_credits >= $1
-     RETURNING red_packet_credits`,
-    [credits, userId]
-  );
-  if (result.rows.length === 0) {
-    throw new Error('Insufficient red packet credits');
-  }
-  return result.rows[0].red_packet_credits;
-};
-
 export const unlockFollowReward = async (userId: string, botId: string) => {
   return transaction(async (client: PoolClient) => {
     // Get settings

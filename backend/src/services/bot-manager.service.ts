@@ -1391,14 +1391,14 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
   // regardless of which bot the user is currently interacting with.
   const canonicalId = await getCanonicalUserId(user.telegram_id) || user.id;
   const freshResult = await query(
-    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, account_status FROM users WHERE id = $1',
+    'SELECT balance, wallet_balance, nft_balance, red_packet_balance, red_packet_credits, account_status FROM users WHERE id = $1',
     [canonicalId]
   );
   const fresh = freshResult.rows[0] || user;
   // wallet_balance is the operational balance used for transfers/withdrawals
   const balance = parseFloat(String(fresh.wallet_balance ?? fresh.balance ?? 0)).toFixed(2);
   const nftBalance = parseFloat(String(fresh.nft_balance ?? 0)).toFixed(2);
-  const redPacketBalance = parseFloat(String(fresh.red_packet_credits ?? 0)).toFixed(2);
+  const redPacketBalance = parseFloat(String(fresh.red_packet_balance ?? fresh.red_packet_credits ?? 0)).toFixed(2);
   const accountStatusKey = (fresh.account_status || user.account_status) === 'active' ? 'account_active' : 'account_pending';
 
   // Fetch wallet_tip_message from system settings
@@ -1416,7 +1416,7 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
     `🆔 ID: <code>${displayId}</code>\n` +
     `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
     `💎 NFT: <b>${nftBalance} USDT</b>\n` +
-    `🧧 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance}</b>\n` +
+    `🧧 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance} USDT</b>\n` +
     `📊 ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
 
   if (tipMessage) {

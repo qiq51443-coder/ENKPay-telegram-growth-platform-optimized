@@ -46,6 +46,7 @@ import { Groups } from './pages/Groups';
 import { Announcements } from './pages/Announcements';
 import { Analytics } from './pages/Analytics';
 import { Sweep } from './pages/Sweep';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const { Header, Sider, Content } = Layout;
 
@@ -280,7 +281,9 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
             borderRadius: '8px',
           }}
         >
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </Content>
       </Layout>
     </Layout>

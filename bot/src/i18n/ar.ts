@@ -122,7 +122,6 @@ export const ar: Record<string, string> = {
   // Red Packet
   redpacket_claim: 'المطالبة بالحزمة الحمراء',
   redpacket_claimed: '✅ طالبت بـ {amount}!',
-  redpacket_no_credits: '❌ تحتاج إلى رصيد.',
   redpacket_already_claimed: 'لقد طالبت بهذه الحزمة بالفعل.',
   redpacket_finished: 'هذه الحزمة استُنفدت.',
 

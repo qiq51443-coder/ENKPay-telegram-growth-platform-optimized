@@ -16,7 +16,8 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     // Use the canonical (earliest-created) record for consistent data across bots
     const result = await query(
       `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
-              balance, telegram_id, wallet_balance, nft_balance, red_packet_credits,
+              balance, telegram_id, wallet_balance, nft_balance,
+              COALESCE(red_packet_balance, red_packet_credits, 0) AS red_packet_balance,
               reward_balance, reward_unlock_traded, frozen_balance,
               total_recharged, total_withdrawn,
               invite_code, invited_by,
@@ -100,8 +101,7 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
         reward_balance: rewardBal,
         nft_balance: parseFloat(String(user.nft_balance ?? 0)),
         frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
-        red_packet_balance: parseFloat(String(user.red_packet_credits ?? 0)),
-        red_packet_credits: parseFloat(String(user.red_packet_credits ?? 0)),
+        red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
         total_recharged: parseFloat(String(user.total_recharged ?? 0)),
         total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
         // Reward unlock progress

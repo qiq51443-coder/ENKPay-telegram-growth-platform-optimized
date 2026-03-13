@@ -2,7 +2,6 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
-import { deductRedPacketCredits } from '../utils/rewards';
 import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
 
 const router = express.Router();

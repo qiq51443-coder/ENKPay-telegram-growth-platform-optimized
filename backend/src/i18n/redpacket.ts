@@ -5,7 +5,6 @@ interface RedPacketMessages {
   labelExpires: string;
   claimButton: string;
   clickToClaimInstruction: string;
-  creditRequired: string;
 }
 
 const REDPACKET_I18N: Record<string, RedPacketMessages> = {
@@ -16,7 +15,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: 'Expires in',
     claimButton: '🧧 Claim Red Packet',
     clickToClaimInstruction: 'Click the button below to claim!',
-    creditRequired: '⚠️ Requires red packet balance to claim',
   },
   zh: {
     title: '🧧 红包来啦！',
@@ -25,7 +23,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: '有效期',
     claimButton: '🧧 领取红包',
     clickToClaimInstruction: '点击下方按钮领取！',
-    creditRequired: '⚠️ 需要红包余额才能领取',
   },
   fr: {
     title: '🧧 Paquet Rouge !',
@@ -34,7 +31,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: 'Expire dans',
     claimButton: '🧧 Réclamer',
     clickToClaimInstruction: 'Cliquez sur le bouton ci-dessous pour réclamer !',
-    creditRequired: '⚠️ Nécessite un solde de paquet rouge',
   },
   de: {
     title: '🧧 Rotes Paket!',
@@ -43,7 +39,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: 'Läuft ab in',
     claimButton: '🧧 Einlösen',
     clickToClaimInstruction: 'Klicke auf die Schaltfläche unten, um einzulösen!',
-    creditRequired: '⚠️ Benötigt Rotes-Paket-Guthaben',
   },
   es: {
     title: '🧧 ¡Sobre Rojo!',
@@ -52,7 +47,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: 'Vence en',
     claimButton: '🧧 Reclamar',
     clickToClaimInstruction: '¡Haz clic en el botón de abajo para reclamar!',
-    creditRequired: '⚠️ Requiere saldo de sobre rojo',
   },
   ar: {
     title: '🧧 مغلف أحمر!',
@@ -61,7 +55,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: 'ينتهي خلال',
     claimButton: '🧧 استلام',
     clickToClaimInstruction: 'انقر على الزر أدناه للاستلام!',
-    creditRequired: '⚠️ يتطلب رصيد الحزمة الحمراء',
   },
   ja: {
     title: '🧧 紅包アラート！',
@@ -70,7 +63,6 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
     labelExpires: '有効期限',
     claimButton: '🧧 受け取る',
     clickToClaimInstruction: '下のボタンをクリックして受け取ってください！',
-    creditRequired: '⚠️ 受け取りにはレッドパケット残高が必要です',
   },
 };
 
@@ -99,7 +91,6 @@ export function buildRedPacketMessage(params: {
   }
   lines.push('');
   lines.push(msgs.clickToClaimInstruction);
-  lines.push(msgs.creditRequired);
   return lines.join('\n');
 }
 
