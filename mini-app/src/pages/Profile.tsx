@@ -6,7 +6,10 @@ import { useLang } from '../context/LanguageContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
 
 interface UserProfile {
+  /** Internal database ID — stable reference used by trading and server-side operations */
+  id?: string;
   unique_id: string;
+  telegram_id?: number;
   balance: number;
   wallet_balance?: number;
   reward_balance?: number;
@@ -16,11 +19,14 @@ interface UserProfile {
   red_packet_balance?: number;
   red_packet_credits?: number;
   frozen_balance?: number;
+  /** Backend-computed tradable balance: wallet_balance + red_packet_balance */
+  tradable_balance?: number;
   account_status?: string;
   wallet_tip_message?: string;
   username?: string;
   first_name?: string;
   last_name?: string;
+  language_code?: string;
 }
 
 interface Transaction {
