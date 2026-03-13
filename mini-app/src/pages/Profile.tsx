@@ -185,7 +185,7 @@ export const Profile: React.FC = () => {
       clearInterval(interval);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tg, initData]);
+  }, []);
 
   if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;

@@ -527,13 +527,28 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       );
       const session = sessionResult.rows[0];
 
-      // Get current price
+      // Get current price: try price_points cache first, then fall back to live price
       const priceResult = await client.query(
         `SELECT price FROM price_points WHERE pair_id = $1 ORDER BY timestamp DESC LIMIT 1`,
         [pair_id]
       );
-      if (priceResult.rows.length === 0) throw new Error('Price data not available');
-      const entryPrice = parseFloat(priceResult.rows[0].price);
+      let entryPrice: number;
+      if (priceResult.rows.length > 0) {
+        entryPrice = parseFloat(priceResult.rows[0].price);
+      } else {
+        // No cached price available – fetch live price from price service
+        try {
+          const livePrice = await getPairPrice(Number(pair_id));
+          entryPrice = livePrice.price;
+          // Cache it in price_points for future use (best-effort, don't fail if this fails)
+          void client.query(
+            `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
+            [pair_id, entryPrice]
+          ).catch((err: any) => console.error('[trading] Failed to cache live price:', err));
+        } catch (priceErr: any) {
+          throw new Error(`Price data not available and live fetch failed: ${priceErr.message}`);
+        }
+      }
 
       // Deduct from red_packet_credits first, then wallet_balance
       const fromRedPacket = Math.min(redPacketBal, orderAmount);
