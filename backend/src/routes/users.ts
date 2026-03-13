@@ -110,8 +110,8 @@ router.get('/telegram/:telegramId', authenticateBot, async (req: AuthRequest, re
     const { telegramId } = req.params;
 
     const result = await query(
-      `SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2`,
-      [telegramId, req.botId]
+      `SELECT * FROM users WHERE telegram_id = $1`,
+      [telegramId]
     );
 
     if (result.rows.length === 0) {
@@ -134,10 +134,10 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Telegram ID required' });
     }
 
-    // Check if user already exists
+    // Check if user already exists (by telegram_id — single account per user)
     const existing = await query(
-      'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2',
-      [telegram_id, req.botId]
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [telegram_id]
     );
 
     if (existing.rows.length > 0) {
@@ -163,10 +163,11 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
     );
     const initialCredits = settingsResult.rows[0]?.new_user_credits || 3;
 
-    // Create user
+    // Create user — ON CONFLICT (telegram_id) guarantees single account across all bots
     const result = await query(
       `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_credits)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_active_at = NOW()
        RETURNING *`,
       [req.botId, telegram_id, username, first_name, last_name, language_code || 'en', invitedBy, initialCredits]
     );
