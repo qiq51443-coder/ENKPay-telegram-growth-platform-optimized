@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -30,16 +30,52 @@ declare global {
 }
 
 export function useTelegram() {
-  const tg = window.Telegram?.WebApp;
-  // Read initData synchronously to avoid timing race conditions.
-  // window.Telegram.WebApp is populated before React renders, so this is safe.
-  const initData = tg?.initData || '';
+  // Initialise synchronously — this already works when the SDK has loaded
+  // before React renders (the common case). The state + effect below handle
+  // the race where the SDK loads slightly after first render.
+  const [tg, setTg] = useState(() => window.Telegram?.WebApp ?? null);
+  const [initData, setInitData] = useState(() => window.Telegram?.WebApp?.initData ?? '');
+  const [user, setUser] = useState(() => window.Telegram?.WebApp?.initDataUnsafe?.user);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    tg?.ready();
+    // Call ready() as soon as tg is available
+    if (tg) {
+      tg.ready();
+      return; // Already have data, no polling needed
+    }
+
+    // SDK not ready yet – poll every 100ms for up to 3 seconds
+    let elapsed = 0;
+    pollRef.current = setInterval(() => {
+      elapsed += 100;
+      const webApp = window.Telegram?.WebApp;
+      if (webApp?.initData) {
+        setTg(webApp);
+        setInitData(webApp.initData);
+        setUser(webApp.initDataUnsafe?.user);
+        webApp.ready();
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } else if (elapsed >= 3000) {
+        // Give up after 3 seconds
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      }
+    }, 100);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const user = tg?.initDataUnsafe?.user;
   return { tg, user, initData };
 }
