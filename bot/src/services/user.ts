@@ -24,7 +24,8 @@ export interface User {
   group_joined: boolean;
   follow_reward_unlocked: boolean;
   bind_reward_unlocked: boolean;
-  red_packet_credits: number;
+  red_packet_credits?: number;
+  red_packet_balance?: number;
   registered_at: string;
   created_at: string;
 }

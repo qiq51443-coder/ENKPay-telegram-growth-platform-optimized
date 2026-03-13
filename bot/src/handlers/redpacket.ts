@@ -7,12 +7,6 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
   try {
     const lang = getUserLanguage(user);
 
-    // Check if user has credits
-    if (user.red_packet_credits <= 0) {
-      await ctx.answerCbQuery(t(lang, 'redpacket_no_credits'), { show_alert: true });
-      return;
-    }
-
     // Try to claim
     try {
       const result = await claimRedPacket(redPacketId, user.id);

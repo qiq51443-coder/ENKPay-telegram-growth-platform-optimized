@@ -8,7 +8,7 @@ export interface User {
   robot_user_id?: string;
   invite_code: string;
   balance: number;
-  red_packet_credits: number;
+  red_packet_balance?: number;
   account_status: 'active' | 'suspended' | 'banned';
   binding_status: 'unbound' | 'pending' | 'bound';
   created_at: string;

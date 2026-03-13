@@ -36,6 +36,7 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
           follow_reward_unlocked: false,
           bind_reward_unlocked: false,
           red_packet_credits: 0,
+          red_packet_balance: 0,
           registered_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
         } as User;
