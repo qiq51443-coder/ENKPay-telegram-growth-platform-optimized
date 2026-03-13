@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { useTelegram } from '../hooks/useTelegram';
 import { createChart } from 'lightweight-charts';
 
 interface TradingPair {
@@ -66,6 +67,7 @@ const DEFAULT_RULES: TradingRule[] = [
 
 export const Trading: React.FC = () => {
   const { t } = useLang();
+  const { initData } = useTelegram();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -246,7 +248,9 @@ export const Trading: React.FC = () => {
 
   const fetchBalance = async () => {
     try {
-      const res = await api.get('/miniapp/profile');
+      const res = await api.get('/miniapp/profile', {
+        headers: { 'X-Telegram-Init-Data': initData },
+      });
       const user = res.data?.user;
       if (user) {
         const walletBal = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
@@ -331,6 +335,8 @@ export const Trading: React.FC = () => {
         duration: selectedDuration,
         direction: confirmDirection,
         amount: Number(amount),
+      }, {
+        headers: { 'X-Telegram-Init-Data': initData },
       });
       const sessionEnd = res.data?.data?.session?.end_time
         ? new Date(res.data.data.session.end_time).getTime()
@@ -361,8 +367,10 @@ export const Trading: React.FC = () => {
 
   const fetchResult = async (orderId: string) => {
     try {
-      const userId = (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      const res = await api.get(`/trading/my-orders?user_id=${userId}&status=settled`);
+      const res = await api.get('/trading/orders/my', {
+        params: { limit: 50, status: 'settled' },
+        headers: { 'X-Telegram-Init-Data': initData },
+      });
       const order = res.data?.data?.find((o: any) => o.id === orderId);
       if (order) {
         const win = order.status === 'won';
@@ -375,8 +383,10 @@ export const Trading: React.FC = () => {
 
   const fetchOrderHistory = async () => {
     try {
-      const userId = (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      const res = await api.get(`/trading/my-orders?user_id=${userId}&limit=20`);
+      const res = await api.get('/trading/orders/my', {
+        params: { limit: 20 },
+        headers: { 'X-Telegram-Init-Data': initData },
+      });
       setOrders(res.data?.data || []);
     } catch {}
   };

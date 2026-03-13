@@ -176,6 +176,15 @@ export const Profile: React.FC = () => {
         clearInterval(interval);
       };
     } else {
+      // No initData yet — show basic info from tgUser if available, keep polling
+      if (tgUser) {
+        setProfile({
+          unique_id: String(tgUser.id),
+          balance: 0,
+          username: tgUser.username,
+          first_name: tgUser.first_name,
+        });
+      }
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
