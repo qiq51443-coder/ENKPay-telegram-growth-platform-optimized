@@ -124,6 +124,7 @@ export const Trading: React.FC = () => {
   // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
     if (!selectedPair || !chartContainerRef.current) return;
+    if (chartContainerRef.current.clientWidth === 0) return;
     setKlineError(false);
 
     // Destroy old chart if exists

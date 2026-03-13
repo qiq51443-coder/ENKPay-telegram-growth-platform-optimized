@@ -148,6 +148,13 @@ const zh: Translations = {
   tx_auction_redeem: '夺宝兑换',
   tx_product_yield: '定期收益',
   tx_product_refund: '本金退回',
+  red_packet_balance: '红包余额',
+  account_status: '账户状态',
+  nft_balance: 'NFT余额',
+  account_pending: '审核中',
+  account_active: '正常',
+  account_suspended: '已暂停',
+  account_frozen: '已冻结',
 };
 
 const en: Translations = {
@@ -286,6 +293,13 @@ const en: Translations = {
   tx_auction_redeem: 'Lucky Draw Redeem',
   tx_product_yield: 'Periodic Yield',
   tx_product_refund: 'Principal Return',
+  red_packet_balance: 'Red Packet Balance',
+  account_status: 'Account Status',
+  nft_balance: 'NFT Balance',
+  account_pending: 'Pending',
+  account_active: 'Active',
+  account_suspended: 'Suspended',
+  account_frozen: 'Frozen',
 };
 
 const fr: Translations = {
@@ -409,6 +423,13 @@ const fr: Translations = {
   tx_auction_redeem: 'Échange tirage',
   tx_product_yield: 'Rendement périodique',
   tx_product_refund: 'Retour du capital',
+  red_packet_balance: 'Solde cadeau',
+  account_status: 'Statut du compte',
+  nft_balance: 'Solde NFT',
+  account_pending: 'En attente',
+  account_active: 'Actif',
+  account_suspended: 'Suspendu',
+  account_frozen: 'Gelé',
 };
 
 const de: Translations = {
@@ -532,6 +553,13 @@ const de: Translations = {
   tx_auction_redeem: 'Verlosungseinlösung',
   tx_product_yield: 'Periodischer Ertrag',
   tx_product_refund: 'Kapitalrückgabe',
+  red_packet_balance: 'Bonus-Guthaben',
+  account_status: 'Kontostatus',
+  nft_balance: 'NFT-Guthaben',
+  account_pending: 'Ausstehend',
+  account_active: 'Aktiv',
+  account_suspended: 'Gesperrt',
+  account_frozen: 'Eingefroren',
 };
 
 const es: Translations = {
@@ -655,6 +683,13 @@ const es: Translations = {
   tx_auction_redeem: 'Canje sorteo',
   tx_product_yield: 'Rendimiento periódico',
   tx_product_refund: 'Devolución de capital',
+  red_packet_balance: 'Saldo de bono',
+  account_status: 'Estado de cuenta',
+  nft_balance: 'Saldo NFT',
+  account_pending: 'Pendiente',
+  account_active: 'Activo',
+  account_suspended: 'Suspendido',
+  account_frozen: 'Congelado',
 };
 
 const ar: Translations = {
@@ -778,6 +813,13 @@ const ar: Translations = {
   tx_auction_redeem: 'استرداد السحب',
   tx_product_yield: 'عائد دوري',
   tx_product_refund: 'إعادة رأس المال',
+  red_packet_balance: 'رصيد المكافأة',
+  account_status: 'حالة الحساب',
+  nft_balance: 'رصيد NFT',
+  account_pending: 'قيد المراجعة',
+  account_active: 'نشط',
+  account_suspended: 'معلق',
+  account_frozen: 'مجمد',
 };
 
 const ja: Translations = {
@@ -901,6 +943,13 @@ const ja: Translations = {
   tx_auction_redeem: '抽選交換',
   tx_product_yield: '定期収益',
   tx_product_refund: '元本返還',
+  red_packet_balance: '紅包残高',
+  account_status: 'アカウント状態',
+  nft_balance: 'NFT残高',
+  account_pending: '審査中',
+  account_active: 'アクティブ',
+  account_suspended: '停止中',
+  account_frozen: '凍結中',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };

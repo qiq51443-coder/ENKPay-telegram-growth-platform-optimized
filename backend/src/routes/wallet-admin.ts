@@ -400,7 +400,7 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
         dn.network_name, dn.network_display
       FROM withdrawal_records wr
       JOIN users u ON wr.user_id = u.id
-      JOIN deposit_networks dn ON wr.network_id = dn.id
+      LEFT JOIN deposit_networks dn ON wr.network_id = dn.id
       WHERE 1=1
     `;
     const params: any[] = [];

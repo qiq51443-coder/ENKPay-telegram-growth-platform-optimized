@@ -45,7 +45,7 @@ export const Withdrawals: React.FC = () => {
       if (statusFilter) params.status = statusFilter;
       
       const response = await apiClient.getWithdrawalRecords(params);
-      setWithdrawals(response.records || response.withdrawals || []);
+      setWithdrawals(response.data || response.records || response.withdrawals || []);
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error);
       message.error('获取提现列表失败');

@@ -74,6 +74,13 @@ export const Profile: React.FC = () => {
     try {
       const data = await getUserProfile(initData);
       setProfile(data.user);
+      // Sync language from backend profile
+      if (data.user?.language_code) {
+        const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
+        if (supportedCodes.includes(data.user.language_code)) {
+          setLang(data.user.language_code as LangCode);
+        }
+      }
     } catch {
       if (tgUser) {
         setProfile({
