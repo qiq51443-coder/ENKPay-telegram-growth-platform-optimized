@@ -39,13 +39,15 @@ export function useTelegram() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Call ready() as soon as tg is available
-    if (tg) {
+    // Call ready() as soon as tg is available AND initData is non-empty.
+    // If tg exists but initData is still empty the SDK hasn't fully initialised
+    // yet — fall through to polling so we wait for initData to populate.
+    if (tg && initData) {
       tg.ready();
-      return; // Already have data, no polling needed
+      return; // Already have complete data, no polling needed
     }
 
-    // SDK not ready yet – poll every 100ms for up to 3 seconds
+    // SDK not ready yet (or initData still empty) – poll every 100ms for up to 3 seconds
     let elapsed = 0;
     pollRef.current = setInterval(() => {
       elapsed += 100;

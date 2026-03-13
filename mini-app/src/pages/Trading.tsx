@@ -34,6 +34,8 @@ interface Order {
   entry_price: number;
   odds: number;
   status: string;
+  result?: 'win' | 'lose';
+  profit?: number;
   created_at: string;
   symbol?: string;
   display_name?: string;
@@ -366,8 +368,8 @@ export const Trading: React.FC = () => {
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
       // Refresh balance and order history after placing order
-      fetchBalance();
-      fetchOrderHistory();
+      await fetchBalance();
+      await fetchOrderHistory();
     } catch (e: any) {
       const msg = e?.response?.data?.hint
         || e?.response?.data?.error
@@ -394,19 +396,27 @@ export const Trading: React.FC = () => {
   };
 
   const fetchResult = async (orderId: string) => {
-    try {
-      const res = await api.get('/trading/orders/my', {
-        params: { limit: 50, status: 'settled' },
-      });
-      const order = res.data?.data?.find((o: any) => o.id === orderId);
-      if (order) {
-        const win = order.status === 'won';
-        const profit = win ? parseFloat(order.amount) * (parseFloat(order.odds) - 1) : -parseFloat(order.amount);
-        setResultMsg({ win, profit });
-      }
-    } catch {}
-    fetchOrderHistory();
-    fetchBalance(); // refresh balance after settlement
+    // Poll for the settled order with exponential backoff (up to ~15 seconds total)
+    // to give the backend auto-settlement service time to finish.
+    const delays = [1000, 2000, 3000, 5000, 5000];
+    for (const delay of delays) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      try {
+        const res = await api.get('/trading/orders/my', {
+          params: { limit: 50, status: 'settled' },
+          headers: { 'X-Telegram-Init-Data': initData },
+        });
+        const order = res.data?.data?.find((o: any) => o.id === orderId);
+        if (order) {
+          const win = order.result === 'win';
+          const profit = win ? parseFloat(order.amount) * (parseFloat(order.odds) - 1) : -parseFloat(order.amount);
+          setResultMsg({ win, profit });
+          break; // Order found and settled — stop retrying
+        }
+      } catch {}
+    }
+    await fetchOrderHistory();
+    await fetchBalance(); // refresh balance after settlement
   };
 
   const fetchOrderHistory = async () => {
@@ -414,6 +424,7 @@ export const Trading: React.FC = () => {
     try {
       const res = await api.get('/trading/orders/my', {
         params: { limit: 20 },
+        headers: { 'X-Telegram-Init-Data': initData },
       });
       setOrders(res.data?.data || []);
     } catch {}
