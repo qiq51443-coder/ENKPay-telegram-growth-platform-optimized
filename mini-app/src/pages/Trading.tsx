@@ -49,6 +49,8 @@ const KLINE_INTERVALS = [
   { label: '5m', value: '5m' },
   { label: '15m', value: '15m' },
   { label: '1h', value: '1h' },
+  { label: '4h', value: '4h' },
+  { label: '1D', value: '1d' },
 ];
 
 const QUICK_AMOUNTS = [10, 50, 100, 500];
@@ -77,6 +79,8 @@ export const Trading: React.FC = () => {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
+  // Available balance: wallet_balance + red_packet_balance
+  const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -87,6 +91,7 @@ export const Trading: React.FC = () => {
 
   useEffect(() => {
     fetchPairs();
+    fetchBalance();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -124,7 +129,9 @@ export const Trading: React.FC = () => {
   // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
     if (!selectedPair || !chartContainerRef.current) return;
-    if (chartContainerRef.current.clientWidth === 0) return;
+    // Use fallback width of window.innerWidth if container hasn't been laid out yet
+    const containerWidth = chartContainerRef.current.clientWidth || window.innerWidth - 32;
+    if (containerWidth === 0) return;
     setKlineError(false);
 
     // Destroy old chart if exists
@@ -139,7 +146,7 @@ export const Trading: React.FC = () => {
     let candleSeries: any = null;
     try {
       chart = createChart(chartContainerRef.current, {
-        width: chartContainerRef.current.clientWidth,
+        width: containerWidth,
         height: 200,
         layout: {
           background: { color: 'transparent' },
@@ -199,8 +206,9 @@ export const Trading: React.FC = () => {
     fetchKline();
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (chartContainerRef.current && chart) {
+        const w = chartContainerRef.current.clientWidth || window.innerWidth - 32;
+        if (w > 0) chart.applyOptions({ width: w });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -228,6 +236,20 @@ export const Trading: React.FC = () => {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBalance = async () => {
+    try {
+      const res = await api.get('/miniapp/profile');
+      const user = res.data?.user;
+      if (user) {
+        const walletBal = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
+        const redPacketBal = parseFloat(String(user.red_packet_balance ?? user.red_packet_credits ?? 0));
+        setAvailableBalance(walletBal + redPacketBal);
+      }
+    } catch {
+      // non-critical
     }
   };
 
@@ -379,6 +401,11 @@ export const Trading: React.FC = () => {
             style={{ background: 'none', border: 'none', color: theme.text, fontSize: '20px', cursor: 'pointer', padding: 0 }}
           >←</button>
           <h2 style={{ margin: 0, color: theme.text, fontSize: '18px' }}>{selectedPair.display_name}</h2>
+          {availableBalance !== null && (
+            <div style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textSecondary }}>
+              {t('available_balance') || 'Available Balance'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${availableBalance.toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         {/* Price + 24h change */}

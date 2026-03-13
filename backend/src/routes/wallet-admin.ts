@@ -395,8 +395,15 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
 
     let queryText = `
       SELECT 
-        wr.*,
+        wr.id, wr.user_id, wr.network_id,
+        wr.amount, wr.fee, wr.actual_amount,
+        wr.to_address AS wallet_address,
+        wr.to_address,
+        wr.tx_hash, wr.status, wr.admin_note,
+        wr.reviewed_at, wr.completed_at, wr.created_at, wr.order_id,
         u.username, u.first_name, u.robot_user_id,
+        u.telegram_id AS user_telegram_id,
+        u.wallet_balance AS user_wallet_balance,
         dn.network_name, dn.network_display
       FROM withdrawal_records wr
       JOIN users u ON wr.user_id = u.id
@@ -421,9 +428,37 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
 
+    // Structure response: nest user fields into a `user` object for admin panel compatibility
+    const rows = result.rows.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      network_id: row.network_id,
+      amount: row.amount,
+      fee: row.fee,
+      actual_amount: row.actual_amount,
+      wallet_address: row.wallet_address,
+      to_address: row.to_address,
+      tx_hash: row.tx_hash,
+      status: row.status,
+      admin_note: row.admin_note,
+      reviewed_at: row.reviewed_at,
+      completed_at: row.completed_at,
+      created_at: row.created_at,
+      order_id: row.order_id,
+      network_name: row.network_name,
+      network_display: row.network_display,
+      user: {
+        telegram_id: row.user_telegram_id,
+        username: row.username,
+        first_name: row.first_name,
+        robot_user_id: row.robot_user_id,
+        wallet_balance: parseFloat(String(row.user_wallet_balance ?? 0)),
+      },
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      data: rows,
     });
   } catch (error: any) {
     console.error('Get withdrawals error:', error);
