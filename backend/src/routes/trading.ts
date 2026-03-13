@@ -224,7 +224,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       // Get user balance
       const userResult = await client.query(
-        'SELECT wallet_balance FROM users WHERE id = $1',
+        'SELECT wallet_balance, COALESCE(red_packet_credits, 0) AS red_packet_credits FROM users WHERE id = $1',
         [user_id]
       );
 
@@ -232,7 +232,10 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
         throw new Error('User not found');
       }
 
-      if (userResult.rows[0].wallet_balance < orderAmount) {
+      const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_credits ?? 0));
+      const totalAvailable = walletBal + redPacketBal;
+      if (totalAvailable < orderAmount) {
         throw new Error('Insufficient balance');
       }
 
@@ -251,13 +254,21 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       const entryPrice = parseFloat(priceResult.rows[0].price);
 
-      // Deduct balance
-      await client.query(
-        `UPDATE users 
-         SET wallet_balance = wallet_balance - $1
-         WHERE id = $2`,
-        [orderAmount, user_id]
-      );
+      // Deduct from red_packet_credits first, then wallet_balance
+      const fromRedPacket = Math.min(redPacketBal, orderAmount);
+      const fromWallet = orderAmount - fromRedPacket;
+      if (fromRedPacket > 0) {
+        await client.query(
+          'UPDATE users SET red_packet_credits = red_packet_credits - $1 WHERE id = $2',
+          [fromRedPacket, user_id]
+        );
+      }
+      if (fromWallet > 0) {
+        await client.query(
+          'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
+          [fromWallet, user_id]
+        );
+      }
 
       // Create order with rule_id and odds
       const orderResult = await client.query(
@@ -478,11 +489,14 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
       // Check user balance
       const userResult = await client.query(
-        'SELECT wallet_balance FROM users WHERE id = $1',
+        'SELECT wallet_balance, COALESCE(red_packet_credits, 0) AS red_packet_credits FROM users WHERE id = $1',
         [user_id]
       );
       if (userResult.rows.length === 0) throw new Error('User not found');
-      if (userResult.rows[0].wallet_balance < orderAmount) throw new Error('Insufficient balance');
+      const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_credits ?? 0));
+      const totalAvailable = walletBal + redPacketBal;
+      if (totalAvailable < orderAmount) throw new Error('Insufficient balance');
 
       // Create a new session
       const now = new Date();
@@ -504,11 +518,21 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       if (priceResult.rows.length === 0) throw new Error('Price data not available');
       const entryPrice = parseFloat(priceResult.rows[0].price);
 
-      // Deduct balance
-      await client.query(
-        'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
-        [orderAmount, user_id]
-      );
+      // Deduct from red_packet_credits first, then wallet_balance
+      const fromRedPacket = Math.min(redPacketBal, orderAmount);
+      const fromWallet = orderAmount - fromRedPacket;
+      if (fromRedPacket > 0) {
+        await client.query(
+          'UPDATE users SET red_packet_credits = red_packet_credits - $1 WHERE id = $2',
+          [fromRedPacket, user_id]
+        );
+      }
+      if (fromWallet > 0) {
+        await client.query(
+          'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
+          [fromWallet, user_id]
+        );
+      }
 
       // Create order
       const orderResult = await client.query(

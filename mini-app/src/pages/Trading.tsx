@@ -408,7 +408,7 @@ export const Trading: React.FC = () => {
           <h2 style={{ margin: 0, color: theme.text, fontSize: '18px' }}>{selectedPair.display_name}</h2>
           {availableBalance !== null && (
             <div style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textSecondary }}>
-              {t('available_balance') || 'Available Balance'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${safeFixed(availableBalance)}</span>
+              {t('available_balance') || '可用余额(含红包)'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${safeFixed(availableBalance)}</span>
             </div>
           )}
         </div>
