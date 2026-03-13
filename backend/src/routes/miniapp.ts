@@ -17,7 +17,7 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     const result = await query(
       `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
               balance, telegram_id, wallet_balance, nft_balance,
-              COALESCE(red_packet_balance, red_packet_credits, 0) AS red_packet_balance,
+              COALESCE(red_packet_credits, 0) AS red_packet_balance,
               reward_balance, reward_unlock_traded, frozen_balance,
               total_recharged, total_withdrawn,
               invite_code, invited_by,
