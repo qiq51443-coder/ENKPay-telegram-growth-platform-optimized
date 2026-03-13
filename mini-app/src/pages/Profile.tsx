@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
 import { useTelegram } from '../hooks/useTelegram';
-import { getUserProfile, getTransactions, getAnnouncements, api } from '../services/api';
+import { getUserProfile, getTransactions, getAnnouncements, api, authSync } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
 
@@ -75,7 +75,8 @@ export const Profile: React.FC = () => {
     setAuthError(null);
     try {
       if (initData) {
-        const data = await getUserProfile(initData);
+        // auth-sync: one request to validate + upsert + return canonical profile
+        const data = await authSync(initData);
         setProfile(data.user);
         // Sync language from backend profile
         if (data.user?.language_code) {
@@ -167,15 +168,6 @@ export const Profile: React.FC = () => {
 
   useEffect(() => {
     fetchProfile();
-
-    // Sync Telegram user info to backend
-    if (tgUser && initData) {
-      api.post('/miniapp/sync-user', {
-        first_name: tgUser.first_name,
-        username: tgUser.username,
-        language_code: tgUser.language_code,
-      }, { headers: { 'X-Telegram-Init-Data': initData } }).catch(() => {/* ignore sync errors */});
-    }
 
     // Re-fetch when user returns to the page (tab focus / visibility change)
     const handleVisibilityChange = () => {
