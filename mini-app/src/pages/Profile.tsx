@@ -56,6 +56,8 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
 
 type ProfileView = 'main' | 'orders' | 'agreement';
 
+const PROFILE_RETRY_DELAY_MS = 2000;
+
 export const Profile: React.FC = () => {
   const { tg, user: tgUser, initData } = useTelegram();
   const { lang, setLang, t } = useLang();
@@ -70,17 +72,37 @@ export const Profile: React.FC = () => {
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (retrying = false) => {
     try {
       if (initData) {
-        // auth-sync: one request to validate + upsert + return canonical profile
-        const data = await authSync(initData);
-        setProfile(data.user);
-        // Sync language from backend profile
-        if (data.user?.language_code) {
-          const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
-          if (supportedCodes.includes(data.user.language_code)) {
-            setLang(data.user.language_code as LangCode);
+        let profileData: any = null;
+        try {
+          // auth-sync: validate + upsert + return canonical profile
+          const data = await authSync(initData);
+          profileData = data.user;
+        } catch (authErr) {
+          console.warn('Profile: authSync failed, falling back to getUserProfile', authErr);
+          // authSync failed — fall back to GET /miniapp/profile
+          try {
+            const data = await getUserProfile(initData);
+            profileData = data.user || data;
+          } catch (profileErr) {
+            console.warn('Profile: getUserProfile also failed', profileErr);
+            // Both failed — schedule a retry once
+            if (!retrying) {
+              setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+            }
+            return;
+          }
+        }
+        if (profileData) {
+          setProfile(profileData);
+          // Sync language from backend profile
+          if (profileData.language_code) {
+            const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
+            if (supportedCodes.includes(profileData.language_code)) {
+              setLang(profileData.language_code as LangCode);
+            }
           }
         }
         setLoading(false);
@@ -93,12 +115,17 @@ export const Profile: React.FC = () => {
           first_name: tgUser.first_name,
         });
         setLoading(false);
+        // Retry after PROFILE_RETRY_DELAY_MS in case initData becomes available
+        if (!retrying) {
+          setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+        }
       } else {
         // Neither initData nor tgUser available yet — stop loading so the page renders.
         // The useEffect will re-run when initData or tgUser becomes available.
         setLoading(false);
       }
     } catch (err: any) {
+      console.warn('Profile: fetchProfile error', err);
       if (tgUser) {
         // Show basic Telegram info on error
         setProfile({
@@ -109,6 +136,10 @@ export const Profile: React.FC = () => {
         });
       }
       setLoading(false);
+      // Retry once after PROFILE_RETRY_DELAY_MS
+      if (!retrying) {
+        setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+      }
     }
   };
 
@@ -303,7 +334,7 @@ export const Profile: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <div style={{ color: theme.textSecondary, fontSize: '12px' }}>{t('account_balance')}</div>
             <button
-              onClick={fetchProfile}
+              onClick={() => fetchProfile()}
               style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '14px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
               title="Refresh"
             >

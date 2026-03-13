@@ -88,7 +88,6 @@ export const Trading: React.FC = () => {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
   // Available balance: wallet_balance + red_packet_balance
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -338,7 +337,6 @@ export const Trading: React.FC = () => {
 
   const openConfirm = (dir: 'up' | 'down') => {
     if (!amount || Number(amount) <= 0) return;
-    setOrderError(null);
     setConfirmDirection(dir);
     setConfirmOpen(true);
   };
@@ -346,13 +344,12 @@ export const Trading: React.FC = () => {
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
     if (!initData || !tgUser?.id) {
-      setOrderError(t('open_in_telegram') || '请在 Telegram 中打开此应用后再进行交易');
+      console.warn('Trading: initData not available, cannot place order');
       setConfirmOpen(false);
       return;
     }
     setSubmitting(true);
     setConfirmOpen(false);
-    setOrderError(null);
     try {
       const res = await api.post('/trading/quick-session', {
         pair_id: selectedPair.id,
@@ -371,10 +368,7 @@ export const Trading: React.FC = () => {
       await fetchBalance();
       await fetchOrderHistory();
     } catch (e: any) {
-      const msg = e?.response?.data?.hint
-        || e?.response?.data?.error
-        || t('order_failed');
-      setOrderError(msg);
+      console.warn('Trading: order placement failed', e?.response?.data?.error || e?.message);
     } finally {
       setSubmitting(false);
     }
@@ -626,21 +620,6 @@ export const Trading: React.FC = () => {
             </div>
           )}
         </div>
-
-        {/* Order error banner */}
-        {orderError && (
-          <div style={{
-            backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '12px',
-            marginBottom: '12px', border: '1px solid #ef5350',
-            color: '#ef5350', fontSize: '13px', textAlign: 'center',
-          }}>
-            ⚠️ {orderError}
-            <button
-              onClick={() => setOrderError(null)}
-              style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#ef5350', cursor: 'pointer', fontSize: '14px' }}
-            >✕</button>
-          </div>
-        )}
 
         {/* UP/DOWN buttons */}
         {activeOrder && countdown !== null ? (
