@@ -94,9 +94,9 @@ export const Profile: React.FC = () => {
         });
         setLoading(false);
       } else {
-        // No initData AND no tgUser yet — keep loading=true to wait for SDK polling
-        // (useTelegram polls for up to 3 seconds; useEffect([initData]) will re-trigger
-        // once initData becomes available)
+        // Neither initData nor tgUser available yet — stop loading so the page renders.
+        // The useEffect will re-run when initData or tgUser becomes available.
+        setLoading(false);
       }
     } catch (err: any) {
       if (tgUser) {
@@ -182,9 +182,9 @@ export const Profile: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  // Re-run when initData becomes available (fixes timing race with SDK load)
+  // Re-run when initData or tgUser becomes available (fixes timing race with SDK load)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData]);
+  }, [initData, tgUser]);
 
   if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;

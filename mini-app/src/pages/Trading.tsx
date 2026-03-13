@@ -656,24 +656,22 @@ export const Trading: React.FC = () => {
           <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
             <button
               onClick={() => openConfirm('up')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData}
-              title={!initData ? (t('open_in_telegram') || '请在 Telegram 中打开') : undefined}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
               style={{
                 flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
                 backgroundColor: '#26a69a', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData) ? 0.5 : 1,
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
               }}
             >
               {t('btn_up')}
             </button>
             <button
               onClick={() => openConfirm('down')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData}
-              title={!initData ? (t('open_in_telegram') || '请在 Telegram 中打开') : undefined}
+              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
               style={{
                 flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
                 backgroundColor: '#ef5350', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder || !initData) ? 0.5 : 1,
+                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
               }}
             >
               {t('btn_down')}
@@ -748,16 +746,6 @@ export const Trading: React.FC = () => {
   return (
     <div style={{ padding: '16px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('trading_title')}</h1>
-      {/* Auth warning: app not opened inside Telegram */}
-      {!initData && !tgUser?.id && (
-        <div style={{
-          backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '16px',
-          marginBottom: '16px', border: '1px solid #ef5350',
-          color: '#ef5350', fontSize: '14px', textAlign: 'center',
-        }}>
-          ⚠️ {t('open_in_telegram') || '请在 Telegram 中打开此应用以使用交易功能'}
-        </div>
-      )}
       {pairs.length === 0 && (
         <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
           {t('no_trading_pairs') || '暂无可交易品种'}
