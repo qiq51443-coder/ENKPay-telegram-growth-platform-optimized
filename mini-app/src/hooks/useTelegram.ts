@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 declare global {
   interface Window {
@@ -31,14 +31,14 @@ declare global {
 
 export function useTelegram() {
   const tg = window.Telegram?.WebApp;
-  const [initData, setInitData] = useState<string>('');
+  // Read initData synchronously to avoid timing race conditions.
+  // window.Telegram.WebApp is populated before React renders, so this is safe.
+  const initData = tg?.initData || '';
 
   useEffect(() => {
     tg?.ready();
-    // After ready(), initData should be populated
-    setInitData(tg?.initData || '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tg]);
+  }, []);
 
   const user = tg?.initDataUnsafe?.user;
   return { tg, user, initData };
