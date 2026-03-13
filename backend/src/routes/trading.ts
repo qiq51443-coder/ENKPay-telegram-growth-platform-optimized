@@ -420,10 +420,15 @@ router.get('/pairs/:id/rules', async (req, res) => {
  */
 router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
-    const { user_id, pair_id, duration, direction, amount } = req.body;
+    const { pair_id, duration, direction, amount } = req.body;
+    const telegramId = req.telegramUser?.id;
 
-    if (!user_id || !pair_id || !duration || !direction || !amount) {
-      return res.status(400).json({ error: 'Missing required fields: user_id, pair_id, duration, direction, amount' });
+    if (!telegramId) {
+      return res.status(401).json({ error: 'Unauthorized: no Telegram user' });
+    }
+
+    if (!pair_id || !duration || !direction || !amount) {
+      return res.status(400).json({ error: 'Missing required fields: pair_id, duration, direction, amount' });
     }
 
     if (!['up', 'down'].includes(direction)) {
@@ -440,6 +445,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     if (isNaN(durationSeconds) || durationSeconds <= 0) {
       return res.status(400).json({ error: 'Invalid duration' });
     }
+
+    // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
+    const userLookup = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [telegramId]
+    );
+
+    if (userLookup.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found. Please start the bot first.' });
+    }
+
+    const user_id = userLookup.rows[0].id;
 
     const result = await transaction(async (client) => {
       // Get trading pair
