@@ -13,105 +13,12 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Use the canonical (earliest-created) record for consistent data across bots
-    const result = await query(
-      `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
-              balance, telegram_id, wallet_balance, nft_balance,
-              COALESCE(red_packet_credits, 0) AS red_packet_balance,
-              reward_balance, reward_unlock_traded, frozen_balance,
-              total_recharged, total_withdrawn,
-              invite_code, invited_by,
-              account_status
-       FROM users WHERE telegram_id = $1
-       ORDER BY created_at ASC LIMIT 1`,
-      [telegramId]
-    );
-
-    if (result.rows.length === 0) {
+    const userProfile = await buildCanonicalProfile(telegramId);
+    if (!userProfile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch wallet_tip_message from system settings
-    let walletTipMessage = '';
-    try {
-      const tipResult = await query(
-        `SELECT value FROM system_settings WHERE key = 'wallet_tip_message' LIMIT 1`
-      );
-      walletTipMessage = tipResult.rows[0]?.value || '';
-    } catch {/* non-critical */}
-
-    const user = result.rows[0];
-
-    // Count direct invites
-    let inviteCount = 0;
-    try {
-      const inviteCountResult = await query(
-        `SELECT COUNT(*) AS cnt FROM users WHERE invited_by = $1`,
-        [user.id]
-      );
-      inviteCount = parseInt(inviteCountResult.rows[0]?.cnt ?? '0', 10);
-    } catch {/* non-critical */}
-
-    // Resolve inviter unique_id for display
-    let invitedByUniqueId: string | null = null;
-    if (user.invited_by) {
-      try {
-        const inviterResult = await query(
-          `SELECT unique_id FROM users WHERE id = $1 LIMIT 1`,
-          [user.invited_by]
-        );
-        invitedByUniqueId = inviterResult.rows[0]?.unique_id || null;
-      } catch {/* non-critical */}
-    }
-
-    // Calculate reward unlock progress
-    let rewardTradeRatio = 1.0;
-    try {
-      const configResult = await query(
-        `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
-      );
-      if (configResult.rows.length > 0) {
-        rewardTradeRatio = parseFloat(configResult.rows[0].value) || 1.0;
-      }
-    } catch {/* platform_config table may not exist — use default ratio */}
-    const rewardBal = parseFloat(String(user.reward_balance ?? 0));
-    const rewardTraded = parseFloat(String(user.reward_unlock_traded ?? 0));
-    const rewardUnlockRequired = rewardBal * rewardTradeRatio;
-    const rewardUnlockProgress = rewardUnlockRequired > 0
-      ? Math.round(Math.min(100, (rewardTraded / rewardUnlockRequired) * 100) * 100) / 100
-      : 100;
-
-    res.json({
-      success: true,
-      user: {
-        // Identifiers
-        unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
-        telegram_id: user.telegram_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        username: user.username,
-        language_code: user.language_code,
-        invite_code: user.invite_code || user.unique_id,
-        invited_by: invitedByUniqueId,
-        invite_count: inviteCount,
-        // Balances
-        // wallet_balance is the canonical operational balance (transfers/withdrawals)
-        balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
-        wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
-        reward_balance: rewardBal,
-        nft_balance: parseFloat(String(user.nft_balance ?? 0)),
-        frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
-        red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
-        total_recharged: parseFloat(String(user.total_recharged ?? 0)),
-        total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
-        // Reward unlock progress
-        reward_unlock_progress: rewardUnlockProgress,
-        reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
-        // Status
-        account_status: user.account_status,
-        wallet_tip_message: walletTipMessage,
-      },
-    });
+    res.json({ success: true, user: userProfile });
   } catch (error: any) {
     console.error('Miniapp profile error:', error);
     res.status(500).json({ error: error.message });
@@ -324,6 +231,99 @@ router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, r
 });
 
 /**
+ * Shared helper: build the canonical profile response object for a given telegramId.
+ * Used by both /profile and /auth-sync so they return identical data shapes.
+ */
+async function buildCanonicalProfile(telegramId: number) {
+  const result = await query(
+    `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
+            balance, telegram_id, wallet_balance, nft_balance,
+            COALESCE(red_packet_credits, 0) AS red_packet_balance,
+            reward_balance, reward_unlock_traded, frozen_balance,
+            total_recharged, total_withdrawn,
+            invite_code, invited_by,
+            account_status
+     FROM users WHERE telegram_id = $1
+     ORDER BY created_at ASC LIMIT 1`,
+    [telegramId]
+  );
+  if (result.rows.length === 0) return null;
+  const user = result.rows[0];
+
+  // Fetch wallet_tip_message from system settings
+  let walletTipMessage = '';
+  try {
+    const tipResult = await query(
+      `SELECT value FROM system_settings WHERE key = 'wallet_tip_message' LIMIT 1`
+    );
+    walletTipMessage = tipResult.rows[0]?.value || '';
+  } catch {/* non-critical */}
+
+  // Count direct invites
+  let inviteCount = 0;
+  try {
+    const inviteCountResult = await query(
+      `SELECT COUNT(*) AS cnt FROM users WHERE invited_by = $1`,
+      [user.id]
+    );
+    inviteCount = parseInt(inviteCountResult.rows[0]?.cnt ?? '0', 10);
+  } catch {/* non-critical */}
+
+  // Resolve inviter unique_id for display
+  let invitedByUniqueId: string | null = null;
+  if (user.invited_by) {
+    try {
+      const inviterResult = await query(
+        `SELECT unique_id FROM users WHERE id = $1 LIMIT 1`,
+        [user.invited_by]
+      );
+      invitedByUniqueId = inviterResult.rows[0]?.unique_id || null;
+    } catch {/* non-critical */}
+  }
+
+  // Calculate reward unlock progress
+  let rewardTradeRatio = 1.0;
+  try {
+    const configResult = await query(
+      `SELECT value FROM platform_config WHERE key = 'reward_trade_ratio'`
+    );
+    if (configResult.rows.length > 0) {
+      rewardTradeRatio = parseFloat(configResult.rows[0].value) || 1.0;
+    }
+  } catch {/* platform_config table may not exist — use default ratio */}
+  const rewardBal = parseFloat(String(user.reward_balance ?? 0));
+  const rewardTraded = parseFloat(String(user.reward_unlock_traded ?? 0));
+  const rewardUnlockRequired = rewardBal * rewardTradeRatio;
+  const rewardUnlockProgress = rewardUnlockRequired > 0
+    ? Math.round(Math.min(100, (rewardTraded / rewardUnlockRequired) * 100) * 100) / 100
+    : 100;
+
+  return {
+    unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
+    telegram_id: user.telegram_id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    username: user.username,
+    language_code: user.language_code,
+    invite_code: user.invite_code || user.unique_id,
+    invited_by: invitedByUniqueId,
+    invite_count: inviteCount,
+    balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
+    wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
+    reward_balance: rewardBal,
+    nft_balance: parseFloat(String(user.nft_balance ?? 0)),
+    frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
+    red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
+    total_recharged: parseFloat(String(user.total_recharged ?? 0)),
+    total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
+    reward_unlock_progress: rewardUnlockProgress,
+    reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
+    account_status: user.account_status,
+    wallet_tip_message: walletTipMessage,
+  };
+}
+
+/**
  * POST /api/miniapp/auth-sync
  * One-shot: validate Telegram initData, upsert the user record, and return the canonical profile.
  * Replaces the separate sync-user + profile round-trip that caused #N/A / $0.00 on first open.
@@ -340,14 +340,17 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
 
     // Two-step upsert wrapped in a transaction to minimise the race window.
     // (telegram_id has no unique constraint in this schema, so ON CONFLICT is not available.)
+    // Only the canonical (oldest) record is updated to avoid clobbering non-canonical duplicates.
     await transaction(async (client) => {
-      // Step 1: update existing record if present
+      // Step 1: update only the canonical (oldest) record if present
       await client.query(
         `UPDATE users SET first_name=$2, username=$3, language_code=$4, updated_at=NOW()
-         WHERE telegram_id=$1`,
+         WHERE id = (
+           SELECT id FROM users WHERE telegram_id=$1 ORDER BY created_at ASC LIMIT 1
+         )`,
         [telegramId, firstName, username, languageCode]
       );
-      // Step 2: insert only if no record was found
+      // Step 2: insert only if no record exists at all
       await client.query(
         `INSERT INTO users (telegram_id, first_name, username, language_code, wallet_balance, created_at, updated_at)
          SELECT $1, $2, $3, $4, 0, NOW(), NOW()
@@ -356,43 +359,12 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
       );
     });
 
-    // Fetch canonical profile (same fields as /profile)
-    const result = await query(
-      `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
-              balance, telegram_id, wallet_balance, nft_balance,
-              COALESCE(red_packet_credits, 0) AS red_packet_balance,
-              reward_balance, reward_unlock_traded, frozen_balance,
-              total_recharged, total_withdrawn,
-              invite_code, invited_by,
-              account_status
-       FROM users WHERE telegram_id = $1
-       ORDER BY created_at ASC LIMIT 1`,
-      [telegramId]
-    );
+    const userProfile = await buildCanonicalProfile(telegramId);
+    if (!userProfile) {
+      return res.status(404).json({ error: 'User not found after upsert' });
+    }
 
-    const user = result.rows[0];
-
-    res.json({
-      success: true,
-      user: {
-        unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
-        telegram_id: user.telegram_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        username: user.username,
-        language_code: user.language_code,
-        invite_code: user.invite_code || user.unique_id,
-        balance: parseFloat(String(user.wallet_balance ?? user.balance ?? 0)),
-        wallet_balance: parseFloat(String(user.wallet_balance ?? 0)),
-        reward_balance: parseFloat(String(user.reward_balance ?? 0)),
-        nft_balance: parseFloat(String(user.nft_balance ?? 0)),
-        frozen_balance: parseFloat(String(user.frozen_balance ?? 0)),
-        red_packet_balance: parseFloat(String(user.red_packet_balance ?? 0)),
-        total_recharged: parseFloat(String(user.total_recharged ?? 0)),
-        total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
-        account_status: user.account_status,
-      },
-    });
+    res.json({ success: true, user: userProfile });
   } catch (error: any) {
     console.error('Miniapp auth-sync error:', error);
     res.status(500).json({ error: error.message });

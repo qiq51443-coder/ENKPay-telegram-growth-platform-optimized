@@ -40,8 +40,10 @@ export async function placeQuickSession(params: {
   duration: number;
   direction: 'up' | 'down';
   amount: number;
-}) {
-  const response = await api.post('/trading/quick-session', params);
+}, initData: string) {
+  const response = await api.post('/trading/quick-session', params, {
+    headers: { 'X-Telegram-Init-Data': initData },
+  });
   return response.data;
 }
 
