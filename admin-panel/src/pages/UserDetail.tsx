@@ -135,35 +135,64 @@ export const UserDetail: React.FC = () => {
       key: 'type',
       render: (type: string) => {
         const typeMap: Record<string, { text: string; color: string }> = {
-          follow_reward: { text: '关注奖励', color: 'green' },
-          bind_reward: { text: '绑定奖励', color: 'blue' },
-          invite_reward: { text: '邀请奖励', color: 'purple' },
-          red_packet: { text: '红包', color: 'red' },
-          withdrawal: { text: '提现', color: 'orange' },
+          deposit:        { text: '充值',       color: 'green' },
+          withdrawal:     { text: '提现',       color: 'red' },
+          transfer_in:    { text: '转入',       color: 'blue' },
+          transfer_out:   { text: '转出',       color: 'orange' },
+          trade_win:      { text: '交易盈利',   color: 'green' },
+          trade_loss:     { text: '交易亏损',   color: 'red' },
+          reward:         { text: '奖励',       color: 'gold' },
+          red_packet:     { text: '红包',       color: 'red' },
+          invite:         { text: '邀请奖励',   color: 'purple' },
+          invite_reward:  { text: '邀请奖励',   color: 'purple' },
+          follow_reward:  { text: '关注奖励',   color: 'green' },
+          bind_reward:    { text: '绑定奖励',   color: 'blue' },
+          admin_credit:   { text: '管理员增加', color: 'green' },
+          admin_debit:    { text: '管理员扣减', color: 'red' },
           admin_adjustment: { text: '管理员调整', color: 'default' },
         };
-        const typeInfo = typeMap[type] || { text: type, color: 'default' };
-        return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
+        const info = typeMap[type] || { text: type, color: 'default' };
+        return <Tag color={info.color}>{info.text}</Tag>;
       },
     },
     {
       title: '金额',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: any) => {
+      render: (amount: any, record: any) => {
         const num = parseFloat(String(amount));
+        const positiveTypes = ['deposit', 'transfer_in', 'reward', 'red_packet', 'invite',
+                               'invite_reward', 'follow_reward', 'bind_reward', 'trade_win',
+                               'admin_credit'];
+        const isPositive = positiveTypes.includes(record.type) || num >= 0;
         return (
-          <span style={{ fontFamily: 'monospace', color: num >= 0 ? '#52c41a' : '#ff4d4f' }}>
-            {num >= 0 ? '+' : ''}{num.toFixed(2)}
+          <span style={{ fontFamily: 'monospace', color: isPositive ? '#52c41a' : '#ff4d4f' }}>
+            {isPositive ? '+' : '-'}{Math.abs(num).toFixed(2)}
           </span>
         );
       },
     },
     {
-      title: '余额',
-      dataIndex: 'balance_after',
-      key: 'balance_after',
-      render: (balance: any) => `$${parseFloat(String(balance ?? 0)).toFixed(2)}`,
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => {
+        const statusMap: Record<string, string> = {
+          completed:  'success',
+          confirmed:  'success',
+          pending:    'warning',
+          processing: 'processing',
+          failed:     'error',
+          rejected:   'error',
+        };
+        return <Tag color={statusMap[status] || 'default'}>{status || '-'}</Tag>;
+      },
+    },
+    {
+      title: '描述/备注',
+      dataIndex: 'description',
+      key: 'description',
+      render: (desc: string) => desc || '-',
     },
     {
       title: '时间',
