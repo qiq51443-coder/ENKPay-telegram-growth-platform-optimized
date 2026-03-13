@@ -122,6 +122,7 @@ export function authenticateMiniApp(
         console.warn('[miniapp-auth] REJECTED: HMAC hash mismatch', {
           path: req.path,
           candidateCount: candidateTokens.length,
+          dataCheckStringPreview: dataCheckString.substring(0, 80),
         });
         res.status(401).json({
           error: 'Invalid init data signature',
@@ -130,11 +131,11 @@ export function authenticateMiniApp(
         return;
       }
 
-      // Check auth_date to prevent replay attacks (allow up to 1 hour)
+      // Check auth_date to prevent replay attacks (allow up to 24 hours)
       const authDate = params.get('auth_date');
       if (authDate) {
         const ageSeconds = Math.floor(Date.now() / 1000) - parseInt(authDate, 10);
-        if (ageSeconds > 3600) {
+        if (ageSeconds > 86400) {
           console.warn('[miniapp-auth] REJECTED: Init data expired', {
             path: req.path,
             ageSeconds,

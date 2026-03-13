@@ -85,6 +85,7 @@ export const Profile: React.FC = () => {
             setLang(data.user.language_code as LangCode);
           }
         }
+        setLoading(false);
       } else if (tgUser) {
         // Fallback: show basic info from Telegram user when initData is unavailable
         setProfile({
@@ -93,9 +94,11 @@ export const Profile: React.FC = () => {
           username: tgUser.username,
           first_name: tgUser.first_name,
         });
+        setLoading(false);
       } else {
-        // Neither initData nor tgUser available: app is not opened inside Telegram
-        setAuthError(t('open_in_telegram') || '请在 Telegram 中打开此应用');
+        // No initData AND no tgUser yet — keep loading=true to wait for SDK polling
+        // (useTelegram polls for up to 3 seconds; useEffect([initData]) will re-trigger
+        // once initData becomes available)
       }
     } catch (err: any) {
       const hint = err?.response?.data?.hint || err?.response?.data?.error;
@@ -111,7 +114,6 @@ export const Profile: React.FC = () => {
       } else {
         setAuthError(hint || t('open_in_telegram') || '请在 Telegram 中打开此应用');
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -186,6 +188,22 @@ export const Profile: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
+  // Re-run when initData becomes available (fixes timing race with SDK load)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initData]);
+
+  // Safety timeout: if still loading after 4 seconds, show the "open in telegram" error
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          setAuthError(t('open_in_telegram') || '请在 Telegram 中打开此应用');
+          return false;
+        }
+        return prev;
+      });
+    }, 4000);
+    return () => clearTimeout(timeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

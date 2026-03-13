@@ -10,7 +10,7 @@ import { Charity } from './pages/Charity';
 import { Profile } from './pages/Profile';
 import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
-import { getAnnouncements } from './services/api';
+import { getAnnouncements, setInitData as setApiInitData } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
@@ -27,8 +27,14 @@ function AppContent() {
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
-  const { tg } = useTelegram();
+  const { tg, initData } = useTelegram();
   const { lang } = useLang();
+
+  useEffect(() => {
+    if (initData) {
+      setApiInitData(initData);
+    }
+  }, [initData]);
 
   useEffect(() => {
     tg?.expand();
