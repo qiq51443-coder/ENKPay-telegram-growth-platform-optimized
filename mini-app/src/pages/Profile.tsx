@@ -57,7 +57,7 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
 type ProfileView = 'main' | 'orders' | 'agreement';
 
 export const Profile: React.FC = () => {
-  const { user: tgUser, initData } = useTelegram();
+  const { tg, user: tgUser, initData } = useTelegram();
   const { lang, setLang, t } = useLang();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,14 +72,24 @@ export const Profile: React.FC = () => {
 
   const fetchProfile = async () => {
     try {
-      const data = await getUserProfile(initData);
-      setProfile(data.user);
-      // Sync language from backend profile
-      if (data.user?.language_code) {
-        const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
-        if (supportedCodes.includes(data.user.language_code)) {
-          setLang(data.user.language_code as LangCode);
+      if (initData) {
+        const data = await getUserProfile(initData);
+        setProfile(data.user);
+        // Sync language from backend profile
+        if (data.user?.language_code) {
+          const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
+          if (supportedCodes.includes(data.user.language_code)) {
+            setLang(data.user.language_code as LangCode);
+          }
         }
+      } else if (tgUser) {
+        // Fallback: show basic info from Telegram user when initData is unavailable
+        setProfile({
+          unique_id: String(tgUser.id),
+          balance: 0,
+          username: tgUser.username,
+          first_name: tgUser.first_name,
+        });
       }
     } catch {
       if (tgUser) {
@@ -146,49 +156,36 @@ export const Profile: React.FC = () => {
   };
 
   useEffect(() => {
-    if (initData) {
-      fetchProfile();
+    fetchProfile();
 
-      // Sync Telegram user info to backend
-      if (tgUser) {
-        api.post('/miniapp/sync-user', {
-          first_name: tgUser.first_name,
-          username: tgUser.username,
-          language_code: tgUser.language_code,
-        }, { headers: { 'X-Telegram-Init-Data': initData } }).catch(() => {/* ignore sync errors */});
-      }
-
-      // Re-fetch when user returns to the page (tab focus / visibility change)
-      const handleVisibilityChange = () => {
-        if (!document.hidden) {
-          fetchProfile();
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      // Also poll every 30 seconds while visible
-      const interval = setInterval(() => {
-        if (!document.hidden) fetchProfile();
-      }, 30000);
-
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        clearInterval(interval);
-      };
-    } else {
-      // No initData yet — show basic info from tgUser if available, keep polling
-      if (tgUser) {
-        setProfile({
-          unique_id: String(tgUser.id),
-          balance: 0,
-          username: tgUser.username,
-          first_name: tgUser.first_name,
-        });
-      }
-      setLoading(false);
+    // Sync Telegram user info to backend
+    if (tgUser && initData) {
+      api.post('/miniapp/sync-user', {
+        first_name: tgUser.first_name,
+        username: tgUser.username,
+        language_code: tgUser.language_code,
+      }, { headers: { 'X-Telegram-Init-Data': initData } }).catch(() => {/* ignore sync errors */});
     }
+
+    // Re-fetch when user returns to the page (tab focus / visibility change)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchProfile();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also poll every 30 seconds while visible
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchProfile();
+    }, 30000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData]);
+  }, [tg, initData]);
 
   if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
@@ -299,7 +296,7 @@ export const Profile: React.FC = () => {
             {tgUser?.username && (
               <div style={{ color: theme.textSecondary, fontSize: '13px' }}>@{tgUser.username}</div>
             )}
-            <div style={{ color: theme.textSecondary, fontSize: '12px' }}>ID: #{profile?.unique_id || 'N/A'}</div>
+            <div style={{ color: theme.textSecondary, fontSize: '12px' }}>ID: #{profile?.unique_id || (tgUser?.id ? String(tgUser.id) : 'N/A')}</div>
           </div>
         </div>
 

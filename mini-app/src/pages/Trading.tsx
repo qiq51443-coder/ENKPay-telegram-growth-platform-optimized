@@ -67,7 +67,7 @@ const DEFAULT_RULES: TradingRule[] = [
 
 export const Trading: React.FC = () => {
   const { t } = useLang();
-  const { initData } = useTelegram();
+  const { initData, user: tgUser, tg } = useTelegram();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -98,11 +98,18 @@ export const Trading: React.FC = () => {
 
   useEffect(() => {
     fetchPairs();
-    fetchBalance();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Fetch balance once Telegram WebApp is ready and initData is available
+  useEffect(() => {
+    if (tg && initData) {
+      fetchBalance();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tg, initData]);
 
   // Track active order from order history
   useEffect(() => {
@@ -326,11 +333,14 @@ export const Trading: React.FC = () => {
 
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
+    if (!tgUser?.id) {
+      alert(t('open_in_telegram') || '请在 Telegram 中打开此应用后再进行交易');
+      return;
+    }
     setSubmitting(true);
     setConfirmOpen(false);
     try {
       const res = await api.post('/trading/quick-session', {
-        user_id: (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id,
         pair_id: selectedPair.id,
         duration: selectedDuration,
         direction: confirmDirection,
