@@ -189,6 +189,7 @@ export const zh = {
   transfer_amount: '💵 金额',
   transfer_fee: '💸 手续费',
   transfer_delivered: '✅ 实际到账',
+  transfer_time: '🕐 时间',
 
   // Numpad
   numpad_confirm: '✅ 确认',

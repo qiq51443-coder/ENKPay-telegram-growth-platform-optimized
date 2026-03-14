@@ -193,6 +193,7 @@ export const fr: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ Solde insuffisant. Votre solde disponible est : {balance} USDT',
   transfer_insufficient_balance: '❌ Solde insuffisant pour le transfert. Disponible : {balance} USDT',
+  transfer_time: '🕐 Heure',
 
   // Invalid address
   invalid_address: '❌ Format d\'adresse invalide pour {network}. Veuillez entrer une adresse valide.',

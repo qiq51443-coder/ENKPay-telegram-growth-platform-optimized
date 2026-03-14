@@ -190,6 +190,7 @@ export const ar: Record<string, string> = {
   transfer_amount: '💵 المبلغ',
   transfer_fee: '💸 الرسوم',
   transfer_delivered: '✅ تم التسليم',
+  transfer_time: '🕐 الوقت',
 
   // Numpad
   numpad_confirm: '✅ تأكيد',

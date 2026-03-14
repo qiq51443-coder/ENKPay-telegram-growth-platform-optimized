@@ -529,11 +529,14 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
       );
     });
 
+    const transferTime = new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+
     await ctx.replyWithHTML(
       `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
       `📋 ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
       `👤 ${t(lang, 'transfer_to')}: <b>${data.recipientName || data.recipientUniqueId || '-'}</b>\n` +
-      `💵 ${t(lang, 'transfer_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>`
+      `💵 ${t(lang, 'transfer_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
+      `🕐 ${t(lang, 'transfer_time')}: ${transferTime}`
     );
 
     // Notify recipient
@@ -544,7 +547,8 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
           `💰 <b>${t(rLang, 'transfer_received')}</b>\n\n` +
           `📋 ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
           `👤 ${t(rLang, 'transfer_from')}: <b>${user.first_name || user.username || '-'}</b>\n` +
-          `✅ ${t(rLang, 'transfer_delivered')}: <b>${Number(data.amount).toFixed(2)} USDT</b>`;
+          `✅ ${t(rLang, 'transfer_delivered')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
+          `🕐 ${t(rLang, 'transfer_time')}: ${transferTime}`;
         await ctx.telegram.sendMessage(data.recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
       } catch {}
     }

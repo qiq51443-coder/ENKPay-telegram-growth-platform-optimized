@@ -197,7 +197,7 @@ export const TradingPairs: React.FC = () => {
 
   const handleToggleStatus = async (id: string, isActive: boolean) => {
     try {
-      await apiClient.updateTradingPair(id, { is_active: !isActive });
+      await apiClient.toggleTradingPair(id);
       message.success(isActive ? '已禁用' : '已启用');
       fetchPairs();
     } catch (error: any) {
