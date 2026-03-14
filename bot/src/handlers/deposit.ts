@@ -169,13 +169,11 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
       `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
       `🌐 ${networkLabel}${minDeposit}\n\n` +
       `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
-      `<code>${address}</code>`;
+      `<code>${address}</code>\n\n` +
+      `${t(lang, 'deposit_copy_hint')}`;
 
     await editOrReply(message, Markup.inlineKeyboard([
-      [
-        Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop'),
-        Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
-      ],
+      [Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit')],
       [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
     ]));
   } catch (error) {

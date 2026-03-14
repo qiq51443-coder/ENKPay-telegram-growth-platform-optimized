@@ -102,7 +102,7 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       ],
       [
         supportButton,
-        Markup.button.callback(t(lang, 'btn_language'), 'wallet_language'),
+        Markup.button.callback('🌐 Language', 'wallet_language'),
       ],
       [
         Markup.button.callback(t(lang, 'btn_back'), 'wallet_back'),

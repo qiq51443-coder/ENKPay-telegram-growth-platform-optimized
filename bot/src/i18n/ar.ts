@@ -157,6 +157,7 @@ export const ar: Record<string, string> = {
   deposit_address: 'عنوان الإيداع',
   copy_address: '📋 نسخ العنوان',
   deposit_address_hint: 'يرجى تحويل USDT إلى هذا العنوان',
+  deposit_copy_hint: '💡 اضغط على العنوان أعلاه للنسخ',
   deposit_generating_address: 'جارٍ إنشاء العنوان، يرجى الانتظار...',
   deposit_change_network: '« تغيير الشبكة',
   deposit_back_to_wallet: '« العودة إلى المحفظة',

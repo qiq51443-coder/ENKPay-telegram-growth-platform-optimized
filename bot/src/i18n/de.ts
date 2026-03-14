@@ -156,6 +156,7 @@ export const de: Record<string, string> = {
   deposit_address: 'Einzahlungsadresse',
   copy_address: '📋 Adresse kopieren',
   deposit_address_hint: 'Bitte USDT an diese Adresse überweisen',
+  deposit_copy_hint: '💡 Adresse oben antippen zum Kopieren',
 
   // Withdraw flow
   withdraw_select_network: 'Bitte Auszahlungsnetzwerk auswählen',

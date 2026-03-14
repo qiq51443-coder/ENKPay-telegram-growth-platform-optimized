@@ -47,6 +47,18 @@ const DURATION_OPTIONS = [
   { label: '10分钟', seconds: 600, periodsPerDay: 144 },
 ];
 
+/** 根据选定的周期秒数，计算当前期号和距下一期开始的倒计时（秒） */
+function getCurrentPeriodInfo(durationSeconds: number): { currentPeriod: number; nextPeriod: number; secondsUntilNext: number } {
+  const nowMs = Date.now();
+  const nowSec = Math.floor(nowMs / 1000);
+  const dayStartSec = Math.floor(nowSec / 86400) * 86400;
+  const elapsedInDay = nowSec - dayStartSec;
+  const currentPeriod = Math.floor(elapsedInDay / durationSeconds) + 1;
+  const nextPeriodStartSec = dayStartSec + currentPeriod * durationSeconds;
+  const secondsUntilNext = Math.max(0, nextPeriodStartSec - nowSec);
+  return { currentPeriod, nextPeriod: currentPeriod + 1, secondsUntilNext };
+}
+
 const KLINE_INTERVALS = [
   { label: '1m', value: '1m' },
   { label: '5m', value: '5m' },
@@ -92,6 +104,8 @@ export const Trading: React.FC = () => {
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
@@ -125,6 +139,15 @@ export const Trading: React.FC = () => {
     const active = orders.find(o => o.status === 'active' || o.status === 'pending');
     setActiveOrder(active || null);
   }, [orders]);
+
+  // Update period info every second based on selectedDuration
+  useEffect(() => {
+    const updatePeriod = () => setPeriodInfo(getCurrentPeriodInfo(selectedDuration));
+    updatePeriod();
+    if (periodTimerRef.current) clearInterval(periodTimerRef.current);
+    periodTimerRef.current = setInterval(updatePeriod, 1000);
+    return () => { if (periodTimerRef.current) clearInterval(periodTimerRef.current); };
+  }, [selectedDuration]);
 
   // Push real-time price tick into the last candle of the chart
   useEffect(() => {
@@ -582,6 +605,26 @@ export const Trading: React.FC = () => {
           </div>
         </div>
 
+        {/* Period info card */}
+        {periodInfo && (
+          <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '10px 14px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_current') || '当前期'}</div>
+              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>#{periodInfo.currentPeriod}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_buying') || '即将购买'}</div>
+              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>#{periodInfo.nextPeriod}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_next_in') || '距下一期'}</div>
+              <div style={{ color: '#ef5350', fontWeight: '600', fontSize: '14px' }}>
+                {String(Math.floor(periodInfo.secondsUntilNext / 60)).padStart(2, '0')}:{String(periodInfo.secondsUntilNext % 60).padStart(2, '0')}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Odds display */}
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ color: theme.textSecondary }}>{t('odds')}</span>
@@ -705,6 +748,7 @@ export const Trading: React.FC = () => {
                   [t('order_direction'), confirmDirection === 'up' ? t('order_up') : t('order_down')],
                   [t('order_amount'), `${amount} USDT`],
                   [t('order_duration'), `${selectedDuration}${t('order_seconds')}`],
+                  [t('order_period') || '购买期号', `#${periodInfo?.nextPeriod ?? '—'}`],
                   [t('order_odds_label'), `${safeFixed(selectedOdds)}x`],
                   [t('order_expected_yield'), `+${safeFixed(Number(amount) * (selectedOdds - 1))} USDT`],
                 ].map(([label, val]) => (

@@ -156,6 +156,7 @@ export const ja: Record<string, string> = {
   deposit_address: '入金アドレス',
   copy_address: '📋 アドレスをコピー',
   deposit_address_hint: 'このアドレスにUSDTを送金してください',
+  deposit_copy_hint: '💡 上のアドレスをタップしてコピー',
 
   // Withdraw flow
   withdraw_select_network: '出金ネットワークを選択してください',
