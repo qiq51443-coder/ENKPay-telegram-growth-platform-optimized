@@ -156,6 +156,7 @@ export const zh = {
   deposit_address: '充值地址',
   copy_address: '📋 复制地址',
   deposit_address_hint: '请向此地址转入USDT',
+  deposit_copy_hint: '💡 点击上方地址即可复制',
   deposit_generating_address: '正在生成地址，请稍候...',
   deposit_change_network: '« 更换网络',
   deposit_back_to_wallet: '« 返回钱包',

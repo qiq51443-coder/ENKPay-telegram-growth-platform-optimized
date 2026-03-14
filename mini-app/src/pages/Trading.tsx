@@ -609,15 +609,15 @@ export const Trading: React.FC = () => {
         {periodInfo && (
           <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '10px 14px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>当前期</div>
-              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>第 {periodInfo.currentPeriod} 期</div>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_current') || '当前期'}</div>
+              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>#{periodInfo.currentPeriod}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>即将购买</div>
-              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>第 {periodInfo.nextPeriod} 期</div>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_buying') || '即将购买'}</div>
+              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>#{periodInfo.nextPeriod}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>距下一期</div>
+              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_next_in') || '距下一期'}</div>
               <div style={{ color: '#ef5350', fontWeight: '600', fontSize: '14px' }}>
                 {String(Math.floor(periodInfo.secondsUntilNext / 60)).padStart(2, '0')}:{String(periodInfo.secondsUntilNext % 60).padStart(2, '0')}
               </div>
@@ -748,7 +748,7 @@ export const Trading: React.FC = () => {
                   [t('order_direction'), confirmDirection === 'up' ? t('order_up') : t('order_down')],
                   [t('order_amount'), `${amount} USDT`],
                   [t('order_duration'), `${selectedDuration}${t('order_seconds')}`],
-                  [t('order_period') || '购买期号', `第 ${periodInfo?.nextPeriod ?? '—'} 期`],
+                  [t('order_period') || '购买期号', `#${periodInfo?.nextPeriod ?? '—'}`],
                   [t('order_odds_label'), `${safeFixed(selectedOdds)}x`],
                   [t('order_expected_yield'), `+${safeFixed(Number(amount) * (selectedOdds - 1))} USDT`],
                 ].map(([label, val]) => (

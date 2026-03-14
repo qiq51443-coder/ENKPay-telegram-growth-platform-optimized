@@ -281,9 +281,9 @@ export const Products: React.FC = () => {
       {activeView === 'mine' && (
         <div>
           {holdingsLoading ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>加载中...</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>{t('holdings_loading') || '加载中...'}</div>
           ) : holdings.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>暂无持仓</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>{t('holdings_empty') || '暂无持仓'}</div>
           ) : holdings.map(h => {
             const startMs = new Date(h.start_date).getTime();
             const endMs = new Date(h.end_date).getTime();
@@ -296,18 +296,18 @@ export const Products: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <div style={{ fontWeight: '600', color: theme.text, fontSize: '15px' }}>{h.product_name}</div>
                   <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: h.status === 'active' ? '#26a69a22' : theme.border, color: h.status === 'active' ? '#26a69a' : theme.textSecondary }}>
-                    {h.status === 'active' ? '进行中' : h.status}
+                    {h.status === 'active' ? t('holdings_active') || '进行中' : h.status}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ color: theme.textSecondary, fontSize: '12px' }}>投入: <b style={{ color: theme.text }}>${parseFloat(String(h.amount)).toFixed(2)}</b></span>
-                  <span style={{ color: '#F0B90B', fontSize: '12px' }}>预期收益: <b>${estimatedYield.toFixed(2)}</b></span>
+                  <span style={{ color: theme.textSecondary, fontSize: '12px' }}>{t('holdings_invested') || '投入'}: <b style={{ color: theme.text }}>${parseFloat(String(h.amount)).toFixed(2)}</b></span>
+                  <span style={{ color: '#F0B90B', fontSize: '12px' }}>{t('holdings_est_yield') || '预期收益'}: <b>${estimatedYield.toFixed(2)}</b></span>
                 </div>
                 <div style={{ height: '4px', background: theme.border, borderRadius: '2px', marginBottom: '4px' }}>
                   <div style={{ height: '100%', width: `${progress}%`, background: '#F0B90B', borderRadius: '2px', transition: 'width 0.3s' }} />
                 </div>
                 <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
-                  {elapsedDays} / {totalDays} 天 · 日收益率 {((h.daily_yield_rate ?? 0) * 100).toFixed(2)}%
+                  {elapsedDays} / {totalDays} {t('holdings_days') || '天'} · {t('holdings_daily_rate') || '日收益率'} {((h.daily_yield_rate ?? 0) * 100).toFixed(2)}%
                 </div>
               </div>
             );

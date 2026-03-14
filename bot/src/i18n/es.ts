@@ -157,6 +157,7 @@ export const es: Record<string, string> = {
   deposit_address: 'Dirección de depósito',
   copy_address: '📋 Copiar dirección',
   deposit_address_hint: 'Por favor transfiere USDT a esta dirección',
+  deposit_copy_hint: '💡 Toca la dirección de arriba para copiar',
   deposit_generating_address: 'Generando dirección, por favor espera...',
   deposit_change_network: '« Cambiar Red',
   deposit_back_to_wallet: '« Volver a la Billetera',

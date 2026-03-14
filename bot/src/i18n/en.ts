@@ -156,6 +156,7 @@ export const en = {
   deposit_address: 'Deposit Address',
   copy_address: '📋 Copy Address',
   deposit_address_hint: 'Please transfer USDT to this address',
+  deposit_copy_hint: '💡 Tap the address above to copy',
   deposit_generating_address: 'Generating address, please wait...',
   deposit_change_network: '« Change Network',
   deposit_back_to_wallet: '« Back to Wallet',
