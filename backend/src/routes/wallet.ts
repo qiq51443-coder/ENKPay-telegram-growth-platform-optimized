@@ -24,12 +24,42 @@ router.use(walletLimiter);
  */
 router.get('/networks', authenticateBot, async (req: AuthRequest, res) => {
   try {
-    const result = await query(
-      `SELECT id, network_name, network_display, chain_name, min_deposit_amount, is_active
-       FROM deposit_networks
-       WHERE is_active = true
-       ORDER BY sort_order, network_name`
-    );
+    const botId = req.botId;
+    // If bot_deposit_networks entries exist for this bot, return only those networks.
+    // Otherwise (no entries = not yet configured), return all active networks for
+    // backwards compatibility.
+    let result;
+    if (botId) {
+      const bindingsCheck = await query(
+        `SELECT COUNT(*) AS cnt FROM bot_deposit_networks WHERE bot_id = $1 AND is_active = true`,
+        [botId]
+      );
+      const hasBotBindings = parseInt(bindingsCheck.rows[0].cnt, 10) > 0;
+      if (hasBotBindings) {
+        result = await query(
+          `SELECT dn.id, dn.network_name, dn.network_display, dn.chain_name, dn.min_deposit_amount, dn.is_active
+           FROM deposit_networks dn
+           JOIN bot_deposit_networks bdn ON bdn.network_id = dn.id
+           WHERE dn.is_active = true AND bdn.bot_id = $1 AND bdn.is_active = true
+           ORDER BY dn.sort_order, dn.network_name`,
+          [botId]
+        );
+      } else {
+        result = await query(
+          `SELECT id, network_name, network_display, chain_name, min_deposit_amount, is_active
+           FROM deposit_networks
+           WHERE is_active = true
+           ORDER BY sort_order, network_name`
+        );
+      }
+    } else {
+      result = await query(
+        `SELECT id, network_name, network_display, chain_name, min_deposit_amount, is_active
+         FROM deposit_networks
+         WHERE is_active = true
+         ORDER BY sort_order, network_name`
+      );
+    }
     res.json({ success: true, data: result.rows });
   } catch (error: any) {
     console.error('Get networks error:', error);

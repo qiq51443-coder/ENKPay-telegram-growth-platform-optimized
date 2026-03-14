@@ -18,10 +18,18 @@ interface WalletNetwork {
   deposit_fee: number;
   is_active: boolean;
   created_at: string;
+  bot_bindings?: string[];
+}
+
+interface Bot {
+  id: string;
+  name: string;
+  username: string;
 }
 
 export const WalletNetworks: React.FC = () => {
   const [networks, setNetworks] = useState<WalletNetwork[]>([]);
+  const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingNetwork, setEditingNetwork] = useState<WalletNetwork | null>(null);
@@ -29,6 +37,7 @@ export const WalletNetworks: React.FC = () => {
 
   useEffect(() => {
     fetchNetworks();
+    fetchBots();
   }, []);
 
   const fetchNetworks = async () => {
@@ -44,13 +53,22 @@ export const WalletNetworks: React.FC = () => {
     }
   };
 
+  const fetchBots = async () => {
+    try {
+      const response = await apiClient.getBots();
+      setBots(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to fetch bots:', error);
+    }
+  };
+
   const handleOpenModal = (network?: WalletNetwork) => {
     if (network) {
       setEditingNetwork(network);
       // Don't show the mnemonic in the form for security
-      const { hd_mnemonic, ...formValues } = network;
+      const { hd_mnemonic, bot_bindings, ...formValues } = network;
       // Map deposit_fee to form field deposit_fee_percent for display
-      form.setFieldsValue({ ...formValues, deposit_fee_percent: network.deposit_fee });
+      form.setFieldsValue({ ...formValues, deposit_fee_percent: network.deposit_fee, bot_ids: bot_bindings || [] });
     } else {
       setEditingNetwork(null);
       form.resetFields();
@@ -62,8 +80,8 @@ export const WalletNetworks: React.FC = () => {
     try {
       const values = await form.validateFields();
       // Map form field deposit_fee_percent to backend field deposit_fee
-      const { deposit_fee_percent, hd_mnemonic, ...rest } = values;
-      const submitData: any = { ...rest, deposit_fee: deposit_fee_percent };
+      const { deposit_fee_percent, hd_mnemonic, bot_ids, ...rest } = values;
+      const submitData: any = { ...rest, deposit_fee: deposit_fee_percent, bot_ids: bot_ids || [] };
 
       // Only include hd_mnemonic if the user actually typed something
       if (hd_mnemonic && hd_mnemonic.trim()) {
@@ -72,6 +90,7 @@ export const WalletNetworks: React.FC = () => {
       
       if (editingNetwork) {
         await apiClient.updateWalletNetwork(editingNetwork.id, submitData);
+        await apiClient.updateWalletNetworkBots(editingNetwork.id, bot_ids || []);
         message.success('网络更新成功');
       } else {
         await apiClient.createWalletNetwork(submitData);
@@ -164,6 +183,27 @@ export const WalletNetworks: React.FC = () => {
       key: 'deposit_fee',
       width: 80,
       render: (fee: number | null | undefined) => fee != null ? `${fee}%` : '0%',
+    },
+    {
+      title: '绑定Bot',
+      dataIndex: 'bot_bindings',
+      key: 'bot_bindings',
+      width: 160,
+      render: (botIds: string[] | undefined) => {
+        if (!botIds || botIds.length === 0) return <span style={{ color: '#999' }}>全部</span>;
+        return (
+          <Space wrap>
+            {botIds.map((botId: string) => {
+              const bot = bots.find(b => b.id === botId);
+              return (
+                <Tag key={botId} color="blue">
+                  {bot ? `@${bot.username || bot.name}` : botId.substring(0, 8)}
+                </Tag>
+              );
+            })}
+          </Space>
+        );
+      },
     },
     {
       title: '状态',
@@ -375,6 +415,25 @@ export const WalletNetworks: React.FC = () => {
             <Select>
               <Select.Option value={true}>启用</Select.Option>
               <Select.Option value={false}>禁用</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="bot_ids"
+            label="授权Bot"
+            tooltip="选择可使用该网络的Bot，不选则全部Bot可用"
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="不选则全部Bot可用"
+              optionFilterProp="children"
+            >
+              {bots.map((bot) => (
+                <Select.Option key={bot.id} value={bot.id}>
+                  @{bot.username || bot.name}
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
         </Form>

@@ -15,13 +15,19 @@ router.get('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const result = await query(
       `SELECT 
-         id, network_name, network_display, chain_name, currency,
-         master_address, hd_derivation_path, min_confirmations,
-         scan_interval_seconds, min_deposit_amount, max_deposit_amount, deposit_fee,
-         contract_address, decimals,
-         is_active, sort_order, explorer_url, created_at, updated_at
-       FROM deposit_networks
-       ORDER BY sort_order, id`
+         dn.id, dn.network_name, dn.network_display, dn.chain_name, dn.currency,
+         dn.master_address, dn.hd_derivation_path, dn.min_confirmations,
+         dn.scan_interval_seconds, dn.min_deposit_amount, dn.max_deposit_amount, dn.deposit_fee,
+         dn.contract_address, dn.decimals,
+         dn.is_active, dn.sort_order, dn.explorer_url, dn.created_at, dn.updated_at,
+         COALESCE(
+           (SELECT json_agg(bdn.bot_id)
+            FROM bot_deposit_networks bdn
+            WHERE bdn.network_id = dn.id AND bdn.is_active = true),
+           '[]'::json
+         ) AS bot_bindings
+       FROM deposit_networks dn
+       ORDER BY dn.sort_order, dn.id`
     );
 
     res.json({
@@ -57,6 +63,7 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       decimal_places,
       explorer_url,
       sort_order,
+      bot_ids,
     } = req.body;
 
     if (!network_name || !network_display || !chain_name || !hd_derivation_path) {
@@ -125,6 +132,18 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
     // Clear mnemonic cache so the next derivation picks up the new mnemonic
     if (encryptedMnemonic && network.id) {
       clearMnemonicCache(Number(network.id));
+    }
+
+    // Bind bots if provided
+    if (Array.isArray(bot_ids) && bot_ids.length > 0) {
+      for (const botId of bot_ids) {
+        await query(
+          `INSERT INTO bot_deposit_networks (bot_id, network_id, is_active)
+           VALUES ($1, $2, true)
+           ON CONFLICT (bot_id, network_id) DO UPDATE SET is_active = true`,
+          [botId, network.id]
+        );
+      }
     }
 
     res.json({
@@ -244,6 +263,44 @@ router.delete('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) 
 });
 
 /**
+ * PUT /api/admin/wallet/networks/:id/bots
+ * Update bot assignments for a deposit network
+ */
+router.put('/networks/:id/bots', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { bot_ids } = req.body;
+
+    if (!Array.isArray(bot_ids)) {
+      return res.status(400).json({ error: 'bot_ids must be an array' });
+    }
+
+    // Use a transaction to atomically replace bot bindings
+    await transaction(async (client) => {
+      // Mark all existing bindings for this network as inactive
+      await client.query(
+        'UPDATE bot_deposit_networks SET is_active = false WHERE network_id = $1',
+        [id]
+      );
+      // Upsert new bindings as active
+      for (const botId of bot_ids) {
+        await client.query(
+          `INSERT INTO bot_deposit_networks (bot_id, network_id, is_active)
+           VALUES ($1, $2, true)
+           ON CONFLICT (bot_id, network_id) DO UPDATE SET is_active = true`,
+          [botId, id]
+        );
+      }
+    });
+
+    res.json({ success: true, message: 'Bot bindings updated successfully' });
+  } catch (error: any) {
+    console.error('Update network bots error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/admin/wallet/deposit-addresses
  * Get all user deposit addresses
  */
@@ -259,7 +316,7 @@ router.get('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, res
         dn.network_name, dn.network_display
       FROM user_deposit_addresses uda
       JOIN users u ON uda.user_id = u.id
-      JOIN deposit_networks dn ON uda.network_id = dn.id
+      LEFT JOIN deposit_networks dn ON uda.network_id = dn.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -353,7 +410,7 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
         dn.network_name, dn.network_display
       FROM deposit_records dr
       JOIN users u ON dr.user_id = u.id
-      JOIN deposit_networks dn ON dr.network_id = dn.id
+      LEFT JOIN deposit_networks dn ON dr.network_id = dn.id
       WHERE 1=1
     `;
     const params: any[] = [];

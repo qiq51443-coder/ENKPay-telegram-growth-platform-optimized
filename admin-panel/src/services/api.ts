@@ -548,6 +548,11 @@ class ApiClient {
     return response.data;
   }
 
+  async updateWalletNetworkBots(id: string, bot_ids: string[]) {
+    const response = await this.client.put(`/admin/wallet/networks/${id}/bots`, { bot_ids });
+    return response.data;
+  }
+
   async getDepositRecords(params?: any) {
     const response = await this.client.get('/admin/wallet/deposits', { params });
     return response.data;
