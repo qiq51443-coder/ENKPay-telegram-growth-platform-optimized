@@ -16,6 +16,7 @@ interface Withdrawal {
   network_name?: string;
   network_display?: string;
   robot_user_id?: string;
+  unique_id?: string;
   status: string;
   admin_note?: string;
   created_at: string;
@@ -25,6 +26,8 @@ interface Withdrawal {
     username?: string;
     first_name?: string;
     wallet_balance: number;
+    robot_user_id?: string;
+    unique_id?: string;
   };
 }
 
@@ -32,6 +35,7 @@ export const Withdrawals: React.FC = () => {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [orderIdSearch, setOrderIdSearch] = useState('');
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
   const [adminNote, setAdminNote] = useState('');
@@ -84,7 +88,26 @@ export const Withdrawals: React.FC = () => {
     }
   };
 
+  const filteredWithdrawals = withdrawals.filter(w =>
+    !orderIdSearch || (w.order_id || '').toLowerCase().includes(orderIdSearch.toLowerCase())
+  );
+
   const columns = [
+    {
+      title: '订单ID',
+      dataIndex: 'order_id',
+      key: 'order_id',
+      width: 130,
+      render: (order_id: string) => order_id ? (
+        <span
+          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
+          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
+          title="点击复制"
+        >
+          {order_id}
+        </span>
+      ) : '-',
+    },
     {
       title: 'ID',
       dataIndex: 'id',
@@ -104,9 +127,9 @@ export const Withdrawals: React.FC = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             ID: {record.user?.telegram_id}
           </div>
-          {(record.robot_user_id || record.user?.robot_user_id) && (
+          {(record.unique_id || record.user?.unique_id) && (
             <div style={{ fontSize: '12px', color: '#999' }}>
-              UID: {record.robot_user_id || record.user?.robot_user_id}
+              UID: {record.unique_id || record.user?.unique_id}
             </div>
           )}
         </div>
@@ -212,6 +235,13 @@ export const Withdrawals: React.FC = () => {
             <Select.Option value="rejected">已拒绝</Select.Option>
             <Select.Option value="completed">已完成</Select.Option>
           </Select>
+          <Input
+            placeholder="按订单ID搜索"
+            value={orderIdSearch}
+            onChange={e => setOrderIdSearch(e.target.value)}
+            allowClear
+            style={{ width: 200 }}
+          />
           <Button onClick={fetchWithdrawals} icon={<ReloadOutlined />} loading={loading}>
             刷新
           </Button>
@@ -221,7 +251,7 @@ export const Withdrawals: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={withdrawals}
+        dataSource={filteredWithdrawals}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}

@@ -204,39 +204,39 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 
     // Unified transaction history: reward flow + deposit + withdrawal + transfer + trading orders
     const transactions = await query(
-      `SELECT id, type, amount, status, created_at, description
+      `SELECT id, type, amount, status, created_at, description, order_id
        FROM (
          -- Legacy reward / admin adjustment records
          SELECT id::text, type, amount::numeric,
-                'completed' AS status, created_at, description
+                'completed' AS status, created_at, description, NULL AS order_id
          FROM transactions WHERE user_id = $1
 
          UNION ALL
 
          -- Deposits
          SELECT id::text, 'deposit' AS type, amount::numeric, status,
-                created_at, tx_hash AS description
+                created_at, tx_hash AS description, NULL AS order_id
          FROM deposit_records WHERE user_id = $1
 
          UNION ALL
 
          -- Withdrawals
          SELECT id::text, 'withdrawal' AS type, amount::numeric, status,
-                created_at, to_address AS description
+                created_at, to_address AS description, order_id
          FROM withdrawal_records WHERE user_id = $1
 
          UNION ALL
 
          -- Incoming transfers
          SELECT id::text, 'transfer_in' AS type, amount::numeric, status,
-                created_at, NULL AS description
+                created_at, NULL AS description, order_id
          FROM transfer_records WHERE to_user_id = $1
 
          UNION ALL
 
          -- Outgoing transfers
          SELECT id::text, 'transfer_out' AS type, amount::numeric, status,
-                created_at, NULL AS description
+                created_at, NULL AS description, order_id
          FROM transfer_records WHERE from_user_id = $1
 
          UNION ALL
@@ -244,7 +244,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
          -- Trading orders (instant trades)
          SELECT id::text,
                 CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
-                amount::numeric, status, created_at, pair_id::text AS description
+                amount::numeric, status, created_at, pair_id::text AS description, NULL AS order_id
          FROM trading_orders WHERE user_id = $1
        ) AS combined
        ORDER BY created_at DESC LIMIT 100`,

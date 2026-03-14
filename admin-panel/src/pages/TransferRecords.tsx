@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, DatePicker, Space, Button } from 'antd';
+import { Table, Tag, message, DatePicker, Space, Button, Input } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -14,16 +14,19 @@ interface TransferRecord {
   fee_amount: number;
   actual_amount: number;
   status: string;
+  order_id?: string;
   created_at: string;
   from_user?: {
     telegram_id: number;
     username?: string;
     first_name?: string;
+    unique_id?: string;
   };
   to_user?: {
     telegram_id: number;
     username?: string;
     first_name?: string;
+    unique_id?: string;
   };
 }
 
@@ -31,6 +34,7 @@ export const TransferRecords: React.FC = () => {
   const [records, setRecords] = useState<TransferRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [orderIdSearch, setOrderIdSearch] = useState('');
 
   useEffect(() => {
     fetchRecords();
@@ -61,7 +65,26 @@ export const TransferRecords: React.FC = () => {
     setDateRange(dates);
   };
 
+  const filteredRecords = records.filter(r =>
+    !orderIdSearch || (r.order_id || '').toLowerCase().includes(orderIdSearch.toLowerCase())
+  );
+
   const columns = [
+    {
+      title: '订单ID',
+      dataIndex: 'order_id',
+      key: 'order_id',
+      width: 140,
+      render: (order_id: string) => order_id ? (
+        <span
+          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
+          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
+          title="点击复制"
+        >
+          {order_id}
+        </span>
+      ) : '-',
+    },
     {
       title: 'ID',
       dataIndex: 'id',
@@ -81,6 +104,11 @@ export const TransferRecords: React.FC = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             ID: {record.from_user?.telegram_id}
           </div>
+          {record.from_user?.unique_id && (
+            <div style={{ fontSize: '12px', color: '#999' }}>
+              UID: {record.from_user.unique_id}
+            </div>
+          )}
         </div>
       ),
     },
@@ -96,6 +124,11 @@ export const TransferRecords: React.FC = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             ID: {record.to_user?.telegram_id}
           </div>
+          {record.to_user?.unique_id && (
+            <div style={{ fontSize: '12px', color: '#999' }}>
+              UID: {record.to_user.unique_id}
+            </div>
+          )}
         </div>
       ),
     },
@@ -172,6 +205,13 @@ export const TransferRecords: React.FC = () => {
             onChange={handleDateRangeChange}
             onOk={fetchRecords}
           />
+          <Input
+            placeholder="按订单ID搜索"
+            value={orderIdSearch}
+            onChange={e => setOrderIdSearch(e.target.value)}
+            allowClear
+            style={{ width: 200 }}
+          />
           <Button onClick={fetchRecords} icon={<ReloadOutlined />} loading={loading}>
             刷新
           </Button>
@@ -181,7 +221,7 @@ export const TransferRecords: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={records}
+        dataSource={filteredRecords}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
