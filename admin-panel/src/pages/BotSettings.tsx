@@ -47,7 +47,7 @@ export const BotSettings: React.FC = () => {
   const fetchBots = async () => {
     try {
       const response = await apiClient.getBots();
-      const botList: Bot[] = response.data || [];
+      const botList: Bot[] = response.bots || response.data || [];
       setBots(botList);
       if (botList.length > 0) {
         setSelectedBotId(botList[0].id);

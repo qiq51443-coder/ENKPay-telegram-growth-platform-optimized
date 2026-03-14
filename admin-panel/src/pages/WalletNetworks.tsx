@@ -56,7 +56,7 @@ export const WalletNetworks: React.FC = () => {
   const fetchBots = async () => {
     try {
       const response = await apiClient.getBots();
-      setBots(response.data || []);
+      setBots(response.bots || response.data || []);
     } catch (error: any) {
       console.error('Failed to fetch bots:', error);
     }
