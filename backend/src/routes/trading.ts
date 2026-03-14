@@ -2,11 +2,25 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
-import { getPairPrice, getKlineData, getCachedKlineData, cacheKlineData } from '../services/price.service';
+import { getPairPrice, getKlineData, cacheKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { autoUnlockRewardBalance } from '../services/balance.service';
 
 const router = express.Router();
+
+/**
+ * Parse a kline interval string (e.g. '1m', '5m', '1h', '1d') into seconds.
+ */
+function parseIntervalToSeconds(interval: string): number {
+  const match = interval.match(/^(\d+)(m|h|d)$/i);
+  if (!match) return 60;
+  const value = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === 'm') return value * 60;
+  if (unit === 'h') return value * 3600;
+  if (unit === 'd') return value * 86400;
+  return 60;
+}
 
 /**
  * Check whether the PostgreSQL error is a "relation does not exist" error,
@@ -154,8 +168,40 @@ router.get('/pairs/:id/kline', async (req, res) => {
         klineData = [];
       }
     } else {
-      // Return cached K-line data from DB for custom pairs
-      klineData = await getCachedKlineData(pairId, intervalStr, limitNum);
+      // Aggregate price_points into OHLC candles for custom pairs
+      const intervalSeconds = parseIntervalToSeconds(intervalStr);
+      const intervalMs = intervalSeconds * 1000; // pre-compute once
+      try {
+        const result = await query(
+          `SELECT
+             (floor(extract(epoch from timestamp) / $3::float) * $4)::bigint AS open_time,
+             (ARRAY_AGG(price ORDER BY timestamp ASC))[1]                    AS open,
+             MAX(price)                                                       AS high,
+             MIN(price)                                                       AS low,
+             (ARRAY_AGG(price ORDER BY timestamp DESC))[1]                   AS close
+           FROM price_points
+           WHERE pair_id = $1
+             AND timestamp >= NOW() - make_interval(secs => $2::int * $3::int)
+           GROUP BY floor(extract(epoch from timestamp) / $3::float)
+           ORDER BY open_time DESC
+           LIMIT $2`,
+          [pairId, limitNum, intervalSeconds, intervalMs]
+        );
+        klineData = result.rows
+          .map((row: any) => ({
+            open_time: parseFloat(row.open_time),
+            timestamp: parseFloat(row.open_time),
+            open:      parseFloat(row.open),
+            high:      parseFloat(row.high),
+            low:       parseFloat(row.low),
+            close:     parseFloat(row.close),
+            volume:    0,
+          }))
+          .reverse(); // oldest first
+      } catch (klineErr: any) {
+        console.warn('[kline] Custom pair aggregation error:', klineErr.message);
+        klineData = [];
+      }
     }
 
     res.json({

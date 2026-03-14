@@ -278,6 +278,11 @@ export const Trading: React.FC = () => {
 
     fetchKline();
 
+    // Poll every 5 seconds for real-time chart updates
+    const klinePoll = setInterval(() => {
+      fetchKline().catch(() => {});
+    }, 5000);
+
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         const w = chartContainerRef.current.clientWidth || window.innerWidth - 32;
@@ -287,6 +292,7 @@ export const Trading: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     return () => {
+      clearInterval(klinePoll);
       window.removeEventListener('resize', handleResize);
       try { chart.remove(); } catch {}
       chartRef.current = null;

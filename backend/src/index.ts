@@ -10,6 +10,7 @@ import { startAutoSettle } from './jobs/auto-settle';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
+import { startPriceGenerator } from './services/price-generator.service';
 import { generalLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
@@ -178,6 +179,9 @@ const startServer = async () => {
 
     // Start symbol library sync job
     startSymbolLibrarySync();
+
+    // Start price generator for custom trading pairs
+    startPriceGenerator();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);

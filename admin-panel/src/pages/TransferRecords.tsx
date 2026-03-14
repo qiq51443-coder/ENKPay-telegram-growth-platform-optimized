@@ -139,7 +139,7 @@ export const TransferRecords: React.FC = () => {
       width: 120,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-          {amount.toFixed(2)} USDT
+          {parseFloat(String(amount ?? 0)).toFixed(2)} USDT
         </span>
       ),
     },
@@ -150,7 +150,7 @@ export const TransferRecords: React.FC = () => {
       width: 100,
       render: (fee: number) => (
         <span style={{ fontFamily: 'monospace', color: '#ff4d4f' }}>
-          {fee.toFixed(2)} USDT
+          {parseFloat(String(fee ?? 0)).toFixed(2)} USDT
         </span>
       ),
     },
@@ -161,7 +161,7 @@ export const TransferRecords: React.FC = () => {
       width: 120,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#52c41a' }}>
-          {amount.toFixed(2)} USDT
+          {parseFloat(String(amount ?? 0)).toFixed(2)} USDT
         </span>
       ),
     },
