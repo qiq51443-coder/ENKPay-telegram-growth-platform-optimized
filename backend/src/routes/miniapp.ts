@@ -364,12 +364,18 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
       // Step 2a: update the existing canonical record
       await query(
         `UPDATE users
-         SET first_name    = $2,
-             username      = COALESCE($3, username),
-             language_code = $4,
-             updated_at    = NOW()
+         SET first_name         = $2,
+             username           = COALESCE($3, username),
+             language_code      = $4,
+             updated_at         = NOW(),
+             unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
+                                    THEN 'U' || LPAD(CAST($5 AS TEXT), 8, '0')
+                                    ELSE unique_id END,
+             wallet_balance     = COALESCE(wallet_balance, balance, 0),
+             red_packet_credits = COALESCE(red_packet_credits, 0),
+             nft_balance        = COALESCE(nft_balance, 0)
          WHERE id = $1`,
-        [existing.rows[0].id, firstName, username, languageCode]
+        [existing.rows[0].id, firstName, username, languageCode, telegramId]
       );
     } else {
       // Step 2b: create a brand-new user record with all required fields
