@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
-import { api, setInitData } from '../services/api';
+import { api, setInitData, authSync, isAuthSyncCompleted, setAuthSyncCompleted } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useTelegram } from '../hooks/useTelegram';
 import { createChart } from 'lightweight-charts';
@@ -116,6 +116,8 @@ export const Trading: React.FC = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const orderErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
   // Available balance: wallet_balance + red_packet_balance
@@ -141,6 +143,7 @@ export const Trading: React.FC = () => {
     fetchPairs();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
     };
   }, []);
 
@@ -350,6 +353,7 @@ export const Trading: React.FC = () => {
   const openDetail = async (pair: TradingPair) => {
     setSelectedPair(pair);
     setResultMsg(null);
+    clearOrderError();
     try {
       const res = await api.get(`/trading/pairs/${pair.id}/rules`);
       let ruleList: TradingRule[] = res.data?.data || [];
@@ -380,10 +384,24 @@ export const Trading: React.FC = () => {
     if (rule) setSelectedOdds(rule.odds);
   };
 
-  const handleQuickAmount = (v: number) => setAmount(String(v));
+  const clearOrderError = () => {
+    setOrderError(null);
+    if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAmount(e.target.value);
+    clearOrderError();
+  };
+
+  const handleQuickAmount = (v: number) => {
+    setAmount(String(v));
+    clearOrderError();
+  };
 
   const openConfirm = (dir: 'up' | 'down') => {
     if (!amount || Number(amount) <= 0) return;
+    clearOrderError();
     setConfirmDirection(dir);
     setConfirmOpen(true);
   };
@@ -395,8 +413,23 @@ export const Trading: React.FC = () => {
       setConfirmOpen(false);
       return;
     }
+    clearOrderError();
     setSubmitting(true);
     setConfirmOpen(false);
+
+    // Ensure auth-sync has completed at least once to avoid "User not found" race.
+    if (!isAuthSyncCompleted()) {
+      try {
+        await authSync(initData);
+        setAuthSyncCompleted(true);
+      } catch (syncErr: any) {
+        setSubmitting(false);
+        setOrderError('Please wait, initializing your account...');
+        orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
+        return;
+      }
+    }
+
     try {
       const res = await api.post('/trading/quick-session', {
         pair_id: selectedPair.id,
@@ -415,7 +448,10 @@ export const Trading: React.FC = () => {
       await fetchBalance();
       await fetchOrderHistory();
     } catch (e: any) {
-      console.warn('Trading: order placement failed', e?.response?.data?.error || e?.message);
+      const errMsg = e?.response?.data?.error || e?.message || t('order_failed') || 'Order placement failed';
+      console.warn('Trading: order placement failed', errMsg);
+      setOrderError(errMsg);
+      orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
     } finally {
       setSubmitting(false);
     }
@@ -667,7 +703,7 @@ export const Trading: React.FC = () => {
           <input
             type="number"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={handleAmountChange}
             placeholder={t('custom_amount')}
             style={{
               width: '100%', padding: '10px 12px', borderRadius: '8px',
@@ -716,6 +752,21 @@ export const Trading: React.FC = () => {
             >
               {t('btn_down')}
             </button>
+          </div>
+        )}
+
+        {/* Order error banner */}
+        {orderError && (
+          <div style={{
+            backgroundColor: 'rgba(239, 83, 80, 0.15)',
+            border: '1px solid #ef5350',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            color: '#ef5350',
+            fontSize: '14px',
+            marginBottom: '4px',
+          }}>
+            ⚠️ {orderError}
           </div>
         )}
 
