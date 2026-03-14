@@ -190,6 +190,7 @@ export const es: Record<string, string> = {
   transfer_amount: '💵 Monto',
   transfer_fee: '💸 Tarifa',
   transfer_delivered: '✅ Entregado',
+  transfer_time: '🕐 Hora',
 
   // Numpad
   numpad_confirm: '✅ Confirmar',

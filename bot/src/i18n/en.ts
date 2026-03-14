@@ -189,6 +189,7 @@ export const en = {
   transfer_amount: '💵 Amount',
   transfer_fee: '💸 Fee',
   transfer_delivered: '✅ Delivered',
+  transfer_time: '🕐 Time',
 
   // Numpad
   numpad_confirm: '✅ Confirm',

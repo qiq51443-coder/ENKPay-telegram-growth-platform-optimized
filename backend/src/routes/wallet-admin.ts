@@ -631,10 +631,10 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         } catch {}
 
         const reviewedAt = result.withdrawal.reviewed_at
-          ? new Date(result.withdrawal.reviewed_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
-          : new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+          ? new Date(result.withdrawal.reviewed_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+          : new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
         const createdAt = result.withdrawal.created_at
-          ? new Date(result.withdrawal.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+          ? new Date(result.withdrawal.created_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
           : '-';
 
         if (action === 'approved') {
@@ -647,6 +647,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             address: result.withdrawal.to_address || '',
             network: networkDisplay,
             time: reviewedAt,
+            created_at: createdAt,
             balance: parseFloat(userResult.rows[0].wallet_balance || '0').toFixed(2),
           });
           await tg.sendMessage(telegram_id, message);
@@ -663,6 +664,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             address: result.withdrawal.to_address || '',
             network: networkDisplay,
             time: reviewedAt,
+            created_at: createdAt,
             balance: restoredBalance,
             reason: admin_note || '-',
           });

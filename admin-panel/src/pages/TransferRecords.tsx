@@ -152,7 +152,7 @@ export const TransferRecords: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string) => new Date(date).toISOString().slice(0, 19).replace('T', ' ') + ' UTC',
     },
   ];
 

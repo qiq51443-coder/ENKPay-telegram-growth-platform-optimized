@@ -9,9 +9,13 @@ interface Withdrawal {
   id: string;
   user_id: string;
   amount: number;
+  fee?: number;
+  actual_amount?: number;
+  order_id?: string;
   wallet_address: string;
   network_name?: string;
   network_display?: string;
+  robot_user_id?: string;
   status: string;
   admin_note?: string;
   created_at: string;
@@ -61,15 +65,15 @@ export const Withdrawals: React.FC = () => {
     setReviewModalOpen(true);
   };
 
-  const handleReview = async (status: 'approved' | 'rejected') => {
+  const handleReview = async (action: 'approved' | 'rejected') => {
     if (!selectedWithdrawal) return;
 
     try {
       await apiClient.reviewWithdrawalNew(selectedWithdrawal.id, {
-        status,
+        action,
         admin_note: adminNote,
       });
-      message.success(status === 'approved' ? '审核通过' : '已拒绝');
+      message.success(action === 'approved' ? '审核通过' : '已拒绝');
       setReviewModalOpen(false);
       setSelectedWithdrawal(null);
       setAdminNote('');
@@ -100,7 +104,20 @@ export const Withdrawals: React.FC = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             ID: {record.user?.telegram_id}
           </div>
+          {(record.robot_user_id || record.user?.robot_user_id) && (
+            <div style={{ fontSize: '12px', color: '#999' }}>
+              UID: {record.robot_user_id || record.user?.robot_user_id}
+            </div>
+          )}
         </div>
+      ),
+    },
+    {
+      title: '网络',
+      key: 'network',
+      width: 100,
+      render: (_: any, record: Withdrawal) => (
+        <span>{record.network_display || record.network_name || '-'}</span>
       ),
     },
     {
@@ -154,7 +171,7 @@ export const Withdrawals: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string) => new Date(date).toISOString().slice(0, 19).replace('T', ' ') + ' UTC',
     },
     {
       title: '操作',

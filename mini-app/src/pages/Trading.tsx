@@ -117,7 +117,9 @@ export const Trading: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const orderErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const orderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
   // Available balance: wallet_balance + red_packet_balance
@@ -125,6 +127,7 @@ export const Trading: React.FC = () => {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pairsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -141,9 +144,12 @@ export const Trading: React.FC = () => {
 
   useEffect(() => {
     fetchPairs();
+    pairsPollRef.current = setInterval(fetchPairs, 30000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (pairsPollRef.current) clearInterval(pairsPollRef.current);
       if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
+      if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
     };
   }, []);
 
@@ -444,6 +450,10 @@ export const Trading: React.FC = () => {
         : Date.now() + selectedDuration * 1000;
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
+      // Show brief success feedback
+      setOrderSuccess(t('order_placed_success'));
+      if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
+      orderSuccessTimerRef.current = setTimeout(() => setOrderSuccess(null), 3000);
       // Refresh balance and order history after placing order
       await fetchBalance();
       await fetchOrderHistory();
@@ -767,6 +777,21 @@ export const Trading: React.FC = () => {
             marginBottom: '4px',
           }}>
             ⚠️ {orderError}
+          </div>
+        )}
+
+        {/* Order success banner */}
+        {orderSuccess && (
+          <div style={{
+            backgroundColor: 'rgba(38, 166, 154, 0.15)',
+            border: '1px solid #26a69a',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            color: '#26a69a',
+            fontSize: '14px',
+            marginBottom: '4px',
+          }}>
+            {orderSuccess}
           </div>
         )}
 

@@ -486,6 +486,11 @@ class ApiClient {
     return response.data;
   }
 
+  async toggleTradingPair(id: string) {
+    const response = await this.client.patch(`/admin/trading/pairs/${id}/toggle`);
+    return response.data;
+  }
+
   async deleteTradingPair(id: string) {
     const response = await this.client.delete(`/admin/trading/pairs/${id}`);
     return response.data;
