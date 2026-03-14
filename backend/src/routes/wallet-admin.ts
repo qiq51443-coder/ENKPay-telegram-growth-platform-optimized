@@ -2,10 +2,14 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt, addManualDepositAddress, clearMnemonicCache } from '../services/deposit.service';
+import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
 import { getNotifyTemplate, formatNotification } from '../utils/notify';
 
 const router = express.Router();
+
+// Apply admin rate limiting to all wallet-admin routes
+router.use(adminLimiter);
 
 /**
  * GET /api/admin/wallet/networks
