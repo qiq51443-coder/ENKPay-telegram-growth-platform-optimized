@@ -48,7 +48,13 @@ const DURATION_OPTIONS = [
 ];
 
 /** 根据选定的周期秒数，计算当前期号和距下一期开始的倒计时（秒） */
-function getCurrentPeriodInfo(durationSeconds: number): { currentPeriod: number; nextPeriod: number; secondsUntilNext: number } {
+function getCurrentPeriodInfo(durationSeconds: number): {
+  currentPeriod: number;
+  nextPeriod: number;
+  secondsUntilNext: number;
+  currentPeriodLabel: string;
+  nextPeriodLabel: string;
+} {
   const nowMs = Date.now();
   const nowSec = Math.floor(nowMs / 1000);
   const dayStartSec = Math.floor(nowSec / 86400) * 86400;
@@ -56,7 +62,19 @@ function getCurrentPeriodInfo(durationSeconds: number): { currentPeriod: number;
   const currentPeriod = Math.floor(elapsedInDay / durationSeconds) + 1;
   const nextPeriodStartSec = dayStartSec + currentPeriod * durationSeconds;
   const secondsUntilNext = Math.max(0, nextPeriodStartSec - nowSec);
-  return { currentPeriod, nextPeriod: currentPeriod + 1, secondsUntilNext };
+
+  // Date stamp in YYYYMMDD format (UTC)
+  const now = new Date(nowMs);
+  const dateStamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}${String(now.getUTCDate()).padStart(2, '0')}`;
+  const pad = (n: number) => String(n).padStart(3, '0');
+
+  return {
+    currentPeriod,
+    nextPeriod: currentPeriod + 1,
+    secondsUntilNext,
+    currentPeriodLabel: `${dateStamp}-${pad(currentPeriod)}`,
+    nextPeriodLabel: `${dateStamp}-${pad(currentPeriod + 1)}`,
+  };
 }
 
 const KLINE_INTERVALS = [
@@ -105,7 +123,7 @@ export const Trading: React.FC = () => {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number } | null>(null);
+  const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
@@ -610,11 +628,11 @@ export const Trading: React.FC = () => {
           <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '10px 14px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_current') || '当前期'}</div>
-              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>#{periodInfo.currentPeriod}</div>
+              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>{periodInfo.currentPeriodLabel}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_buying') || '即将购买'}</div>
-              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>#{periodInfo.nextPeriod}</div>
+              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>{periodInfo.nextPeriodLabel}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_next_in') || '距下一期'}</div>
@@ -624,12 +642,6 @@ export const Trading: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* Odds display */}
-        <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: theme.textSecondary }}>{t('odds')}</span>
-          <span style={{ color: '#f0b90b', fontWeight: '600' }}>{safeFixed(selectedOdds)}x</span>
-        </div>
 
         {/* Amount input */}
         <div style={{ marginBottom: '12px' }}>
@@ -748,8 +760,7 @@ export const Trading: React.FC = () => {
                   [t('order_direction'), confirmDirection === 'up' ? t('order_up') : t('order_down')],
                   [t('order_amount'), `${amount} USDT`],
                   [t('order_duration'), `${selectedDuration}${t('order_seconds')}`],
-                  [t('order_period') || '购买期号', `#${periodInfo?.nextPeriod ?? '—'}`],
-                  [t('order_odds_label'), `${safeFixed(selectedOdds)}x`],
+                  [t('order_period') || '购买期号', periodInfo?.nextPeriodLabel ?? '—'],
                   [t('order_expected_yield'), `+${safeFixed(Number(amount) * (selectedOdds - 1))} USDT`],
                 ].map(([label, val]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>

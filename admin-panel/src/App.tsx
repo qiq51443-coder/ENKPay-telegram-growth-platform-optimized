@@ -46,6 +46,7 @@ import { Groups } from './pages/Groups';
 import { Announcements } from './pages/Announcements';
 import { Analytics } from './pages/Analytics';
 import { Sweep } from './pages/Sweep';
+import { BotSettings } from './pages/BotSettings';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const { Header, Sider, Content } = Layout;
@@ -190,6 +191,11 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'audit-logs',
       icon: <AuditOutlined />,
       label: <Link to="/audit-logs">审计日志</Link>,
+    },
+    {
+      key: 'bot-settings',
+      icon: <RobotOutlined />,
+      label: <Link to="/bot-settings">Bot设置</Link>,
     },
     {
       key: 'settings',
@@ -373,6 +379,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AuditLogs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bot-settings"
+        element={
+          <ProtectedRoute>
+            <BotSettings />
           </ProtectedRoute>
         }
       />
