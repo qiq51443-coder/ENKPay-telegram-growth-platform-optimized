@@ -148,7 +148,12 @@ export const TradingPairs: React.FC = () => {
   const handleSubmitCustom = async () => {
     try {
       const values = await customForm.validateFields();
-      await apiClient.createCustomPair(values);
+      const { name, custom_initial_price, ...rest } = values;
+      await apiClient.createCustomPair({
+        ...rest,
+        display_name: name,
+        initial_price: custom_initial_price,
+      });
       message.success('自定义交易对创建成功');
       
       setModalOpen(false);

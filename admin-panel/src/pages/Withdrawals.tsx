@@ -94,21 +94,6 @@ export const Withdrawals: React.FC = () => {
 
   const columns = [
     {
-      title: '订单ID',
-      dataIndex: 'order_id',
-      key: 'order_id',
-      width: 130,
-      render: (order_id: string) => order_id ? (
-        <span
-          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
-          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
-          title="点击复制"
-        >
-          {order_id}
-        </span>
-      ) : '-',
-    },
-    {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
@@ -162,6 +147,21 @@ export const Withdrawals: React.FC = () => {
       render: (address: string) => (
         <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{address}</span>
       ),
+    },
+    {
+      title: '订单ID',
+      dataIndex: 'order_id',
+      key: 'order_id',
+      width: 130,
+      render: (order_id: string) => order_id ? (
+        <span
+          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
+          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
+          title="点击复制"
+        >
+          {order_id}
+        </span>
+      ) : '-',
     },
     {
       title: '用户余额',

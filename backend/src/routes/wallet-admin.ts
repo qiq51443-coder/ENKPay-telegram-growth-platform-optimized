@@ -611,7 +611,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
                 b.token AS bot_token
          FROM users u
          JOIN bots b ON u.bot_id = b.id
-         WHERE u.id = $1 AND b.is_active = true`,
+         WHERE u.id = $1`,
         [result.withdrawal.user_id]
       );
       if (userResult.rows.length > 0) {
