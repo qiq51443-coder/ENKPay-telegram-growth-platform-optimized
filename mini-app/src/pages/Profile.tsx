@@ -33,7 +33,7 @@ interface Transaction {
   id: string;
   type: string;
   amount: number;
-  balance_after: number;
+  balance_after?: number;
   description?: string;
   status?: string;
   created_at: string;
@@ -53,6 +53,10 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   withdrawal: { labelKey: 'tx_withdrawal', icon: '💸' },
   deposit: { labelKey: 'tx_deposit', icon: '💰' },
   trade: { labelKey: 'tx_trade', icon: '📈' },
+  transfer_in: { labelKey: 'tx_transfer_in', icon: '📥' },
+  transfer_out: { labelKey: 'tx_transfer_out', icon: '📤' },
+  trade_win: { labelKey: 'tx_trade_win', icon: '📈' },
+  trade_loss: { labelKey: 'tx_trade_loss', icon: '📉' },
   auction_join: { labelKey: 'tx_auction_join', icon: '🎁' },
   auction_refund: { labelKey: 'tx_auction_refund', icon: '↩️' },
   auction_redeem: { labelKey: 'tx_auction_redeem', icon: '🏆' },
@@ -86,19 +90,25 @@ export const Profile: React.FC = () => {
           // auth-sync: validate + upsert + return canonical profile
           const data = await authSync(initData);
           profileData = data.user;
-        } catch (authErr) {
+        } catch (authErr: any) {
           console.warn('Profile: authSync failed, falling back to getUserProfile', authErr);
-          // authSync failed — fall back to GET /miniapp/profile
-          try {
-            const data = await getUserProfile(initData);
-            profileData = data.user || data;
-          } catch (profileErr) {
-            console.warn('Profile: getUserProfile also failed', profileErr);
-            // Both failed — schedule a retry once
-            if (!retrying) {
-              setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+          // Only fall back for non-5xx errors, or if we're already retrying
+          if (authErr?.response?.status !== 500 || retrying) {
+            try {
+              const data = await getUserProfile(initData);
+              profileData = data.user || data;
+            } catch (profileErr) {
+              console.warn('Profile: getUserProfile also failed', profileErr);
+              // Both failed — schedule a retry once, keep loading spinner up
+              if (!retrying) {
+                setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+                return; // Do NOT call setLoading(false) — keep spinner visible
+              }
             }
-            return;
+          } else if (!retrying) {
+            // 5xx from auth-sync and not yet retrying — retry silently
+            setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
+            return; // Do NOT call setLoading(false) — keep spinner visible
           }
         }
         if (profileData) {
@@ -265,7 +275,9 @@ export const Profile: React.FC = () => {
                       <div style={{ color: tx.amount >= 0 ? theme.success : '#ef4444', fontWeight: '600', fontSize: '14px' }}>
                         {tx.amount >= 0 ? '+' : ''}{parseFloat(String(tx.amount)).toFixed(2)}
                       </div>
-                      <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('balance_label')}: ${parseFloat(String(tx.balance_after)).toFixed(2)}</div>
+                      <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
+                        {tx.balance_after != null ? `${t('balance_label')}: $${parseFloat(String(tx.balance_after)).toFixed(2)}` : ''}
+                      </div>
                     </div>
                   </div>
                 );
