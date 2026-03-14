@@ -49,11 +49,11 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
     const limitNum = isNaN(parsedLimit) || parsedLimit <= 0 ? 50 : Math.min(parsedLimit, 200);
 
     const result = await query(
-      `SELECT id, type, amount, status, created_at, description
+      `SELECT id, type, amount, status, created_at, description, order_id
        FROM (
          -- Incoming transfers
          SELECT id::text, 'transfer_in' AS type, amount::numeric, status,
-                created_at, NULL AS description
+                created_at, NULL AS description, order_id
          FROM transfer_records
          WHERE to_user_id = $1
 
@@ -61,7 +61,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          -- Outgoing transfers
          SELECT id::text, 'transfer_out' AS type, amount::numeric, status,
-                created_at, NULL AS description
+                created_at, NULL AS description, order_id
          FROM transfer_records
          WHERE from_user_id = $1
 
@@ -69,7 +69,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          -- Deposits
          SELECT id::text, 'deposit' AS type, amount::numeric, status,
-                created_at, tx_hash AS description
+                created_at, tx_hash AS description, NULL AS order_id
          FROM deposit_records
          WHERE user_id = $1
 
@@ -77,7 +77,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          -- Withdrawals
          SELECT id::text, 'withdrawal' AS type, amount::numeric, status,
-                created_at, to_address AS description
+                created_at, to_address AS description, order_id
          FROM withdrawal_records
          WHERE user_id = $1
 
@@ -87,7 +87,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
          SELECT id::text,
                 CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
                 amount::numeric, status,
-                created_at, pair_id::text AS description
+                created_at, pair_id::text AS description, NULL AS order_id
          FROM trading_orders
          WHERE user_id = $1
        ) AS combined

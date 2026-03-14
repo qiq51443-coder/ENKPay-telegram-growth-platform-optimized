@@ -35,6 +35,7 @@ interface Transaction {
   amount: number;
   balance_after?: number;
   description?: string;
+  order_id?: string;
   status?: string;
   created_at: string;
 }
@@ -179,18 +180,23 @@ export const Profile: React.FC = () => {
     }
   };
 
+  const fetchTransactions = async () => {
+    if (!initData) return;
+    setTxLoading(true);
+    try {
+      const data = await getTransactions(initData);
+      setTransactions(data.transactions || data.data || []);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setTxLoading(false);
+    }
+  };
+
   const openOrders = async () => {
     setView('orders');
-    if (transactions.length === 0 && initData) {
-      setTxLoading(true);
-      try {
-        const data = await getTransactions(initData);
-        setTransactions(data.transactions || data.data || []);
-      } catch {
-        setTransactions([]);
-      } finally {
-        setTxLoading(false);
-      }
+    if (initData) {
+      fetchTransactions();
     }
   };
 
@@ -233,6 +239,16 @@ export const Profile: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initData, tgUser]);
 
+  // Poll transactions every 30 seconds while in orders view
+  useEffect(() => {
+    if (view !== 'orders' || !initData) return;
+    const txInterval = setInterval(() => {
+      fetchTransactions();
+    }, 30000);
+    return () => clearInterval(txInterval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, initData]);
+
   if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
@@ -269,6 +285,11 @@ export const Profile: React.FC = () => {
                         <div style={{ color: theme.text, fontSize: '13px', fontWeight: '500' }}>{t(typeInfo.labelKey)}</div>
                         <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{dateStr}</div>
                         {tx.status && <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{tx.status}</div>}
+                        {(tx.type === 'transfer_in' || tx.type === 'transfer_out') && tx.order_id && (
+                          <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
+                            {tx.order_id}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>

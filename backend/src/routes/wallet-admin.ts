@@ -462,7 +462,7 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
         wr.to_address,
         wr.tx_hash, wr.status, wr.admin_note,
         wr.reviewed_at, wr.completed_at, wr.created_at, wr.order_id,
-        u.username, u.first_name, u.robot_user_id,
+        u.username, u.first_name, u.robot_user_id, u.unique_id,
         u.telegram_id AS user_telegram_id,
         u.wallet_balance AS user_wallet_balance,
         dn.network_name, dn.network_display
@@ -513,6 +513,7 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
         username: row.username,
         first_name: row.first_name,
         robot_user_id: row.robot_user_id,
+        unique_id: row.unique_id,
         wallet_balance: parseFloat(String(row.user_wallet_balance ?? 0)),
       },
     }));
@@ -698,7 +699,9 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
       SELECT 
         tr.*,
         fu.username as from_username, fu.first_name as from_first_name,
-        tu.username as to_username, tu.first_name as to_first_name
+        fu.unique_id as from_unique_id, fu.telegram_id as from_telegram_id,
+        tu.username as to_username, tu.first_name as to_first_name,
+        tu.unique_id as to_unique_id, tu.telegram_id as to_telegram_id
       FROM transfer_records tr
       LEFT JOIN users fu ON tr.from_user_id = fu.id
       LEFT JOIN users tu ON tr.to_user_id = tu.id
@@ -718,9 +721,34 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
 
+    const transfers = result.rows.map((row: any) => ({
+      id: row.id,
+      from_user_id: row.from_user_id,
+      to_user_id: row.to_user_id,
+      amount: row.amount,
+      fee_amount: row.fee_amount,
+      actual_amount: row.actual_amount,
+      status: row.status,
+      order_id: row.order_id,
+      created_at: row.created_at,
+      from_user: {
+        telegram_id: row.from_telegram_id,
+        username: row.from_username,
+        first_name: row.from_first_name,
+        unique_id: row.from_unique_id,
+      },
+      to_user: {
+        telegram_id: row.to_telegram_id,
+        username: row.to_username,
+        first_name: row.to_first_name,
+        unique_id: row.to_unique_id,
+      },
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      transfers,
+      data: transfers,
     });
   } catch (error: any) {
     console.error('Get transfers error:', error);
