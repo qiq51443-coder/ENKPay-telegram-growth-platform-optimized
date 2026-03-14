@@ -44,6 +44,7 @@ import walletAdminRoutes from './routes/wallet-admin';
 import depositWebhookRoutes from './routes/webhook-deposit';
 import miniappRoutes from './routes/miniapp';
 import profileRoutes from './routes/profile';
+import dbRepairRoutes from './routes/db-repair';
 
 dotenv.config();
 
@@ -115,6 +116,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/admin/wallet', walletAdminRoutes);
 app.use('/api/miniapp', miniappRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/admin/db-repair', dbRepairRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
