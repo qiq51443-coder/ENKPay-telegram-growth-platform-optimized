@@ -515,7 +515,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     );
 
     if (userLookup.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found. Please start the bot first.' });
+      return res.status(404).json({ error: 'User account not initialized. Please open the app home screen first.' });
     }
 
     const user_id = userLookup.rows[0].id;

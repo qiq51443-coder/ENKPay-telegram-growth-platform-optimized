@@ -10,7 +10,7 @@ import { Charity } from './pages/Charity';
 import { Profile } from './pages/Profile';
 import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
-import { getAnnouncements, setInitData as setApiInitData, authSync } from './services/api';
+import { getAnnouncements, setInitData as setApiInitData, authSync, setAuthSyncCompleted } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
@@ -36,9 +36,11 @@ function AppContent() {
       // Ensure the backend has a complete user record (with unique_id, invite_code, etc.)
       // the moment the MiniApp opens. Failure is non-critical — profile fetch will surface
       // missing-user errors explicitly if the record still doesn't exist.
-      authSync(initData).catch((err) => {
-        console.warn('[App] auth-sync failed (non-critical):', String(err));
-      });
+      authSync(initData)
+        .then(() => { setAuthSyncCompleted(true); })
+        .catch((err) => {
+          console.warn('[App] auth-sync failed (non-critical):', String(err));
+        });
     }
   }, [initData]);
 

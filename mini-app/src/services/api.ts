@@ -128,3 +128,15 @@ export async function authSync(initData: string) {
   return response.data;
 }
 
+// Module-level flag so Trading.tsx can check whether auth-sync has already
+// completed at least once (prevents "User not found" race on first open).
+let _authSyncCompleted = false;
+
+export function isAuthSyncCompleted(): boolean {
+  return _authSyncCompleted;
+}
+
+export function setAuthSyncCompleted(value: boolean): void {
+  _authSyncCompleted = value;
+}
+
