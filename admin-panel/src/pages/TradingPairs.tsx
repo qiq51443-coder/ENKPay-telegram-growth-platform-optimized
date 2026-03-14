@@ -244,7 +244,7 @@ export const TradingPairs: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 80,
-      render: (id: string) => id.substring(0, 8),
+      render: (id: any) => String(id ?? '').substring(0, 8),
     },
     {
       title: '交易对',

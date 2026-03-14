@@ -18,21 +18,23 @@ export const connectRedis = async () => {
   return redis;
 };
 
-// Settings cache
-const settingsCache = new Map<string, any>();
+// Settings cache with TTL
+const settingsCache = new Map<string, { data: any; fetchedAt: number }>();
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const getSettings = async (botId: string) => {
-  // Check memory cache first
-  if (settingsCache.has(botId)) {
-    return settingsCache.get(botId);
+  // Check memory cache with TTL
+  const cached = settingsCache.get(botId);
+  if (cached && (Date.now() - cached.fetchedAt) < SETTINGS_CACHE_TTL_MS) {
+    return cached.data;
   }
 
   // Check Redis cache
   try {
-    const cached = await redis.get(`settings:${botId}`);
-    if (cached) {
-      const settings = JSON.parse(cached);
-      settingsCache.set(botId, settings);
+    const redisCached = await redis.get(`settings:${botId}`);
+    if (redisCached) {
+      const settings = JSON.parse(redisCached);
+      settingsCache.set(botId, { data: settings, fetchedAt: Date.now() });
       return settings;
     }
   } catch (error) {
@@ -43,7 +45,7 @@ export const getSettings = async (botId: string) => {
   const settings = await getSettingsFromAPI(botId);
   
   // Cache in both memory and Redis
-  settingsCache.set(botId, settings);
+  settingsCache.set(botId, { data: settings, fetchedAt: Date.now() });
   try {
     await redis.set(`settings:${botId}`, JSON.stringify(settings), {
       EX: 300, // 5 minutes
@@ -73,6 +75,8 @@ export const subscribeToSettingsUpdates = (callback: (botId: string) => void) =>
         console.error('Error processing settings update:', error);
       }
     });
+  }).catch((err) => {
+    console.error('⚠️  Redis pub/sub unavailable — settings changes will propagate via in-memory TTL (max 5 min delay):', err.message || err);
   });
 
   return subscriber;

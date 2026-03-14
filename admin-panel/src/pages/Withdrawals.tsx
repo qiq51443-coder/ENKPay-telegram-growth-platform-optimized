@@ -86,7 +86,7 @@ export const Withdrawals: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 100,
-      render: (id: string) => id.substring(0, 8),
+      render: (id: any) => id ? String(id).substring(0, 8) : '-',
     },
     {
       title: '用户',
