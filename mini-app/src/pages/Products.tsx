@@ -19,6 +19,20 @@ interface Product {
   status?: string;
 }
 
+interface Holding {
+  id: string;
+  product_id: string;
+  product_name: string;
+  image_url?: string;
+  amount: number;
+  daily_yield_rate: number;
+  term_days: number;
+  start_date: string;
+  end_date: string;
+  status: string;
+  total_yield?: number;
+}
+
 function getGradient(price: number): string {
   if (price < 500) return 'linear-gradient(135deg, #1a5e36, #27ae60)';
   if (price < 2000) return 'linear-gradient(135deg, #1a3a5e, #2980b9)';
@@ -38,12 +52,19 @@ export const Products: React.FC = () => {
   const [showPurchase, setShowPurchase] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseMsg, setPurchaseMsg] = useState('');
+  const [activeView, setActiveView] = useState<'list' | 'mine'>('list');
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
 
   const selected = products.find(p => p.id === selectedId) || null;
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (activeView === 'mine') fetchHoldings();
+  }, [activeView]);
 
   const fetchProducts = async () => {
     try {
@@ -53,6 +74,21 @@ export const Products: React.FC = () => {
       setProducts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHoldings = async () => {
+    if (!initData) return;
+    setHoldingsLoading(true);
+    try {
+      const data = await api.get('/nft/holdings/my', {
+        headers: { 'X-Telegram-Init-Data': initData },
+      });
+      setHoldings(data.data?.data || []);
+    } catch {
+      setHoldings([]);
+    } finally {
+      setHoldingsLoading(false);
     }
   };
 
@@ -216,37 +252,102 @@ export const Products: React.FC = () => {
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('products_title')}</h1>
 
-      {loading ? (
-        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
-      ) : products.length === 0 ? (
-        <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_products')}</div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '10px',
-        }}>
-          {products.map(product => (
-            <div
-              key={product.id}
-              onClick={() => setSelectedId(product.id)}
-              style={{
-                background: getGradient(product.price),
-                borderRadius: '10px',
-                aspectRatio: '1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <span style={{ color: '#fff', fontWeight: '700', fontSize: '16px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                {formatAmount(product.price)}
-              </span>
-            </div>
-          ))}
+      {/* Tab 切换：产品列表 / 我的持仓 */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setActiveView('list')}
+          style={{
+            flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            background: activeView === 'list' ? '#F0B90B' : theme.bgCard,
+            color: activeView === 'list' ? '#000' : theme.text,
+            fontWeight: '600', fontSize: '14px',
+          }}
+        >
+          💎 {t('products_title') || 'NFT定期产品'}
+        </button>
+        <button
+          onClick={() => setActiveView('mine')}
+          style={{
+            flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            background: activeView === 'mine' ? '#F0B90B' : theme.bgCard,
+            color: activeView === 'mine' ? '#000' : theme.text,
+            fontWeight: '600', fontSize: '14px',
+          }}
+        >
+          👤 {t('my_holdings') || '我的持仓'}
+        </button>
+      </div>
+
+      {activeView === 'mine' && (
+        <div>
+          {holdingsLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>加载中...</div>
+          ) : holdings.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: theme.textSecondary }}>暂无持仓</div>
+          ) : holdings.map(h => {
+            const startMs = new Date(h.start_date).getTime();
+            const endMs = new Date(h.end_date).getTime();
+            const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
+            const elapsedDays = Math.max(0, Math.round((Date.now() - startMs) / 86400000));
+            const progress = Math.min(100, (elapsedDays / totalDays) * 100);
+            const estimatedYield = h.amount * (h.daily_yield_rate ?? 0) * totalDays;
+            return (
+              <div key={h.id} style={{ background: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div style={{ fontWeight: '600', color: theme.text, fontSize: '15px' }}>{h.product_name}</div>
+                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: h.status === 'active' ? '#26a69a22' : theme.border, color: h.status === 'active' ? '#26a69a' : theme.textSecondary }}>
+                    {h.status === 'active' ? '进行中' : h.status}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: theme.textSecondary, fontSize: '12px' }}>投入: <b style={{ color: theme.text }}>${parseFloat(String(h.amount)).toFixed(2)}</b></span>
+                  <span style={{ color: '#F0B90B', fontSize: '12px' }}>预期收益: <b>${estimatedYield.toFixed(2)}</b></span>
+                </div>
+                <div style={{ height: '4px', background: theme.border, borderRadius: '2px', marginBottom: '4px' }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: '#F0B90B', borderRadius: '2px', transition: 'width 0.3s' }} />
+                </div>
+                <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
+                  {elapsedDays} / {totalDays} 天 · 日收益率 {((h.daily_yield_rate ?? 0) * 100).toFixed(2)}%
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {activeView === 'list' && (
+        loading ? (
+          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
+        ) : products.length === 0 ? (
+          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_products')}</div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '10px',
+          }}>
+            {products.map(product => (
+              <div
+                key={product.id}
+                onClick={() => setSelectedId(product.id)}
+                style={{
+                  background: getGradient(product.price),
+                  borderRadius: '10px',
+                  aspectRatio: '1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
+                <span style={{ color: '#fff', fontWeight: '700', fontSize: '16px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                  {formatAmount(product.price)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );

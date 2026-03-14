@@ -15,6 +15,11 @@ interface Settings {
   invite_reward?: number;
   new_user_credits?: number;
   screenshot_reward_credits?: number;
+  support_telegram?: string;
+  wallet_tip_message?: string;
+  withdraw_min_amount?: number;
+  transfer_min_amount?: number;
+  withdraw_fee_rate?: number;
 }
 
 interface AdminUser {
@@ -264,6 +269,23 @@ export const Settings: React.FC = () => {
               </Form.Item>
               <Form.Item name="required_group_id" label="必需群组 ID">
                 <Input placeholder="-1001234567890" />
+              </Form.Item>
+
+              <h3 style={{ marginTop: 24, marginBottom: 16 }}>钱包配置</h3>
+              <Form.Item name="support_telegram" label="客服 Telegram 用户名" extra="不含@符号，例如：support_agent。设置后用户点击联系客服将直接跳转 Telegram。">
+                <Input placeholder="support_agent" />
+              </Form.Item>
+              <Form.Item name="wallet_tip_message" label="钱包页提示语" extra="显示在用户钱包页底部的提示文字">
+                <Input.TextArea rows={2} placeholder="例如：如有问题请联系客服" />
+              </Form.Item>
+              <Form.Item name="withdraw_min_amount" label="最低提现金额 ($)">
+                <InputNumber min={0} step={1} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item name="transfer_min_amount" label="最低转账金额 ($)">
+                <InputNumber min={0} step={1} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item name="withdraw_fee_rate" label="提现手续费率 (0~1，例如 0.02 = 2%)">
+                <InputNumber min={0} max={1} step={0.01} precision={4} style={{ width: '100%' }} />
               </Form.Item>
 
               <h3 style={{ marginTop: 24, marginBottom: 16 }}>奖励设置</h3>

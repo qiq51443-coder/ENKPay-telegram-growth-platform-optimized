@@ -1004,12 +1004,10 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
               `🌐 ${networkLabel}${minDeposit}\n\n` +
               `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
-              `<code>${address}</code>`,
+              `<code>${address}</code>\n\n` +
+              `💡 点击上方地址即可复制`,
               Markup.inlineKeyboard([
-                [
-                  Markup.button.callback('📋 ' + t(lang, 'copy_address'), 'copy_noop'),
-                  Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit'),
-                ],
+                [Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit')],
                 [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
               ])
             );
@@ -1424,7 +1422,7 @@ async function handleWallet(ctx: Context, botId: string, user: User, lang: strin
         ],
         [Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer')],
         supportButton,
-        [Markup.button.callback(t(lang, 'btn_language'), 'wallet_language')],
+        [Markup.button.callback('🌐 Language', 'wallet_language')],
         [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')],
       ])
     );
