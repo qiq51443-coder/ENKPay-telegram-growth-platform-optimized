@@ -262,7 +262,7 @@ router.post('/pairs/:id/price-points', authenticateAdmin, async (req: AuthReques
  * GET /api/admin/trading/pairs/:id/presets
  * Get price presets for a trading pair
  */
-router.get('/pairs/:id/presets', authenticateAdmin, async (req: AuthRequest, res) => {
+router.get('/pairs/:id/presets', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
