@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, Tabs } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface WalletNetwork {
@@ -27,6 +27,22 @@ interface Bot {
   username: string;
 }
 
+interface DerivedAddress {
+  id: string;
+  user_id: string;
+  network_id: number;
+  address: string;
+  hd_index?: number;
+  source: string;
+  is_active: boolean;
+  created_at: string;
+  username?: string;
+  first_name?: string;
+  robot_user_id?: string;
+  network_name?: string;
+  network_display?: string;
+}
+
 export const WalletNetworks: React.FC = () => {
   const [networks, setNetworks] = useState<WalletNetwork[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
@@ -34,6 +50,9 @@ export const WalletNetworks: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingNetwork, setEditingNetwork] = useState<WalletNetwork | null>(null);
   const [form] = Form.useForm();
+  const [derivedAddresses, setDerivedAddresses] = useState<DerivedAddress[]>([]);
+  const [derivedLoading, setDerivedLoading] = useState(false);
+  const [derivedNetworkFilter, setDerivedNetworkFilter] = useState<string>('');
 
   useEffect(() => {
     fetchNetworks();
@@ -59,6 +78,21 @@ export const WalletNetworks: React.FC = () => {
       setBots(response.bots || response.data || []);
     } catch (error: any) {
       console.error('Failed to fetch bots:', error);
+    }
+  };
+
+  const fetchDerivedAddresses = async () => {
+    setDerivedLoading(true);
+    try {
+      const params: any = {};
+      if (derivedNetworkFilter) params.network_id = derivedNetworkFilter;
+      const response = await apiClient.getDepositAddresses(params);
+      setDerivedAddresses(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to fetch derived addresses:', error);
+      message.error('获取派生地址失败');
+    } finally {
+      setDerivedLoading(false);
     }
   };
 
@@ -273,13 +307,132 @@ export const WalletNetworks: React.FC = () => {
         </Button>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={networks}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 1400 }}
+      <Tabs
+        defaultActiveKey="networks"
+        onChange={(key) => {
+          if (key === 'derived') fetchDerivedAddresses();
+        }}
+        items={[
+          {
+            key: 'networks',
+            label: '充值网络',
+            children: (
+              <Table
+                columns={columns}
+                dataSource={networks}
+                rowKey="id"
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+                scroll={{ x: 1400 }}
+              />
+            ),
+          },
+          {
+            key: 'derived',
+            label: '派生地址',
+            children: (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  <Space wrap>
+                    <Select
+                      placeholder="筛选网络"
+                      value={derivedNetworkFilter}
+                      onChange={(val) => setDerivedNetworkFilter(val)}
+                      style={{ width: 160 }}
+                      allowClear
+                    >
+                      {networks.map(n => (
+                        <Select.Option key={String(n.id)} value={String(n.id)}>
+                          {n.network_display || n.network_name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                    <Button icon={<ReloadOutlined />} onClick={fetchDerivedAddresses} loading={derivedLoading}>
+                      刷新
+                    </Button>
+                  </Space>
+                </div>
+                <Table
+                  columns={[
+                    {
+                      title: '地址',
+                      dataIndex: 'address',
+                      key: 'address',
+                      ellipsis: true,
+                      render: (addr: string) => (
+                        <Space>
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{addr}</span>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => { navigator.clipboard.writeText(addr); message.success('已复制'); }}
+                          />
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: '网络',
+                      key: 'network',
+                      width: 130,
+                      render: (_: any, record: DerivedAddress) => (
+                        <Tag color="blue">{record.network_display || record.network_name || '-'}</Tag>
+                      ),
+                    },
+                    {
+                      title: '用户',
+                      key: 'user',
+                      width: 150,
+                      render: (_: any, record: DerivedAddress) => (
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{record.username || record.first_name || '-'}</div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>{record.robot_user_id}</div>
+                        </div>
+                      ),
+                    },
+                    {
+                      title: 'HD索引',
+                      dataIndex: 'hd_index',
+                      key: 'hd_index',
+                      width: 80,
+                      render: (v: number) => v ?? '-',
+                    },
+                    {
+                      title: '来源',
+                      dataIndex: 'source',
+                      key: 'source',
+                      width: 100,
+                      render: (source: string) => (
+                        <Tag color={source === 'hd_derived' ? 'green' : 'orange'}>{source}</Tag>
+                      ),
+                    },
+                    {
+                      title: '状态',
+                      dataIndex: 'is_active',
+                      key: 'is_active',
+                      width: 80,
+                      render: (active: boolean) => (
+                        <Tag color={active ? 'green' : 'red'}>{active ? '启用' : '禁用'}</Tag>
+                      ),
+                    },
+                    {
+                      title: '生成时间',
+                      dataIndex: 'created_at',
+                      key: 'created_at',
+                      width: 160,
+                      render: (date: string) => date ? new Date(date).toISOString().slice(0, 19).replace('T', ' ') + ' UTC' : '-',
+                    },
+                  ]}
+                  dataSource={derivedAddresses}
+                  rowKey="id"
+                  loading={derivedLoading}
+                  pagination={{ pageSize: 20 }}
+                  scroll={{ x: 1200 }}
+                />
+              </div>
+            ),
+          },
+        ]}
       />
 
       <Modal

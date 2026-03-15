@@ -71,21 +71,6 @@ export const TransferRecords: React.FC = () => {
 
   const columns = [
     {
-      title: '订单ID',
-      dataIndex: 'order_id',
-      key: 'order_id',
-      width: 140,
-      render: (order_id: string) => order_id ? (
-        <span
-          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
-          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
-          title="点击复制"
-        >
-          {order_id}
-        </span>
-      ) : '-',
-    },
-    {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
@@ -159,11 +144,29 @@ export const TransferRecords: React.FC = () => {
       dataIndex: 'actual_amount',
       key: 'actual_amount',
       width: 120,
-      render: (amount: number) => (
-        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#52c41a' }}>
-          {parseFloat(String(amount ?? 0)).toFixed(2)} USDT
+      render: (amount: number, record: TransferRecord) => {
+        const actual = amount || (record.amount - (record.fee_amount || 0));
+        return (
+          <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#52c41a' }}>
+            {parseFloat(String(actual ?? 0)).toFixed(2)} USDT
+          </span>
+        );
+      },
+    },
+    {
+      title: '订单ID',
+      dataIndex: 'order_id',
+      key: 'order_id',
+      width: 140,
+      render: (order_id: string) => order_id ? (
+        <span
+          style={{ fontFamily: 'monospace', fontSize: '12px', cursor: 'pointer', color: '#1677ff' }}
+          onClick={() => { navigator.clipboard.writeText(order_id); message.success('已复制'); }}
+          title="点击复制"
+        >
+          {order_id}
         </span>
-      ),
+      ) : '-',
     },
     {
       title: '状态',
