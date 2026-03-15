@@ -57,7 +57,7 @@ class ApiClient {
   }
 
   async getUser(id: string) {
-    const response = await this.client.get(`/admin/users/${id}`);
+    const response = await this.client.get(`/users/${id}`);
     return response.data;
   }
 
