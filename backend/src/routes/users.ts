@@ -9,7 +9,7 @@ const router = express.Router();
 // Get all users
 router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { page = 1, limit = 20, search, botId, binding_status, account_status } = req.query;
+    const { page = 1, limit = 20, search, botId, account_status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     let queryText = `
@@ -31,15 +31,6 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (search) {
       params.push(`%${search}%`);
       queryText += ` AND (u.username ILIKE $${params.length} OR u.first_name ILIKE $${params.length} OR u.robot_user_id ILIKE $${params.length})`;
-    }
-
-    if (binding_status === 'bound') {
-      queryText += ` AND u.platform_bound = true`;
-    } else if (binding_status === 'unbound') {
-      queryText += ` AND u.platform_bound = false`;
-    } else if (binding_status === 'pending') {
-      params.push('pending');
-      queryText += ` AND u.platform_status = $${params.length}`;
     }
 
     if (account_status) {
@@ -67,15 +58,6 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (search) {
       countParams.push(`%${search}%`);
       countQuery += ` AND (username ILIKE $${countParams.length} OR first_name ILIKE $${countParams.length} OR robot_user_id ILIKE $${countParams.length})`;
-    }
-
-    if (binding_status === 'bound') {
-      countQuery += ` AND platform_bound = true`;
-    } else if (binding_status === 'unbound') {
-      countQuery += ` AND platform_bound = false`;
-    } else if (binding_status === 'pending') {
-      countParams.push('pending');
-      countQuery += ` AND platform_status = $${countParams.length}`;
     }
 
     if (account_status) {
@@ -257,6 +239,38 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       console.warn('Failed to fetch transaction history for user', id, txError);
       // Gracefully degrade: return user info without transactions
     }
+
+    // Lucky auction participants (table may not exist yet)
+    try {
+      const auctionRows = await query(
+        `SELECT id::text, 'auction_buy' AS type, (shares * share_price)::numeric AS amount,
+                'completed' AS status, created_at, NULL AS description, NULL AS order_id
+         FROM lucky_auction_participants WHERE user_id = $1`,
+        [id]
+      );
+      transactionRows = [...transactionRows, ...auctionRows.rows];
+    } catch {
+      // Table does not exist yet — ignore
+    }
+
+    // NFT orders (table may not exist yet)
+    try {
+      const nftRows = await query(
+        `SELECT id::text, 'nft_purchase' AS type, total_amount::numeric AS amount,
+                status, created_at, NULL AS description, NULL AS order_id
+         FROM nft_orders WHERE user_id = $1`,
+        [id]
+      );
+      transactionRows = [...transactionRows, ...nftRows.rows];
+    } catch {
+      // Table does not exist yet — ignore
+    }
+
+    // Sort combined results and cap at 100
+    transactionRows.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    transactionRows = transactionRows.slice(0, 100);
 
     res.json({
       user: result.rows[0],

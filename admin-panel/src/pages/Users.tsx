@@ -17,7 +17,6 @@ interface User {
   balance: number;
   wallet_balance?: number;
   reward_balance?: number;
-  binding_status: string;
   account_status: string;
   is_frozen?: boolean;
   created_at: string;
@@ -64,7 +63,6 @@ const UsersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [bindingFilter, setBindingFilter] = useState<string>('');
   const [accountFilter, setAccountFilter] = useState<string>('');
   const [adjustModal, setAdjustModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -74,7 +72,7 @@ const UsersPage: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, bindingFilter, accountFilter]);
+  }, [currentPage, accountFilter]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -85,7 +83,6 @@ const UsersPage: React.FC = () => {
       };
       
       if (search) params.search = search;
-      if (bindingFilter) params.binding_status = bindingFilter;
       if (accountFilter) params.account_status = accountFilter;
 
       const response = await apiClient.getUsers(params);
@@ -279,17 +276,6 @@ const UsersPage: React.FC = () => {
             style={{ width: 250 }}
             enterButton={<SearchOutlined />}
           />
-          <Select
-            placeholder="绑定状态"
-            value={bindingFilter}
-            onChange={setBindingFilter}
-            style={{ width: 120 }}
-            allowClear
-          >
-            <Select.Option value="unbound">未绑定</Select.Option>
-            <Select.Option value="pending">待审核</Select.Option>
-            <Select.Option value="bound">已绑定</Select.Option>
-          </Select>
           <Select
             placeholder="账号状态"
             value={accountFilter}

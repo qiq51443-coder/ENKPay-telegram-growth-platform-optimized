@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input, Popconfirm } from 'antd';
+import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input, Popconfirm, Space } from 'antd';
 import { ArrowLeftOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -19,10 +19,8 @@ interface UserDetail {
   reward_balance?: number;
   nft_balance?: number;
   red_packet_balance?: number;
-  binding_status: string;
+  red_packet_credits?: number;
   account_status: string;
-  platform_username?: string;
-  platform_bound?: boolean;
   created_at: string;
   last_active_at?: string;
   withdraw_password?: string;
@@ -57,6 +55,9 @@ export const UserDetail: React.FC = () => {
       const data = await apiClient.getUser(id!);
       setUser(data.user);
       setTransactions(data.transactions || []);
+      if (data.user?.telegram_id) {
+        fetchLinkedBotsById(data.user.telegram_id);
+      }
     } catch (error) {
       console.error('Failed to fetch user detail:', error);
       message.error('获取用户信息失败');
@@ -74,14 +75,18 @@ export const UserDetail: React.FC = () => {
     }
   };
 
-  const fetchLinkedBots = async () => {
-    if (!user?.telegram_id) return;
+  const fetchLinkedBotsById = async (telegramId: number) => {
     try {
-      const response = await apiClient.get(`/admin/users/${user.telegram_id}/bots`);
+      const response = await apiClient.get(`/admin/users/${telegramId}/bots`);
       setLinkedBots((response as any)?.bots || []);
     } catch (error) {
       console.error('Failed to fetch linked bots:', error);
     }
+  };
+
+  const fetchLinkedBots = async () => {
+    if (!user?.telegram_id) return;
+    fetchLinkedBotsById(user.telegram_id);
   };
 
   const handleUpdateBalance = async () => {
@@ -150,6 +155,9 @@ export const UserDetail: React.FC = () => {
           admin_credit:   { text: '管理员增加', color: 'green' },
           admin_debit:    { text: '管理员扣减', color: 'red' },
           admin_adjustment: { text: '管理员调整', color: 'default' },
+          auction_buy:    { text: '夺宝参与',   color: 'purple' },
+          nft_purchase:   { text: 'NFT购买',    color: 'blue' },
+          nft_settle:     { text: 'NFT结算收益', color: 'green' },
         };
         const info = typeMap[type] || { text: type, color: 'default' };
         return <Tag color={info.color}>{info.text}</Tag>;
@@ -296,7 +304,6 @@ export const UserDetail: React.FC = () => {
 
       <Tabs defaultActiveKey="info" onChange={(key) => {
         if (key === 'invitations' && invitees.length === 0) fetchInvitees();
-        if (key === 'bots') fetchLinkedBots();
       }}>
         <TabPane tab="基本信息" key="info">
           <Card>
@@ -307,12 +314,6 @@ export const UserDetail: React.FC = () => {
               <Descriptions.Item label="用户名">{user.username || '-'}</Descriptions.Item>
               <Descriptions.Item label="姓名">
                 {user.first_name} {user.last_name || ''}
-              </Descriptions.Item>
-              <Descriptions.Item label="平台用户名">{user.platform_username || '-'}</Descriptions.Item>
-              <Descriptions.Item label="绑定状态">
-                <Tag color={user.platform_bound ? 'success' : 'warning'}>
-                  {user.platform_bound ? '已绑定' : '未绑定'}
-                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="账号状态">
                 <Tag color={user.account_status === 'active' ? 'success' : 'error'}>
@@ -329,23 +330,37 @@ export const UserDetail: React.FC = () => {
               </Descriptions.Item>
             </Descriptions>
           </Card>
+
+          <Card title={`关联机器人 (共 ${linkedBots.length} 个)`} style={{ marginTop: 16 }}
+            extra={<Button size="small" onClick={fetchLinkedBots}>刷新</Button>}
+          >
+            <Table
+              columns={linkedBotColumns}
+              dataSource={linkedBots}
+              rowKey="id"
+              pagination={false}
+            />
+          </Card>
         </TabPane>
 
         <TabPane tab="余额信息" key="balance">
           <Card
             title="钱包余额"
             extra={
-              <Button
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={() => setBalanceModalOpen(true)}
-              >
-                调整余额
-              </Button>
+              <Space>
+                <Button onClick={fetchUserDetail}>刷新</Button>
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => setBalanceModalOpen(true)}
+                >
+                  调整余额
+                </Button>
+              </Space>
             }
           >
             <Descriptions bordered column={2}>
-              <Descriptions.Item label="可用余额 (USDT)">
+              <Descriptions.Item label="钱包余额 (USDT)">
                 <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                   ${walletBalance.toFixed(2)}
                 </span>
@@ -355,9 +370,15 @@ export const UserDetail: React.FC = () => {
                   ${nftBalance.toFixed(2)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="红包余额 (打码解锁)">
+              <Descriptions.Item label="红包余额 (USDT)">
                 <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                   ${rewardBalance.toFixed(2)}
+                </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="红包积分">
+                <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                  {/* red_packet_balance is the USDT value; red_packet_credits is the legacy integer credits */}
+                  {user.red_packet_balance ?? user.red_packet_credits ?? 0}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="提现密码状态">
@@ -404,17 +425,6 @@ export const UserDetail: React.FC = () => {
               dataSource={invitees}
               rowKey="id"
               pagination={{ pageSize: 10 }}
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="关联机器人" key="bots">
-          <Card title={`该用户关注的机器人 (共 ${linkedBots.length} 个)`}>
-            <Table
-              columns={linkedBotColumns}
-              dataSource={linkedBots}
-              rowKey="id"
-              pagination={false}
             />
           </Card>
         </TabPane>
