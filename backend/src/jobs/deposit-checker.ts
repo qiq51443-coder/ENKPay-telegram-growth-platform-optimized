@@ -43,6 +43,20 @@ async function updateScanState(
 }
 
 /**
+ * Determine which deposit-check handler to use based on chain_name.
+ * Accepts common chain name aliases (e.g. ERC20 → ETH, BEP20 → BSC, TRC20 → TRON).
+ * Returns 'TRON', 'BSC', 'POLYGON', or 'ETH'.
+ */
+function resolveChainType(chainName: string): 'TRON' | 'BSC' | 'POLYGON' | 'ETH' {
+  const c = (chainName || '').toUpperCase();
+  if (c === 'TRON' || c === 'TRC20') return 'TRON';
+  if (c === 'BSC' || c === 'BNB' || c === 'BEP20') return 'BSC';
+  if (c === 'POLYGON' || c === 'MATIC') return 'POLYGON';
+  // ETH / ETHEREUM / ERC20 and anything else EVM-compatible
+  return 'ETH';
+}
+
+/**
  * Check deposits for TRC20 (Tron) network using TronGrid API.
  * Env vars used:
  *   TRONGRID_API_KEY — optional TRON-PRO-API-KEY header for higher rate limits
@@ -147,17 +161,26 @@ async function checkTronDeposits(network: any, addresses: string[]): Promise<voi
 /**
  * Check deposits for ERC20/BEP20 (Ethereum/BSC) networks using Etherscan/BscScan API.
  * Env vars used:
- *   ETHERSCAN_API_KEY — Etherscan API key (for ETH network)
- *   BSCSCAN_API_KEY   — BscScan API key (for BSC network)
+ *   ETHERSCAN_API_KEY   — Etherscan API key (for ETH/ERC20 network)
+ *   BSCSCAN_API_KEY     — BscScan API key (for BSC/BEP20 network)
+ *   POLYGONSCAN_API_KEY — PolygonScan API key (for POLYGON/MATIC network)
  */
 async function checkEthDeposits(network: any, addresses: string[]): Promise<void> {
   console.log(`Checking ${network.chain_name} deposits for ${addresses.length} addresses on network ${network.network_name}...`);
 
-  const isBsc = network.chain_name === 'BSC';
-  const apiBaseUrl = isBsc ? 'https://api.bscscan.com/api' : 'https://api.etherscan.io/api';
-  const apiKey = isBsc
-    ? (process.env.BSCSCAN_API_KEY || '')
-    : (process.env.ETHERSCAN_API_KEY || '');
+  const chainType = resolveChainType(network.chain_name);
+  let apiBaseUrl: string;
+  let apiKey: string;
+  if (chainType === 'BSC') {
+    apiBaseUrl = 'https://api.bscscan.com/api';
+    apiKey = process.env.BSCSCAN_API_KEY || '';
+  } else if (chainType === 'POLYGON') {
+    apiBaseUrl = 'https://api.polygonscan.com/api';
+    apiKey = process.env.POLYGONSCAN_API_KEY || '';
+  } else {
+    apiBaseUrl = 'https://api.etherscan.io/api';
+    apiKey = process.env.ETHERSCAN_API_KEY || '';
+  }
   const contractAddress = network.contract_address || '';
   const decimals = network.decimals != null ? Number(network.decimals) : 18;
   const minDeposit = Number(network.min_deposit_amount) || 0;
@@ -294,10 +317,11 @@ export async function checkDeposits(): Promise<void> {
         addressesResult.rows.map((row) => [row.address, row.user_id])
       );
 
-      // Check deposits based on chain type
-      if (network.chain_name === 'TRON') {
+      // Check deposits based on chain type (support common aliases)
+      const chainType = resolveChainType(network.chain_name);
+      if (chainType === 'TRON') {
         await checkTronDeposits(network, addresses);
-      } else if (network.chain_name === 'ETH' || network.chain_name === 'BSC') {
+      } else {
         await checkEthDeposits(network, addresses);
       }
     }

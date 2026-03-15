@@ -78,7 +78,7 @@ export const UserDetail: React.FC = () => {
     if (!user?.telegram_id) return;
     try {
       const response = await apiClient.get(`/admin/users/${user.telegram_id}/bots`);
-      setLinkedBots((response as any).data?.bots || []);
+      setLinkedBots((response as any)?.bots || []);
     } catch (error) {
       console.error('Failed to fetch linked bots:', error);
     }
