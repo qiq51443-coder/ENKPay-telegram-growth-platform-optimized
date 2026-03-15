@@ -15,6 +15,7 @@ interface User {
   unique_id?: string;
   robot_user_id?: string;
   balance: number;
+  wallet_balance?: number;
   reward_balance?: number;
   binding_status: string;
   account_status: string;
@@ -182,10 +183,12 @@ const UsersPage: React.FC = () => {
     },
     {
       title: '余额',
-      dataIndex: 'balance',
       key: 'balance',
       width: 100,
-      render: (balance: any) => <span style={{ fontFamily: 'monospace' }}>${parseFloat(balance || 0).toFixed(2)}</span>,
+      render: (_: any, record: User) => {
+        const balance = record.wallet_balance ?? record.balance ?? 0;
+        return <span style={{ fontFamily: 'monospace' }}>${Number(balance).toFixed(2)}</span>;
+      },
     },
     {
       title: '红包余额(USDT)',
