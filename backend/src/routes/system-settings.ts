@@ -51,8 +51,12 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     );
 
     res.json({ settings: result.rows });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get system settings error:', error);
+    // If the table doesn't exist yet, return empty settings instead of 500
+    if (error.code === '42P01') {
+      return res.json({ settings: [] });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -86,8 +90,12 @@ router.get('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     res.json({ setting: result.rows[0] });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get system setting error:', error);
+    // If the table doesn't exist yet, treat as not found
+    if (error.code === '42P01') {
+      return res.status(404).json({ error: 'Setting not found' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
