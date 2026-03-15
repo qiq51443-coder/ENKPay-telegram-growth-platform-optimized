@@ -3,13 +3,14 @@ import { User, getUserLanguage } from '../services/user';
 import { getRedPacket, claimRedPacket } from '../services/api';
 import { t } from '../i18n';
 
-export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string) => {
+export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string) => {
   try {
     const lang = getUserLanguage(user);
+    const resolvedBotId = botId || (ctx as any).botId || '';
 
     // Try to claim
     try {
-      const result = await claimRedPacket(redPacketId, user.id);
+      const result = await claimRedPacket(resolvedBotId, redPacketId, user.id);
       
       // Answer the callback query first (must be done within 30s)
       await ctx.answerCbQuery(

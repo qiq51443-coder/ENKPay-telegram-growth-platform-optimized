@@ -121,7 +121,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
 
       if (data.startsWith('claim_redpacket:')) {
         const redPacketId = data.split(':')[1];
-        await handleRedPacketClaim(ctx, user, redPacketId);
+        await handleRedPacketClaim(ctx, user, redPacketId, BOT_ID);
         return;
       }
 

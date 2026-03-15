@@ -137,13 +137,14 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
       if (botResult.rows.length > 0) {
         const telegram = new TelegramAPI(botResult.rows[0].token);
         const userResult = await query(
-          'SELECT telegram_id, language, wallet_balance FROM users WHERE id = $1',
+          'SELECT telegram_id, language_code, wallet_balance FROM users WHERE id = $1',
           [withdrawal.user_id]
         );
 
         if (userResult.rows.length > 0) {
-          const { telegram_id, language, wallet_balance } = userResult.rows[0];
-          const lang = language || 'en';
+          const { telegram_id, language_code, wallet_balance } = userResult.rows[0];
+          const rawLang = (language_code || '').toLowerCase();
+          const lang = rawLang.startsWith('zh') ? 'zh' : (rawLang.slice(0, 2) || 'en');
           const currentBalance = parseFloat(wallet_balance || '0').toFixed(2);
           const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
           const fee = parseFloat(withdrawal.fee || '0').toFixed(2);

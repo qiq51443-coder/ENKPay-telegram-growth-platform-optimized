@@ -1331,6 +1331,35 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         return;
       }
 
+      // ── Red packet claim ────────────────────────────────────────────────────
+      if (data.startsWith('claim_redpacket:')) {
+        const redPacketId = data.split(':')[1];
+        try {
+          const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+          const claimRes = await axios.post(
+            `${backendUrl}/api/redpackets/${redPacketId}/claim`,
+            { user_id: user.id },
+            { headers: { 'X-Bot-Token': botId } }
+          );
+          const result = claimRes.data;
+          await ctx.answerCbQuery(
+            t(lang, 'redpacket_claimed', { amount: String(result.amount || '') }),
+            { show_alert: true }
+          );
+        } catch (claimErr: any) {
+          const errMsg = claimErr.response?.data?.error || '';
+          if (errMsg === 'Already claimed') {
+            await ctx.answerCbQuery(t(lang, 'redpacket_already_claimed'), { show_alert: true });
+          } else if (errMsg === 'Red packet finished' || errMsg === 'Red packet is not active') {
+            await ctx.answerCbQuery(t(lang, 'redpacket_finished'), { show_alert: true });
+          } else {
+            console.error(`[bot ${botId}] Red packet claim error:`, claimErr.response?.data || claimErr.message);
+            await ctx.answerCbQuery(t(lang, 'error'), { show_alert: true });
+          }
+        }
+        return;
+      }
+
       // ── Back to start menu ──────────────────────────────────────────────────
       if (data === 'wallet_back') {
         clearUserState(user.id);
@@ -1353,6 +1382,28 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     } catch (error) {
       console.error(`[bot ${botId}] Callback query error:`, error);
       try { await ctx.answerCbQuery('An error occurred'); } catch {}
+    }
+  });
+
+  // ── Group membership tracking ──────────────────────────────────────────────
+  bot.on('my_chat_member', async (ctx) => {
+    try {
+      const chat = ctx.myChatMember?.chat;
+      if (chat && (chat.type === 'group' || chat.type === 'supergroup')) {
+        const newStatus = ctx.myChatMember.new_chat_member?.status;
+        if (newStatus === 'member' || newStatus === 'administrator') {
+          await query(
+            `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (bot_id, group_id) DO UPDATE SET
+               group_name = EXCLUDED.group_name,
+               updated_at = NOW()`,
+            [botId, chat.id, (chat as any).title || '', chat.type]
+          );
+        }
+      }
+    } catch (err) {
+      console.error(`[bot ${botId}] my_chat_member error:`, err);
     }
   });
 
@@ -1529,7 +1580,7 @@ class BotManager {
         const webhookUrl = `${backendUrl}/webhook/${botId}`;
         const response = await axios.post(
           `https://api.telegram.org/bot${token}/setWebhook`,
-          { url: webhookUrl, allowed_updates: ['message', 'callback_query', 'chat_member'] }
+          { url: webhookUrl, allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'] }
         );
 
         if (response.data?.ok) {

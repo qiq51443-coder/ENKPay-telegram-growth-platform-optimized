@@ -37,6 +37,7 @@ export const CustomPriceControl: React.FC = () => {
   useEffect(() => {
     if (selectedPairId) {
       fetchCurrentPrice();
+      fetchPresets();
     }
   }, [selectedPairId]);
 
@@ -114,11 +115,10 @@ export const CustomPriceControl: React.FC = () => {
   };
 
   const fetchPresets = async () => {
-    // Note: This assumes there's an endpoint to get presets for a pair
-    // If not available, presets would need to be fetched another way
+    if (!selectedPairId) return;
     try {
-      // Placeholder - would need actual API endpoint
-      setPresets([]);
+      const response = await apiClient.getPricePresets(selectedPairId);
+      setPresets(response.presets || []);
     } catch (error) {
       console.error('Failed to fetch presets:', error);
     }
@@ -145,19 +145,19 @@ export const CustomPriceControl: React.FC = () => {
       title: '起始价格',
       dataIndex: 'start_price',
       key: 'start_price',
-      render: (price: number) => `$${price.toFixed(4)}`,
+      render: (price: any) => `$${parseFloat(String(price ?? 0)).toFixed(4)}`,
     },
     {
       title: '结束价格',
       dataIndex: 'end_price',
       key: 'end_price',
-      render: (price: number) => `$${price.toFixed(4)}`,
+      render: (price: any) => `$${parseFloat(String(price ?? 0)).toFixed(4)}`,
     },
     {
       title: '持续时间',
       dataIndex: 'duration_seconds',
       key: 'duration_seconds',
-      render: (seconds: number) => `${Math.floor(seconds / 60)} 分钟`,
+      render: (seconds: any) => `${Math.floor((Number(seconds) || 0) / 60)} 分钟`,
     },
     {
       title: '状态',
@@ -222,7 +222,7 @@ export const CustomPriceControl: React.FC = () => {
                 当前价格
               </label>
               <div style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
-                ${currentPrice.toFixed(4)}
+                ${typeof currentPrice === 'number' ? currentPrice.toFixed(4) : parseFloat(String(currentPrice ?? 0)).toFixed(4)}
               </div>
             </div>
           )}
