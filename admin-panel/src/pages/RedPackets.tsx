@@ -23,6 +23,7 @@ interface RedPacket {
 interface Bot {
   id: string;
   name: string;
+  username?: string;
 }
 
 interface AuthorizedGroup {
@@ -292,7 +293,7 @@ export const RedPackets: React.FC = () => {
             >
               {bots.map((bot) => (
                 <Select.Option key={bot.id} value={bot.id}>
-                  {bot.name}
+                  {bot.username ? `@${bot.username}` : bot.name}
                 </Select.Option>
               ))}
             </Select>

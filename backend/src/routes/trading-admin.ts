@@ -259,6 +259,31 @@ router.post('/pairs/:id/price-points', authenticateAdmin, async (req: AuthReques
 });
 
 /**
+ * GET /api/admin/trading/pairs/:id/presets
+ * Get price presets for a trading pair
+ */
+router.get('/pairs/:id/presets', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT id, name AS preset_name, description, price_sequence AS price_data,
+              interval_seconds AS duration_seconds, is_active, created_at,
+              NULL AS start_price, NULL AS end_price
+       FROM price_presets
+       WHERE pair_id = $1
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.json({ presets: result.rows });
+  } catch (error: any) {
+    console.error('Get presets error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/admin/trading/pairs/:id/presets
  * Create price preset (predefined price movements)
  */

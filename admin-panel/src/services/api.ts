@@ -71,11 +71,6 @@ class ApiClient {
     return response.data;
   }
 
-  async getUserStats() {
-    const response = await this.client.get('/users/stats/overview');
-    return response.data;
-  }
-
   // Bots
   async getBots() {
     const response = await this.client.get('/admin/bots');
@@ -493,6 +488,11 @@ class ApiClient {
 
   async deleteTradingPair(id: string) {
     const response = await this.client.delete(`/admin/trading/pairs/${id}`);
+    return response.data;
+  }
+
+  async getPricePresets(pairId: string) {
+    const response = await this.client.get(`/admin/trading/pairs/${pairId}/presets`);
     return response.data;
   }
 

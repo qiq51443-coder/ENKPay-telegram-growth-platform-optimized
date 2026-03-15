@@ -243,16 +243,18 @@ export async function generateUserDepositAddress(
     let derivedAddress: string;
     try {
       const chainUpper = network.chain_name?.toUpperCase();
-      if (chainUpper === 'TRON') {
+      if (chainUpper === 'TRON' || chainUpper === 'TRC20') {
         derivedAddress = await deriveTronAddress(mnemonic, network.hd_derivation_path, hdIndex);
-      } else if (chainUpper === 'ETH' || chainUpper === 'ETHEREUM') {
+      } else if (chainUpper === 'ETH' || chainUpper === 'ETHEREUM' || chainUpper === 'ERC20') {
         derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
-      } else if (chainUpper === 'BSC' || chainUpper === 'BNB') {
+      } else if (chainUpper === 'BSC' || chainUpper === 'BNB' || chainUpper === 'BEP20') {
         derivedAddress = await deriveBnbAddress(mnemonic, network.hd_derivation_path, hdIndex);
       } else if (chainUpper === 'POLYGON' || chainUpper === 'MATIC') {
         derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
       } else {
-        throw new Error(`Unsupported chain: ${network.chain_name}`);
+        // Fallback: attempt ETH-style derivation for unknown EVM-compatible chains
+        console.warn(`Unknown chain: ${network.chain_name}, attempting ETH derivation as fallback`);
+        derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
       }
     } catch (error: any) {
       throw new Error(

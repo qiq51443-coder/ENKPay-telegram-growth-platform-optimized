@@ -75,9 +75,11 @@ export const getRedPacket = async (redPacketId: string) => {
   return response.data;
 };
 
-export const claimRedPacket = async (redPacketId: string, userId: string) => {
+export const claimRedPacket = async (botId: string, redPacketId: string, userId: string) => {
   const response = await api.post(`/api/redpackets/${redPacketId}/claim`, {
     user_id: userId,
+  }, {
+    headers: { 'X-Bot-Token': botId },
   });
   return response.data;
 };
