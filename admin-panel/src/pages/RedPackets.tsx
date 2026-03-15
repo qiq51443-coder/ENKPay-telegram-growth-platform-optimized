@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch } from 'antd';
 import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
-import axios from 'axios';
 
 interface RedPacket {
   id: string;
@@ -29,8 +28,9 @@ interface Bot {
 interface AuthorizedGroup {
   id: string;
   bot_id: string;
-  group_id: string;
-  group_name: string;
+  chat_id: string;
+  chat_title: string;
+  chat_type?: string;
 }
 
 export const RedPackets: React.FC = () => {
@@ -76,10 +76,8 @@ export const RedPackets: React.FC = () => {
   const fetchGroupsForBot = async (botId: string) => {
     if (!botId) { setGroups([]); return; }
     try {
-      const response = await axios.get(`/api/bot-auth/groups?bot_id=${botId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      setGroups(response.data.groups || []);
+      const response = await apiClient.getBotGroups(botId);
+      setGroups(response.groups || []);
     } catch (error) {
       console.error('Failed to fetch groups:', error);
       setGroups([]);
@@ -302,19 +300,16 @@ export const RedPackets: React.FC = () => {
           <Form.Item
             name="chat_id"
             label="发送群组"
-            rules={[{ required: true, message: '请选择或输入 Chat ID' }]}
+            rules={[{ required: true, message: '请选择群组' }]}
           >
-            {groups.length > 0 ? (
-              <Select placeholder="选择已授权群组...">
-                {groups.map((g) => (
-                  <Select.Option key={g.group_id} value={g.group_id}>
-                    {g.group_name || g.group_id}
-                  </Select.Option>
-                ))}
-              </Select>
-            ) : (
-              <Input placeholder="-1001234567890（手动输入 Chat ID）" />
-            )}
+            <Select
+              placeholder={groups.length > 0 ? '请选择群组...' : '暂无群组，请先将 Bot 添加到群组'}
+              notFoundContent="暂无群组，请先将 Bot 添加到群组"
+              options={groups.map((g) => ({
+                value: String(g.chat_id),
+                label: g.chat_title ? `${g.chat_title} (${g.chat_id})` : String(g.chat_id),
+              }))}
+            />
           </Form.Item>
 
           <Form.Item
@@ -364,6 +359,19 @@ export const RedPackets: React.FC = () => {
             label="余额有效期 (小时，留空表示永久有效)"
           >
             <InputNumber min={1} style={{ width: '100%' }} placeholder="留空则永久有效" />
+          </Form.Item>
+
+          <Form.Item
+            name="wagering_multiplier"
+            label="打码量要求"
+            initialValue={2}
+            extra="用户需完成红包金额的 N 倍即时交易量，红包余额方可转换为可提现余额"
+          >
+            <Select>
+              <Select.Option value={1}>1倍（无需额外交易）</Select.Option>
+              <Select.Option value={2}>2倍（默认）</Select.Option>
+              <Select.Option value={4}>4倍</Select.Option>
+            </Select>
           </Form.Item>
 
           <Form.Item

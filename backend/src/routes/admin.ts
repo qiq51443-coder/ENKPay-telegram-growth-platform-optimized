@@ -773,6 +773,24 @@ router.delete('/admins/:id', authenticateAdmin, async (req: AuthRequest, res) =>
 
 // ─── Groups Management ────────────────────────────────────────────────────────
 
+// GET /bots/:botId/groups — list active groups for a specific bot
+router.get('/bots/:botId/groups', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { botId } = req.params;
+    const result = await query(
+      `SELECT id, group_id AS chat_id, group_name AS chat_title, group_type AS chat_type, is_active, joined_at AS added_at
+       FROM authorized_groups
+       WHERE bot_id = $1 AND is_active = true
+       ORDER BY joined_at DESC`,
+      [botId]
+    );
+    res.json({ groups: result.rows });
+  } catch (error) {
+    console.error('Get bot groups error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /groups — list all groups with pagination and search
 router.get('/groups', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {

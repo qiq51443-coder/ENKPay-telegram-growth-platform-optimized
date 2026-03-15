@@ -138,20 +138,16 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
       }
     }
 
-    // Get bot settings for initial credits
-    const settingsResult = await query(
-      'SELECT new_user_credits FROM bot_settings WHERE bot_id = $1',
-      [req.botId]
-    );
-    const initialCredits = settingsResult.rows[0]?.new_user_credits || 3;
+    // Give new users 5 USDT red packet balance
+    const initialRedPacketBalance = 5.00;
 
     // Create user — ON CONFLICT (telegram_id) guarantees single account across all bots
     const result = await query(
-      `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_credits)
+      `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_balance)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (telegram_id) DO UPDATE SET last_active_at = NOW()
        RETURNING *`,
-      [req.botId, telegram_id, username, first_name, last_name, language_code || 'en', invitedBy, initialCredits]
+      [req.botId, telegram_id, username, first_name, last_name, language_code || 'en', invitedBy, initialRedPacketBalance]
     );
 
     res.json({ user: result.rows[0] });
@@ -286,7 +282,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { balance, account_status, platform_status, red_packet_credits, language_code } = req.body;
+    const { balance, account_status, platform_status, language_code } = req.body;
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -302,10 +298,6 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (platform_status) {
       params.push(platform_status);
       updates.push(`platform_status = $${params.length}`);
-    }
-    if (red_packet_credits !== undefined) {
-      params.push(red_packet_credits);
-      updates.push(`red_packet_credits = $${params.length}`);
     }
     if (language_code !== undefined) {
       params.push(language_code);

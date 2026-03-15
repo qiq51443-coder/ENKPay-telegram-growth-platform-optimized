@@ -102,6 +102,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getBotGroups(botId: string) {
+    const response = await this.client.get(`/admin/bots/${botId}/groups`);
+    return response.data;
+  }
+
   // Bindings
   async getBindings(params?: any) {
     const response = await this.client.get('/bindings', { params });

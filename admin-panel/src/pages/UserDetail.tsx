@@ -287,7 +287,6 @@ export const UserDetail: React.FC = () => {
 
   // wallet_balance is the operational balance; nft_balance is NFT asset value (display only)
   const walletBalance = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
-  const rewardBalance = parseFloat(String(user.reward_balance ?? 0));
   const nftBalance = parseFloat(String(user.nft_balance ?? 0));
 
   return (
@@ -370,15 +369,9 @@ export const UserDetail: React.FC = () => {
                   ${nftBalance.toFixed(2)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="红包余额 (USDT)">
+              <Descriptions.Item label={<span>红包余额 (USDT) <span style={{ fontSize: '12px', color: '#999', fontWeight: 'normal' }}>不可提现 · 交易打码可解锁</span></span>}>
                 <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  ${rewardBalance.toFixed(2)}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="红包积分">
-                <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  {/* red_packet_balance is the USDT value; red_packet_credits is the legacy integer credits */}
-                  {user.red_packet_balance ?? user.red_packet_credits ?? 0}
+                  ${parseFloat(String(user.red_packet_balance ?? 0)).toFixed(2)}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="提现密码状态">
