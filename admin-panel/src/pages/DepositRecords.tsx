@@ -12,6 +12,7 @@ interface DepositRecord {
   from_address: string;
   to_address: string;
   status: string;
+  order_id?: string;
   created_at: string;
   confirmed_at?: string;
   user?: {
@@ -104,6 +105,18 @@ export const DepositRecords: React.FC = () => {
       width: 200,
       render: (hash: string) => (
         <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{hash}</span>
+      ),
+    },
+    {
+      title: '订单ID',
+      dataIndex: 'order_id',
+      key: 'order_id',
+      width: 130,
+      ellipsis: true,
+      render: (orderId: string) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#1890ff' }}>
+          {orderId || '-'}
+        </span>
       ),
     },
     {

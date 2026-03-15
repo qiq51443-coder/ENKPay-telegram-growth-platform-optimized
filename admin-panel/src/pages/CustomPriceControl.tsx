@@ -43,7 +43,7 @@ export const CustomPriceControl: React.FC = () => {
   const fetchPairs = async () => {
     try {
       const response = await apiClient.getTradingPairs();
-      const customPairs = (response.pairs || []).filter((p: TradingPair) => p.pair_type === 'custom');
+      const customPairs = (response.data || []).filter((p: TradingPair) => p.pair_type === 'custom');
       setPairs(customPairs);
       
       if (customPairs.length > 0 && !selectedPairId) {

@@ -610,13 +610,22 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name,
                 b.token AS bot_token
          FROM users u
-         JOIN bots b ON u.bot_id = b.id
+         LEFT JOIN bots b ON u.bot_id = b.id
          WHERE u.id = $1`,
         [result.withdrawal.user_id]
       );
       if (userResult.rows.length > 0) {
+        // Fallback: if bot_token is null, get any active bot token
+        if (!userResult.rows[0].bot_token) {
+          const botRes = await query('SELECT token FROM bots WHERE is_active = true LIMIT 1');
+          if (botRes.rows.length > 0) {
+            userResult.rows[0].bot_token = botRes.rows[0].token;
+          }
+        }
         const { telegram_id, language_code, bot_token } = userResult.rows[0];
-        const lang = language_code || 'en';
+        // Normalize language code: zh-hans/zh-cn/zh-tw → zh; keep first 2 chars for others
+        const rawLang = (language_code || '').toLowerCase();
+        const lang = rawLang.startsWith('zh') ? 'zh' : (rawLang.slice(0, 2) || 'en');
         const tg = new TelegramAPI(bot_token);
 
         // Resolve network display name for notification

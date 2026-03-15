@@ -558,6 +558,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getDepositAddresses(params?: any) {
+    const response = await this.client.get('/admin/wallet/deposit-addresses', { params });
+    return response.data;
+  }
+
   async getDepositRecords(params?: any) {
     const response = await this.client.get('/admin/wallet/deposits', { params });
     return response.data;

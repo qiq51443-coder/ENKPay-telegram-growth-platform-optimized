@@ -7,6 +7,7 @@ interface TradingPair {
   id: string;
   symbol: string;
   name: string;
+  display_name?: string;
   pair_type: string;
   current_price?: number;
   price_change_24h?: number;
@@ -167,7 +168,7 @@ export const TradingPairs: React.FC = () => {
 
   const handleOpenEditModal = (pair: TradingPair) => {
     setEditingPair(pair);
-    editForm.setFieldsValue(pair);
+    editForm.setFieldsValue({ ...pair, name: pair.display_name || pair.name });
     setEditModalOpen(true);
   };
 
@@ -176,7 +177,8 @@ export const TradingPairs: React.FC = () => {
     
     try {
       const values = await editForm.validateFields();
-      await apiClient.updateTradingPair(editingPair.id, values);
+      const { name, ...rest } = values;
+      await apiClient.updateTradingPair(editingPair.id, { ...rest, display_name: name });
       message.success('交易对更新成功');
       
       setEditModalOpen(false);
