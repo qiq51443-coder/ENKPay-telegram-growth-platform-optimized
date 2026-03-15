@@ -9,7 +9,7 @@ const router = express.Router();
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition, wagering_multiplier } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -48,11 +48,13 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     // is_random defaults to true if not specified
     const isRandom = is_random === false ? false : true;
 
+    const wageringMultiplier = wagering_multiplier ? Number(wagering_multiplier) : 2;
+
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users']
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier]
     );
 
     const redPacket = result.rows[0];
@@ -354,6 +356,14 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
 
       return { amount: claimAmount, claimed_count: redPacket.claimed_count + 1 };
     });
+
+    // Update platform_config wagering multiplier from this red packet (best-effort)
+    if (redPacket.wagering_multiplier) {
+      query(
+        `UPDATE platform_config SET value = $1 WHERE key = 'red_packet_wager_multiplier'`,
+        [String(redPacket.wagering_multiplier)]
+      ).catch((err: any) => console.error('[redpackets] Failed to update wager multiplier config:', err));
+    }
 
     res.json(result);
   } catch (error) {

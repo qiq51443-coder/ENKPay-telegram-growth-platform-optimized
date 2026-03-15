@@ -295,3 +295,43 @@ export async function autoUnlockRewardBalance(userId: number): Promise<number> {
 
   return rewardBalance;
 }
+
+/**
+ * Check and auto-unlock red_packet_balance if wagering requirement is met.
+ * On unlock: red_packet_balance moves to wallet_balance, red_packet_wagered resets to 0.
+ *
+ * Returns the unlocked amount (0 if nothing was unlocked).
+ */
+export async function autoUnlockRedPacketBalance(userId: string): Promise<number> {
+  const userResult = await query(
+    `SELECT red_packet_balance, red_packet_wagered FROM users WHERE id = $1`,
+    [userId]
+  );
+  if (userResult.rows.length === 0) return 0;
+
+  const rpBalance = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
+  const rpWagered = parseFloat(String(userResult.rows[0].red_packet_wagered ?? 0));
+
+  if (rpBalance <= 0) return 0;
+
+  // Get multiplier from platform_config (default 2)
+  const configResult = await query(
+    `SELECT value FROM platform_config WHERE key = 'red_packet_wager_multiplier'`
+  );
+  const multiplier = configResult.rows.length > 0 ? parseFloat(configResult.rows[0].value) : 2.0;
+  const required = rpBalance * multiplier;
+
+  if (rpWagered < required) return 0;
+
+  // Unlock: move red_packet_balance into wallet_balance
+  await query(
+    `UPDATE users
+     SET wallet_balance = COALESCE(wallet_balance, 0) + red_packet_balance,
+         red_packet_balance = 0,
+         red_packet_wagered = 0
+     WHERE id = $1`,
+    [userId]
+  );
+
+  return rpBalance;
+}

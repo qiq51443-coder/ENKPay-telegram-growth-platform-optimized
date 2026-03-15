@@ -4,7 +4,7 @@ import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { getPairPrice, getKlineData, cacheKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
-import { autoUnlockRewardBalance } from '../services/balance.service';
+import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
 
 const router = express.Router();
 
@@ -332,7 +332,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       // Get user balance
       const userResult = await client.query(
-        'SELECT wallet_balance, COALESCE(red_packet_credits, 0) AS red_packet_credits FROM users WHERE id = $1',
+        'SELECT wallet_balance, COALESCE(red_packet_balance, 0) AS red_packet_balance FROM users WHERE id = $1',
         [user_id]
       );
 
@@ -341,7 +341,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
       }
 
       const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
-      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_credits ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
       const totalAvailable = walletBal + redPacketBal;
       if (totalAvailable < orderAmount) {
         throw new Error('Insufficient balance');
@@ -362,13 +362,13 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       const entryPrice = parseFloat(priceResult.rows[0].price);
 
-      // Deduct from red_packet_credits first, then wallet_balance
+      // Deduct from red_packet_balance first, then wallet_balance
       const fromRedPacket = Math.min(redPacketBal, orderAmount);
       const fromWallet = orderAmount - fromRedPacket;
       if (fromRedPacket > 0) {
         await client.query(
-          'UPDATE users SET red_packet_credits = red_packet_credits - $1 WHERE id = $2',
-          [fromRedPacket, user_id]
+          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
+          [fromRedPacket, orderAmount, user_id]
         );
       }
       if (fromWallet > 0) {
@@ -392,6 +392,14 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       return orderResult.rows[0];
     });
+
+    // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
+    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRewardBalance failed:', err)
+    );
+    autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRedPacketBalance failed:', err)
+    );
 
     res.json({
       success: true,
@@ -614,12 +622,12 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
       // Check user balance
       const userResult = await client.query(
-        'SELECT wallet_balance, COALESCE(red_packet_credits, 0) AS red_packet_credits FROM users WHERE id = $1',
+        'SELECT wallet_balance, COALESCE(red_packet_balance, 0) AS red_packet_balance FROM users WHERE id = $1',
         [user_id]
       );
       if (userResult.rows.length === 0) throw new Error('User not found');
       const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
-      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_credits ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
       const totalAvailable = walletBal + redPacketBal;
       if (totalAvailable < orderAmount) throw new Error('Insufficient balance');
 
@@ -658,13 +666,13 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         }
       }
 
-      // Deduct from red_packet_credits first, then wallet_balance
+      // Deduct from red_packet_balance first, then wallet_balance
       const fromRedPacket = Math.min(redPacketBal, orderAmount);
       const fromWallet = orderAmount - fromRedPacket;
       if (fromRedPacket > 0) {
         await client.query(
-          'UPDATE users SET red_packet_credits = red_packet_credits - $1 WHERE id = $2',
-          [fromRedPacket, user_id]
+          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
+          [fromRedPacket, orderAmount, user_id]
         );
       }
       if (fromWallet > 0) {
@@ -691,9 +699,12 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       };
     });
 
-    // Fire-and-forget: check if reward balance can be auto-unlocked after this trade
+    // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
     autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
       console.error('[trading] autoUnlockRewardBalance failed:', err)
+    );
+    autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRedPacketBalance failed:', err)
     );
 
     res.json({
