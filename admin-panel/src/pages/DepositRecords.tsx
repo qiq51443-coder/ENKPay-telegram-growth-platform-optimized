@@ -46,7 +46,7 @@ export const DepositRecords: React.FC = () => {
       if (searchUser) params.user = searchUser;
       
       const response = await apiClient.getDepositRecords(params);
-      setRecords(response.deposits || []);
+      setRecords(response.data || response.deposits || []);
     } catch (error) {
       console.error('Failed to fetch deposit records:', error);
       message.error('获取充值记录失败');
