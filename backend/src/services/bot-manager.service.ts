@@ -633,15 +633,30 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         [telegramId]
       );
 
+      const messageId = (ctx.message as any)?.message_id;
+      const replyExtra = messageId ? { reply_parameters: { message_id: messageId } } : {};
+
       if (userResult.rows.length === 0) {
-        await ctx.reply('您还没有注册，请私信机器人开始使用。');
+        await ctx.reply('您还没有注册，请私信机器人开始使用。', replyExtra as any);
         return;
       }
 
       const groupUser: User = userResult.rows[0];
       const lang = resolveUserLang(groupUser, defaultLanguage);
       const walletCard = await buildWalletCardText(groupUser, lang);
-      await ctx.replyWithHTML(walletCard);
+
+      // Build user mention
+      const firstName = ctx.from?.first_name || groupUser.first_name || 'User';
+      const username = ctx.from?.username;
+      const mention = username
+        ? `@${username}`
+        : `<a href="tg://user?id=${telegramId}">${firstName}</a>`;
+
+      // Reply to the original message and @mention the user
+      await ctx.replyWithHTML(
+        `${mention}\n\n${walletCard}`,
+        replyExtra as any
+      );
     } catch (error) {
       console.error(`[bot ${botId}] ENK group command error:`, error);
       return next(); // IMPORTANT: call next() on error so private chat handlers still run
