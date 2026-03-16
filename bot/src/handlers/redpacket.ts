@@ -17,6 +17,39 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
       { show_alert: true }
     );
 
+    // Send private notification to user with claim details
+    try {
+      const multiplier = result?.wagering_multiplier ?? 2;
+      const balanceExpiryHours = result?.balance_expiry_hours ?? null;
+      let notificationText: string;
+      if (balanceExpiryHours != null) {
+        const days = Math.ceil(Number(balanceExpiryHours) / 24);
+        notificationText = t(lang, 'redpacket_received_notification', {
+          amount: amountStr,
+          multiplier: String(multiplier),
+          days: String(days),
+        });
+      } else {
+        // No expiry — build a shorter notification without the expiry line
+        const baseNotif = t(lang, 'redpacket_received_notification', {
+          amount: amountStr,
+          multiplier: String(multiplier),
+          days: '0',
+        });
+        // Strip the last line (expiry line) if it contains the days placeholder replacement
+        notificationText = baseNotif
+          .split('\n')
+          .filter((line) => !(line.includes('0 ') && line.match(/\d+\s*(day|天|jour|Tag|día|يوم|日)/)))
+          .join('\n');
+      }
+      const chatId = ctx.from?.id;
+      if (chatId) {
+        await ctx.telegram.sendMessage(chatId, notificationText).catch(() => {});
+      }
+    } catch (notifErr) {
+      console.warn('[redpacket] Could not send claim notification:', notifErr);
+    }
+
     // Try to update the message with progress info — optional, must not block claim
     try {
       const rpData = await getRedPacket(redPacketId);

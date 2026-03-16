@@ -123,6 +123,7 @@ export const zh = {
   redpacket_claimed: '✅ 您领取了 {amount} USDT！',
   redpacket_already_claimed: '您已领取过这个红包。',
   redpacket_finished: '这个红包已被全部领取。',
+  redpacket_received_notification: '🎁 你已领到 {amount} USDT 红包奖励！\n完成 {multiplier} 倍交易流水即可提现！\n{days} 天后红包将自动失效！',
 
   // General
   back: '« 返回',

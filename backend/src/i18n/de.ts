@@ -124,6 +124,7 @@ export const de: Record<string, string> = {
   redpacket_claimed: '✅ Sie haben {amount} USDT eingelöst!',
   redpacket_already_claimed: 'Sie haben dieses Paket bereits eingelöst.',
   redpacket_finished: 'Dieses Paket ist aufgebraucht.',
+  redpacket_received_notification: '🎁 Sie haben {amount} USDT Rotes-Paket-Bonus erhalten!\nAbschließen Sie {multiplier}x Handelsvolumen zum Abheben!\nDas Rote Paket läuft in {days} Tagen ab!',
 
   // General
   back: '« Zurück',

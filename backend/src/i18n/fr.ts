@@ -124,6 +124,7 @@ export const fr: Record<string, string> = {
   redpacket_claimed: '✅ Vous avez réclamé {amount} USDT!',
   redpacket_already_claimed: 'Vous avez déjà réclamé ce paquet.',
   redpacket_finished: 'Ce paquet est épuisé.',
+  redpacket_received_notification: '🎁 Vous avez reçu {amount} USDT de bonus paquet rouge!\nComplétez {multiplier}x de volume de trading pour retirer!\nLe paquet rouge expirera dans {days} jours!',
 
   // General
   back: '« Retour',

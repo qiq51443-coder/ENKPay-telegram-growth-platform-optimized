@@ -123,6 +123,7 @@ export const en = {
   redpacket_claimed: '✅ You claimed {amount} USDT!',
   redpacket_already_claimed: 'You already claimed this red packet.',
   redpacket_finished: 'This red packet has been fully claimed.',
+  redpacket_received_notification: '🎁 You received {amount} USDT Red Packet bonus!\nComplete {multiplier}x trading volume to withdraw!\nThe red packet will expire in {days} days!',
 
   // General
   back: '« Back',

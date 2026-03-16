@@ -124,6 +124,7 @@ export const ar: Record<string, string> = {
   redpacket_claimed: '✅ طالبت بـ {amount} USDT!',
   redpacket_already_claimed: 'لقد طالبت بهذه الحزمة بالفعل.',
   redpacket_finished: 'هذه الحزمة استُنفدت.',
+  redpacket_received_notification: '🎁 لقد حصلت على مكافأة {amount} USDT من الحزمة الحمراء!\nأكمل {multiplier}x حجم تداول للسحب!\nستنتهي صلاحية الحزمة الحمراء خلال {days} أيام!',
 
   // General
   back: '« رجوع',

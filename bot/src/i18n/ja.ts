@@ -124,6 +124,7 @@ export const ja: Record<string, string> = {
   redpacket_claimed: '✅ {amount} USDTを受け取りました！',
   redpacket_already_claimed: 'このレッドパケットはすでに受け取りました。',
   redpacket_finished: 'このレッドパケットはすべて受け取られました。',
+  redpacket_received_notification: '🎁 {amount} USDTのレッドパケットボーナスを受け取りました！\n{multiplier}倍の取引量を達成すると出金できます！\nレッドパケットは{days}日後に失効します！',
 
   // General
   back: '« 戻る',

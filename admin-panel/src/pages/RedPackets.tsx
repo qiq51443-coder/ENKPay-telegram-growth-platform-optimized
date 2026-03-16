@@ -102,7 +102,15 @@ export const RedPackets: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await apiClient.createRedPacket(values);
+      // Convert days input to hours for backend storage
+      const payload = { ...values };
+      if (payload.expires_in_hours != null) {
+        payload.expires_in_hours = Number(payload.expires_in_hours) * 24;
+      }
+      if (payload.balance_expiry_hours != null) {
+        payload.balance_expiry_hours = Number(payload.balance_expiry_hours) * 24;
+      }
+      await apiClient.createRedPacket(payload);
       message.success('红包创建成功');
       setModalOpen(false);
       form.resetFields();
@@ -190,6 +198,13 @@ export const RedPackets: React.FC = () => {
       render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
     {
+      title: '余额有效期',
+      dataIndex: 'balance_expiry_hours',
+      key: 'balance_expiry_hours',
+      width: 100,
+      render: (value: number) => value ? Math.ceil(value / 24) + ' 天' : '永久',
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -220,8 +235,9 @@ export const RedPackets: React.FC = () => {
       key: 'user',
       render: (record: any) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.user?.username || record.user?.first_name}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.user?.telegram_id}</div>
+          <div style={{ fontWeight: 500 }}>{record.username || record.first_name || '-'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>Telegram ID: {record.telegram_id || '-'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>Bot ID: {record.robot_user_id || '-'}</div>
         </div>
       ),
     },
@@ -352,16 +368,16 @@ export const RedPackets: React.FC = () => {
 
           <Form.Item
             name="expires_in_hours"
-            label="红包有效期 (小时)"
+            label="红包有效期（天）"
             rules={[{ required: true, message: '请输入有效期' }]}
-            initialValue={24}
+            initialValue={1}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name="balance_expiry_hours"
-            label="余额有效期 (小时，留空表示永久有效)"
+            label="余额有效期（天，留空表示永久有效）"
           >
             <InputNumber min={1} style={{ width: '100%' }} placeholder="留空则永久有效" />
           </Form.Item>

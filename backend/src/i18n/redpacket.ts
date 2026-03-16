@@ -78,18 +78,20 @@ export function buildRedPacketMessage(params: {
   expiresHours?: number | null;
 }): string {
   const msgs = getRedPacketMessages(params.language || 'en');
+  const SEP = '━━━━━━━━━━━━━━━';
   const lines = [
-    `${msgs.title}`,
-    '',
-    params.title || msgs.title,
-    '',
-    `💰 ${msgs.labelTotal}: ${params.totalAmount}`,
+    '🎁',
+    SEP,
+    `🧧 ${params.title || msgs.title}`,
+    SEP,
+    `💰 ${msgs.labelTotal}: ${params.totalAmount} USDT`,
     `👥 ${msgs.labelCount}: ${params.totalCount}`,
   ];
   if (params.expiresHours) {
-    lines.push(`⏰ ${msgs.labelExpires} ${params.expiresHours} hours`);
+    const expiryDays = Math.ceil(params.expiresHours / 24);
+    lines.push(`⏰ ${msgs.labelExpires}: ${expiryDays} days`);
   }
-  lines.push('');
+  lines.push(SEP);
   lines.push(msgs.clickToClaimInstruction);
   return lines.join('\n');
 }
