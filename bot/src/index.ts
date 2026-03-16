@@ -254,6 +254,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
             bot_id: BOT_ID,
             group_id: chat.id,
             group_name: chat.title,
+            group_type: chat.type,
           }).catch((err) => console.error(`[bot ${BOT_ID}] Group registration failed:`, err));
         }
       }

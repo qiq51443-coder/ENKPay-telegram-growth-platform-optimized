@@ -27,10 +27,6 @@ export const Groups: React.FC = () => {
   const [editForm] = Form.useForm();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchGroups();
-  }, []);
-
   const fetchGroups = async () => {
     setLoading(true);
     try {
@@ -45,6 +41,12 @@ export const Groups: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchGroups();
+    const interval = setInterval(fetchGroups, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {
