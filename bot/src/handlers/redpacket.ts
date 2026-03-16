@@ -17,6 +17,33 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
       { show_alert: true }
     );
 
+    // Send private notification to user
+    try {
+      const multiplier = result?.wagering_multiplier ?? 2;
+      const balanceExpiryHours = result?.balance_expiry_hours ?? null;
+
+      const chatId = ctx.from?.id;
+      if (chatId) {
+        if (balanceExpiryHours != null) {
+          const days = Math.ceil(Number(balanceExpiryHours) / 24);
+          const notificationText = t(lang, 'redpacket_received_notification', {
+            amount: amountStr,
+            multiplier: String(multiplier),
+            days: String(days),
+          });
+          await ctx.telegram.sendMessage(chatId, notificationText).catch(() => {});
+        } else {
+          const notificationText = t(lang, 'redpacket_received_notification_no_expiry', {
+            amount: amountStr,
+            multiplier: String(multiplier),
+          });
+          await ctx.telegram.sendMessage(chatId, notificationText).catch(() => {});
+        }
+      }
+    } catch (notifErr) {
+      console.warn('[redpacket] Could not send claim notification:', notifErr);
+    }
+
     // Try to update the message with progress info — optional, must not block claim
     try {
       const rpData = await getRedPacket(redPacketId);
@@ -29,9 +56,9 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
 
       const cbMessage = ctx.callbackQuery?.message;
       if (cbMessage && 'text' in cbMessage) {
+        // Only hide button when truly finished — don't rely on rp?.status which may be stale
         const isFinished =
           result.status === 'finished' ||
-          rp?.status === 'finished' ||
           (typeof claimedCount === 'number' && typeof totalCount === 'number' && claimedCount >= totalCount);
 
         // Use the red packet's configured language for group message text, falling back to claimer language
