@@ -1395,7 +1395,11 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
                 : `\n\n📊 已领 ${claimedCount}/${totalCount} 个 | 已领金额 ${claimedAmount}/${totalAmount} USDT`;
 
               const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
-              await ctx.editMessageText(baseText + progressLine).catch(() => {});
+              await ctx.editMessageText(baseText + progressLine, {
+                reply_markup: isFinished
+                  ? { inline_keyboard: [] }
+                  : { inline_keyboard: [[{ text: `🧧 ${t(lang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
+              }).catch(() => {});
             }
           } catch (updateErr) {
             // Non-critical: progress update failure must not affect the claim result
