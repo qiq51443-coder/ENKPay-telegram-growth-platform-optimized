@@ -167,102 +167,98 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    // Get red packet
-    const rpResult = await query(
-      'SELECT * FROM red_packets WHERE id = $1',
-      [id]
-    );
-
-    if (rpResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Red packet not found' });
-    }
-
-    const redPacket = rpResult.rows[0];
-
-    // Check if active
-    if (redPacket.status !== 'active') {
-      return res.status(400).json({ error: 'Red packet is not active' });
-    }
-
-    // Check if expired
-    if (redPacket.expires_at && new Date(redPacket.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'Red packet has expired' });
-    }
-
-    // Check if finished
-    if (redPacket.claimed_count >= redPacket.total_count) {
-      return res.status(400).json({ error: 'Red packet finished' });
-    }
-
-    // Check if already claimed
-    const claimedResult = await query(
-      'SELECT * FROM red_packet_claims WHERE red_packet_id = $1 AND user_id = $2',
-      [id, user_id]
-    );
-
-    if (claimedResult.rows.length > 0) {
-      return res.status(400).json({ error: 'Already claimed' });
-    }
-
-    // Check claim condition
-    const condition = redPacket.claim_condition || 'all_users';
-    if (condition !== 'all_users') {
-      const userInfoResult = await query('SELECT * FROM users WHERE id = $1', [user_id]);
-      if (userInfoResult.rows.length === 0) {
-        return res.status(403).json({ error: 'User not found' });
-      }
-
-      if (condition === 'first_follow') {
-        const txCount = await query('SELECT COUNT(*) FROM transactions WHERE user_id = $1', [user_id]);
-        if (parseInt(txCount.rows[0].count) > 0) {
-          return res.status(403).json({ error: '仅首次关注 Bot 的新用户可领取' });
-        }
-      }
-
-      if (condition === 'deposited') {
-        const depositCount = await query(
-          "SELECT COUNT(*) FROM deposit_records WHERE user_id = $1 AND status = 'confirmed'",
-          [user_id]
-        );
-        if (parseInt(depositCount.rows[0].count) === 0) {
-          return res.status(403).json({ error: '仅充值用户可领取' });
-        }
-      }
-
-      if (condition === 'trade_volume_100' || condition === 'trade_volume_200') {
-        const requiredVolume = condition === 'trade_volume_100' ? 100 : 200;
-        const volumeResult = await query(
-          "SELECT COALESCE(SUM(amount), 0) as total_volume FROM trading_orders WHERE user_id = $1 AND status = 'settled'",
-          [user_id]
-        );
-        const totalVolume = parseFloat(volumeResult.rows[0].total_volume);
-        if (totalVolume < requiredVolume) {
-          return res.status(403).json({ error: `需要即时交易流水达到 ${requiredVolume} USDT 才可领取` });
-        }
-      }
-    }
-
-    // Calculate claim amount based on is_random flag
-    const remainingAmount = redPacket.total_amount - redPacket.claimed_amount;
-    const remainingCount = redPacket.total_count - redPacket.claimed_count;
-    
-    let claimAmount;
-    if (remainingCount === 1) {
-      claimAmount = remainingAmount;
-    } else if (redPacket.is_random === false) {
-      // Equal distribution - round to 2 decimal places to avoid floating-point issues
-      claimAmount = Math.floor((remainingAmount / remainingCount) * 100) / 100;
-    } else {
-      // Random distribution
-      const maxClaim = (remainingAmount / remainingCount) * 2;
-      claimAmount = Math.random() * maxClaim;
-      claimAmount = Math.max(0.01, Math.min(claimAmount, remainingAmount));
-    }
-    claimAmount = Math.round(claimAmount * 100) / 100;
-
-    // Use transaction
-    const { transaction } = await import('../db');
+    // Run everything inside a serializable transaction with row-level lock
     const result = await transaction(async (client) => {
+      // Lock the red packet row to prevent concurrent claims from racing
+      const rpResult = await client.query(
+        'SELECT * FROM red_packets WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+
+      if (rpResult.rows.length === 0) {
+        throw Object.assign(new Error('Red packet not found'), { statusCode: 404 });
+      }
+
+      const redPacket = rpResult.rows[0];
+
+      // Check if active
+      if (redPacket.status !== 'active') {
+        throw Object.assign(new Error('Red packet is not active'), { statusCode: 400 });
+      }
+
+      // Check if expired
+      if (redPacket.expires_at && new Date(redPacket.expires_at) < new Date()) {
+        throw Object.assign(new Error('Red packet has expired'), { statusCode: 400 });
+      }
+
+      // Check if finished
+      if (redPacket.claimed_count >= redPacket.total_count) {
+        throw Object.assign(new Error('Red packet finished'), { statusCode: 400 });
+      }
+
+      // Check if already claimed (inside the lock so it's atomic)
+      const claimedResult = await client.query(
+        'SELECT id FROM red_packet_claims WHERE red_packet_id = $1 AND user_id = $2',
+        [id, user_id]
+      );
+      if (claimedResult.rows.length > 0) {
+        throw Object.assign(new Error('Already claimed'), { statusCode: 400 });
+      }
+
+      // Check claim condition
+      const condition = redPacket.claim_condition || 'all_users';
+      if (condition !== 'all_users') {
+        const userInfoResult = await client.query('SELECT * FROM users WHERE id = $1', [user_id]);
+        if (userInfoResult.rows.length === 0) {
+          throw Object.assign(new Error('User not found'), { statusCode: 403 });
+        }
+
+        if (condition === 'first_follow') {
+          const txCount = await client.query('SELECT COUNT(*) FROM transactions WHERE user_id = $1', [user_id]);
+          if (parseInt(txCount.rows[0].count) > 0) {
+            throw Object.assign(new Error('仅首次关注 Bot 的新用户可领取'), { statusCode: 403 });
+          }
+        }
+
+        if (condition === 'deposited') {
+          const depositCount = await client.query(
+            "SELECT COUNT(*) FROM deposit_records WHERE user_id = $1 AND status = 'confirmed'",
+            [user_id]
+          );
+          if (parseInt(depositCount.rows[0].count) === 0) {
+            throw Object.assign(new Error('仅充值用户可领取'), { statusCode: 403 });
+          }
+        }
+
+        if (condition === 'trade_volume_100' || condition === 'trade_volume_200') {
+          const requiredVolume = condition === 'trade_volume_100' ? 100 : 200;
+          const volumeResult = await client.query(
+            "SELECT COALESCE(SUM(amount), 0) as total_volume FROM trading_orders WHERE user_id = $1 AND status = 'settled'",
+            [user_id]
+          );
+          const totalVolume = parseFloat(volumeResult.rows[0].total_volume);
+          if (totalVolume < requiredVolume) {
+            throw Object.assign(new Error(`需要即时交易流水达到 ${requiredVolume} USDT 才可领取`), { statusCode: 403 });
+          }
+        }
+      }
+
+      // Calculate claim amount based on locked row data
+      const remainingAmount = redPacket.total_amount - redPacket.claimed_amount;
+      const remainingCount = redPacket.total_count - redPacket.claimed_count;
+
+      let claimAmount;
+      if (remainingCount === 1) {
+        claimAmount = remainingAmount;
+      } else if (redPacket.is_random === false) {
+        claimAmount = Math.floor((remainingAmount / remainingCount) * 100) / 100;
+      } else {
+        const maxClaim = (remainingAmount / remainingCount) * 2;
+        claimAmount = Math.random() * maxClaim;
+        claimAmount = Math.max(0.01, Math.min(claimAmount, remainingAmount));
+      }
+      claimAmount = Math.round(claimAmount * 100) / 100;
+
       // Check if this is the user's first red packet claim
       const isNewUserResult = await client.query(
         'SELECT COUNT(*) as claim_count FROM red_packet_claims WHERE user_id = $1',
@@ -286,17 +282,17 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
             : null]
       );
 
-      // Update red packet
+      // Update red packet counts
       await client.query(
-        `UPDATE red_packets 
+        `UPDATE red_packets
          SET claimed_count = claimed_count + 1, claimed_amount = claimed_amount + $1
          WHERE id = $2`,
         [claimAmount, id]
       );
 
-      // Record transaction as red_packet_claim type
+      // Record transaction
       const userBalanceResult = await client.query(
-        'SELECT reward_balance FROM users WHERE id = $1', 
+        'SELECT reward_balance FROM users WHERE id = $1',
         [user_id]
       );
       await client.query(
@@ -314,30 +310,28 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
 
         if (invitationResult.rows.length > 0) {
           const invitation = invitationResult.rows[0];
-          
-          // Give follow reward (5 USDT) to referrer if not already paid
+
           if (!invitation.follow_reward_paid && invitation.inviter_user_id) {
             const FOLLOW_REWARD = 5.00;
-            
+
             await client.query(
               'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
               [FOLLOW_REWARD, invitation.inviter_user_id]
             );
 
             await client.query(
-              `UPDATE invitations 
-               SET follow_reward_paid = true, 
+              `UPDATE invitations
+               SET follow_reward_paid = true,
                    invitee_first_interaction = CURRENT_TIMESTAMP
                WHERE invitee_user_id = $1`,
               [user_id]
             );
 
-            // Record referrer transaction
             const referrerBalanceResult = await client.query(
               'SELECT reward_balance FROM users WHERE id = $1',
               [invitation.inviter_user_id]
             );
-            
+
             await client.query(
               `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
                VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -357,16 +351,22 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       return { amount: claimAmount, claimed_count: redPacket.claimed_count + 1 };
     });
 
-    // Update platform_config wagering multiplier from this red packet (best-effort)
-    if (redPacket.wagering_multiplier) {
+    // Update platform_config wagering multiplier from this red packet (best-effort, outside transaction)
+    const rpCheck = await query('SELECT wagering_multiplier FROM red_packets WHERE id = $1', [id]);
+    const wagMult = rpCheck.rows[0]?.wagering_multiplier;
+    if (wagMult) {
       query(
         `UPDATE platform_config SET value = $1 WHERE key = 'red_packet_wager_multiplier'`,
-        [String(redPacket.wagering_multiplier)]
+        [String(wagMult)]
       ).catch((err: any) => console.error('[redpackets] Failed to update wager multiplier config:', err));
     }
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    // Surface structured errors with proper status codes
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.error('Claim red packet error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

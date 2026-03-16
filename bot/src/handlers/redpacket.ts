@@ -13,18 +13,19 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
       const result = await claimRedPacket(resolvedBotId, redPacketId, user.id);
       
       // Answer the callback query first (must be done within 30s)
+      const amountStr = result?.amount != null ? String(result.amount) : '0';
       await ctx.answerCbQuery(
-        t(lang, 'redpacket_claimed', { amount: result.amount.toString() }),
+        t(lang, 'redpacket_claimed', { amount: amountStr }),
         { show_alert: true }
       );
 
       // Try to update the message - this is optional and shouldn't block the claim
       try {
-        const redPacket = await getRedPacket(redPacketId);
         const message = ctx.callbackQuery?.message;
-        
         if (message && 'text' in message) {
-          const updatedText = message.text + `\n\n✅ ${result.claimed_count}/${redPacket.total_count} claimed`;
+          const claimedCount = result.claimed_count ?? '?';
+          const redPacket = await getRedPacket(redPacketId);
+          const updatedText = message.text + `\n\n✅ ${claimedCount}/${redPacket.total_count} claimed`;
           await ctx.editMessageText(updatedText);
         }
       } catch (updateErr) {
