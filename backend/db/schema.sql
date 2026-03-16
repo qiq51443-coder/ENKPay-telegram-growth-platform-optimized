@@ -323,10 +323,15 @@ CREATE TABLE IF NOT EXISTS authorized_groups (
   bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
   group_id BIGINT NOT NULL,
   group_name TEXT,
+  group_type VARCHAR(20) DEFAULT 'group',
+  country TEXT,
+  language TEXT,
+  member_count INTEGER,
+  is_active BOOLEAN DEFAULT true,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(bot_id, group_id)
 );
-ALTER TABLE authorized_groups ADD COLUMN IF NOT EXISTS group_type VARCHAR(20) DEFAULT 'group';
 
 -- Orders table
 CREATE TABLE IF NOT EXISTS orders (

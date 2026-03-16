@@ -77,9 +77,14 @@ export const RedPackets: React.FC = () => {
     if (!botId) { setGroups([]); return; }
     try {
       const response = await apiClient.getBotGroups(botId);
-      setGroups(response.groups || []);
+      const groupList = response.groups || [];
+      setGroups(groupList);
+      if (groupList.length === 0) {
+        message.warning('该 Bot 暂无关联群组，请先将 Bot 添加到群组');
+      }
     } catch (error) {
       console.error('Failed to fetch groups:', error);
+      message.error('获取群组列表失败，请检查 Bot 是否已正确加入群组');
       setGroups([]);
     }
   };
