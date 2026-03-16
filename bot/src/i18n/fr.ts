@@ -124,6 +124,8 @@ export const fr: Record<string, string> = {
   redpacket_claimed: '✅ Vous avez réclamé {amount} USDT!',
   redpacket_already_claimed: 'Vous avez déjà réclamé ce paquet.',
   redpacket_finished: 'Ce paquet est épuisé.',
+  redpacket_progress: '📊 {claimed}/{total} réclamés | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 Paquet rouge entièrement réclamé ! {claimed}/{total} personnes, {claimed_amount} USDT au total',
 
   // General
   back: '« Retour',

@@ -123,6 +123,8 @@ export const zh = {
   redpacket_claimed: '✅ 您领取了 {amount} USDT！',
   redpacket_already_claimed: '您已领取过这个红包。',
   redpacket_finished: '这个红包已被全部领取。',
+  redpacket_progress: '📊 已领 {claimed}/{total} 个 | 已领金额 {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 红包已抢完！{claimed}/{total} 人领取，共 {claimed_amount} USDT',
 
   // General
   back: '« 返回',

@@ -124,6 +124,8 @@ export const de: Record<string, string> = {
   redpacket_claimed: '✅ Sie haben {amount} USDT eingelöst!',
   redpacket_already_claimed: 'Sie haben dieses Paket bereits eingelöst.',
   redpacket_finished: 'Dieses Paket ist aufgebraucht.',
+  redpacket_progress: '📊 {claimed}/{total} eingelöst | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 Rotes Paket vollständig eingelöst! {claimed}/{total} Personen, {claimed_amount} USDT gesamt',
 
   // General
   back: '« Zurück',

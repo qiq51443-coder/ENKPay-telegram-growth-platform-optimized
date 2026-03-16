@@ -34,16 +34,18 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
           rp?.status === 'finished' ||
           (typeof claimedCount === 'number' && typeof totalCount === 'number' && claimedCount >= totalCount);
 
+        // Use the red packet's configured language for group message text, falling back to claimer language
+        const rpLang = rp?.language || lang;
         const progressLine = isFinished
-          ? `\n\n🎉 红包已抢完！${claimedCount}/${totalCount} 人领取，共 ${claimedAmount} USDT`
-          : `\n\n📊 已领 ${claimedCount}/${totalCount} 个 | 已领金额 ${claimedAmount}/${totalAmount} USDT`;
+          ? `\n\n${t(rpLang, 'redpacket_all_claimed', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount })}`
+          : `\n\n${t(rpLang, 'redpacket_progress', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount, total_amount: totalAmount })}`;
 
         // Strip any previous progress lines before appending the updated one
         const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
         await ctx.editMessageText(baseText + progressLine, {
           reply_markup: isFinished
             ? { inline_keyboard: [] }
-            : { inline_keyboard: [[{ text: `🧧 ${t(lang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
+            : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
         }).catch(() => {});
       }
     } catch (updateErr) {

@@ -124,6 +124,8 @@ export const es: Record<string, string> = {
   redpacket_claimed: '✅ ¡Reclamaste {amount} USDT!',
   redpacket_already_claimed: 'Ya reclamaste este sobre.',
   redpacket_finished: 'Este sobre está agotado.',
+  redpacket_progress: '📊 {claimed}/{total} reclamados | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 ¡Sobre rojo completamente reclamado! {claimed}/{total} personas, {claimed_amount} USDT en total',
 
   // General
   back: '« Volver',
