@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import express from 'express';
 import { query } from '../db';
 import { processDeposit } from '../services/deposit.service';
@@ -5,12 +6,50 @@ import { processDeposit } from '../services/deposit.service';
 const router = express.Router();
 
 /**
+ * Verify HMAC-SHA256 webhook signature from the X-Webhook-Signature header.
+ * If WEBHOOK_SECRET is not configured, logs a warning and allows the request through.
+ * Returns true when the request should be accepted, false when it must be rejected.
+ */
+function verifyWebhookSignature(req: express.Request, res: express.Response): boolean {
+  const webhookSecret = process.env.WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.warn('[webhook-deposit] WEBHOOK_SECRET not set — webhook signature verification disabled');
+    return true;
+  }
+
+  const signature = req.headers['x-webhook-signature'] as string | undefined;
+  if (!signature) {
+    res.status(401).json({ error: 'Missing webhook signature' });
+    return false;
+  }
+
+  const expectedSig =
+    'sha256=' +
+    crypto
+      .createHmac('sha256', webhookSecret)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+
+  // Use timing-safe comparison to prevent timing attacks
+  const sigBuf = Buffer.from(signature);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * POST /webhook/deposit/tron
  * Receives TronGrid webhook notifications
  */
 router.post('/tron', async (req, res) => {
   try {
-    const { transaction_id, to_address, from_address, value, block_timestamp, confirmations } = req.body;
+    if (!verifyWebhookSignature(req, res)) return;
+
+    const { transaction_id, to_address, from_address, value, block_timestamp } = req.body;
 
     // Validate required fields
     if (!transaction_id || !to_address || !value) {
@@ -19,7 +58,7 @@ router.post('/tron', async (req, res) => {
 
     // Find user by deposit address
     const addressResult = await query(
-      `SELECT uda.user_id, uda.network_id, dn.min_confirmations
+      `SELECT uda.user_id, uda.network_id, dn.min_confirmations, COALESCE(dn.decimals, 6) AS decimals
        FROM user_deposit_addresses uda
        JOIN deposit_networks dn ON uda.network_id = dn.id
        WHERE uda.address = $1 AND uda.is_active = true AND dn.chain_name = 'TRON'`,
@@ -31,13 +70,12 @@ router.post('/tron', async (req, res) => {
       return res.status(200).json({ message: 'Address not tracked' });
     }
 
-    const { user_id, network_id, min_confirmations } = addressResult.rows[0];
+    const { user_id, network_id, min_confirmations, decimals } = addressResult.rows[0];
 
-    // Convert value from smallest unit (e.g., SUN to TRX, or raw USDT)
-    // Assuming value is already in USDT (6 decimals)
-    const amount = parseFloat(value) / 1000000;
+    // Convert value from smallest unit using the network's actual decimals
+    const amount = parseFloat(value) / Math.pow(10, decimals);
 
-    // Process the deposit
+    // TronGrid webhooks push already-confirmed transactions; treat them as fully confirmed
     await processDeposit(
       user_id,
       network_id,
@@ -45,10 +83,10 @@ router.post('/tron', async (req, res) => {
       from_address,
       to_address,
       amount,
-      confirmations || 0,
+      min_confirmations, // treat as confirmed — TronGrid only pushes confirmed txns
       min_confirmations,
       0, // block_number not always available in webhook
-      new Date(block_timestamp * 1000 || Date.now())
+      new Date(block_timestamp ? block_timestamp * 1000 : Date.now())
     );
 
     res.json({ success: true, message: 'Deposit processed' });
@@ -64,6 +102,8 @@ router.post('/tron', async (req, res) => {
  */
 router.post('/eth', async (req, res) => {
   try {
+    if (!verifyWebhookSignature(req, res)) return;
+
     const { hash, to, from, value, blockNumber, timeStamp, confirmations } = req.body;
 
     // Validate required fields
@@ -73,7 +113,7 @@ router.post('/eth', async (req, res) => {
 
     // Find user by deposit address
     const addressResult = await query(
-      `SELECT uda.user_id, uda.network_id, dn.min_confirmations
+      `SELECT uda.user_id, uda.network_id, dn.min_confirmations, COALESCE(dn.decimals, 18) AS decimals
        FROM user_deposit_addresses uda
        JOIN deposit_networks dn ON uda.network_id = dn.id
        WHERE uda.address = $1 AND uda.is_active = true AND dn.chain_name = 'ETH'`,
@@ -84,10 +124,10 @@ router.post('/eth', async (req, res) => {
       return res.status(200).json({ message: 'Address not tracked' });
     }
 
-    const { user_id, network_id, min_confirmations } = addressResult.rows[0];
+    const { user_id, network_id, min_confirmations, decimals } = addressResult.rows[0];
 
-    // Convert value from wei/smallest unit to USDT (assuming 6 decimals for USDT)
-    const amount = parseFloat(value) / 1000000;
+    // Convert value from smallest unit using the network's actual decimals
+    const amount = parseFloat(value) / Math.pow(10, decimals);
 
     // Process the deposit
     await processDeposit(
@@ -116,6 +156,8 @@ router.post('/eth', async (req, res) => {
  */
 router.post('/bsc', async (req, res) => {
   try {
+    if (!verifyWebhookSignature(req, res)) return;
+
     const { hash, to, from, value, blockNumber, timeStamp, confirmations } = req.body;
 
     // Validate required fields
@@ -125,7 +167,7 @@ router.post('/bsc', async (req, res) => {
 
     // Find user by deposit address
     const addressResult = await query(
-      `SELECT uda.user_id, uda.network_id, dn.min_confirmations
+      `SELECT uda.user_id, uda.network_id, dn.min_confirmations, COALESCE(dn.decimals, 18) AS decimals
        FROM user_deposit_addresses uda
        JOIN deposit_networks dn ON uda.network_id = dn.id
        WHERE uda.address = $1 AND uda.is_active = true AND dn.chain_name = 'BSC'`,
@@ -136,10 +178,10 @@ router.post('/bsc', async (req, res) => {
       return res.status(200).json({ message: 'Address not tracked' });
     }
 
-    const { user_id, network_id, min_confirmations } = addressResult.rows[0];
+    const { user_id, network_id, min_confirmations, decimals } = addressResult.rows[0];
 
-    // Convert value from wei/smallest unit to USDT (assuming 6 decimals for USDT)
-    const amount = parseFloat(value) / 1000000;
+    // Convert value from smallest unit using the network's actual decimals
+    const amount = parseFloat(value) / Math.pow(10, decimals);
 
     // Process the deposit
     await processDeposit(

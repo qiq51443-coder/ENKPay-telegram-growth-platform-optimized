@@ -359,22 +359,28 @@ export async function processDeposit(
 
     if (existingResult.rows.length > 0) {
       const existing = existingResult.rows[0];
-      
-      // Update confirmations if still pending/confirming
-      if (existing.status === 'pending' || existing.status === 'confirming') {
-        await client.query(
-          `UPDATE deposit_records 
-           SET confirmations = $1, status = $2, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $3`,
-          [
-            confirmations,
-            confirmations >= requiredConfirmations ? 'confirmed' : 'confirming',
-            existing.id,
-          ]
-        );
 
-        // Auto-credit if confirmed and not yet credited
-        if (confirmations >= requiredConfirmations && existing.status !== 'credited') {
+      // Only skip records that are already credited or failed
+      if (existing.status === 'credited' || existing.status === 'failed') {
+        return;
+      }
+
+      // Update confirmations and status (handles pending → confirming → confirmed transitions)
+      const newStatus = confirmations >= requiredConfirmations ? 'confirmed' : 'confirming';
+      await client.query(
+        `UPDATE deposit_records 
+         SET confirmations = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [confirmations, newStatus, existing.id]
+      );
+
+      // Auto-credit if confirmed — re-query credited_at to handle concurrency safely
+      if (confirmations >= requiredConfirmations) {
+        const freshRecord = await client.query(
+          `SELECT credited_at FROM deposit_records WHERE id = $1`,
+          [existing.id]
+        );
+        if (freshRecord.rows.length > 0 && !freshRecord.rows[0].credited_at) {
           await creditDeposit(client, existing.id, userId, amount);
           shouldNotify = true;
         }
