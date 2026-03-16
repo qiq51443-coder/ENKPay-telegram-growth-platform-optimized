@@ -365,12 +365,12 @@ export function startDepositChecker(): void {
     return;
   }
 
-  // Run every 5 minutes (reduced from 30 seconds as webhooks are primary method)
-  cronJob = cron.schedule('*/5 * * * *', async () => {
+  // Run every minute for timely deposit detection
+  cronJob = cron.schedule('* * * * *', async () => {
     await checkDeposits();
   });
 
-  console.log('✓ Deposit checker started (running every 5 minutes as fallback)');
+  console.log('✓ Deposit checker started (running every minute)');
 
   // Run once immediately
   checkDeposits();
