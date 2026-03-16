@@ -40,7 +40,11 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
 
         // Strip any previous progress lines before appending the updated one
         const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
-        await ctx.editMessageText(baseText + progressLine).catch(() => {});
+        await ctx.editMessageText(baseText + progressLine, {
+          reply_markup: isFinished
+            ? { inline_keyboard: [] }
+            : { inline_keyboard: [[{ text: `🧧 ${t(lang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
+        }).catch(() => {});
       }
     } catch (updateErr) {
       console.warn('[redpacket] Could not update red packet message:', updateErr);
