@@ -250,7 +250,7 @@ export const RedPackets: React.FC = () => {
       render: (_: any, record: any) => (
         <div>
           <div style={{ fontWeight: 500 }}>{record.username || record.first_name || '-'}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>Telegram: @{record.username || '-'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>Telegram: {record.username ? `@${record.username}` : '-'}</div>
           <div style={{ fontSize: '12px', color: '#666' }}>Telegram ID: {record.telegram_id || '-'}</div>
           <div style={{ fontSize: '12px', color: '#666' }}>Bot ID: {record.robot_user_id || '-'}</div>
         </div>
