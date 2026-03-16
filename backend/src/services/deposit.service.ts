@@ -47,7 +47,7 @@ try {
 try {
   TronWeb = require('tronweb');
 } catch (error) {
-  console.warn('tronweb library not installed. Tron address derivation will not work.');
+  console.warn('tronweb library not installed. Tron sweep operations will not work.');
 }
 
 /**
@@ -111,19 +111,30 @@ export async function deriveEthAddress(
 }
 
 /**
- * Derive Tron address from HD wallet
+ * Derive Tron address from HD wallet using pure ethers.js.
+ *
+ * This implementation follows the exact same algorithm used by TronLink and
+ * other standard Tron wallets (BIP44, coin_type=195):
+ *
+ *   1. Derive secp256k1 private key at path m/44'/195'/0'/0/{index}
+ *   2. Get the uncompressed public key (65 bytes, 0x04 prefix)
+ *   3. Strip the 0x04 prefix → 64 bytes
+ *   4. Keccak256 hash of the 64 bytes → 32 bytes
+ *   5. Take the last 20 bytes
+ *   6. Prepend Tron mainnet byte 0x41 → 21 bytes
+ *   7. Compute double-SHA256 checksum → take first 4 bytes
+ *   8. Append checksum → 25 bytes total
+ *   9. Base58 encode → Tron address (always starts with 'T')
+ *
+ * NOTE: We do NOT use tronweb.address.fromPrivateKey() here because tronweb v5.x
+ * requires a valid fullHost to initialise, which causes unpredictable behaviour
+ * in offline/local environments and can produce wrong addresses.
  */
 export async function deriveTronAddress(
   mnemonic: string,
   derivationPath: string,
   index: number
 ): Promise<string> {
-  if (!TronWeb) {
-    throw new Error(
-      'Tron address derivation requires tronweb. Install with: npm install tronweb'
-    );
-  }
-
   if (!ethers) {
     throw new Error(
       'Tron address derivation requires ethers.js. Install with: npm install ethers'
@@ -132,20 +143,46 @@ export async function deriveTronAddress(
 
   try {
     const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
-    const hdNode = ethers ? ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path) : null;
-    
-    if (!hdNode) {
-      throw new Error('ethers.js required for HD derivation');
+    const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+
+    // Steps 2-4: uncompressed public key → Keccak256
+    const publicKeyUncompressed = wallet.signingKey.publicKey; // '0x04' + 128 hex chars
+    const pubBytes = ethers.getBytes(publicKeyUncompressed).slice(1); // remove 0x04 prefix → 64 bytes
+    const addressHash = ethers.keccak256(pubBytes); // 32-byte hex
+
+    // Step 5: last 20 bytes of the hash
+    const last20Bytes = ethers.getBytes(addressHash).slice(12);
+
+    // Step 6: prepend Tron mainnet prefix 0x41
+    const tronAddressBytes = new Uint8Array(21);
+    tronAddressBytes[0] = 0x41;
+    tronAddressBytes.set(last20Bytes, 1);
+
+    // Step 7: double SHA256 checksum
+    const hash1 = ethers.getBytes(ethers.sha256(tronAddressBytes));
+    const hash2 = ethers.getBytes(ethers.sha256(hash1));
+    const checksum = hash2.slice(0, 4);
+
+    // Step 8: full 25-byte payload
+    const fullBytes = new Uint8Array(25);
+    fullBytes.set(tronAddressBytes, 0);
+    fullBytes.set(checksum, 21);
+
+    // Step 9: Base58 encode
+    const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let num = BigInt('0x' + Buffer.from(fullBytes).toString('hex'));
+    let encoded = '';
+    while (num > 0n) {
+      const remainder = num % 58n;
+      num = num / 58n;
+      encoded = BASE58_ALPHABET[Number(remainder)] + encoded;
+    }
+    for (const byte of fullBytes) {
+      if (byte === 0) encoded = '1' + encoded;
+      else break;
     }
 
-    // Get private key and convert to Tron address
-    const privateKey = hdNode.privateKey.slice(2); // Remove '0x' prefix
-    const tronWeb = new TronWeb({
-      fullHost: 'http://localhost', // fromPrivateKey is a local operation; no network request needed
-    });
-    
-    const address = tronWeb.address.fromPrivateKey(privateKey);
-    return address;
+    return encoded;
   } catch (error: any) {
     throw new Error(`Failed to derive Tron address: ${error.message}`);
   }

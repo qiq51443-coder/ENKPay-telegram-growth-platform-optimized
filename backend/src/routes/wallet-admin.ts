@@ -435,9 +435,39 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
 
+    // Structure response: nest user/network fields into sub-objects for admin panel compatibility
+    const deposits = result.rows.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      network_id: row.network_id,
+      amount: row.amount,
+      actual_amount: row.actual_amount,
+      tx_hash: row.tx_hash,
+      from_address: row.from_address,
+      to_address: row.to_address,
+      status: row.status,
+      order_id: row.order_id,
+      block_number: row.block_number,
+      confirmations: row.confirmations,
+      required_confirmations: row.required_confirmations,
+      created_at: row.created_at,
+      confirmed_at: row.credited_at,
+      credited_at: row.credited_at,
+      user: {
+        telegram_id: row.robot_user_id,
+        username: row.username,
+        first_name: row.first_name,
+      },
+      network: {
+        network_name: row.network_name,
+        network_display: row.network_display,
+      },
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      deposits,        // primary field: matches frontend response.deposits
+      data: deposits,  // compatibility alias
     });
   } catch (error: any) {
     console.error('Get deposits error:', error);

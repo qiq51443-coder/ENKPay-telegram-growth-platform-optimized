@@ -147,7 +147,9 @@ export const DepositRecords: React.FC = () => {
       render: (status: string) => {
         const statusMap: Record<string, { text: string; color: string }> = {
           pending: { text: '待确认', color: 'warning' },
+          confirming: { text: '确认中', color: 'processing' },
           confirmed: { text: '已确认', color: 'success' },
+          credited: { text: '已到账', color: 'success' },
           failed: { text: '失败', color: 'error' },
         };
         const statusInfo = statusMap[status] || { text: status, color: 'default' };
@@ -188,7 +190,9 @@ export const DepositRecords: React.FC = () => {
           >
             <Select.Option value="">全部</Select.Option>
             <Select.Option value="pending">待确认</Select.Option>
+            <Select.Option value="confirming">确认中</Select.Option>
             <Select.Option value="confirmed">已确认</Select.Option>
+            <Select.Option value="credited">已到账</Select.Option>
             <Select.Option value="failed">失败</Select.Option>
           </Select>
           
