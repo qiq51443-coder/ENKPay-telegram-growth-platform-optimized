@@ -11,7 +11,7 @@ import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { startPriceGenerator } from './services/price-generator.service';
-import { generalLimiter, initLimiters } from './middleware/rateLimiter';
+import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
 import { waitForDb } from './db';
@@ -88,6 +88,15 @@ app.use('/app', express.static(appDistPath));
 app.get('/app/*', generalLimiter, (req, res) => {
   res.sendFile(path.join(appDistPath, 'index.html'));
 });
+
+// Rate limiting — applied before route handlers.
+// More-specific paths (e.g. /api/auth/login) are intentionally listed after
+// the broad /api limiter so that sensitive endpoints are subject to both the
+// general cap and their own stricter cap (defense-in-depth).
+app.use('/webhook', webhookLimiter);
+app.use('/api', generalLimiter);
+app.use('/api/admin', adminLimiter);
+app.use('/api/auth/login', loginLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
