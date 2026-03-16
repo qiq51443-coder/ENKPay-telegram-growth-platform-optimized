@@ -163,7 +163,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     const result = await query(
-      `SELECT u.*, 
+      `SELECT u.*,
         COUNT(DISTINCT i.id) as invite_count,
         (SELECT username FROM users WHERE id = u.invited_by) as invited_by_username,
         b.name as bot_name,

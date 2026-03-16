@@ -581,6 +581,10 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     try {
       if (!ctx.from) return;
 
+      // WebApp buttons are only supported in private chats — ignore /start in groups
+      const chatType = ctx.chat?.type;
+      if (chatType === 'group' || chatType === 'supergroup') return;
+
       const startPayload = ctx.message && 'text' in ctx.message
         ? ctx.message.text.split(' ')[1]
         : undefined;
@@ -622,8 +626,11 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (!telegramId) return;
 
       const userResult = await query(
-        'SELECT * FROM users WHERE telegram_id = $1 AND bot_id = $2 LIMIT 1',
-        [telegramId, botId]
+        `SELECT u.* FROM users u
+         WHERE u.telegram_id = $1
+         ORDER BY u.created_at ASC
+         LIMIT 1`,
+        [telegramId]
       );
 
       if (userResult.rows.length === 0) {
