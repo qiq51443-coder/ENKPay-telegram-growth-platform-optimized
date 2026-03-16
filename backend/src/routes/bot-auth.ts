@@ -84,6 +84,16 @@ router.post('/groups/register', async (req, res) => {
       return res.status(403).json({ error: 'bot_id mismatch' });
     }
 
+    // Handle bot leaving/being kicked — mark group as inactive
+    if (req.body.is_leaving === true) {
+      await query(
+        `UPDATE authorized_groups SET is_active = false, updated_at = NOW()
+         WHERE bot_id = $1 AND group_id = $2`,
+        [bot_id, group_id]
+      );
+      return res.json({ success: true, action: 'deactivated' });
+    }
+
     // Upsert the group
     await query(
       `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, country, language, member_count, is_active)

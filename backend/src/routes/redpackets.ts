@@ -188,6 +188,11 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
 
       // Check if expired
       if (redPacket.expires_at && new Date(redPacket.expires_at) < new Date()) {
+        // Async fire-and-forget: update DB status outside this transaction so it persists
+        query(
+          `UPDATE red_packets SET status = 'expired' WHERE id = $1 AND status = 'active'`,
+          [id]
+        ).catch((err) => console.error('[redpackets] Failed to update expired status:', err));
         throw Object.assign(new Error('Red packet has expired'), { statusCode: 400 });
       }
 
@@ -282,10 +287,15 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
             : null]
       );
 
-      // Update red packet counts
+      // Update red packet counts; auto-transition to 'finished' when all packets are claimed
+      const newClaimedCount = redPacket.claimed_count + 1;
+      const isLastOne = newClaimedCount >= redPacket.total_count;
+
       await client.query(
         `UPDATE red_packets
-         SET claimed_count = claimed_count + 1, claimed_amount = claimed_amount + $1
+         SET claimed_count = claimed_count + 1,
+             claimed_amount = claimed_amount + $1,
+             status = CASE WHEN claimed_count + 1 >= total_count THEN 'finished' ELSE status END
          WHERE id = $2`,
         [claimAmount, id]
       );
@@ -348,7 +358,12 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         }
       }
 
-      return { amount: claimAmount, claimed_count: redPacket.claimed_count + 1 };
+      return {
+        amount: claimAmount,
+        claimed_count: newClaimedCount,
+        total_count: redPacket.total_count,
+        status: isLastOne ? 'finished' : 'active',
+      };
     });
 
     // Update platform_config wagering multiplier from this red packet (best-effort, outside transaction)

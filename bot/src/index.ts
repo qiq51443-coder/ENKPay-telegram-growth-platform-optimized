@@ -249,15 +249,55 @@ function createBotInstance(entry: BotEntry): Telegraf {
       if (chat.type === 'group' || chat.type === 'supergroup') {
         const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
         const newStatus = ctx.myChatMember.new_chat_member.status;
+
         if (newStatus === 'member' || newStatus === 'administrator') {
-          await axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
+          // Register group with retry (up to 3 attempts, 2-second delay between each)
+          const registerWithRetry = async (attempt = 1): Promise<void> => {
+            try {
+              await axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
+                bot_id: BOT_ID,
+                group_id: chat.id,
+                group_name: (chat as any).title || '',
+                group_type: chat.type,
+              }, {
+                headers: { 'X-Bot-Id': BOT_ID },
+                timeout: 8000,
+              });
+              console.log(`[bot ${BOT_ID}] ✓ Group ${chat.id} (${(chat as any).title}) registered`);
+
+              // Send welcome message (best-effort, fire-and-forget)
+              ctx.telegram.sendMessage(
+                chat.id,
+                '🤖 机器人已加入群组！发送 /start 查看功能。'
+              ).catch(() => {});
+            } catch (err: any) {
+              if (attempt < 3) {
+                console.warn(`[bot ${BOT_ID}] Group registration attempt ${attempt} failed, retrying in 2s...`);
+                await new Promise(r => setTimeout(r, 2000));
+                return registerWithRetry(attempt + 1);
+              }
+              console.error(`[bot ${BOT_ID}] Group registration failed after 3 attempts:`, err?.message);
+            }
+          };
+
+          await registerWithRetry();
+
+        } else if (newStatus === 'kicked' || newStatus === 'left') {
+          // Bot was removed — mark the group as inactive
+          axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
             bot_id: BOT_ID,
             group_id: chat.id,
-            group_name: chat.title,
+            group_name: (chat as any).title || '',
             group_type: chat.type,
+            is_leaving: true,
           }, {
             headers: { 'X-Bot-Id': BOT_ID },
-          }).catch((err) => console.error(`[bot ${BOT_ID}] Group registration failed:`, err));
+            timeout: 8000,
+          }).then(() => {
+            console.log(`[bot ${BOT_ID}] ✓ Group ${chat.id} marked as inactive (status: ${newStatus})`);
+          }).catch((err) => {
+            console.error(`[bot ${BOT_ID}] Failed to deactivate group ${chat.id}:`, err?.message);
+          });
         }
       }
     } catch (error) {
