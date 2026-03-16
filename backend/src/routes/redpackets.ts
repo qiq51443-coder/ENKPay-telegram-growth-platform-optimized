@@ -314,39 +314,41 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       // If new user, trigger follow reward for referrer
       if (isNewUser) {
         const invitationResult = await client.query(
-          'SELECT inviter_user_id, follow_reward_paid FROM invitations WHERE invitee_user_id = $1',
+          `SELECT inviter_id, follow_reward_paid 
+           FROM invitations 
+           WHERE invitee_id = $1`,
           [user_id]
         );
 
         if (invitationResult.rows.length > 0) {
           const invitation = invitationResult.rows[0];
 
-          if (!invitation.follow_reward_paid && invitation.inviter_user_id) {
+          if (!invitation.follow_reward_paid && invitation.inviter_id) {
             const FOLLOW_REWARD = 5.00;
 
             await client.query(
               'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
-              [FOLLOW_REWARD, invitation.inviter_user_id]
+              [FOLLOW_REWARD, invitation.inviter_id]
             );
 
             await client.query(
               `UPDATE invitations
                SET follow_reward_paid = true,
                    invitee_first_interaction = CURRENT_TIMESTAMP
-               WHERE invitee_user_id = $1`,
+               WHERE invitee_id = $1`,
               [user_id]
             );
 
             const referrerBalanceResult = await client.query(
               'SELECT reward_balance FROM users WHERE id = $1',
-              [invitation.inviter_user_id]
+              [invitation.inviter_id]
             );
 
             await client.query(
               `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
                VALUES ($1, $2, $3, $4, $5, $6)`,
               [
-                invitation.inviter_user_id,
+                invitation.inviter_id,
                 'referral_reward',
                 FOLLOW_REWARD,
                 referrerBalanceResult.rows[0].reward_balance,
