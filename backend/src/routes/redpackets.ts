@@ -271,20 +271,21 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
       );
       const isNewUser = parseInt(isNewUserResult.rows[0].claim_count) === 0;
 
-      // Add to reward_balance instead of balance
+      // Add to red_packet_balance instead of reward_balance
       await client.query(
-        'UPDATE users SET reward_balance = reward_balance + $1 WHERE id = $2',
+        'UPDATE users SET red_packet_balance = COALESCE(red_packet_balance, 0) + $1 WHERE id = $2',
         [claimAmount, user_id]
       );
 
       // Record claim
       await client.query(
-        `INSERT INTO red_packet_claims (red_packet_id, user_id, amount, balance_expires_at)
-         VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO red_packet_claims (red_packet_id, user_id, amount, balance_expires_at, wagering_multiplier)
+         VALUES ($1, $2, $3, $4, $5)`,
         [id, user_id, claimAmount,
           redPacket.balance_expiry_hours
             ? new Date(Date.now() + redPacket.balance_expiry_hours * 60 * 60 * 1000)
-            : null]
+            : null,
+          redPacket.wagering_multiplier ?? 2]
       );
 
       // Update red packet counts; auto-transition to 'finished' when all packets are claimed
@@ -302,13 +303,13 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
 
       // Record transaction
       const userBalanceResult = await client.query(
-        'SELECT reward_balance FROM users WHERE id = $1',
+        'SELECT red_packet_balance FROM users WHERE id = $1',
         [user_id]
       );
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description)
          VALUES ($1, $2, $3, $4, $5)`,
-        [user_id, 'red_packet_claim', claimAmount, userBalanceResult.rows[0].reward_balance, 'Red packet claim']
+        [user_id, 'red_packet_claim', claimAmount, userBalanceResult.rows[0].red_packet_balance, 'Red packet claim']
       );
 
       // If new user, trigger follow reward for referrer
@@ -365,6 +366,8 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         claimed_count: newClaimedCount,
         total_count: redPacket.total_count,
         status: isLastOne ? 'finished' : 'active',
+        wagering_multiplier: redPacket.wagering_multiplier ?? 2,
+        balance_expiry_hours: redPacket.balance_expiry_hours ?? null,
       };
     });
 
@@ -396,7 +399,7 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT rpc.id, rpc.red_packet_id, rpc.user_id, rpc.amount, rpc.claimed_at,
-        u.username, u.first_name, u.robot_user_id,
+        u.username, u.first_name, u.robot_user_id, u.telegram_id,
         rp.bot_id
       FROM red_packet_claims rpc
       JOIN users u ON rpc.user_id = u.id
@@ -413,11 +416,10 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
       amount: row.amount,
       claimed_at: row.claimed_at,
       bot_id: row.bot_id,
-      user: {
-        username: row.username,
-        first_name: row.first_name,
-        robot_user_id: row.robot_user_id,
-      },
+      username: row.username,
+      first_name: row.first_name,
+      robot_user_id: row.robot_user_id,
+      telegram_id: row.telegram_id,
     }));
 
     res.json({ claims });

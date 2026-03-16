@@ -125,6 +125,8 @@ export const zh = {
   redpacket_finished: '这个红包已被全部领取。',
   redpacket_progress: '📊 已领 {claimed}/{total} 个 | 已领金额 {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 红包已抢完！{claimed}/{total} 人领取，共 {claimed_amount} USDT',
+  redpacket_received_notification: '🎁 你已领到 {amount} USDT 红包奖励！\n\n完成 {multiplier} 倍交易流水即可提现！\n\n{days} 天后红包将自动失效！',
+  redpacket_received_notification_no_expiry: '🎁 你已领到 {amount} USDT 红包奖励！\n\n完成 {multiplier} 倍交易流水即可提现！',
 
   // General
   back: '« 返回',

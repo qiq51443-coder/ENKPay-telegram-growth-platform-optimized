@@ -126,6 +126,8 @@ export const ar: Record<string, string> = {
   redpacket_finished: 'هذه الحزمة استُنفدت.',
   redpacket_progress: '📊 {claimed}/{total} تمت المطالبة بها | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 تمت المطالبة بالحزمة الحمراء بالكامل! {claimed}/{total} أشخاص، {claimed_amount} USDT إجمالاً',
+  redpacket_received_notification: '🎁 لقد حصلت على مكافأة Red Packet بقيمة {amount} USDT!\n\nأكمل {multiplier}x حجم التداول لإلغاء قفل السحب!\n\nستنتهي صلاحية هذه المكافأة خلال {days} أيام!',
+  redpacket_received_notification_no_expiry: '🎁 لقد حصلت على مكافأة Red Packet بقيمة {amount} USDT!\n\nأكمل {multiplier}x حجم التداول لإلغاء قفل السحب!',
 
   // General
   back: '« رجوع',
