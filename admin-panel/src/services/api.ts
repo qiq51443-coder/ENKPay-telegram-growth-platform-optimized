@@ -107,6 +107,11 @@ class ApiClient {
     return response.data;
   }
 
+  async manualRegisterGroup(data: { bot_id: string; group_id: string; group_name?: string; group_type?: string; country?: string; language?: string }) {
+    const response = await this.client.post('/bot-auth/groups/manual-register', data);
+    return response.data;
+  }
+
   // Bindings
   async getBindings(params?: any) {
     const response = await this.client.get('/bindings', { params });

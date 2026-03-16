@@ -62,7 +62,7 @@ router.post('/authorize', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * POST /api/bot-auth/groups/register
- * Register a group when the bot is added to it
+ * Register a group when the bot is added to it (called by the bot process)
  */
 router.post('/groups/register', async (req, res) => {
   try {
@@ -70,6 +70,18 @@ router.post('/groups/register', async (req, res) => {
 
     if (!bot_id || !group_id) {
       return res.status(400).json({ error: 'bot_id and group_id are required' });
+    }
+
+    // Verify bot_id exists and is active to prevent unauthorized registration
+    const botCheck = await query('SELECT id FROM bots WHERE id = $1 AND is_active = true', [bot_id]);
+    if (botCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Invalid or inactive bot_id' });
+    }
+
+    // If X-Bot-Id header is present, verify it matches the body bot_id
+    const headerBotId = req.headers['x-bot-id'];
+    if (headerBotId && headerBotId !== bot_id) {
+      return res.status(403).json({ error: 'bot_id mismatch' });
     }
 
     // Upsert the group
@@ -89,6 +101,44 @@ router.post('/groups/register', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Register group error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/bot-auth/groups/manual-register
+ * Allow admins to manually register a group that was not auto-synced
+ */
+router.post('/groups/manual-register', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { bot_id, group_id, group_name, group_type, country, language } = req.body;
+
+    if (!bot_id || !group_id) {
+      return res.status(400).json({ error: 'bot_id and group_id are required' });
+    }
+
+    // Verify bot_id exists
+    const botCheck = await query('SELECT id FROM bots WHERE id = $1 AND is_active = true', [bot_id]);
+    if (botCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Invalid or inactive bot_id' });
+    }
+
+    // Upsert the group
+    await query(
+      `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, country, language, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       ON CONFLICT (bot_id, group_id)
+       DO UPDATE SET group_name = EXCLUDED.group_name,
+         is_active = true,
+         updated_at = NOW(),
+         country = COALESCE(EXCLUDED.country, authorized_groups.country),
+         language = COALESCE(EXCLUDED.language, authorized_groups.language)`,
+      [bot_id, group_id, group_name || '', group_type || 'group', country || null, language || null]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Manual register group error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

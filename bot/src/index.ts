@@ -255,6 +255,8 @@ function createBotInstance(entry: BotEntry): Telegraf {
             group_id: chat.id,
             group_name: chat.title,
             group_type: chat.type,
+          }, {
+            headers: { 'X-Bot-Id': BOT_ID },
           }).catch((err) => console.error(`[bot ${BOT_ID}] Group registration failed:`, err));
         }
       }
@@ -334,7 +336,9 @@ const startBots = async () => {
         await bot.telegram.setWebhook(`${webhookDomain}/webhook/${entry.id}`);
         console.log(`✓ Bot ${entry.id} webhook set to ${webhookDomain}/webhook/${entry.id}`);
       } else {
-        await bot.launch();
+        await bot.launch({
+          allowedUpdates: ['message', 'callback_query', 'chat_member', 'my_chat_member'],
+        });
         console.log(`✓ Bot ${entry.id} started in polling mode`);
         bots.push(bot);
       }
