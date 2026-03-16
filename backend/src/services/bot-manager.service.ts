@@ -1393,12 +1393,19 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         const newStatus = ctx.myChatMember.new_chat_member?.status;
         if (newStatus === 'member' || newStatus === 'administrator') {
           await query(
-            `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, is_active)
+             VALUES ($1, $2, $3, $4, true)
              ON CONFLICT (bot_id, group_id) DO UPDATE SET
                group_name = EXCLUDED.group_name,
+               is_active = true,
                updated_at = NOW()`,
             [botId, chat.id, (chat as any).title || '', chat.type]
+          );
+        } else if (newStatus === 'kicked' || newStatus === 'left') {
+          await query(
+            `UPDATE authorized_groups SET is_active = false, updated_at = NOW()
+             WHERE bot_id = $1 AND group_id = $2`,
+            [botId, chat.id]
           );
         }
       }

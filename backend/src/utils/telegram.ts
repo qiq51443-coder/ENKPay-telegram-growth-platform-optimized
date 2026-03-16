@@ -94,7 +94,7 @@ export class TelegramAPI {
       const response = await axios.post(`${this.baseUrl}/setWebhook`, {
         url,
         secret_token: secretToken,
-        allowed_updates: ['message', 'callback_query', 'chat_member'],
+        allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'],
       });
       return response.data;
     } catch (error: any) {
