@@ -120,7 +120,7 @@ export const en = {
 
   // Red Packet
   redpacket_claim: 'Claim Red Packet',
-  redpacket_claimed: '✅ You claimed {amount}!',
+  redpacket_claimed: '✅ You claimed {amount} USDT!',
   redpacket_already_claimed: 'You already claimed this red packet.',
   redpacket_finished: 'This red packet has been fully claimed.',
 

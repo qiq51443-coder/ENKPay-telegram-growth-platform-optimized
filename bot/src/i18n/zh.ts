@@ -120,7 +120,7 @@ export const zh = {
 
   // Red Packet
   redpacket_claim: '领取红包',
-  redpacket_claimed: '✅ 您领取了 {amount}！',
+  redpacket_claimed: '✅ 您领取了 {amount} USDT！',
   redpacket_already_claimed: '您已领取过这个红包。',
   redpacket_finished: '这个红包已被全部领取。',
 

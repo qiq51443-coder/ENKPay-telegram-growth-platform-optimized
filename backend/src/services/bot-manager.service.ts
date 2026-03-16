@@ -1364,10 +1364,43 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             { headers: { 'X-Bot-Token': botId } }
           );
           const result = claimRes.data;
+          const amountStr = result?.amount != null ? Number(result.amount).toFixed(2) : '0.00';
           await ctx.answerCbQuery(
-            t(lang, 'redpacket_claimed', { amount: String(result.amount || '') }),
+            t(lang, 'redpacket_claimed', { amount: amountStr }),
             { show_alert: true }
           );
+
+          // Try to update the group message with claim progress — non-blocking
+          try {
+            const rpRes = await axios.get(
+              `${backendUrl}/api/redpackets/${redPacketId}`,
+              { headers: { 'X-Bot-Token': botId } }
+            );
+            const rpData = rpRes.data;
+            const rp = rpData?.redPacket ?? rpData;
+            const claimedCount = result.claimed_count ?? rp?.claimed_count ?? '?';
+            const totalCount = result.total_count ?? rp?.total_count ?? '?';
+            const claimedAmount = rp?.claimed_amount != null ? Number(rp.claimed_amount).toFixed(2) : '?';
+            const totalAmount = rp?.total_amount != null ? Number(rp.total_amount).toFixed(2) : '?';
+
+            const cbMessage = ctx.callbackQuery?.message;
+            if (cbMessage && 'text' in cbMessage) {
+              const isFinished =
+                result.status === 'finished' ||
+                rp?.status === 'finished' ||
+                (typeof claimedCount === 'number' && typeof totalCount === 'number' && claimedCount >= totalCount);
+
+              const progressLine = isFinished
+                ? `\n\n🎉 红包已抢完！${claimedCount}/${totalCount} 人领取，共 ${claimedAmount} USDT`
+                : `\n\n📊 已领 ${claimedCount}/${totalCount} 个 | 已领金额 ${claimedAmount}/${totalAmount} USDT`;
+
+              const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
+              await ctx.editMessageText(baseText + progressLine).catch(() => {});
+            }
+          } catch (updateErr) {
+            // Non-critical: progress update failure must not affect the claim result
+            console.warn(`[bot ${botId}] Could not update red packet message:`, updateErr);
+          }
         } catch (claimErr: any) {
           const errMsg = claimErr.response?.data?.error || '';
           if (errMsg === 'Already claimed') {
@@ -1453,14 +1486,17 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
   // regardless of which bot the user is currently interacting with.
   const canonicalId = await getCanonicalUserId(user.telegram_id) || user.id;
   const freshResult = await query(
-    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, account_status FROM users WHERE id = $1',
+    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, reward_balance, account_status FROM users WHERE id = $1',
     [canonicalId]
   );
   const fresh = freshResult.rows[0] || user;
   // wallet_balance is the operational balance used for transfers/withdrawals
   const balance = parseFloat(String(fresh.wallet_balance ?? fresh.balance ?? 0)).toFixed(2);
   const nftBalance = parseFloat(String(fresh.nft_balance ?? 0)).toFixed(2);
-  const redPacketBalance = parseFloat(String(fresh.red_packet_credits ?? 0)).toFixed(2);
+  // reward_balance accumulates red-packet claims; red_packet_credits is the legacy field
+  const rewardBalance = parseFloat(String(fresh.reward_balance ?? 0));
+  const redPacketCredits = parseFloat(String(fresh.red_packet_credits ?? 0));
+  const redPacketBalance = (rewardBalance + redPacketCredits).toFixed(2);
   const accountStatusKey = (fresh.account_status || user.account_status) === 'active' ? 'account_active' : 'account_pending';
 
   // Fetch wallet_tip_message from system settings

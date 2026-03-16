@@ -121,7 +121,7 @@ export const fr: Record<string, string> = {
 
   // Red Packet
   redpacket_claim: 'Réclamer le paquet rouge',
-  redpacket_claimed: '✅ Vous avez réclamé {amount}!',
+  redpacket_claimed: '✅ Vous avez réclamé {amount} USDT!',
   redpacket_already_claimed: 'Vous avez déjà réclamé ce paquet.',
   redpacket_finished: 'Ce paquet est épuisé.',
 
