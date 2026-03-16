@@ -52,6 +52,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 3000;
 
+// Trust the first proxy hop (Render, Heroku, etc.) so that express-rate-limit
+// can correctly read the client IP from the X-Forwarded-For header.
+app.set('trust proxy', 1);
+
 // Middleware
 const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',')
