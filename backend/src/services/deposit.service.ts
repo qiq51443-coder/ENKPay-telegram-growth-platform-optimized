@@ -146,7 +146,10 @@ export async function deriveTronAddress(
     const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
 
     // Steps 2-4: uncompressed public key → Keccak256
-    const publicKeyUncompressed = wallet.signingKey.publicKey; // '0x04' + 128 hex chars
+    // wallet.signingKey.publicKey returns the COMPRESSED key (0x02/0x03 + 32 bytes).
+    // TRON (like Ethereum) requires the UNCOMPRESSED key (0x04 + 64 bytes) as input to Keccak256.
+    const compressedKey = wallet.signingKey.publicKey;
+    const publicKeyUncompressed = ethers.SigningKey.computePublicKey(compressedKey, false); // 0x04 + 64 bytes
     const pubBytes = ethers.getBytes(publicKeyUncompressed).slice(1); // remove 0x04 prefix → 64 bytes
     const addressHash = ethers.keccak256(pubBytes); // 32-byte hex
 

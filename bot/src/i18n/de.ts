@@ -121,7 +121,7 @@ export const de: Record<string, string> = {
 
   // Red Packet
   redpacket_claim: 'Rotes Paket einlösen',
-  redpacket_claimed: '✅ Sie haben {amount} eingelöst!',
+  redpacket_claimed: '✅ Sie haben {amount} USDT eingelöst!',
   redpacket_already_claimed: 'Sie haben dieses Paket bereits eingelöst.',
   redpacket_finished: 'Dieses Paket ist aufgebraucht.',
 
