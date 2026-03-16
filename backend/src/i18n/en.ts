@@ -123,6 +123,8 @@ export const en = {
   redpacket_claimed: '✅ You claimed {amount} USDT!',
   redpacket_already_claimed: 'You already claimed this red packet.',
   redpacket_finished: 'This red packet has been fully claimed.',
+  redpacket_progress: '📊 {claimed}/{total} claimed | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 Red Packet fully claimed! {claimed}/{total} people, {claimed_amount} USDT total',
 
   // General
   back: '« Back',

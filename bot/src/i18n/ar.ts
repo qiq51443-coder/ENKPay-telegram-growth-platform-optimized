@@ -124,6 +124,8 @@ export const ar: Record<string, string> = {
   redpacket_claimed: '✅ طالبت بـ {amount} USDT!',
   redpacket_already_claimed: 'لقد طالبت بهذه الحزمة بالفعل.',
   redpacket_finished: 'هذه الحزمة استُنفدت.',
+  redpacket_progress: '📊 {claimed}/{total} تمت المطالبة بها | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 تمت المطالبة بالحزمة الحمراء بالكامل! {claimed}/{total} أشخاص، {claimed_amount} USDT إجمالاً',
 
   // General
   back: '« رجوع',

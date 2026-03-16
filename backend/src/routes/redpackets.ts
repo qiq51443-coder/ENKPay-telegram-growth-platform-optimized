@@ -395,16 +395,32 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     const result = await query(
-      `SELECT rpc.*, 
-        u.username, u.first_name, u.robot_user_id
+      `SELECT rpc.id, rpc.red_packet_id, rpc.user_id, rpc.amount, rpc.claimed_at,
+        u.username, u.first_name, u.robot_user_id,
+        rp.bot_id
       FROM red_packet_claims rpc
       JOIN users u ON rpc.user_id = u.id
+      JOIN red_packets rp ON rpc.red_packet_id = rp.id
       WHERE rpc.red_packet_id = $1
       ORDER BY rpc.claimed_at DESC`,
       [id]
     );
 
-    res.json({ claims: result.rows });
+    const claims = result.rows.map((row: any) => ({
+      id: row.id,
+      red_packet_id: row.red_packet_id,
+      user_id: row.user_id,
+      amount: row.amount,
+      claimed_at: row.claimed_at,
+      bot_id: row.bot_id,
+      user: {
+        username: row.username,
+        first_name: row.first_name,
+        robot_user_id: row.robot_user_id,
+      },
+    }));
+
+    res.json({ claims });
   } catch (error) {
     console.error('Get claims error:', error);
     res.status(500).json({ error: 'Internal server error' });

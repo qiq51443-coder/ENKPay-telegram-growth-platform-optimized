@@ -124,6 +124,8 @@ export const ja: Record<string, string> = {
   redpacket_claimed: '✅ {amount} USDTを受け取りました！',
   redpacket_already_claimed: 'このレッドパケットはすでに受け取りました。',
   redpacket_finished: 'このレッドパケットはすべて受け取られました。',
+  redpacket_progress: '📊 {claimed}/{total} 受け取り済み | {claimed_amount}/{total_amount} USDT',
+  redpacket_all_claimed: '🎉 レッドパケット全員受け取り完了！{claimed}/{total} 人、合計 {claimed_amount} USDT',
 
   // General
   back: '« 戻る',

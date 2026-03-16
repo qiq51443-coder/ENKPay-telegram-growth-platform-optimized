@@ -218,15 +218,21 @@ export const RedPackets: React.FC = () => {
     {
       title: '用户',
       key: 'user',
-      render: (record: any) => (
+      render: (_: any, record: any) => (
         <div>
           <div style={{ fontWeight: 500 }}>{record.user?.username || record.user?.first_name}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.user?.telegram_id}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.user?.robot_user_id}</div>
         </div>
       ),
     },
     {
-      title: '金额',
+      title: 'Bot ID',
+      dataIndex: 'bot_id',
+      key: 'bot_id',
+      render: (botId: string) => <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{botId || '-'}</span>,
+    },
+    {
+      title: '领取金额',
       dataIndex: 'amount',
       key: 'amount',
       render: (amount: number) => (
