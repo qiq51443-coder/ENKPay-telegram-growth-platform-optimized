@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message, Popconfirm, Modal, Form, Input, Select } from 'antd';
-import { DeleteOutlined, EditOutlined, GiftOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, message, Popconfirm, Modal, Form, Input, Select, Alert, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, GiftOutlined, StopOutlined, CheckCircleOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { apiClient } from '../services/api';
 
 interface Group {
   id: string;
@@ -19,31 +20,59 @@ interface Group {
   is_active?: boolean;
 }
 
+interface BotOption {
+  id: string;
+  name: string;
+  username?: string;
+}
+
 export const Groups: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [editForm] = Form.useForm();
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [addForm] = Form.useForm();
+  const [addLoading, setAddLoading] = useState(false);
+  const [bots, setBots] = useState<BotOption[]>([]);
+  const [botsError, setBotsError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const fetchGroups = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const response = await axios.get('/api/bot-auth/groups', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setGroups(response.data.groups || []);
-    } catch (error) {
+    } catch (error: any) {
+      const errMsg = error.response?.data?.error || error.message || '获取群组列表失败';
       console.error('Failed to fetch groups:', error);
-      message.error('获取群组列表失败');
+      setFetchError(errMsg);
+      message.error(errMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchBots = async () => {
+    setBotsError(null);
+    try {
+      const data = await apiClient.getBots();
+      setBots((data.bots || []).filter((b: any) => b.is_active));
+    } catch (error: any) {
+      const errMsg = error.response?.data?.error || error.message || '获取 Bot 列表失败';
+      console.error('Failed to fetch bots:', error);
+      setBotsError(errMsg);
+    }
+  };
+
   useEffect(() => {
     fetchGroups();
+    fetchBots();
     const interval = setInterval(fetchGroups, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -99,6 +128,24 @@ export const Groups: React.FC = () => {
       if (error.errorFields) return;
       console.error('Failed to update group:', error);
       message.error(error.response?.data?.error || '更新失败');
+    }
+  };
+
+  const handleAddGroup = async () => {
+    try {
+      const values = await addForm.validateFields();
+      setAddLoading(true);
+      await apiClient.manualRegisterGroup(values);
+      message.success('群组已手动添加成功');
+      setAddModalVisible(false);
+      addForm.resetFields();
+      fetchGroups();
+    } catch (error: any) {
+      if (error.errorFields) return;
+      console.error('Failed to add group:', error);
+      message.error(error.response?.data?.error || '添加失败');
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -208,8 +255,22 @@ export const Groups: React.FC = () => {
           <h2 style={{ margin: 0 }}>群组管理</h2>
           <p style={{ color: '#666', marginTop: 4 }}>Bot 所在的群组列表（Bot 被添加到群组后自动记录）</p>
         </div>
-        <Button onClick={fetchGroups}>刷新</Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={fetchGroups} loading={loading}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddModalVisible(true)}>手动添加群组</Button>
+        </Space>
       </div>
+
+      {fetchError && (
+        <Alert
+          type="error"
+          message="获取群组列表失败"
+          description={fetchError}
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={<Button size="small" onClick={fetchGroups}>重试</Button>}
+        />
+      )}
 
       <Table
         columns={columns}
@@ -218,6 +279,17 @@ export const Groups: React.FC = () => {
         loading={loading}
         pagination={{ pageSize: 20 }}
         scroll={{ x: 1200 }}
+        locale={{
+          emptyText: (
+            <div style={{ padding: '24px 0' }}>
+              <Typography.Text type="secondary">暂无群组数据</Typography.Text>
+              <br />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                请将 Bot 添加到 Telegram 群组，系统将自动同步；或点击「手动添加群组」手动录入。
+              </Typography.Text>
+            </div>
+          ),
+        }}
       />
 
       <Modal
@@ -237,6 +309,82 @@ export const Groups: React.FC = () => {
           </Form.Item>
           <Form.Item name="language" label="语言">
             <Select placeholder="请选择语言" allowClear>
+              <Select.Option value="zh">中文 (zh)</Select.Option>
+              <Select.Option value="en">英语 (en)</Select.Option>
+              <Select.Option value="ja">日语 (ja)</Select.Option>
+              <Select.Option value="ko">韩语 (ko)</Select.Option>
+              <Select.Option value="ru">俄语 (ru)</Select.Option>
+              <Select.Option value="ar">阿拉伯语 (ar)</Select.Option>
+              <Select.Option value="es">西班牙语 (es)</Select.Option>
+              <Select.Option value="fr">法语 (fr)</Select.Option>
+              <Select.Option value="de">德语 (de)</Select.Option>
+              <Select.Option value="pt">葡萄牙语 (pt)</Select.Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="手动添加群组"
+        open={addModalVisible}
+        onOk={handleAddGroup}
+        confirmLoading={addLoading}
+        onCancel={() => {
+          setAddModalVisible(false);
+          addForm.resetFields();
+        }}
+        okText="添加"
+        cancelText="取消"
+      >
+        <Alert
+          type="info"
+          message="适用场景"
+          description="当 Bot 已被添加到群组但管理面板未自动同步时，可在此手动录入群组信息。"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        {botsError && (
+          <Alert
+            type="error"
+            message={`获取 Bot 列表失败：${botsError}`}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        <Form form={addForm} layout="vertical">
+          <Form.Item name="bot_id" label="Bot" rules={[{ required: true, message: '请选择 Bot' }]}>
+            <Select placeholder="请选择 Bot">
+              {bots.map(b => (
+                <Select.Option key={b.id} value={b.id}>
+                  {b.name}{b.username ? ` (@${b.username})` : ''}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="group_id"
+            label="Telegram 群组 ID"
+            rules={[
+              { required: true, message: '请输入群组 ID' },
+              { pattern: /^-\d+$/, message: '群组 ID 格式不正确，应为负整数（如：-1001234567890）' },
+            ]}
+          >
+            <Input placeholder="例如：-1001234567890" />
+          </Form.Item>
+          <Form.Item name="group_name" label="群组名称">
+            <Input placeholder="可选，群组显示名称" />
+          </Form.Item>
+          <Form.Item name="group_type" label="群组类型" initialValue="supergroup">
+            <Select>
+              <Select.Option value="group">Group</Select.Option>
+              <Select.Option value="supergroup">Supergroup</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="country" label="国家">
+            <Input placeholder="可选" />
+          </Form.Item>
+          <Form.Item name="language" label="语言">
+            <Select placeholder="可选" allowClear>
               <Select.Option value="zh">中文 (zh)</Select.Option>
               <Select.Option value="en">英语 (en)</Select.Option>
               <Select.Option value="ja">日语 (ja)</Select.Option>
