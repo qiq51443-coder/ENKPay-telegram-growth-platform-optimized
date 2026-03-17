@@ -42,7 +42,7 @@ export const CharityProjects: React.FC = () => {
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.getCharityProjects();
+      const response = await apiClient.getCharityProjects({ status: 'all' });
       setProjects(response.data || []);
     } catch (error) {
       console.error('Failed to fetch charity projects:', error);

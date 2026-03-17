@@ -79,12 +79,13 @@ router.get('/projects', async (req, res) => {
     `;
     const params: any[] = [];
 
-    if (status) {
+    if (status && status !== 'all') {
       params.push(status);
       queryText += ` AND status = $${params.length}`;
-    } else {
+    } else if (!status) {
       queryText += ` AND status = 'active'`;
     }
+    // status === 'all': no filter, return all statuses
 
     queryText += ` ORDER BY created_at DESC`;
     params.push(Number(limit), offset);
@@ -94,10 +95,13 @@ router.get('/projects', async (req, res) => {
 
     let countQuery = 'SELECT COUNT(*) FROM charity_projects WHERE 1=1';
     const countParams: any[] = [];
-    if (status) {
+    if (status && status !== 'all') {
       countParams.push(status);
       countQuery += ' AND status = $1';
+    } else if (!status) {
+      countQuery += ` AND status = 'active'`;
     }
+    // status === 'all': no filter, count all statuses
 
     const countResult = await query(countQuery, countParams);
 
