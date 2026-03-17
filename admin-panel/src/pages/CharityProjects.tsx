@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch } from 'antd';
-import { PlusOutlined, EditOutlined, PictureOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch, Upload } from 'antd';
+import { PlusOutlined, EditOutlined, PictureOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -26,11 +27,13 @@ export const CharityProjects: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<CharityProject | null>(null);
   const [form] = Form.useForm();
+  const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
   const [newBannerUrl, setNewBannerUrl] = useState('');
   const [newBannerTitle, setNewBannerTitle] = useState('');
   const [bannerLoading, setBannerLoading] = useState(false);
+  const [bannerFileList, setBannerFileList] = useState<UploadFile[]>([]);
 
   useEffect(() => {
     fetchProjects();
@@ -58,9 +61,21 @@ export const CharityProjects: React.FC = () => {
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
       };
       form.setFieldsValue(formValues);
+      // Show existing image in upload list
+      if (project.image_url) {
+        setImageFileList([{
+          uid: '-1',
+          name: 'cover',
+          status: 'done',
+          url: project.image_url,
+        }]);
+      } else {
+        setImageFileList([]);
+      }
     } else {
       setEditingProject(null);
       form.resetFields();
+      setImageFileList([]);
     }
     setModalOpen(true);
   };
@@ -120,12 +135,16 @@ export const CharityProjects: React.FC = () => {
   };
 
   const handleAddBanner = async () => {
-    if (!newBannerUrl.trim()) { message.error('请输入图片URL'); return; }
+    // Use uploaded URL if available, otherwise fall back to manual URL input
+    const uploadedUrl = bannerFileList.find(f => f.status === 'done')?.response?.url;
+    const urlToUse = uploadedUrl || newBannerUrl.trim();
+    if (!urlToUse) { message.error('请上传图片或输入图片URL'); return; }
     try {
-      await apiClient.createCharityBanner({ image_url: newBannerUrl, title: newBannerTitle });
+      await apiClient.createCharityBanner({ image_url: urlToUse, title: newBannerTitle });
       message.success('轮播图添加成功');
       setNewBannerUrl('');
       setNewBannerTitle('');
+      setBannerFileList([]);
       const data = await apiClient.getCharityBanners();
       setBanners(data.data || []);
     } catch {
@@ -327,10 +346,35 @@ export const CharityProjects: React.FC = () => {
             <Input.TextArea rows={4} placeholder="详细描述项目内容和目标" />
           </Form.Item>
 
-          <Form.Item
-            name="image_url"
-            label="封面图 URL"
-          >
+          <Form.Item label="封面图">
+            <Upload
+              name="file"
+              action="/api/admin/upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              listType="picture"
+              fileList={imageFileList}
+              maxCount={1}
+              onChange={({ fileList, file }) => {
+                setImageFileList(fileList);
+                if (file.status === 'done' && file.response?.url) {
+                  form.setFieldValue('image_url', file.response.url);
+                  message.success('图片上传成功');
+                } else if (file.status === 'error') {
+                  message.error('图片上传失败');
+                }
+              }}
+              beforeUpload={(file) => {
+                const isImage = file.type.startsWith('image/');
+                if (!isImage) { message.error('只能上传图片文件'); return false; }
+                const isLt10M = file.size / 1024 / 1024 < 10;
+                if (!isLt10M) { message.error('图片大小不能超过10MB'); return false; }
+                return true;
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传封面图（支持GIF动图）</Button>
+            </Upload>
+          </Form.Item>
+          <Form.Item name="image_url" label="或直接输入封面图URL">
             <Input placeholder="https://example.com/image.png" />
           </Form.Item>
 
@@ -378,9 +422,10 @@ export const CharityProjects: React.FC = () => {
           <Form.Item
             name="ambassador_telegram"
             label="公益大使 Telegram"
-            tooltip="不含@符号，用于联系公益大使"
+            tooltip={'填写不含@的用户名（如：myusername），迷你应用用户点击"联系公益大使"按钮将直接跳转到该用户的Telegram聊天'}
+            extra="格式：不含@的用户名，例如 myusername"
           >
-            <Input placeholder="例如：ambassador_username" />
+            <Input addonBefore="@" placeholder="例如：ambassador123" />
           </Form.Item>
 
           <Form.Item
@@ -398,15 +443,43 @@ export const CharityProjects: React.FC = () => {
       <Modal
         title="轮播图管理"
         open={bannerModalOpen}
-        onCancel={() => setBannerModalOpen(false)}
-        footer={[<Button key="close" onClick={() => setBannerModalOpen(false)}>关闭</Button>]}
+        onCancel={() => { setBannerModalOpen(false); setBannerFileList([]); setNewBannerUrl(''); setNewBannerTitle(''); }}
+        footer={[<Button key="close" onClick={() => { setBannerModalOpen(false); setBannerFileList([]); setNewBannerUrl(''); setNewBannerTitle(''); }}>关闭</Button>]}
         width={600}
       >
         <div style={{ marginBottom: 16 }}>
           <h4>添加轮播图</h4>
+          <div style={{ marginBottom: 8 }}>
+            <Upload
+              name="file"
+              action="/api/admin/upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              listType="picture"
+              fileList={bannerFileList}
+              maxCount={1}
+              onChange={({ fileList, file }) => {
+                setBannerFileList(fileList);
+                if (file.status === 'done' && file.response?.url) {
+                  message.success('图片上传成功');
+                } else if (file.status === 'error') {
+                  message.error('图片上传失败');
+                }
+              }}
+              beforeUpload={(file) => {
+                const isImage = file.type.startsWith('image/');
+                if (!isImage) { message.error('只能上传图片文件'); return false; }
+                const isLt10M = file.size / 1024 / 1024 < 10;
+                if (!isLt10M) { message.error('图片大小不能超过10MB'); return false; }
+                return true;
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传图片（支持GIF动图）</Button>
+            </Upload>
+          </div>
+          <div style={{ marginBottom: 8, color: '#999', fontSize: 12 }}>或直接输入图片URL：</div>
           <Space.Compact style={{ width: '100%', marginBottom: 8 }}>
             <Input
-              placeholder="图片URL"
+              placeholder="图片URL（可选，优先使用上传图片）"
               value={newBannerUrl}
               onChange={e => setNewBannerUrl(e.target.value)}
             />

@@ -109,7 +109,15 @@ export const Charity: React.FC = () => {
         <div style={{ position: 'fixed', bottom: '68px', left: '16px', right: '16px' }}>
           <button
             disabled={!hasAmbassador}
-            onClick={() => hasAmbassador && window.open(`https://t.me/${selected.ambassador_telegram}`, '_blank')}
+            onClick={() => {
+              if (!hasAmbassador) return;
+              const url = `https://t.me/${selected.ambassador_telegram}`;
+              if (window.Telegram?.WebApp?.openTelegramLink) {
+                window.Telegram.WebApp.openTelegramLink(url);
+              } else {
+                window.open(url, '_blank');
+              }
+            }}
             style={{
               width: '100%', padding: '14px', border: 'none', borderRadius: '10px',
               backgroundColor: hasAmbassador ? '#F0B90B' : theme.bgCardHover,

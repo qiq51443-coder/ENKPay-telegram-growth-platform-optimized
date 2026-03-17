@@ -18,6 +18,7 @@ declare global {
         expand: () => void;
         close: () => void;
         ready: () => void;
+        openTelegramLink: (url: string) => void;
         MainButton: {
           setText: (text: string) => void;
           show: () => void;
