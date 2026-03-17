@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Card } from 'antd';
-import { PlusOutlined, EyeOutlined, GiftOutlined } from '@ant-design/icons';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Card, Upload } from 'antd';
+import { PlusOutlined, EyeOutlined, GiftOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
 
 interface RedPacket {
@@ -58,6 +59,7 @@ export const RedPackets: React.FC = () => {
   const [form] = Form.useForm();
   const [recentClaims, setRecentClaims] = useState<RecentClaim[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
+  const [coverImageUrl, setCoverImageUrl] = useState<string>('');
 
   useEffect(() => {
     fetchRedPackets();
@@ -134,12 +136,14 @@ export const RedPackets: React.FC = () => {
       const submitValues = { ...values };
       if (submitValues.expires_in_hours) submitValues.expires_in_hours = submitValues.expires_in_hours * 24;
       if (submitValues.balance_expiry_hours) submitValues.balance_expiry_hours = submitValues.balance_expiry_hours * 24;
+      if (coverImageUrl) submitValues.cover_image_url = coverImageUrl;
       await apiClient.createRedPacket(submitValues);
       message.success('红包创建成功');
       setModalOpen(false);
       form.resetFields();
       setSelectedBotId('');
       setGroups([]);
+      setCoverImageUrl('');
       fetchRedPackets();
     } catch (error: any) {
       console.error('Failed to create red packet:', error);
@@ -291,6 +295,18 @@ export const RedPackets: React.FC = () => {
       ),
     },
     {
+      title: '余额有效期',
+      dataIndex: 'balance_expires_at',
+      key: 'balance_expires_at',
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '永久有效',
+    },
+    {
+      title: '打码量',
+      dataIndex: 'wagering_multiplier',
+      key: 'wagering_multiplier',
+      render: (v: number) => v != null ? `${v}x` : '-',
+    },
+    {
       title: '领取时间',
       dataIndex: 'claimed_at',
       key: 'claimed_at',
@@ -373,6 +389,7 @@ export const RedPackets: React.FC = () => {
           form.resetFields();
           setSelectedBotId('');
           setGroups([]);
+          setCoverImageUrl('');
         }}
         okText="创建"
         cancelText="取消"
@@ -503,14 +520,35 @@ export const RedPackets: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="cover_style" label="封面风格" initialValue="none">
-            <Select>
-              <Select.Option value="none">📄 纯文字（无封面图）</Select.Option>
-              <Select.Option value="classic_red">🧧 经典红包</Select.Option>
-              <Select.Option value="gold_vip">👑 金色VIP</Select.Option>
-              <Select.Option value="festival">🎊 节日庆典</Select.Option>
-              <Select.Option value="usdt_reward">💰 USDT奖励</Select.Option>
-            </Select>
+          <Form.Item label="封面图片（可选）" extra="上传自定义封面图片，支持 JPG/PNG，最大 5MB">
+            <Upload
+              name="cover"
+              listType="picture"
+              maxCount={1}
+              accept="image/*"
+              action="/api/redpackets/cover-upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              onChange={(info: UploadChangeParam<UploadFile>) => {
+                if (info.file.status === 'done') {
+                  const url = info.file.response?.url;
+                  if (url) {
+                    setCoverImageUrl(url);
+                    message.success('封面图片上传成功');
+                  }
+                } else if (info.file.status === 'removed') {
+                  setCoverImageUrl('');
+                } else if (info.file.status === 'error') {
+                  message.error('封面图片上传失败');
+                }
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传封面</Button>
+            </Upload>
+            {coverImageUrl && (
+              <div style={{ marginTop: 8 }}>
+                <img src={coverImageUrl} alt="封面预览" style={{ maxHeight: 120, maxWidth: '100%', borderRadius: 4 }} />
+              </div>
+            )}
           </Form.Item>
         </Form>
       </Modal>

@@ -48,7 +48,7 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
       const totalAmount = rp?.total_amount != null ? Number(rp.total_amount).toFixed(2) : '?';
 
       const cbMessage = ctx.callbackQuery?.message;
-      if (cbMessage && 'text' in cbMessage) {
+      if (cbMessage && ('text' in cbMessage || 'caption' in cbMessage)) {
         const isFinished = rp?.status !== 'active';
 
         // Use the red packet's configured language for group message text, falling back to claimer language
@@ -57,13 +57,23 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
           ? `\n\n${t(rpLang, 'redpacket_all_claimed', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount })}`
           : `\n\n${t(rpLang, 'redpacket_progress', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount, total_amount: totalAmount })}`;
 
-        // Strip any previous progress lines before appending the updated one
-        const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
-        await ctx.editMessageText(baseText + progressLine, {
-          reply_markup: isFinished
-            ? { inline_keyboard: [] }
-            : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
-        }).catch(() => {});
+        if ('caption' in cbMessage && cbMessage.caption != null) {
+          // Photo message: update caption
+          const baseCaption = cbMessage.caption.split('\n\n📊')[0].split('\n\n🎉')[0];
+          await ctx.editMessageCaption(baseCaption + progressLine, {
+            reply_markup: isFinished
+              ? { inline_keyboard: [] }
+              : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
+          }).catch(() => {});
+        } else if ('text' in cbMessage) {
+          // Text message: update text
+          const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
+          await ctx.editMessageText(baseText + progressLine, {
+            reply_markup: isFinished
+              ? { inline_keyboard: [] }
+              : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
+          }).catch(() => {});
+        }
       }
     } catch (updateErr) {
       console.warn('[redpacket] Could not update red packet message:', updateErr);

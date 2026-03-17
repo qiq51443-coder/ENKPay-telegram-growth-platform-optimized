@@ -126,7 +126,7 @@ export const de: Record<string, string> = {
   redpacket_finished: 'Dieses Paket ist aufgebraucht.',
   redpacket_progress: '📊 {claimed}/{total} eingelöst | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 Rotes Paket vollständig eingelöst! {claimed}/{total} Personen, {claimed_amount} USDT gesamt',
-  redpacket_received_notification: '🎁 Glückwunsch! Sie haben {amount} USDT erhalten!\n\n💰 Gutgeschriebener Betrag: {amount} USDT\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten\n⏳ Gültig für: {days} Tage',
+  redpacket_received_notification: '🎁 Glückwunsch! Sie haben {amount} USDT erhalten!\n\n💰 Gutgeschriebener Betrag: {amount} USDT\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten\n⏳ Gültig für: {days} Tage\n⚠️ Dieses Guthaben ist nur für Soforttransaktionen verfügbar und läuft automatisch ab',
   redpacket_received_notification_permanent: '🎁 Glückwunsch! Sie haben {amount} USDT erhalten!\n\n💰 Gutgeschriebener Betrag: {amount} USDT\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten\n✅ Guthaben: dauerhaft gültig',
 
   // General
