@@ -1370,6 +1370,21 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             { show_alert: true }
           );
 
+          // Send private notification to the claimer
+          try {
+            const wagMultiplier = result.wagering_multiplier;
+            const expiryHours = result.balance_expiry_hours;
+            let notifText = t(lang, 'redpacket_received_notification', {
+              amount: amountStr,
+              multiplier: String(wagMultiplier ?? 2),
+              days: expiryHours ? String(Math.ceil(expiryHours / 24)) : '∞',
+            });
+            if (!expiryHours) {
+              notifText = notifText.split('\n\n').slice(0, -1).join('\n\n');
+            }
+            await ctx.telegram.sendMessage(user.telegram_id, notifText).catch(() => {});
+          } catch (_) {}
+
           // Try to update the group message with claim progress — non-blocking
           try {
             const rpRes = await axios.get(
@@ -1385,10 +1400,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
             const cbMessage = ctx.callbackQuery?.message;
             if (cbMessage && 'text' in cbMessage) {
-              const isFinished =
-                result.status === 'finished' ||
-                rp?.status === 'finished' ||
-                (typeof claimedCount === 'number' && typeof totalCount === 'number' && claimedCount >= totalCount);
+              const isFinished = rp?.status !== 'active';
 
               // Use the red packet's configured language for group message text, falling back to claimer language
               const rpLang = rp?.language || lang;

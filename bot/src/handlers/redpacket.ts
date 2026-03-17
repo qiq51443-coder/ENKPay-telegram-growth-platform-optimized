@@ -17,6 +17,21 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
       { show_alert: true }
     );
 
+    // Send private notification to the claimer
+    try {
+      const wagMultiplier = result.wagering_multiplier;
+      const expiryHours = result.balance_expiry_hours;
+      let notifText = t(lang, 'redpacket_received_notification', {
+        amount: amountStr,
+        multiplier: String(wagMultiplier ?? 2),
+        days: expiryHours ? String(Math.ceil(expiryHours / 24)) : '∞',
+      });
+      if (!expiryHours) {
+        notifText = notifText.split('\n\n').slice(0, -1).join('\n\n');
+      }
+      await ctx.telegram.sendMessage(ctx.from!.id, notifText).catch(() => {});
+    } catch (_) {}
+
     // Try to update the message with progress info — optional, must not block claim
     try {
       const rpData = await getRedPacket(redPacketId);
@@ -29,10 +44,7 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
 
       const cbMessage = ctx.callbackQuery?.message;
       if (cbMessage && 'text' in cbMessage) {
-        const isFinished =
-          result.status === 'finished' ||
-          rp?.status === 'finished' ||
-          (typeof claimedCount === 'number' && typeof totalCount === 'number' && claimedCount >= totalCount);
+        const isFinished = rp?.status !== 'active';
 
         // Use the red packet's configured language for group message text, falling back to claimer language
         const rpLang = rp?.language || lang;

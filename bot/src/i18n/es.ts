@@ -126,6 +126,7 @@ export const es: Record<string, string> = {
   redpacket_finished: 'Este sobre está agotado.',
   redpacket_progress: '📊 {claimed}/{total} reclamados | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 ¡Sobre rojo completamente reclamado! {claimed}/{total} personas, {claimed_amount} USDT en total',
+  redpacket_received_notification: '🎁 ¡Has recibido un bono Red Packet de {amount} USDT!\n\n¡Completa {multiplier}x de volumen de trading para desbloquear el retiro!\n\n¡Este bono expirará en {days} días!',
 
   // General
   back: '« Volver',
