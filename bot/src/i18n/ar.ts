@@ -126,7 +126,7 @@ export const ar: Record<string, string> = {
   redpacket_finished: 'هذه الحزمة استُنفدت.',
   redpacket_progress: '📊 {claimed}/{total} تمت المطالبة بها | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 تمت المطالبة بالحزمة الحمراء بالكامل! {claimed}/{total} أشخاص، {claimed_amount} USDT إجمالاً',
-  redpacket_received_notification: '🎁 تهانينا! لقد تلقيت {amount} USDT!\n\n💰 المبلغ المضاف: {amount} USDT\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب\n⏳ صالح لمدة: {days} أيام',
+  redpacket_received_notification: '🎁 تهانينا! لقد تلقيت {amount} USDT!\n\n💰 المبلغ المضاف: {amount} USDT\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب\n⏳ صالح لمدة: {days} أيام\n⚠️ هذا الرصيد مخصص للتداول الفوري فقط وينتهي تلقائيًا',
   redpacket_received_notification_permanent: '🎁 تهانينا! لقد تلقيت {amount} USDT!\n\n💰 المبلغ المضاف: {amount} USDT\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب\n✅ الرصيد: صالح بشكل دائم',
 
   // General

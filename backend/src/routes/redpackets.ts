@@ -1,4 +1,7 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
@@ -6,12 +9,40 @@ import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
 
 const router = express.Router();
 
-const COVER_URL_MAP: Record<string, string> = {
-  classic_red: 'https://i.imgur.com/LfFtVze.jpeg',
-  gold_vip: 'https://i.imgur.com/QbKAFOv.jpeg',
-  festival: 'https://i.imgur.com/6tQpWzM.jpeg',
-  usdt_reward: 'https://i.imgur.com/N5rFkMs.jpeg',
-};
+// Ensure upload directory exists
+const COVER_UPLOAD_DIR = path.join(__dirname, '../../uploads/redpacket-covers');
+if (!fs.existsSync(COVER_UPLOAD_DIR)) {
+  fs.mkdirSync(COVER_UPLOAD_DIR, { recursive: true });
+}
+
+const coverStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, COVER_UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `cover_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+
+const coverUpload = multer({
+  storage: coverStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Only image files are allowed (received: ${file.mimetype})`));
+    }
+  },
+});
+
+// POST /api/redpackets/cover-upload
+router.post('/cover-upload', authenticateAdmin, coverUpload.single('cover'), (req: AuthRequest, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const url = `/uploads/redpacket-covers/${req.file.filename}`;
+  res.json({ url });
+});
 
 // GET /api/redpackets/claims/recent?limit=20
 router.get('/claims/recent', authenticateAdmin, async (req: AuthRequest, res) => {
@@ -37,7 +68,7 @@ router.get('/claims/recent', authenticateAdmin, async (req: AuthRequest, res) =>
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition, wagering_multiplier, cover_style } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition, wagering_multiplier, cover_style, cover_image_url } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -79,10 +110,10 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const wageringMultiplier = wagering_multiplier ? Number(wagering_multiplier) : 2;
 
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier, cover_style)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13)
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier, cover_style, cover_image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier, cover_style || 'none']
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier, cover_style || 'none', cover_image_url || null]
     );
 
     const redPacket = result.rows[0];
@@ -108,8 +139,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         ]]
       };
 
-      const selectedStyle = cover_style || 'none';
-      const coverUrl = (selectedStyle !== 'none' && COVER_URL_MAP[selectedStyle]) ? COVER_URL_MAP[selectedStyle] : undefined;
+      // Use uploaded cover image URL first; fall back to none (imgur links removed)
+      const coverUrl: string | undefined = cover_image_url || undefined;
 
       let sentMessage: any;
       if (coverUrl) {
@@ -450,6 +481,7 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT rpc.id, rpc.red_packet_id, rpc.user_id, rpc.amount, rpc.claimed_at,
+        rpc.balance_expires_at, rpc.wagering_multiplier,
         u.username, u.first_name, u.unique_id, u.telegram_id,
         rp.bot_id
       FROM red_packet_claims rpc
@@ -466,6 +498,8 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
       user_id: row.user_id,
       amount: row.amount,
       claimed_at: row.claimed_at,
+      balance_expires_at: row.balance_expires_at,
+      wagering_multiplier: row.wagering_multiplier,
       bot_id: row.bot_id,
       username: row.username,
       first_name: row.first_name,
