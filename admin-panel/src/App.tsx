@@ -57,6 +57,7 @@ interface ProtectedLayoutProps {
 
 const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [openKeys, setOpenKeys] = useState(['nft', 'trading', 'wallet']);
   const navigate = useNavigate();
   const location = useLocation();
   const [selectedKey, setSelectedKey] = useState('analytics');
@@ -247,8 +248,8 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={['nft', 'trading', 'wallet']}
-          openKeys={collapsed ? [] : ['nft', 'trading', 'wallet']}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys)}
           items={menuItems}
           style={{ borderRight: 0 }}
         />

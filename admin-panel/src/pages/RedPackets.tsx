@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Card, Upload } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs } from 'antd';
 import { PlusOutlined, EyeOutlined, GiftOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
@@ -330,54 +330,72 @@ export const RedPackets: React.FC = () => {
         </Button>
       </div>
 
-      <Card
-        title={<><GiftOutlined /> 最近领取记录（实时）</>}
-        extra={<Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>}
-        style={{ marginBottom: 16 }}
-      >
-        <Table
-          dataSource={recentClaims}
-          rowKey="id"
-          size="small"
-          loading={claimsLoading}
-          pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条` }}
-          columns={[
-            {
-              title: '用户',
-              key: 'user',
-              render: (_: any, r: RecentClaim) => (
-                <span>{r.first_name || r.username || '未设置'}{r.unique_id ? ` #${r.unique_id}` : ''}</span>
-              ),
-            },
-            {
-              title: '领取金额',
-              dataIndex: 'amount',
-              key: 'amount',
-              render: (v: number) => <span style={{ color: '#cf1322', fontWeight: 'bold' }}>+{Number(v).toFixed(2)} USDT</span>,
-            },
-            {
-              title: '红包',
-              dataIndex: 'red_packet_title',
-              key: 'red_packet_title',
-              render: (v: string) => v || '—',
-            },
-            {
-              title: '领取时间',
-              dataIndex: 'claimed_at',
-              key: 'claimed_at',
-              render: (v: string) => new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-            },
-          ]}
-        />
-      </Card>
-
-      <Table
-        columns={columns}
-        dataSource={redPackets}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200 }}
+      <Tabs
+        defaultActiveKey="recent-claims"
+        onChange={(key) => {
+          if (key === 'recent-claims') fetchRecentClaims();
+        }}
+        items={[
+          {
+            key: 'recent-claims',
+            label: <><GiftOutlined /> 最近领取记录</>,
+            children: (
+              <div>
+                <div style={{ marginBottom: 8, textAlign: 'right' }}>
+                  <Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>
+                </div>
+                <Table
+                  dataSource={recentClaims}
+                  rowKey="id"
+                  size="small"
+                  loading={claimsLoading}
+                  pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条` }}
+                  columns={[
+                    {
+                      title: '用户',
+                      key: 'user',
+                      render: (_: any, r: RecentClaim) => (
+                        <span>{r.first_name || r.username || '未设置'}{r.unique_id ? ` #${r.unique_id}` : ''}</span>
+                      ),
+                    },
+                    {
+                      title: '领取金额',
+                      dataIndex: 'amount',
+                      key: 'amount',
+                      render: (v: number) => <span style={{ color: '#cf1322', fontWeight: 'bold' }}>+{Number(v).toFixed(2)} USDT</span>,
+                    },
+                    {
+                      title: '红包',
+                      dataIndex: 'red_packet_title',
+                      key: 'red_packet_title',
+                      render: (v: string) => v || '—',
+                    },
+                    {
+                      title: '领取时间',
+                      dataIndex: 'claimed_at',
+                      key: 'claimed_at',
+                      render: (v: string) => new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+                    },
+                  ]}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'red-packets',
+            label: '📋 红包列表',
+            children: (
+              <Table
+                columns={columns}
+                dataSource={redPackets}
+                rowKey="id"
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+                scroll={{ x: 1200 }}
+              />
+            ),
+          },
+        ]}
       />
 
       <Modal
