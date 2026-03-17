@@ -51,14 +51,15 @@ export const Analytics: React.FC = () => {
       ]);
       if (generalRes.data) {
         const d = generalRes.data;
+        const safeNum = (v: any) => parseFloat(String(v ?? 0)) || 0;
         setStats({
-          total_users: d.users?.total_users ?? 0,
-          new_today: d.users?.new_today ?? 0,
-          total_deposits: 0,
-          total_withdrawals: 0,
-          total_rewards: d.transactions?.total_rewards ?? 0,
-          total_red_packet_amount: d.redPackets?.total_red_packet_amount ?? 0,
-          total_claimed_amount: d.redPackets?.total_claimed_amount ?? 0,
+          total_users: safeNum(d.users?.total_users),
+          new_today: safeNum(d.users?.new_today),
+          total_deposits: safeNum(d.transactions?.total_deposits),
+          total_withdrawals: safeNum(d.withdrawals?.total_withdrawn),
+          total_rewards: safeNum(d.transactions?.total_rewards),
+          total_red_packet_amount: safeNum(d.redPackets?.total_red_packet_amount),
+          total_claimed_amount: safeNum(d.redPackets?.total_claimed_amount),
         });
       }
       if (userRes.data) setUserStats(userRes.data);
@@ -151,7 +152,7 @@ export const Analytics: React.FC = () => {
           <Card>
             <Statistic
               title="充值总数"
-              value={(stats?.total_deposits || 0).toFixed(2)}
+              value={Number(stats?.total_deposits || 0).toFixed(2)}
               prefix={<ArrowDownOutlined />}
               valueStyle={{ color: '#52c41a' }}
               suffix="$"
@@ -163,7 +164,7 @@ export const Analytics: React.FC = () => {
           <Card>
             <Statistic
               title="提现总数"
-              value={(stats?.total_withdrawals || 0).toFixed(2)}
+              value={Number(stats?.total_withdrawals || 0).toFixed(2)}
               prefix={<ArrowUpOutlined />}
               valueStyle={{ color: '#faad14' }}
               suffix="$"
@@ -175,7 +176,7 @@ export const Analytics: React.FC = () => {
           <Card>
             <Statistic
               title="总奖励发放"
-              value={(stats?.total_rewards || 0).toFixed(2)}
+              value={Number(stats?.total_rewards || 0).toFixed(2)}
               prefix={<WalletOutlined />}
               valueStyle={{ color: '#722ed1' }}
               suffix="$"
@@ -187,7 +188,7 @@ export const Analytics: React.FC = () => {
           <Card>
             <Statistic
               title="红包发放总额"
-              value={(stats?.total_red_packet_amount || 0).toFixed(2)}
+              value={Number(stats?.total_red_packet_amount || 0).toFixed(2)}
               prefix={<GiftOutlined />}
               valueStyle={{ color: '#cf1322' }}
               suffix="$"
@@ -199,7 +200,7 @@ export const Analytics: React.FC = () => {
           <Card>
             <Statistic
               title="红包已领取总额"
-              value={(stats?.total_claimed_amount || 0).toFixed(2)}
+              value={Number(stats?.total_claimed_amount || 0).toFixed(2)}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#eb2f96' }}
               suffix="$"

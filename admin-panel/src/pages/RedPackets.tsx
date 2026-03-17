@@ -63,7 +63,7 @@ export const RedPackets: React.FC = () => {
     fetchRedPackets();
     fetchBots();
     fetchRecentClaims();
-    const interval = setInterval(fetchRecentClaims, 15000);
+    const interval = setInterval(fetchRecentClaims, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -505,11 +505,11 @@ export const RedPackets: React.FC = () => {
 
           <Form.Item name="cover_style" label="封面风格" initialValue="none">
             <Select>
+              <Select.Option value="none">📄 纯文字（无封面图）</Select.Option>
               <Select.Option value="classic_red">🧧 经典红包</Select.Option>
               <Select.Option value="gold_vip">👑 金色VIP</Select.Option>
               <Select.Option value="festival">🎊 节日庆典</Select.Option>
               <Select.Option value="usdt_reward">💰 USDT奖励</Select.Option>
-              <Select.Option value="none">无封面（纯文字）</Select.Option>
             </Select>
           </Form.Item>
         </Form>
