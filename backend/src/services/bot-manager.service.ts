@@ -3,7 +3,7 @@ import { message } from 'telegraf/filters';
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
-import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES } from '../i18n';
+import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES, tClaimConditionNotMet } from '../i18n';
 import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
 
@@ -1428,11 +1428,14 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             console.warn(`[bot ${botId}] Could not update red packet message:`, updateErr);
           }
         } catch (claimErr: any) {
-          const errMsg = claimErr.response?.data?.error || '';
+          const errData = claimErr.response?.data;
+          const errMsg = errData?.error || '';
           if (errMsg === 'Already claimed') {
             await ctx.answerCbQuery(t(lang, 'redpacket_already_claimed'), { show_alert: true });
           } else if (errMsg === 'Red packet finished' || errMsg === 'Red packet is not active') {
             await ctx.answerCbQuery(t(lang, 'redpacket_finished'), { show_alert: true });
+          } else if (errMsg === 'CLAIM_CONDITION_NOT_MET') {
+            await ctx.answerCbQuery(tClaimConditionNotMet(lang, errData?.condition || ''), { show_alert: true });
           } else {
             console.error(`[bot ${botId}] Red packet claim error:`, claimErr.response?.data || claimErr.message);
             await ctx.answerCbQuery(t(lang, 'error'), { show_alert: true });

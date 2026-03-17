@@ -125,6 +125,11 @@ export const zh = {
   redpacket_finished: '这个红包已被全部领取。',
   redpacket_progress: '📊 已领 {claimed}/{total} 个 | 已领金额 {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 红包已抢完！{claimed}/{total} 人领取，共 {claimed_amount} USDT',
+  redpacket_condition_not_met: '❌ 你不满足领取条件\n此红包领取条件为：{condition_desc}',
+  redpacket_condition_first_follow: '仅首次关注 Bot 用户',
+  redpacket_condition_deposited: '仅充值用户',
+  redpacket_condition_trade_100: '即时交易流水 ≥ 100 USDT',
+  redpacket_condition_trade_200: '即时交易流水 ≥ 200 USDT',
 
   // General
   back: '« 返回',

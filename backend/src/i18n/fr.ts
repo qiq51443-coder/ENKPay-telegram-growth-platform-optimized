@@ -126,6 +126,11 @@ export const fr: Record<string, string> = {
   redpacket_finished: 'Ce paquet est épuisé.',
   redpacket_progress: '📊 {claimed}/{total} réclamés | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 Paquet rouge entièrement réclamé ! {claimed}/{total} personnes, {claimed_amount} USDT au total',
+  redpacket_condition_not_met: '❌ Vous ne remplissez pas les conditions\nCe paquet rouge nécessite : {condition_desc}',
+  redpacket_condition_first_follow: 'Nouveaux utilisateurs uniquement',
+  redpacket_condition_deposited: 'Utilisateurs ayant effectué un dépôt uniquement',
+  redpacket_condition_trade_100: 'Volume de trading instantané ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Volume de trading instantané ≥ 200 USDT',
 
   // General
   back: '« Retour',

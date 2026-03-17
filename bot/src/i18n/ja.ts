@@ -128,6 +128,11 @@ export const ja: Record<string, string> = {
   redpacket_all_claimed: '🎉 レッドパケット全員受け取り完了！{claimed}/{total} 人、合計 {claimed_amount} USDT',
   redpacket_received_notification: '🎁 おめでとうございます！{amount} USDTを受け取りました！\n\n💰 入金額：{amount} USDT\n📊 出金解除には{multiplier}倍の取引量を達成してください\n⏳ 有効期間：{days}日\n⚠️ この残高はインスタント取引専用で、期限後に自動失効します',
   redpacket_received_notification_permanent: '🎁 おめでとうございます！{amount} USDTを受け取りました！\n\n💰 入金額：{amount} USDT\n📊 出金解除には{multiplier}倍の取引量を達成してください\n✅ 残高：永久有効',
+  redpacket_condition_not_met: '❌ 受け取り条件を満たしていません\nこの紅包の条件：{condition_desc}',
+  redpacket_condition_first_follow: 'Botを初めてフォローした新規ユーザーのみ',
+  redpacket_condition_deposited: '入金済みユーザーのみ',
+  redpacket_condition_trade_100: '即時取引量 ≥ 100 USDT',
+  redpacket_condition_trade_200: '即時取引量 ≥ 200 USDT',
 
   // General
   back: '« 戻る',

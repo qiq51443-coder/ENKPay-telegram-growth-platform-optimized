@@ -127,6 +127,11 @@ export const zh = {
   redpacket_all_claimed: '🎉 红包已抢完！{claimed}/{total} 人领取，共 {claimed_amount} USDT',
   redpacket_received_notification: '🎁 恭喜！您领取了 {amount} USDT 红包！\n\n💰 到账金额：{amount} USDT\n📊 完成 {multiplier} 倍交易流水即可提现\n⏳ 余额有效期：{days} 天\n⚠️ 此余额仅可用于即时交易，到期自动失效',
   redpacket_received_notification_permanent: '🎁 恭喜！您领取了 {amount} USDT 红包！\n\n💰 到账金额：{amount} USDT\n📊 完成 {multiplier} 倍交易流水即可提现\n✅ 余额：永久有效',
+  redpacket_condition_not_met: '❌ 你不满足领取条件\n此红包领取条件为：{condition_desc}',
+  redpacket_condition_first_follow: '仅首次关注 Bot 用户',
+  redpacket_condition_deposited: '仅充值用户',
+  redpacket_condition_trade_100: '即时交易流水 ≥ 100 USDT',
+  redpacket_condition_trade_200: '即时交易流水 ≥ 200 USDT',
 
   // General
   back: '« 返回',

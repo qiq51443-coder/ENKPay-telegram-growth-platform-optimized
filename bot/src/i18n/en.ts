@@ -127,6 +127,11 @@ export const en = {
   redpacket_all_claimed: '🎉 Red Packet fully claimed! {claimed}/{total} people, {claimed_amount} USDT total',
   redpacket_received_notification: '🎁 Congratulations! You received {amount} USDT!\n\n💰 Amount credited: {amount} USDT\n📊 Complete {multiplier}x trading volume to unlock withdrawal\n⏳ Balance valid for: {days} days\n⚠️ This balance is for instant trading only and expires automatically',
   redpacket_received_notification_permanent: '🎁 Congratulations! You received {amount} USDT!\n\n💰 Amount credited: {amount} USDT\n📊 Complete {multiplier}x trading volume to unlock withdrawal\n✅ Balance: permanently valid',
+  redpacket_condition_not_met: '❌ You do not meet the claim requirements\nThis red packet requires: {condition_desc}',
+  redpacket_condition_first_follow: 'New users who follow the Bot for the first time only',
+  redpacket_condition_deposited: 'Deposited users only',
+  redpacket_condition_trade_100: 'Instant trading volume ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Instant trading volume ≥ 200 USDT',
 
   // General
   back: '« Back',

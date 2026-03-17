@@ -128,6 +128,11 @@ export const ar: Record<string, string> = {
   redpacket_all_claimed: '🎉 تمت المطالبة بالحزمة الحمراء بالكامل! {claimed}/{total} أشخاص، {claimed_amount} USDT إجمالاً',
   redpacket_received_notification: '🎁 تهانينا! لقد تلقيت {amount} USDT!\n\n💰 المبلغ المضاف: {amount} USDT\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب\n⏳ صالح لمدة: {days} أيام\n⚠️ هذا الرصيد مخصص للتداول الفوري فقط وينتهي تلقائيًا',
   redpacket_received_notification_permanent: '🎁 تهانينا! لقد تلقيت {amount} USDT!\n\n💰 المبلغ المضاف: {amount} USDT\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب\n✅ الرصيد: صالح بشكل دائم',
+  redpacket_condition_not_met: '❌ أنت لا تستوفي شروط الاستلام\nيتطلب هذا المغلف الأحمر: {condition_desc}',
+  redpacket_condition_first_follow: 'المستخدمون الجدد فقط الذين يتابعون البوت لأول مرة',
+  redpacket_condition_deposited: 'المستخدمون الذين قاموا بالإيداع فقط',
+  redpacket_condition_trade_100: 'حجم التداول الفوري ≥ 100 USDT',
+  redpacket_condition_trade_200: 'حجم التداول الفوري ≥ 200 USDT',
 
   // General
   back: '« رجوع',
