@@ -196,7 +196,7 @@ export const CharityProjects: React.FC = () => {
       dataIndex: 'goal_amount',
       key: 'goal_amount',
       width: 120,
-      render: (amount: number) => `${amount.toFixed(2)} USDT`,
+      render: (amount: number) => `${Number(amount).toFixed(2)} USDT`,
     },
     {
       title: '已筹金额',
@@ -205,7 +205,7 @@ export const CharityProjects: React.FC = () => {
       width: 120,
       render: (amount: number) => (
         <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
-          {amount.toFixed(2)} USDT
+          {Number(amount).toFixed(2)} USDT
         </span>
       ),
     },
@@ -214,8 +214,10 @@ export const CharityProjects: React.FC = () => {
       key: 'progress',
       width: 150,
       render: (_: any, record: CharityProject) => {
-        const percent = record.goal_amount > 0 
-          ? Math.min((record.raised_amount / record.goal_amount) * 100, 100)
+        const ga = Number(record.goal_amount);
+        const ra = Number(record.raised_amount);
+        const percent = ga > 0
+          ? Math.min((ra / ga) * 100, 100)
           : 0;
         return (
           <Progress 

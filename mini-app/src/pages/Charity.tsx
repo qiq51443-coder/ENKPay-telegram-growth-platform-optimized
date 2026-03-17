@@ -23,6 +23,13 @@ interface CharityBanner {
 
 const BANNER_ROTATION_INTERVAL = 10000; // 10 seconds
 
+const resolveImageUrl = (url: string): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  const apiBase = ((import.meta as any).env?.VITE_API_URL || '/api').replace(/\/api$/, '');
+  return `${apiBase}${url}`;
+};
+
 export const Charity: React.FC = () => {
   const { t } = useLang();
   const [projects, setProjects] = useState<CharityProject[]>([]);
@@ -83,7 +90,7 @@ export const Charity: React.FC = () => {
 
         {selected.image_url && (
           <div style={{ width: '100%', height: '200px', overflow: 'hidden' }}>
-            <img src={selected.image_url} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={resolveImageUrl(selected.image_url)} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
 
@@ -112,8 +119,11 @@ export const Charity: React.FC = () => {
             onClick={() => {
               if (!hasAmbassador) return;
               const url = `https://t.me/${selected.ambassador_telegram}`;
-              if (window.Telegram?.WebApp?.openTelegramLink) {
-                window.Telegram.WebApp.openTelegramLink(url);
+              const tg = (window as any).Telegram?.WebApp;
+              if (tg?.openTelegramLink) {
+                tg.openTelegramLink(url);
+              } else if (tg?.openLink) {
+                tg.openLink(url);
               } else {
                 window.open(url, '_blank');
               }
@@ -151,7 +161,7 @@ export const Charity: React.FC = () => {
             }}>
               {banners.map(banner => (
                 <div key={banner.id} style={{ width: `${100 / banners.length}%`, flexShrink: 0, height: '100%' }}>
-                  <img src={banner.image_url} alt={banner.title || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={resolveImageUrl(banner.image_url)} alt={banner.title || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             </div>
@@ -202,7 +212,7 @@ export const Charity: React.FC = () => {
                 }}
               >
                 {project.image_url ? (
-                  <img src={project.image_url} alt={project.title} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />
+                  <img src={resolveImageUrl(project.image_url)} alt={project.title} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: '60px', height: '60px', borderRadius: '8px', backgroundColor: theme.bgCardHover, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>❤️</div>
                 )}
