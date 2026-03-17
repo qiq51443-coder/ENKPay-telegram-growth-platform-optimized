@@ -49,7 +49,18 @@ export const Analytics: React.FC = () => {
         axios.get('/api/admin/dashboard/stats', { headers }).catch(() => ({ data: null })),
         axios.get('/api/admin/stats/users', { headers }).catch(() => ({ data: null })),
       ]);
-      if (generalRes.data) setStats(generalRes.data);
+      if (generalRes.data) {
+        const d = generalRes.data;
+        setStats({
+          total_users: d.users?.total_users ?? 0,
+          new_today: d.users?.new_today ?? 0,
+          total_deposits: 0,
+          total_withdrawals: 0,
+          total_rewards: d.transactions?.total_rewards ?? 0,
+          total_red_packet_amount: d.redPackets?.total_red_packet_amount ?? 0,
+          total_claimed_amount: d.redPackets?.total_claimed_amount ?? 0,
+        });
+      }
       if (userRes.data) setUserStats(userRes.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
