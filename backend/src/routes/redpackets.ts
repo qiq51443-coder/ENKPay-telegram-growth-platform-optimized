@@ -6,10 +6,38 @@ import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
 
 const router = express.Router();
 
+const COVER_URL_MAP: Record<string, string> = {
+  classic_red: 'https://i.imgur.com/LfFtVze.jpeg',
+  gold_vip: 'https://i.imgur.com/QbKAFOv.jpeg',
+  festival: 'https://i.imgur.com/6tQpWzM.jpeg',
+  usdt_reward: 'https://i.imgur.com/N5rFkMs.jpeg',
+};
+
+// GET /api/redpackets/claims/recent?limit=20
+router.get('/claims/recent', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const result = await query(`
+      SELECT rpc.id, rpc.red_packet_id, rpc.amount, rpc.claimed_at,
+             u.username, u.first_name, u.unique_id,
+             rp.title as red_packet_title, rp.bot_id
+      FROM red_packet_claims rpc
+      JOIN users u ON rpc.user_id = u.id
+      JOIN red_packets rp ON rpc.red_packet_id = rp.id
+      ORDER BY rpc.claimed_at DESC
+      LIMIT $1
+    `, [limit]);
+    res.json({ claims: result.rows });
+  } catch (error) {
+    console.error('Get recent claims error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create red packet
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition, wagering_multiplier } = req.body;
+    const { bot_id, chat_id, title, total_amount, total_count, is_random, expires_in_hours, balance_expiry_hours, language, claim_condition, wagering_multiplier, cover_style } = req.body;
 
     if (!bot_id || !chat_id || !total_amount || !total_count) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -51,10 +79,10 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     const wageringMultiplier = wagering_multiplier ? Number(wagering_multiplier) : 2;
 
     const result = await query(
-      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12)
+      `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier, cover_style)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier]
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier, cover_style || 'classic_red']
     );
 
     const redPacket = result.rows[0];
@@ -74,13 +102,34 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         expiresHours: expiresHours ? Number(expiresHours) : null,
       });
 
-      const sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: msgs.claimButton, callback_data: `claim_redpacket:${redPacket.id}` }
-          ]]
+      const replyMarkup = {
+        inline_keyboard: [[
+          { text: msgs.claimButton, callback_data: `claim_redpacket:${redPacket.id}` }
+        ]]
+      };
+
+      const selectedStyle = cover_style || 'classic_red';
+      const coverUrl = selectedStyle !== 'none' ? COVER_URL_MAP[selectedStyle] : undefined;
+
+      let sentMessage: any;
+      if (coverUrl) {
+        try {
+          sentMessage = await telegram.sendPhoto(chat_id, coverUrl, {
+            caption: message.trim(),
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          });
+        } catch (photoErr) {
+          console.warn('[redpackets] sendPhoto failed, falling back to sendMessage:', photoErr);
+          sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
+            reply_markup: replyMarkup,
+          });
         }
-      });
+      } else {
+        sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
+          reply_markup: replyMarkup,
+        });
+      }
 
       // Update message_id
       await query(

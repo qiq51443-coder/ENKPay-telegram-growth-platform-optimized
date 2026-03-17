@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch } from 'antd';
-import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Card } from 'antd';
+import { PlusOutlined, EyeOutlined, GiftOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface RedPacket {
@@ -33,6 +33,18 @@ interface AuthorizedGroup {
   chat_type?: string;
 }
 
+interface RecentClaim {
+  id: string;
+  red_packet_id: string;
+  red_packet_title: string;
+  amount: number;
+  claimed_at: string;
+  username?: string;
+  first_name?: string;
+  unique_id?: string;
+  bot_id: string;
+}
+
 export const RedPackets: React.FC = () => {
   const [redPackets, setRedPackets] = useState<RedPacket[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
@@ -44,10 +56,15 @@ export const RedPackets: React.FC = () => {
   const [claims, setClaims] = useState([]);
   const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [form] = Form.useForm();
+  const [recentClaims, setRecentClaims] = useState<RecentClaim[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
 
   useEffect(() => {
     fetchRedPackets();
     fetchBots();
+    fetchRecentClaims();
+    const interval = setInterval(fetchRecentClaims, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchRedPackets = async () => {
@@ -96,6 +113,18 @@ export const RedPackets: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch claims:', error);
       message.error('获取领取记录失败');
+    }
+  };
+
+  const fetchRecentClaims = async () => {
+    setClaimsLoading(true);
+    try {
+      const res = await apiClient.get('/redpackets/claims/recent?limit=20');
+      setRecentClaims(res.data.claims || []);
+    } catch (e) {
+      // ignore
+    } finally {
+      setClaimsLoading(false);
     }
   };
 
@@ -283,6 +312,47 @@ export const RedPackets: React.FC = () => {
         </Button>
       </div>
 
+      <Card
+        title={<><GiftOutlined /> 最近领取记录（实时）</>}
+        extra={<Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>}
+        style={{ marginBottom: 16 }}
+      >
+        <Table
+          dataSource={recentClaims}
+          rowKey="id"
+          size="small"
+          loading={claimsLoading}
+          pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条` }}
+          columns={[
+            {
+              title: '用户',
+              key: 'user',
+              render: (_: any, r: RecentClaim) => (
+                <span>{r.first_name || r.username || '未设置'}{r.unique_id ? ` #${r.unique_id}` : ''}</span>
+              ),
+            },
+            {
+              title: '领取金额',
+              dataIndex: 'amount',
+              key: 'amount',
+              render: (v: number) => <span style={{ color: '#cf1322', fontWeight: 'bold' }}>+{Number(v).toFixed(2)} USDT</span>,
+            },
+            {
+              title: '红包',
+              dataIndex: 'red_packet_title',
+              key: 'red_packet_title',
+              render: (v: string) => v || '—',
+            },
+            {
+              title: '领取时间',
+              dataIndex: 'claimed_at',
+              key: 'claimed_at',
+              render: (v: string) => new Date(v).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+            },
+          ]}
+        />
+      </Card>
+
       <Table
         columns={columns}
         dataSource={redPackets}
@@ -428,6 +498,16 @@ export const RedPackets: React.FC = () => {
               <Select.Option value="deposited">仅充值用户</Select.Option>
               <Select.Option value="trade_volume_100">即时交易流水 ≥ 100 USDT</Select.Option>
               <Select.Option value="trade_volume_200">即时交易流水 ≥ 200 USDT</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="cover_style" label="封面风格" initialValue="classic_red">
+            <Select>
+              <Select.Option value="classic_red">🧧 经典红包</Select.Option>
+              <Select.Option value="gold_vip">👑 金色VIP</Select.Option>
+              <Select.Option value="festival">🎊 节日庆典</Select.Option>
+              <Select.Option value="usdt_reward">💰 USDT奖励</Select.Option>
+              <Select.Option value="none">无封面（纯文字）</Select.Option>
             </Select>
           </Form.Item>
         </Form>

@@ -189,8 +189,8 @@ const UsersPage: React.FC = () => {
     },
     {
       title: '红包余额(USDT)',
-      dataIndex: 'reward_balance',
-      key: 'reward_balance',
+      dataIndex: 'red_packet_balance',
+      key: 'red_packet_balance',
       width: 120,
       render: (v: any) => <span style={{ fontFamily: 'monospace' }}>${parseFloat(v || 0).toFixed(2)}</span>,
     },

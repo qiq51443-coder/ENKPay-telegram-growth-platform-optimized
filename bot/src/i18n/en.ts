@@ -125,7 +125,8 @@ export const en = {
   redpacket_finished: 'This red packet has been fully claimed.',
   redpacket_progress: '📊 {claimed}/{total} claimed | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 Red Packet fully claimed! {claimed}/{total} people, {claimed_amount} USDT total',
-  redpacket_received_notification: '🎁 You have received a {amount} USDT Red Packet bonus!\n\nComplete {multiplier}x trading volume to unlock for withdrawal!\n\nThis bonus will expire in {days} days!',
+  redpacket_received_notification: '🎁 Congratulations! You received {amount} USDT!\n\n💰 Amount credited: {amount} USDT\n📊 Complete {multiplier}x trading volume to unlock withdrawal\n⏳ Balance valid for: {days} days',
+  redpacket_received_notification_permanent: '🎁 Congratulations! You received {amount} USDT!\n\n💰 Amount credited: {amount} USDT\n📊 Complete {multiplier}x trading volume to unlock withdrawal\n✅ Balance: permanently valid',
 
   // General
   back: '« Back',
