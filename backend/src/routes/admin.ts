@@ -421,6 +421,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
         SELECT 
           COUNT(*) as total_red_packets,
           COALESCE(SUM(claimed_amount), 0) as total_claimed_amount,
+          COALESCE(SUM(total_amount), 0) as total_red_packet_amount,
           COUNT(*) FILTER (WHERE status = 'active') as active_red_packets
         FROM red_packets
         ${whereClause}

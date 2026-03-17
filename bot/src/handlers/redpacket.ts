@@ -21,15 +21,20 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
     try {
       const wagMultiplier = result.wagering_multiplier;
       const expiryHours = result.balance_expiry_hours;
-      let notifText = t(lang, 'redpacket_received_notification', {
-        amount: amountStr,
-        multiplier: String(wagMultiplier ?? 2),
-        days: expiryHours ? String(Math.ceil(expiryHours / 24)) : '∞',
-      });
+      let notifText: string;
       if (!expiryHours) {
-        notifText = notifText.split('\n\n').slice(0, -1).join('\n\n');
+        notifText = t(lang, 'redpacket_received_notification_permanent', {
+          amount: amountStr,
+          multiplier: String(wagMultiplier ?? 2),
+        });
+      } else {
+        notifText = t(lang, 'redpacket_received_notification', {
+          amount: amountStr,
+          multiplier: String(wagMultiplier ?? 2),
+          days: String(Math.ceil(expiryHours / 24)),
+        });
       }
-      await ctx.telegram.sendMessage(ctx.from!.id, notifText).catch(() => {});
+      await ctx.telegram.sendMessage(ctx.from!.id, notifText, { parse_mode: 'HTML' }).catch(() => {});
     } catch (_) {}
 
     // Try to update the message with progress info — optional, must not block claim

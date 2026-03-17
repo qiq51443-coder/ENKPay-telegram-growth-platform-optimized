@@ -132,6 +132,24 @@ export class TelegramAPI {
       throw error;
     }
   }
+
+  async sendPhoto(chatId: number | string, photo: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendPhoto`, {
+        chat_id: chatId,
+        photo,
+        ...options,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Telegram sendPhoto error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
 }
 
 export default TelegramAPI;
