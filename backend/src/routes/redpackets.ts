@@ -333,7 +333,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         if (condition === 'first_follow') {
           const txCount = await client.query('SELECT COUNT(*) FROM transactions WHERE user_id = $1', [user_id]);
           if (parseInt(txCount.rows[0].count) > 0) {
-            throw Object.assign(new Error('仅首次关注 Bot 的新用户可领取'), { statusCode: 403 });
+            throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition: 'first_follow' });
           }
         }
 
@@ -343,7 +343,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
             [user_id]
           );
           if (parseInt(depositCount.rows[0].count) === 0) {
-            throw Object.assign(new Error('仅充值用户可领取'), { statusCode: 403 });
+            throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition: 'deposited' });
           }
         }
 
@@ -355,7 +355,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
           );
           const totalVolume = parseFloat(volumeResult.rows[0].total_volume);
           if (totalVolume < requiredVolume) {
-            throw Object.assign(new Error(`需要即时交易流水达到 ${requiredVolume} USDT 才可领取`), { statusCode: 403 });
+            throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition });
           }
         }
       }
@@ -497,6 +497,9 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
   } catch (error: any) {
     // Surface structured errors with proper status codes
     if (error.statusCode) {
+      if (error.message === 'CLAIM_CONDITION_NOT_MET') {
+        return res.status(error.statusCode).json({ error: 'CLAIM_CONDITION_NOT_MET', condition: error.condition || '' });
+      }
       return res.status(error.statusCode).json({ error: error.message });
     }
     console.error('Claim red packet error:', error);

@@ -35,3 +35,16 @@ export function t(lang: string, key: string, replacements?: Record<string, strin
   }
   return text;
 }
+
+const CONDITION_KEY_MAP: Record<string, string> = {
+  first_follow: 'redpacket_condition_first_follow',
+  deposited: 'redpacket_condition_deposited',
+  trade_volume_100: 'redpacket_condition_trade_100',
+  trade_volume_200: 'redpacket_condition_trade_200',
+};
+
+export function tClaimConditionNotMet(lang: string, condition: string): string {
+  const conditionDescKey = CONDITION_KEY_MAP[condition];
+  const conditionDesc = conditionDescKey ? t(lang, conditionDescKey) : condition;
+  return t(lang, 'redpacket_condition_not_met', { condition_desc: conditionDesc });
+}

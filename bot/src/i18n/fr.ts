@@ -128,6 +128,11 @@ export const fr: Record<string, string> = {
   redpacket_all_claimed: '🎉 Paquet rouge entièrement réclamé ! {claimed}/{total} personnes, {claimed_amount} USDT au total',
   redpacket_received_notification: '🎁 Félicitations ! Vous avez reçu {amount} USDT !\n\n💰 Montant crédité : {amount} USDT\n📊 Complétez {multiplier}x de volume de trading pour débloquer le retrait\n⏳ Valable pendant : {days} jours\n⚠️ Ce solde est réservé aux transactions instantanées et expire automatiquement',
   redpacket_received_notification_permanent: '🎁 Félicitations ! Vous avez reçu {amount} USDT !\n\n💰 Montant crédité : {amount} USDT\n📊 Complétez {multiplier}x de volume de trading pour débloquer le retrait\n✅ Solde : valide en permanence',
+  redpacket_condition_not_met: '❌ Vous ne remplissez pas les conditions\nCe paquet rouge nécessite : {condition_desc}',
+  redpacket_condition_first_follow: 'Nouveaux utilisateurs uniquement',
+  redpacket_condition_deposited: 'Utilisateurs ayant effectué un dépôt uniquement',
+  redpacket_condition_trade_100: 'Volume de trading instantané ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Volume de trading instantané ≥ 200 USDT',
 
   // General
   back: '« Retour',

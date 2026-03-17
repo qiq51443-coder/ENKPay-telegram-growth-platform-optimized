@@ -126,6 +126,11 @@ export const de: Record<string, string> = {
   redpacket_finished: 'Dieses Paket ist aufgebraucht.',
   redpacket_progress: '📊 {claimed}/{total} eingelöst | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 Rotes Paket vollständig eingelöst! {claimed}/{total} Personen, {claimed_amount} USDT gesamt',
+  redpacket_condition_not_met: '❌ Sie erfüllen die Anforderungen nicht\nDieses Paket erfordert: {condition_desc}',
+  redpacket_condition_first_follow: 'Nur Erstbenutzer, die dem Bot folgen',
+  redpacket_condition_deposited: 'Nur Benutzer mit Einzahlung',
+  redpacket_condition_trade_100: 'Sofort-Handelsvolumen ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Sofort-Handelsvolumen ≥ 200 USDT',
 
   // General
   back: '« Zurück',

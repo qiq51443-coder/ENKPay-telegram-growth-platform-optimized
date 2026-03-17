@@ -1,7 +1,7 @@
 import { Context } from 'telegraf';
 import { User, getUserLanguage } from '../services/user';
 import { getRedPacket, claimRedPacket } from '../services/api';
-import { t } from '../i18n';
+import { t, tClaimConditionNotMet } from '../i18n';
 
 export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string) => {
   const lang = getUserLanguage(user);
@@ -80,16 +80,17 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
     }
 
   } catch (error: any) {
-    const errMsg = error.response?.data?.error || error.message || '';
+    const errData = error.response?.data;
+    const errMsg = errData?.error || error.message || '';
     if (errMsg === 'Already claimed') {
       await ctx.answerCbQuery(t(lang, 'redpacket_already_claimed'), { show_alert: true }).catch(() => {});
     } else if (errMsg === 'Red packet finished') {
       await ctx.answerCbQuery(t(lang, 'redpacket_finished'), { show_alert: true }).catch(() => {});
     } else if (errMsg === 'Red packet is not active' || errMsg === 'Red packet has expired') {
       await ctx.answerCbQuery(t(lang, 'redpacket_finished'), { show_alert: true }).catch(() => {});
-    } else if (errMsg.includes('仅') || errMsg.includes('需要')) {
-      // Claim condition not met — surface the backend's message directly
-      await ctx.answerCbQuery(errMsg, { show_alert: true }).catch(() => {});
+    } else if (errMsg === 'CLAIM_CONDITION_NOT_MET') {
+      const condition = errData?.condition || '';
+      await ctx.answerCbQuery(tClaimConditionNotMet(lang, condition), { show_alert: true }).catch(() => {});
     } else {
       console.error('[redpacket] Claim API error:', error.response?.data || error.message);
       await ctx.answerCbQuery(t(lang, 'error'), { show_alert: true }).catch(() => {});

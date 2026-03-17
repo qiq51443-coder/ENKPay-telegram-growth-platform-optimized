@@ -128,6 +128,11 @@ export const de: Record<string, string> = {
   redpacket_all_claimed: '🎉 Rotes Paket vollständig eingelöst! {claimed}/{total} Personen, {claimed_amount} USDT gesamt',
   redpacket_received_notification: '🎁 Glückwunsch! Sie haben {amount} USDT erhalten!\n\n💰 Gutgeschriebener Betrag: {amount} USDT\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten\n⏳ Gültig für: {days} Tage\n⚠️ Dieses Guthaben ist nur für Soforttransaktionen verfügbar und läuft automatisch ab',
   redpacket_received_notification_permanent: '🎁 Glückwunsch! Sie haben {amount} USDT erhalten!\n\n💰 Gutgeschriebener Betrag: {amount} USDT\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten\n✅ Guthaben: dauerhaft gültig',
+  redpacket_condition_not_met: '❌ Sie erfüllen die Anforderungen nicht\nDieses Paket erfordert: {condition_desc}',
+  redpacket_condition_first_follow: 'Nur Erstbenutzer, die dem Bot folgen',
+  redpacket_condition_deposited: 'Nur Benutzer mit Einzahlung',
+  redpacket_condition_trade_100: 'Sofort-Handelsvolumen ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Sofort-Handelsvolumen ≥ 200 USDT',
 
   // General
   back: '« Zurück',

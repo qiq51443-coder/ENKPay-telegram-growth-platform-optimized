@@ -126,6 +126,11 @@ export const es: Record<string, string> = {
   redpacket_finished: 'Este sobre está agotado.',
   redpacket_progress: '📊 {claimed}/{total} reclamados | {claimed_amount}/{total_amount} USDT',
   redpacket_all_claimed: '🎉 ¡Sobre rojo completamente reclamado! {claimed}/{total} personas, {claimed_amount} USDT en total',
+  redpacket_condition_not_met: '❌ No cumples los requisitos\nEste sobre rojo requiere: {condition_desc}',
+  redpacket_condition_first_follow: 'Solo nuevos usuarios que siguen al Bot por primera vez',
+  redpacket_condition_deposited: 'Solo usuarios que han realizado depósitos',
+  redpacket_condition_trade_100: 'Volumen de trading instantáneo ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Volumen de trading instantáneo ≥ 200 USDT',
 
   // General
   back: '« Volver',
