@@ -69,7 +69,9 @@ router.get('/projects', async (req, res) => {
 
     let queryText = `
       SELECT 
-        id, title, description, image_url, goal_amount, raised_amount,
+        id, title, description, image_url,
+        target_amount AS goal_amount, raised_amount,
+        organization, website_url,
         status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
         ambassador_telegram, is_active
       FROM charity_projects
@@ -156,6 +158,9 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       end_date,
       organization,
       website_url,
+      ambassador_telegram,
+      is_active,
+      status,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -164,19 +169,26 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `INSERT INTO charity_projects 
-       (title, description, image_url, goal_amount, start_at, end_at,
-        organization, website_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
-       RETURNING *`,
+       (title, description, image_url, target_amount, start_at, end_at,
+        organization, website_url, ambassador_telegram, is_active, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, title, description, image_url,
+         target_amount AS goal_amount, raised_amount,
+         organization, website_url, ambassador_telegram, is_active, status,
+         start_at AS start_date, end_at AS end_date,
+         created_at, updated_at`,
       [
         title,
-        description,
-        image_url,
+        description || null,
+        image_url || null,
         parseFloat(goal_amount),
-        start_date,
-        end_date,
-        organization,
-        website_url,
+        start_date || null,
+        end_date || null,
+        organization || null,
+        website_url || null,
+        ambassador_telegram || null,
+        is_active !== undefined ? is_active : true,
+        status || 'active',
       ]
     );
 
@@ -202,24 +214,25 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
     const params: any[] = [];
     let paramCount = 1;
 
-    const allowedFields = [
-      'title',
-      'description',
-      'image_url',
-      'goal_amount',
-      'start_at',
-      'end_at',
-      'organization',
-      'website_url',
-      'status',
-      'ambassador_telegram',
-      'is_active',
-    ];
+    // Map frontend field names to DB column names
+    const fieldMapping: Record<string, string> = {
+      title: 'title',
+      description: 'description',
+      image_url: 'image_url',
+      goal_amount: 'target_amount',
+      start_date: 'start_at',
+      end_date: 'end_at',
+      organization: 'organization',
+      website_url: 'website_url',
+      status: 'status',
+      ambassador_telegram: 'ambassador_telegram',
+      is_active: 'is_active',
+    };
 
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        updateFields[field] = `$${paramCount}`;
-        params.push(req.body[field]);
+    for (const [frontendField, dbField] of Object.entries(fieldMapping)) {
+      if (req.body[frontendField] !== undefined) {
+        updateFields[dbField] = `$${paramCount}`;
+        params.push(req.body[frontendField]);
         paramCount++;
       }
     }

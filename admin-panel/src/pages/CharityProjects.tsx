@@ -11,7 +11,7 @@ interface CharityProject {
   description?: string;
   image_url?: string;
   goal_amount: number;
-  current_amount: number;
+  raised_amount: number;
   organization?: string;
   status: string;
   start_date?: string;
@@ -43,7 +43,7 @@ export const CharityProjects: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiClient.getCharityProjects();
-      setProjects(response.projects || []);
+      setProjects(response.data || []);
     } catch (error) {
       console.error('Failed to fetch charity projects:', error);
       message.error('获取公益项目列表失败');
@@ -200,8 +200,8 @@ export const CharityProjects: React.FC = () => {
     },
     {
       title: '已筹金额',
-      dataIndex: 'current_amount',
-      key: 'current_amount',
+      dataIndex: 'raised_amount',
+      key: 'raised_amount',
       width: 120,
       render: (amount: number) => (
         <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
@@ -215,7 +215,7 @@ export const CharityProjects: React.FC = () => {
       width: 150,
       render: (_: any, record: CharityProject) => {
         const percent = record.goal_amount > 0 
-          ? Math.min((record.current_amount / record.goal_amount) * 100, 100)
+          ? Math.min((record.raised_amount / record.goal_amount) * 100, 100)
           : 0;
         return (
           <Progress 
@@ -235,7 +235,7 @@ export const CharityProjects: React.FC = () => {
         const statusMap: Record<string, { text: string; color: string }> = {
           active: { text: '进行中', color: 'green' },
           completed: { text: '已完成', color: 'blue' },
-          closed: { text: '已关闭', color: 'red' },
+          cancelled: { text: '已取消', color: 'orange' },
         };
         const statusInfo = statusMap[status] || { text: status, color: 'default' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
@@ -276,7 +276,7 @@ export const CharityProjects: React.FC = () => {
                 type="link"
                 size="small"
                 danger
-                onClick={() => handleUpdateStatus(record.id, 'closed')}
+                onClick={() => handleUpdateStatus(record.id, 'cancelled')}
               >
                 关闭
               </Button>
@@ -415,7 +415,7 @@ export const CharityProjects: React.FC = () => {
             <Select>
               <Select.Option value="active">进行中</Select.Option>
               <Select.Option value="completed">已完成</Select.Option>
-              <Select.Option value="closed">已关闭</Select.Option>
+              <Select.Option value="cancelled">已取消</Select.Option>
             </Select>
           </Form.Item>
 
