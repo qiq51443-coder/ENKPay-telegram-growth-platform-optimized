@@ -4,6 +4,7 @@ import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
 import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES } from '../i18n';
+import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1374,19 +1375,12 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           try {
             const wagMultiplier = result.wagering_multiplier;
             const expiryHours = result.balance_expiry_hours;
-            let notifText: string;
-            if (!expiryHours) {
-              notifText = t(lang, 'redpacket_received_notification_permanent', {
-                amount: amountStr,
-                multiplier: String(wagMultiplier ?? 2),
-              });
-            } else {
-              notifText = t(lang, 'redpacket_received_notification', {
-                amount: amountStr,
-                multiplier: String(wagMultiplier ?? 2),
-                days: String(Math.ceil(expiryHours / 24)),
-              });
-            }
+            const notifText = buildRedPacketClaimNotification({
+              lang,
+              amount: amountStr,
+              multiplier: String(wagMultiplier ?? 2),
+              expiryHours: expiryHours || null,
+            });
             await ctx.telegram.sendMessage(user.telegram_id, notifText, { parse_mode: 'HTML' }).catch(() => {});
           } catch (_) {}
 

@@ -1,4 +1,7 @@
 import axios from 'axios';
+import FormData from 'form-data';
+import fs from 'fs';
+import path from 'path';
 
 export interface TelegramUser {
   id: number;
@@ -147,6 +150,58 @@ export class TelegramAPI {
       return response.data;
     } catch (error: any) {
       console.error('Telegram sendPhoto error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async sendPhotoFile(chatId: number | string, filePath: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    const stream = fs.createReadStream(filePath);
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('photo', stream, { filename: path.basename(filePath) });
+    if (options?.caption) form.append('caption', options.caption);
+    if (options?.parse_mode) form.append('parse_mode', options.parse_mode);
+    if (options?.reply_markup) form.append('reply_markup', JSON.stringify(options.reply_markup));
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendPhoto`, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      return response.data;
+    } catch (error: any) {
+      stream.destroy();
+      console.error('Telegram sendPhotoFile error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async sendAnimationFile(chatId: number | string, filePath: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    const stream = fs.createReadStream(filePath);
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('animation', stream, { filename: path.basename(filePath) });
+    if (options?.caption) form.append('caption', options.caption);
+    if (options?.parse_mode) form.append('parse_mode', options.parse_mode);
+    if (options?.reply_markup) form.append('reply_markup', JSON.stringify(options.reply_markup));
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendAnimation`, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      return response.data;
+    } catch (error: any) {
+      stream.destroy();
+      console.error('Telegram sendAnimationFile error:', error.response?.data || error.message);
       throw error;
     }
   }

@@ -25,12 +25,12 @@ const coverStorage = multer.diskStorage({
 
 const coverUpload = multer({
   storage: coverStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'video/mp4') {
       cb(null, true);
     } else {
-      cb(new Error(`Only image files are allowed (received: ${file.mimetype})`));
+      cb(new Error(`Only image/GIF/MP4 files are allowed (received: ${file.mimetype})`));
     }
   },
 });
@@ -144,14 +144,44 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
       let sentMessage: any;
       if (coverUrl) {
+        const isLocalPath = coverUrl.startsWith('/uploads/');
+        const localFilePath = isLocalPath
+          ? path.join(__dirname, '../../', coverUrl)
+          : null;
+        const isAnimation = localFilePath && (
+          localFilePath.toLowerCase().endsWith('.gif') ||
+          localFilePath.toLowerCase().endsWith('.mp4')
+        );
+
         try {
-          sentMessage = await telegram.sendPhoto(chat_id, coverUrl, {
-            caption: message.trim(),
-            parse_mode: 'HTML',
-            reply_markup: replyMarkup,
-          });
-        } catch (photoErr) {
-          console.warn('[redpackets] sendPhoto failed, falling back to sendMessage:', photoErr);
+          const localExists = localFilePath
+            ? await fs.promises.access(localFilePath).then(() => true).catch(() => false)
+            : false;
+          if (localExists && localFilePath) {
+            if (isAnimation) {
+              sentMessage = await telegram.sendAnimationFile(chat_id, localFilePath, {
+                caption: message.trim(),
+                parse_mode: 'HTML',
+                reply_markup: replyMarkup,
+              });
+            } else {
+              sentMessage = await telegram.sendPhotoFile(chat_id, localFilePath, {
+                caption: message.trim(),
+                parse_mode: 'HTML',
+                reply_markup: replyMarkup,
+              });
+            }
+          } else if (coverUrl.startsWith('http')) {
+            sentMessage = await telegram.sendPhoto(chat_id, coverUrl, {
+              caption: message.trim(),
+              parse_mode: 'HTML',
+              reply_markup: replyMarkup,
+            });
+          } else {
+            throw new Error('Cover file not found locally and not an http URL');
+          }
+        } catch (mediaErr) {
+          console.warn('[redpackets] sendMedia failed, falling back to text message:', mediaErr);
           sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
             reply_markup: replyMarkup,
             parse_mode: 'HTML',
