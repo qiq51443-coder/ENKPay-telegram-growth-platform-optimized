@@ -21,10 +21,10 @@ async function processExpiredRedPacketBalances(): Promise<void> {
     for (const claim of expired.rows) {
       try {
         await transaction(async (client) => {
-          // Deduct amount from reward_balance (floor at 0)
+          // Deduct amount from red_packet_balance (floor at 0)
           await client.query(
             `UPDATE users
-             SET reward_balance = GREATEST(reward_balance - $1, 0)
+             SET red_packet_balance = GREATEST(COALESCE(red_packet_balance, 0) - $1, 0)
              WHERE id = $2`,
             [claim.amount, claim.user_id]
           );

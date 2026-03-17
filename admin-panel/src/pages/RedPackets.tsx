@@ -102,7 +102,10 @@ export const RedPackets: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await apiClient.createRedPacket(values);
+      const submitValues = { ...values };
+      if (submitValues.expires_in_hours) submitValues.expires_in_hours = submitValues.expires_in_hours * 24;
+      if (submitValues.balance_expiry_hours) submitValues.balance_expiry_hours = submitValues.balance_expiry_hours * 24;
+      await apiClient.createRedPacket(submitValues);
       message.success('红包创建成功');
       setModalOpen(false);
       form.resetFields();
@@ -168,6 +171,16 @@ export const RedPackets: React.FC = () => {
       ),
     },
     {
+      title: '已领 / 总额',
+      key: 'claimed_vs_total',
+      width: 180,
+      render: (_: any, record: RedPacket) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+          已领 {parseFloat(String(record.claimed_amount ?? 0)).toFixed(2)} / 总 {parseFloat(String(record.total_amount ?? 0)).toFixed(2)} USDT
+        </span>
+      ),
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
@@ -188,6 +201,13 @@ export const RedPackets: React.FC = () => {
       key: 'expires_at',
       width: 160,
       render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '余额有效期',
+      dataIndex: 'balance_expiry_hours',
+      key: 'balance_expiry_hours',
+      width: 100,
+      render: (value: number) => value ? `${Math.ceil(value / 24)} 天` : '永久',
     },
     {
       title: '创建时间',
@@ -220,8 +240,8 @@ export const RedPackets: React.FC = () => {
       key: 'user',
       render: (_: any, record: any) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.user?.username || record.user?.first_name}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.user?.robot_user_id}</div>
+          <div style={{ fontWeight: 500 }}>{record.username || record.first_name || '-'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.robot_user_id || '-'}</div>
         </div>
       ),
     },
@@ -358,16 +378,16 @@ export const RedPackets: React.FC = () => {
 
           <Form.Item
             name="expires_in_hours"
-            label="红包有效期 (小时)"
+            label="红包有效期（天）"
             rules={[{ required: true, message: '请输入有效期' }]}
-            initialValue={24}
+            initialValue={1}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name="balance_expiry_hours"
-            label="余额有效期 (小时，留空表示永久有效)"
+            label="余额有效期（天，留空表示永久有效）"
           >
             <InputNumber min={1} style={{ width: '100%' }} placeholder="留空则永久有效" />
           </Form.Item>
