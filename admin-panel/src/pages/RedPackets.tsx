@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs } from 'antd';
-import { PlusOutlined, EyeOutlined, GiftOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
 
@@ -64,9 +64,6 @@ export const RedPackets: React.FC = () => {
   useEffect(() => {
     fetchRedPackets();
     fetchBots();
-    fetchRecentClaims();
-    const interval = setInterval(fetchRecentClaims, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchRedPackets = async () => {
@@ -331,17 +328,31 @@ export const RedPackets: React.FC = () => {
       </div>
 
       <Tabs
-        defaultActiveKey="recent-claims"
+        defaultActiveKey="list"
         onChange={(key) => {
-          if (key === 'recent-claims') fetchRecentClaims();
+          if (key === 'claims') fetchRecentClaims();
         }}
         items={[
           {
-            key: 'recent-claims',
-            label: <><GiftOutlined /> 最近领取记录</>,
+            key: 'list',
+            label: '红包列表',
+            children: (
+              <Table
+                columns={columns}
+                dataSource={redPackets}
+                rowKey="id"
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+                scroll={{ x: 1200 }}
+              />
+            ),
+          },
+          {
+            key: 'claims',
+            label: '领取记录（实时）',
             children: (
               <div>
-                <div style={{ marginBottom: 8, textAlign: 'right' }}>
+                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}>
                   <Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>
                 </div>
                 <Table
@@ -379,20 +390,6 @@ export const RedPackets: React.FC = () => {
                   ]}
                 />
               </div>
-            ),
-          },
-          {
-            key: 'red-packets',
-            label: '📋 红包列表',
-            children: (
-              <Table
-                columns={columns}
-                dataSource={redPackets}
-                rowKey="id"
-                loading={loading}
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: 1200 }}
-              />
             ),
           },
         ]}
