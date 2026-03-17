@@ -520,12 +520,12 @@ export const RedPackets: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item label="封面图片（可选）" extra="上传自定义封面图片，支持 JPG/PNG，最大 5MB">
+          <Form.Item label="封面图片（可选）" extra="上传自定义封面图片，支持 JPG/PNG/GIF 动图，最大 10MB">
             <Upload
               name="cover"
               listType="picture"
               maxCount={1}
-              accept="image/*"
+              accept="image/*,.gif,video/mp4"
               action="/api/redpackets/cover-upload"
               headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
               onChange={(info: UploadChangeParam<UploadFile>) => {
