@@ -1509,17 +1509,21 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
   // regardless of which bot the user is currently interacting with.
   const canonicalId = await getCanonicalUserId(user.telegram_id) || user.id;
   const freshResult = await query(
-    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, reward_balance, account_status FROM users WHERE id = $1',
+    'SELECT balance, wallet_balance, nft_balance, red_packet_credits, reward_balance, red_packet_balance, account_status FROM users WHERE id = $1',
     [canonicalId]
   );
   const fresh = freshResult.rows[0] || user;
   // wallet_balance is the operational balance used for transfers/withdrawals
   const balance = parseFloat(String(fresh.wallet_balance ?? fresh.balance ?? 0)).toFixed(2);
   const nftBalance = parseFloat(String(fresh.nft_balance ?? 0)).toFixed(2);
-  // reward_balance accumulates red-packet claims; red_packet_credits is the legacy field
+  // red_packet_balance is the canonical field since the new red packet system
   const rewardBalance = parseFloat(String(fresh.reward_balance ?? 0));
   const redPacketCredits = parseFloat(String(fresh.red_packet_credits ?? 0));
-  const redPacketBalance = (rewardBalance + redPacketCredits).toFixed(2);
+  const redPacketDirectBalance = parseFloat(String(fresh.red_packet_balance ?? 0));
+  // Use red_packet_balance as primary (when the field exists); fall back to reward_balance + red_packet_credits for legacy records
+  const redPacketBalance = fresh.red_packet_balance != null
+    ? redPacketDirectBalance.toFixed(2)
+    : (rewardBalance + redPacketCredits).toFixed(2);
   const accountStatusKey = (fresh.account_status || user.account_status) === 'active' ? 'account_active' : 'account_pending';
 
   // Fetch wallet_tip_message from system settings

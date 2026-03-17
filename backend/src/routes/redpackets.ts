@@ -82,7 +82,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       `INSERT INTO red_packets (bot_id, chat_id, title, total_amount, total_count, expires_at, created_by, status, language, is_random, balance_expiry_hours, claim_condition, wagering_multiplier, cover_style)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier, cover_style || 'classic_red']
+      [bot_id, chat_id, title, amount, count, expiresAt, req.user?.id, language || 'en', isRandom, balanceExpiryHours, claim_condition || 'all_users', wageringMultiplier, cover_style || 'none']
     );
 
     const redPacket = result.rows[0];
@@ -108,8 +108,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         ]]
       };
 
-      const selectedStyle = cover_style || 'classic_red';
-      const coverUrl = selectedStyle !== 'none' ? COVER_URL_MAP[selectedStyle] : undefined;
+      const selectedStyle = cover_style || 'none';
+      const coverUrl = (selectedStyle !== 'none' && COVER_URL_MAP[selectedStyle]) ? COVER_URL_MAP[selectedStyle] : undefined;
 
       let sentMessage: any;
       if (coverUrl) {
@@ -123,11 +123,13 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
           console.warn('[redpackets] sendPhoto failed, falling back to sendMessage:', photoErr);
           sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
             reply_markup: replyMarkup,
+            parse_mode: 'HTML',
           });
         }
       } else {
         sentMessage = await telegram.sendMessage(chat_id, message.trim(), {
           reply_markup: replyMarkup,
+          parse_mode: 'HTML',
         });
       }
 
@@ -448,7 +450,7 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT rpc.id, rpc.red_packet_id, rpc.user_id, rpc.amount, rpc.claimed_at,
-        u.username, u.first_name, u.robot_user_id,
+        u.username, u.first_name, u.unique_id, u.telegram_id,
         rp.bot_id
       FROM red_packet_claims rpc
       JOIN users u ON rpc.user_id = u.id
@@ -467,7 +469,8 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
       bot_id: row.bot_id,
       username: row.username,
       first_name: row.first_name,
-      robot_user_id: row.robot_user_id,
+      unique_id: row.unique_id,
+      telegram_id: row.telegram_id,
     }));
 
     res.json({ claims });

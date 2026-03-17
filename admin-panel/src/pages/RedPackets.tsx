@@ -269,8 +269,10 @@ export const RedPackets: React.FC = () => {
       key: 'user',
       render: (_: any, record: any) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.username || record.first_name || '-'}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>ID: {record.robot_user_id || '-'}</div>
+          <div style={{ fontWeight: 500 }}>{record.first_name || record.username || '未设置'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>
+            {record.unique_id ? `#${record.unique_id}` : record.telegram_id ? `TG:${record.telegram_id}` : '-'}
+          </div>
         </div>
       ),
     },
@@ -501,7 +503,7 @@ export const RedPackets: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="cover_style" label="封面风格" initialValue="classic_red">
+          <Form.Item name="cover_style" label="封面风格" initialValue="none">
             <Select>
               <Select.Option value="classic_red">🧧 经典红包</Select.Option>
               <Select.Option value="gold_vip">👑 金色VIP</Select.Option>

@@ -84,18 +84,14 @@ export function buildRedPacketMessage(params: {
   const daysStr = days !== null ? (days === 1 ? '1 day' : `${days} days`) : null;
 
   const lines = [
-    '🎁🎁🎁🎁🎁🎁🎁🎁🎁🎁',
-    '',
-    `  🎁 ${displayTitle} 🎁`,
-    '',
-    '🎁🎁🎁🎁🎁🎁🎁🎁🎁🎁',
+    `🧧 <b>${displayTitle}</b>`,
     '',
     '━━━━━━━━━━━━━━━━━━━━',
-    `💰 ${msgs.labelTotal}: ${amountStr}`,
-    `👥 ${msgs.labelCount}: ${params.totalCount}`,
+    `💰 ${msgs.labelTotal}: <b>${amountStr}</b>`,
+    `👥 ${msgs.labelCount}: <b>${params.totalCount}</b>`,
   ];
   if (daysStr) {
-    lines.push(`⏰ ${msgs.labelExpires}: ${daysStr}`);
+    lines.push(`⏰ ${msgs.labelExpires}: <b>${daysStr}</b>`);
   }
   lines.push('━━━━━━━━━━━━━━━━━━━━');
   lines.push('');

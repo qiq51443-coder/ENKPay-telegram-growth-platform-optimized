@@ -247,6 +247,8 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
+          defaultOpenKeys={['nft', 'trading', 'wallet']}
+          openKeys={collapsed ? [] : ['nft', 'trading', 'wallet']}
           items={menuItems}
           style={{ borderRight: 0 }}
         />
