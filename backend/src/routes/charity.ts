@@ -2,6 +2,8 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
+// NOTE: Run this migration if the column does not yet exist:
+// ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS show_in_app BOOLEAN NOT NULL DEFAULT true;
 
 const router = express.Router();
 
@@ -73,7 +75,7 @@ router.get('/projects', async (req, res) => {
         target_amount AS goal_amount, raised_amount,
         organization, website_url,
         status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
-        ambassador_telegram, is_active
+        ambassador_telegram, is_active, show_in_app
       FROM charity_projects
       WHERE 1=1
     `;
@@ -83,7 +85,8 @@ router.get('/projects', async (req, res) => {
       params.push(status);
       queryText += ` AND status = $${params.length}`;
     } else if (!status) {
-      queryText += ` AND status = 'active'`;
+      // Mini-app view: always show active projects + completed/cancelled projects with show_in_app = true
+      queryText += ` AND (status = 'active' OR (status IN ('completed', 'cancelled') AND show_in_app = true))`;
     }
     // status === 'all': no filter, return all statuses
 
@@ -165,6 +168,7 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       ambassador_telegram,
       is_active,
       status,
+      show_in_app,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -174,11 +178,11 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
     const result = await query(
       `INSERT INTO charity_projects 
        (title, description, image_url, target_amount, start_at, end_at,
-        organization, website_url, ambassador_telegram, is_active, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        organization, website_url, ambassador_telegram, is_active, status, show_in_app)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id, title, description, image_url,
          target_amount AS goal_amount, raised_amount,
-         organization, website_url, ambassador_telegram, is_active, status,
+         organization, website_url, ambassador_telegram, is_active, status, show_in_app,
          start_at AS start_date, end_at AS end_date,
          created_at, updated_at`,
       [
@@ -193,6 +197,7 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
         ambassador_telegram || null,
         is_active !== undefined ? is_active : true,
         status || 'active',
+        show_in_app !== undefined ? show_in_app : true,
       ]
     );
 
@@ -231,6 +236,7 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       status: 'status',
       ambassador_telegram: 'ambassador_telegram',
       is_active: 'is_active',
+      show_in_app: 'show_in_app',
     };
 
     for (const [frontendField, dbField] of Object.entries(fieldMapping)) {

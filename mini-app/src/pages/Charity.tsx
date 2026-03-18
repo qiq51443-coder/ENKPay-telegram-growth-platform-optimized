@@ -13,6 +13,10 @@ interface CharityProject {
   status: 'active' | 'completed' | 'cancelled';
   ambassador_telegram?: string;
   is_active?: boolean;
+  show_in_app?: boolean;
+  goal_amount?: number | string;
+  raised_amount?: number | string;
+  organization?: string | null;
 }
 
 interface CharityBanner {
@@ -28,6 +32,11 @@ const resolveImageUrl = (url: string | null | undefined): string => {
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
   const apiBase = ((import.meta as any).env?.VITE_API_URL || '/api').replace(/\/api$/, '');
   return `${apiBase}${url}`;
+};
+
+const calcFundingPercent = (raised: number | string | undefined, goal: number | string | undefined): number => {
+  const g = Number(goal);
+  return g > 0 ? Math.min(100, (Number(raised || 0) / g) * 100) : 0;
 };
 
 export const Charity: React.FC = () => {
@@ -105,6 +114,40 @@ export const Charity: React.FC = () => {
               {selected.status === 'active' ? t('charity_active') : t('charity_ended')}
             </span>
           </div>
+
+          {selected.organization && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '13px', color: theme.textSecondary }}>🏢 {t('charity_organization')}：</span>
+              <span style={{ fontSize: '13px', color: theme.text, fontWeight: '600' }}>{selected.organization}</span>
+            </div>
+          )}
+
+          {(selected.goal_amount || selected.raised_amount) && (
+            <div style={{ backgroundColor: theme.bgCardHover, borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: theme.textSecondary }}>{t('charity_raised')}</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#F0B90B' }}>{Number(selected.raised_amount || 0).toFixed(2)} <span style={{ fontSize: '11px' }}>USDT</span></div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: theme.textSecondary }}>{t('charity_goal')}</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: theme.text }}>{Number(selected.goal_amount || 0).toFixed(2)} <span style={{ fontSize: '11px' }}>USDT</span></div>
+                </div>
+              </div>
+              <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${calcFundingPercent(selected.raised_amount, selected.goal_amount)}%`,
+                  backgroundColor: '#F0B90B',
+                  borderRadius: '3px',
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '11px', color: theme.textSecondary, marginTop: '4px' }}>
+                {`${calcFundingPercent(selected.raised_amount, selected.goal_amount).toFixed(1)}%`}
+              </div>
+            </div>
+          )}
 
           {selected.description && (
             <p style={{ color: theme.textSecondary, fontSize: '14px', lineHeight: '1.7', marginBottom: '24px' }}>
@@ -231,6 +274,27 @@ export const Charity: React.FC = () => {
                     <p style={{ color: theme.textSecondary, fontSize: '12px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {project.description}
                     </p>
+                  )}
+                  {project.organization && (
+                    <p style={{ color: theme.textSecondary, fontSize: '11px', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      🏢 {project.organization}
+                    </p>
+                  )}
+                  {(project.goal_amount || project.raised_amount) && (
+                    <div style={{ marginTop: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: theme.textSecondary, marginBottom: '2px' }}>
+                        <span>{Number(project.raised_amount || 0).toFixed(2)} USDT</span>
+                        <span>{t('charity_goal')}: {Number(project.goal_amount || 0).toFixed(2)}</span>
+                      </div>
+                      <div style={{ height: '3px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${calcFundingPercent(project.raised_amount, project.goal_amount)}%`,
+                          backgroundColor: '#F0B90B',
+                          borderRadius: '2px',
+                        }} />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

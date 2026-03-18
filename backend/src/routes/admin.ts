@@ -979,8 +979,7 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
       res.status(400).json({ error: 'No file uploaded. Please use field name "file"' });
       return;
     }
-    const backendUrl = process.env.BACKEND_URL || '';
-    const url = `${backendUrl}/uploads/${req.file.filename}`;
+    const url = `/uploads/${req.file.filename}`;
     res.json({ url, filename: req.file.filename });
   } catch (error: any) {
     console.error('Upload error:', error);

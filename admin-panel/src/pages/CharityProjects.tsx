@@ -18,8 +18,15 @@ interface CharityProject {
   end_date?: string;
   ambassador_telegram?: string;
   is_active?: boolean;
+  show_in_app?: boolean;
   created_at: string;
 }
+
+const resolveAdminImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  return `${window.location.origin}${url}`;
+};
 
 export const CharityProjects: React.FC = () => {
   const [projects, setProjects] = useState<CharityProject[]>([]);
@@ -59,6 +66,7 @@ export const CharityProjects: React.FC = () => {
         ...project,
         start_date: project.start_date ? dayjs(project.start_date) : undefined,
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
+        show_in_app: project.show_in_app !== false,
       };
       form.setFieldsValue(formValues);
       // Show existing image in upload list
@@ -67,7 +75,7 @@ export const CharityProjects: React.FC = () => {
           uid: '-1',
           name: 'cover',
           status: 'done',
-          url: project.image_url,
+          url: resolveAdminImageUrl(project.image_url),
         }]);
       } else {
         setImageFileList([]);
@@ -176,7 +184,7 @@ export const CharityProjects: React.FC = () => {
       key: 'image_url',
       width: 80,
       render: (url: string) => url ? (
-        <img src={url} alt="cover" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
+        <img src={resolveAdminImageUrl(url)} alt="cover" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
       ) : '-',
     },
     {
@@ -242,6 +250,17 @@ export const CharityProjects: React.FC = () => {
         const statusInfo = statusMap[status] || { text: status, color: 'default' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
+    },
+    {
+      title: 'App展示',
+      dataIndex: 'show_in_app',
+      key: 'show_in_app',
+      width: 90,
+      render: (show: boolean) => (
+        <Tag color={show !== false ? 'green' : 'default'}>
+          {show !== false ? '展示' : '隐藏'}
+        </Tag>
+      ),
     },
     {
       title: '结束时间',
@@ -438,6 +457,16 @@ export const CharityProjects: React.FC = () => {
           >
             <Switch checkedChildren="进行中" unCheckedChildren="已停止" />
           </Form.Item>
+
+          <Form.Item
+            name="show_in_app"
+            label="迷你App中展示"
+            valuePropName="checked"
+            initialValue={true}
+            tooltip="即使项目已结束，开启后用户仍可在迷你App中看到此项目"
+          >
+            <Switch checkedChildren="展示" unCheckedChildren="隐藏" />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -501,7 +530,7 @@ export const CharityProjects: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {banners.map(b => (
               <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #f0f0f0', padding: '8px', borderRadius: 6 }}>
-                <img src={b.image_url} alt={b.title} style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4 }} />
+                <img src={resolveAdminImageUrl(b.image_url)} alt={b.title} style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4 }} />
                 <div style={{ flex: 1 }}>{b.title || '（无标题）'}</div>
                 <Button danger size="small" onClick={() => handleDeleteBanner(b.id)}>删除</Button>
               </div>
