@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs, Input as AntInput, Alert } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, SyncOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Space, Select, InputNumber, Tabs, Input as AntInput, Alert, Avatar, Upload, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, SyncOutlined, SearchOutlined, ArrowUpOutlined, ArrowDownOutlined, UploadOutlined, ReloadOutlined } from '@ant-design/icons';
+import type { UploadFile, RcFile } from 'antd/es/upload/interface';
 import { apiClient } from '../services/api';
 
 interface TradingPair {
@@ -15,6 +16,8 @@ interface TradingPair {
   price_source?: string;
   custom_initial_price?: number;
   is_active: boolean;
+  icon_url?: string;
+  sort_order?: number;
   created_at: string;
 }
 
@@ -46,6 +49,11 @@ export const TradingPairs: React.FC = () => {
   const [librarySearch, setLibrarySearch] = useState('');
   const [selectedLibrarySymbols, setSelectedLibrarySymbols] = useState<string[]>([]);
   const [addingFromLibrary, setAddingFromLibrary] = useState(false);
+
+  // Icon upload state
+  const [iconFileList, setIconFileList] = useState<UploadFile[]>([]);
+  const [iconUploading, setIconUploading] = useState(false);
+  const [iconRefreshing, setIconRefreshing] = useState(false);
 
   useEffect(() => {
     fetchPairs();
@@ -169,6 +177,7 @@ export const TradingPairs: React.FC = () => {
   const handleOpenEditModal = (pair: TradingPair) => {
     setEditingPair(pair);
     editForm.setFieldsValue({ ...pair, name: pair.display_name || pair.name });
+    setIconFileList([]);
     setEditModalOpen(true);
   };
 
@@ -213,6 +222,66 @@ export const TradingPairs: React.FC = () => {
     }
   };
 
+  const handleMoveUp = async (index: number) => {
+    if (index === 0) return;
+    const newPairs = [...pairs];
+    [newPairs[index - 1], newPairs[index]] = [newPairs[index], newPairs[index - 1]];
+    const orders = newPairs.map((p, i) => ({ id: p.id, sort_order: i + 1 }));
+    setPairs(newPairs);
+    try {
+      await apiClient.updateTradingPairsSortOrder(orders);
+    } catch (error: any) {
+      message.error('更新排序失败');
+      fetchPairs(); // revert
+    }
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index === pairs.length - 1) return;
+    const newPairs = [...pairs];
+    [newPairs[index], newPairs[index + 1]] = [newPairs[index + 1], newPairs[index]];
+    const orders = newPairs.map((p, i) => ({ id: p.id, sort_order: i + 1 }));
+    setPairs(newPairs);
+    try {
+      await apiClient.updateTradingPairsSortOrder(orders);
+    } catch (error: any) {
+      message.error('更新排序失败');
+      fetchPairs(); // revert
+    }
+  };
+
+  const handleIconUpload = async () => {
+    if (!editingPair || iconFileList.length === 0) return;
+    const file = iconFileList[0].originFileObj as File;
+    setIconUploading(true);
+    try {
+      const res = await apiClient.uploadTradingPairIcon(editingPair.id, file);
+      message.success('图标上传成功');
+      setIconFileList([]);
+      setEditingPair({ ...editingPair, icon_url: res.icon_url });
+      fetchPairs();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '图标上传失败');
+    } finally {
+      setIconUploading(false);
+    }
+  };
+
+  const handleIconRefresh = async () => {
+    if (!editingPair) return;
+    setIconRefreshing(true);
+    try {
+      const res = await apiClient.refreshTradingPairIcon(editingPair.id);
+      message.success('图标已重新获取');
+      setEditingPair({ ...editingPair, icon_url: res.icon_url });
+      fetchPairs();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '重新获取图标失败');
+    } finally {
+      setIconRefreshing(false);
+    }
+  };
+
   const filteredLibrary = libraryData.filter(item =>
     item.symbol.toLowerCase().includes(librarySearch.toLowerCase()) ||
     (item.display_name || '').toLowerCase().includes(librarySearch.toLowerCase())
@@ -252,6 +321,20 @@ export const TradingPairs: React.FC = () => {
       key: 'id',
       width: 80,
       render: (id: any) => String(id ?? '').substring(0, 8),
+    },
+    {
+      title: '图标',
+      dataIndex: 'icon_url',
+      key: 'icon_url',
+      width: 60,
+      render: (iconUrl: string | undefined, record: TradingPair) =>
+        iconUrl ? (
+          <Avatar src={iconUrl} size={32} />
+        ) : (
+          <Avatar size={32} style={{ backgroundColor: '#1677ff' }}>
+            {record.symbol[0]}
+          </Avatar>
+        ),
     },
     {
       title: '交易对',
@@ -325,10 +408,37 @@ export const TradingPairs: React.FC = () => {
       ),
     },
     {
+      title: '排序',
+      key: 'sort',
+      width: 80,
+      render: (_: any, _record: TradingPair, index: number) => (
+        <Space size={2}>
+          <Tooltip title="上移">
+            <Button
+              type="text"
+              size="small"
+              icon={<ArrowUpOutlined />}
+              disabled={index === 0}
+              onClick={() => handleMoveUp(index)}
+            />
+          </Tooltip>
+          <Tooltip title="下移">
+            <Button
+              type="text"
+              size="small"
+              icon={<ArrowDownOutlined />}
+              disabled={index === pairs.length - 1}
+              onClick={() => handleMoveDown(index)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+    {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 250,
+      width: 200,
       render: (_: any, record: TradingPair) => (
         <Space>
           <Button
@@ -348,10 +458,12 @@ export const TradingPairs: React.FC = () => {
             {record.is_active ? '禁用' : '启用'}
           </Button>
           <Popconfirm
-            title="确定要删除这个交易对吗？"
+            title="确定要永久删除这个交易对吗？"
+            description="此操作不可恢复，关联数据将一并删除。"
             onConfirm={() => handleDelete(record.id)}
-            okText="确定"
+            okText="确定删除"
             cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除
@@ -616,6 +728,7 @@ export const TradingPairs: React.FC = () => {
           setEditModalOpen(false);
           setEditingPair(null);
           editForm.resetFields();
+          setIconFileList([]);
         }}
         okText="保存"
         cancelText="取消"
@@ -641,6 +754,60 @@ export const TradingPairs: React.FC = () => {
               <Select.Option value={true}>启用</Select.Option>
               <Select.Option value={false}>禁用</Select.Option>
             </Select>
+          </Form.Item>
+
+          {/* Icon management section */}
+          <Form.Item label="币种图标">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {editingPair?.icon_url ? (
+                <Avatar src={editingPair.icon_url} size={48} />
+              ) : (
+                <Avatar size={48} style={{ backgroundColor: '#1677ff' }}>
+                  {editingPair?.symbol?.[0] ?? '?'}
+                </Avatar>
+              )}
+              {editingPair?.pair_type === 'custom' ? (
+                <Space>
+                  <Upload
+                    fileList={iconFileList}
+                    beforeUpload={(file: RcFile) => {
+                      const uploadFile: UploadFile = {
+                        uid: file.uid,
+                        name: file.name,
+                        status: 'done',
+                        originFileObj: file,
+                      };
+                      setIconFileList([uploadFile]);
+                      return false;
+                    }}
+                    onRemove={() => setIconFileList([])}
+                    accept=".png,.jpg,.jpeg,.svg,.webp"
+                    maxCount={1}
+                  >
+                    <Button icon={<UploadOutlined />} size="small">选择图标</Button>
+                  </Upload>
+                  {iconFileList.length > 0 && (
+                    <Button
+                      type="primary"
+                      size="small"
+                      loading={iconUploading}
+                      onClick={handleIconUpload}
+                    >
+                      上传
+                    </Button>
+                  )}
+                </Space>
+              ) : (
+                <Button
+                  icon={<ReloadOutlined />}
+                  size="small"
+                  loading={iconRefreshing}
+                  onClick={handleIconRefresh}
+                >
+                  重新获取图标
+                </Button>
+              )}
+            </div>
           </Form.Item>
         </Form>
       </Modal>

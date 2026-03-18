@@ -1,9 +1,38 @@
 import express from 'express';
 import axios from 'axios';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
+
+// Multer storage for coin icon uploads
+const iconUploadDir = path.join(__dirname, '../../uploads/coin-icons');
+if (!fs.existsSync(iconUploadDir)) {
+  fs.mkdirSync(iconUploadDir, { recursive: true });
+}
+const iconStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, iconUploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `coin-icon-${Date.now()}${ext}`);
+  },
+});
+const iconUpload = multer({
+  storage: iconStorage,
+  limits: { fileSize: 200 * 1024 }, // 200 KB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG, JPG, SVG and WebP images are allowed'));
+    }
+  },
+});
 
 const router = express.Router();
 
@@ -18,7 +47,7 @@ router.get('/pairs', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT * FROM trading_pairs
-       ORDER BY created_at DESC
+       ORDER BY sort_order ASC, created_at DESC
        LIMIT $1 OFFSET $2`,
       [Number(limit), offset]
     );
@@ -64,12 +93,29 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     const effectiveName = display_name || symbol;
+
+    // Attempt to auto-fetch icon URL from CoinCap (non-fatal)
+    let iconUrl: string | null = null;
+    const baseAsset = (base_currency || (binance_symbol || '').replace(/USDT$|BTC$|ETH$|BNB$/i, '')).toLowerCase();
+    try {
+      const iconCandidates = [
+        `https://assets.coincap.io/assets/icons/${baseAsset}@2x.png`,
+        `https://cryptoicons.org/api/icon/${baseAsset}/200`,
+      ];
+      for (const url of iconCandidates) {
+        try {
+          const r = await axios.head(url, { timeout: 3000 });
+          if (r.status === 200) { iconUrl = url; break; }
+        } catch { /* try next */ }
+      }
+    } catch { /* ignore icon errors */ }
+
     const result = await query(
       `INSERT INTO trading_pairs 
-       (symbol, name, display_name, pair_type, binance_symbol, base_currency, quote_currency)
-       VALUES ($1, $2, $3, 'real', $4, $5, $6)
+       (symbol, name, display_name, pair_type, binance_symbol, base_currency, quote_currency, icon_url)
+       VALUES ($1, $2, $3, 'real', $4, $5, $6, $7)
        RETURNING *`,
-      [symbol, effectiveName, effectiveName, binance_symbol, base_currency, quote_currency]
+      [symbol, effectiveName, effectiveName, binance_symbol, base_currency, quote_currency, iconUrl]
     );
 
     res.json({
@@ -190,20 +236,37 @@ router.put('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * DELETE /api/admin/trading/pairs/:id
- * Delete trading pair (soft delete)
+ * Permanently delete a trading pair and all associated data
  */
 router.delete('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
-    await query(
-      'UPDATE trading_pairs SET is_active = false WHERE id = $1',
+    // Refuse to delete if there are active trading sessions for this pair
+    const activeSessions = await query(
+      `SELECT COUNT(*) FROM trading_sessions WHERE pair_id = $1 AND status = 'active'`,
+      [id]
+    );
+    if (parseInt(activeSessions.rows[0].count) > 0) {
+      return res.status(409).json({
+        error: '该交易对存在进行中的交易场次，无法删除。请先等待或结算所有活跃场次。',
+      });
+    }
+
+    // Hard delete — related rows (price_points, price_presets, trading_sessions,
+    // trading_rules, trading_orders) have ON DELETE CASCADE in the schema.
+    const result = await query(
+      'DELETE FROM trading_pairs WHERE id = $1 RETURNING id',
       [id]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
     res.json({
       success: true,
-      message: 'Trading pair deactivated successfully',
+      message: 'Trading pair permanently deleted',
     });
   } catch (error: any) {
     console.error('Delete pair error:', error);
@@ -819,10 +882,18 @@ router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: 
 
         // Insert into trading_pairs
         // $1: symbol (used as the platform identifier), $3: binance_symbol (same value)
+        // Attempt to auto-fetch icon_url (non-fatal)
+        let bulkIconUrl: string | null = null;
+        const baseAsset = (lib.base_asset || sym.replace(/USDT$|BTC$|ETH$|BNB$/i, '')).toLowerCase();
+        try {
+          const r = await axios.head(`https://assets.coincap.io/assets/icons/${baseAsset}@2x.png`, { timeout: 2000 });
+          if (r.status === 200) bulkIconUrl = `https://assets.coincap.io/assets/icons/${baseAsset}@2x.png`;
+        } catch { /* ignore */ }
+
         const insertResult = await query(
           `INSERT INTO trading_pairs
-             (symbol, display_name, pair_type, binance_symbol, base_currency, quote_currency, is_active)
-           VALUES ($1, $2, 'real', $3, $4, $5, true)
+             (symbol, display_name, pair_type, binance_symbol, base_currency, quote_currency, is_active, icon_url)
+           VALUES ($1, $2, 'real', $3, $4, $5, true, $6)
            RETURNING *`,
           [
             sym,                          // symbol (platform identifier)
@@ -830,6 +901,7 @@ router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: 
             sym,                          // binance_symbol
             lib.base_asset,              // base_currency
             lib.quote_asset,             // quote_currency
+            bulkIconUrl,                 // icon_url
           ]
         );
 
@@ -877,6 +949,103 @@ router.patch('/pairs/:id/toggle', adminLimiter, authenticateAdmin, async (req: A
     });
   } catch (error: any) {
     console.error('Toggle pair error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/trading/pairs/sort-order
+ * Batch-update sort_order for trading pairs (atomic transaction)
+ * Body: { orders: [{ id: number, sort_order: number }, ...] }
+ */
+router.put('/pairs/sort-order', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { orders } = req.body;
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ error: 'orders must be a non-empty array of { id, sort_order }' });
+    }
+
+    await transaction(async (client) => {
+      for (const item of orders) {
+        if (item.id === undefined || item.sort_order === undefined) continue;
+        await client.query(
+          'UPDATE trading_pairs SET sort_order = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [Number(item.sort_order), item.id]
+        );
+      }
+    });
+
+    res.json({ success: true, message: 'Sort order updated' });
+  } catch (error: any) {
+    console.error('Update sort order error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/pairs/:id/icon
+ * Upload a custom icon for a trading pair (multipart/form-data, field: icon)
+ */
+router.post(
+  '/pairs/:id/icon',
+  authenticateAdmin,
+  iconUpload.single('icon'),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      if (!req.file) {
+        return res.status(400).json({ error: 'No icon file uploaded (field name: icon)' });
+      }
+      const iconUrl = `/uploads/coin-icons/${req.file.filename}`;
+      const result = await query(
+        'UPDATE trading_pairs SET icon_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        [iconUrl, id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Trading pair not found' });
+      }
+      res.json({ success: true, data: result.rows[0], icon_url: iconUrl });
+    } catch (error: any) {
+      console.error('Upload icon error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/trading/pairs/:id/icon/refresh
+ * Re-fetch icon from CoinCap CDN for a real trading pair
+ */
+router.post('/pairs/:id/icon/refresh', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const pairResult = await query('SELECT * FROM trading_pairs WHERE id = $1', [id]);
+    if (pairResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+    const pair = pairResult.rows[0];
+    const baseAsset = (pair.base_currency || (pair.binance_symbol || pair.symbol || '').replace(/USDT$|BTC$|ETH$|BNB$/i, '')).toLowerCase();
+    let iconUrl: string | null = null;
+    const iconCandidates = [
+      `https://assets.coincap.io/assets/icons/${baseAsset}@2x.png`,
+      `https://cryptoicons.org/api/icon/${baseAsset}/200`,
+    ];
+    for (const url of iconCandidates) {
+      try {
+        const r = await axios.head(url, { timeout: 3000 });
+        if (r.status === 200) { iconUrl = url; break; }
+      } catch { /* try next */ }
+    }
+    if (!iconUrl) {
+      return res.status(404).json({ error: 'Could not find icon from CDN for this symbol' });
+    }
+    const result = await query(
+      'UPDATE trading_pairs SET icon_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [iconUrl, id]
+    );
+    res.json({ success: true, data: result.rows[0], icon_url: iconUrl });
+  } catch (error: any) {
+    console.error('Refresh icon error:', error);
     res.status(500).json({ error: error.message });
   }
 });
