@@ -182,6 +182,30 @@ export async function getKlineData(
 }
 
 /**
+ * Calculate 24h price change percentage for a custom pair.
+ * Looks up price_points for the closest record >= 24 hours ago.
+ */
+async function calcCustomChange24h(pairId: number, currentPrice: number): Promise<number> {
+  try {
+    const result = await query(
+      `SELECT price FROM price_points
+       WHERE pair_id = $1 AND timestamp <= NOW() - INTERVAL '24 hours'
+       ORDER BY timestamp DESC LIMIT 1`,
+      [pairId]
+    );
+    if (result.rows.length > 0) {
+      const price24hAgo = parseFloat(result.rows[0].price);
+      if (price24hAgo > 0) {
+        return ((currentPrice - price24hAgo) / price24hAgo) * 100;
+      }
+    }
+  } catch {
+    // non-critical: return 0 if query fails
+  }
+  return 0;
+}
+
+/**
  * Get custom pair price based on presets or manual points
  */
 export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
@@ -227,9 +251,12 @@ export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
         offsetDiff > 0 ? (elapsedSeconds - prevPoint.offset) / offsetDiff : 1;
       const interpolatedPrice = prevPoint.price + priceDiff * progress;
 
+      const currentPrice = parseFloat(interpolatedPrice.toFixed(8));
+      const change24h = await calcCustomChange24h(pairId, currentPrice);
       return {
-        price: parseFloat(interpolatedPrice.toFixed(8)),
+        price: currentPrice,
         timestamp: currentTime,
+        change24h,
       };
     }
   }
@@ -245,9 +272,12 @@ export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
   );
 
   if (manualResult.rows.length > 0) {
+    const currentPrice = parseFloat(manualResult.rows[0].price);
+    const change24h = await calcCustomChange24h(pairId, currentPrice);
     return {
-      price: parseFloat(manualResult.rows[0].price),
+      price: currentPrice,
       timestamp: new Date(manualResult.rows[0].timestamp).getTime(),
+      change24h,
     };
   }
 
@@ -258,9 +288,12 @@ export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
   );
 
   if (pairResult.rows.length > 0 && pairResult.rows[0].custom_initial_price) {
+    const currentPrice = parseFloat(pairResult.rows[0].custom_initial_price);
+    const change24h = await calcCustomChange24h(pairId, currentPrice);
     return {
-      price: parseFloat(pairResult.rows[0].custom_initial_price),
+      price: currentPrice,
       timestamp: Date.now(),
+      change24h,
     };
   }
 

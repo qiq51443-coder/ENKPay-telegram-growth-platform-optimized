@@ -129,6 +129,7 @@ export const Trading: React.FC = () => {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pairsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selectedPairRef = useRef<TradingPair | null>(null);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -345,8 +346,14 @@ export const Trading: React.FC = () => {
   const startPricePoll = useCallback((pairList: TradingPair[]) => {
     const fetchPrices = async () => {
       const updates: Record<string, PriceInfo> = {};
+      const idsToFetch = [...pairList];
+      // Also fetch current selected pair's price if it's not already in pairList
+      const currentSelectedPair = selectedPairRef.current;
+      if (currentSelectedPair && !idsToFetch.find((p) => p.id === currentSelectedPair.id)) {
+        idsToFetch.push(currentSelectedPair);
+      }
       await Promise.allSettled(
-        pairList.map(async (p) => {
+        idsToFetch.map(async (p) => {
           try {
             const priceRes = await api.get(`/trading/pairs/${p.id}/price`);
             updates[p.id] = {
@@ -365,8 +372,22 @@ export const Trading: React.FC = () => {
 
   const openDetail = async (pair: TradingPair) => {
     setSelectedPair(pair);
+    selectedPairRef.current = pair;
     setResultMsg(null);
     clearOrderError();
+    // Immediately fetch the price for this pair so the detail view shows up-to-date data
+    try {
+      const priceRes = await api.get(`/trading/pairs/${pair.id}/price`);
+      setPrices((prev) => ({
+        ...prev,
+        [pair.id]: {
+          price: priceRes.data?.data?.price ?? 0,
+          change24h: priceRes.data?.data?.change24h ?? 0,
+        },
+      }));
+    } catch {
+      // non-critical, poll will update soon
+    }
     try {
       const res = await api.get(`/trading/pairs/${pair.id}/rules`);
       let ruleList: TradingRule[] = res.data?.data || [];
@@ -545,7 +566,7 @@ export const Trading: React.FC = () => {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', gap: '8px' }}>
           <button
-            onClick={() => { setSelectedPair(null); setResultMsg(null); setCountdown(null); }}
+            onClick={() => { setSelectedPair(null); selectedPairRef.current = null; setResultMsg(null); setCountdown(null); }}
             style={{ background: 'none', border: 'none', color: theme.text, fontSize: '20px', cursor: 'pointer', padding: 0 }}
           >←</button>
           <h2 style={{ margin: 0, color: theme.text, fontSize: '18px' }}>{selectedPair.display_name}</h2>
@@ -917,7 +938,7 @@ export const Trading: React.FC = () => {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: theme.text, fontWeight: '600' }}>
-                    ${info.price > 0 ? info.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '--'}
+                    ${info.price != null ? info.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '--'}
                   </div>
                   <div style={{ color: priceColor(info.change24h), fontSize: '13px' }}>
                     {info.change24h >= 0 ? '+' : ''}{safeFixed(info.change24h)}%

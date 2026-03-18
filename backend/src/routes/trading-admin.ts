@@ -176,6 +176,35 @@ router.post('/pairs/custom', authenticateAdmin, async (req: AuthRequest, res) =>
 });
 
 /**
+ * PUT /api/admin/trading/pairs/sort-order
+ * Batch-update sort_order for trading pairs (atomic transaction)
+ * Body: { orders: [{ id: number, sort_order: number }, ...] }
+ */
+router.put('/pairs/sort-order', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { orders } = req.body;
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ error: 'orders must be a non-empty array of { id, sort_order }' });
+    }
+
+    await transaction(async (client) => {
+      for (const item of orders) {
+        if (item.id === undefined || item.sort_order === undefined) continue;
+        await client.query(
+          'UPDATE trading_pairs SET sort_order = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [Number(item.sort_order), item.id]
+        );
+      }
+    });
+
+    res.json({ success: true, message: 'Sort order updated' });
+  } catch (error: any) {
+    console.error('Update sort order error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * PUT /api/admin/trading/pairs/:id
  * Update trading pair
  */
@@ -949,35 +978,6 @@ router.patch('/pairs/:id/toggle', adminLimiter, authenticateAdmin, async (req: A
     });
   } catch (error: any) {
     console.error('Toggle pair error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * PUT /api/admin/trading/pairs/sort-order
- * Batch-update sort_order for trading pairs (atomic transaction)
- * Body: { orders: [{ id: number, sort_order: number }, ...] }
- */
-router.put('/pairs/sort-order', authenticateAdmin, async (req: AuthRequest, res) => {
-  try {
-    const { orders } = req.body;
-    if (!Array.isArray(orders) || orders.length === 0) {
-      return res.status(400).json({ error: 'orders must be a non-empty array of { id, sort_order }' });
-    }
-
-    await transaction(async (client) => {
-      for (const item of orders) {
-        if (item.id === undefined || item.sort_order === undefined) continue;
-        await client.query(
-          'UPDATE trading_pairs SET sort_order = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-          [Number(item.sort_order), item.id]
-        );
-      }
-    });
-
-    res.json({ success: true, message: 'Sort order updated' });
-  } catch (error: any) {
-    console.error('Update sort order error:', error);
     res.status(500).json({ error: error.message });
   }
 });
