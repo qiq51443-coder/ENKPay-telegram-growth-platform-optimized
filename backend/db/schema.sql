@@ -476,18 +476,34 @@ CREATE TABLE IF NOT EXISTS charity_projects (
   title TEXT NOT NULL,
   description TEXT,
   image_url TEXT,
-  goal_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  target_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
   raised_amount DECIMAL(10, 2) DEFAULT 0,
   organization TEXT,
   website_url TEXT,
   ambassador_telegram TEXT,
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
   is_active BOOLEAN DEFAULT true,
-  start_date TIMESTAMPTZ,
-  end_date TIMESTAMPTZ,
+  show_in_app BOOLEAN NOT NULL DEFAULT true,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Migration: add show_in_app to existing deployments
+ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS show_in_app BOOLEAN NOT NULL DEFAULT true;
+-- Migration: rename columns for existing deployments (only runs if old column names exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='charity_projects' AND column_name='goal_amount') THEN
+    ALTER TABLE charity_projects RENAME COLUMN goal_amount TO target_amount;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='charity_projects' AND column_name='start_date') THEN
+    ALTER TABLE charity_projects RENAME COLUMN start_date TO start_at;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='charity_projects' AND column_name='end_date') THEN
+    ALTER TABLE charity_projects RENAME COLUMN end_date TO end_at;
+  END IF;
+END $$;
 
 CREATE TRIGGER trigger_update_charity_projects_updated_at
 BEFORE UPDATE ON charity_projects
