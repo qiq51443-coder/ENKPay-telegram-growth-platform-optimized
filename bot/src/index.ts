@@ -43,10 +43,12 @@ interface BotEntry {
   id: string;
   token: string;
   default_language: string;
+  username?: string;
 }
 
 function createBotInstance(entry: BotEntry): Telegraf {
   const BOT_ID = entry.id;
+  const BOT_USERNAME = entry.username || '';
   const bot = new Telegraf(entry.token);
 
   // Middleware to attach bot ID to context
@@ -251,14 +253,24 @@ function createBotInstance(entry: BotEntry): Telegraf {
         const newStatus = ctx.myChatMember.new_chat_member.status;
 
         if (newStatus === 'member' || newStatus === 'administrator') {
+          // Fetch member count before registering (best-effort)
+          let memberCount: number | null = null;
+          try {
+            memberCount = await ctx.telegram.getChatMembersCount(chat.id);
+          } catch (e) {
+            console.warn(`[bot ${BOT_ID}] Failed to get member count for ${chat.id}:`, e);
+          }
+
           // Register group with retry (up to 3 attempts, 2-second delay between each)
           const registerWithRetry = async (attempt = 1): Promise<void> => {
             try {
               await axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
                 bot_id: BOT_ID,
+                bot_username: BOT_USERNAME,
                 group_id: chat.id,
                 group_name: (chat as any).title || '',
                 group_type: chat.type,
+                member_count: memberCount,
               }, {
                 headers: { 'X-Bot-Id': BOT_ID },
                 timeout: 8000,
@@ -319,7 +331,9 @@ async function fetchActiveBots(retries = 5, delayMs = 5000): Promise<BotEntry[]>
           headers: { Authorization: `Bearer ${serviceToken}` },
           timeout: 10000,
         });
-        return (response.data.bots || []).filter((b: any) => b.is_active && b.token);
+        return (response.data.bots || [])
+          .filter((b: any) => b.is_active && b.token)
+          .map((b: any) => ({ id: b.id, token: b.token, default_language: b.default_language || 'en', username: b.username }));
       } catch (error: any) {
         const isLastAttempt = attempt === retries;
         if (isLastAttempt) {
