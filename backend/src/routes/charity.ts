@@ -2,8 +2,6 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
-// NOTE: Run this migration if the column does not yet exist:
-// ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS show_in_app BOOLEAN NOT NULL DEFAULT true;
 
 const router = express.Router();
 
