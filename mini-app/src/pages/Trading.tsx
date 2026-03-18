@@ -14,6 +14,7 @@ interface TradingPair {
   binance_symbol?: string;
   icon_url?: string;
   current_price?: number;
+  price_change_24h?: number;
 }
 
 interface PriceInfo {
@@ -391,7 +392,7 @@ export const Trading: React.FC = () => {
       const initialPrices: Record<string, PriceInfo> = {};
       list.forEach((p) => {
         if (p.pair_type === 'custom' && p.current_price != null) {
-          initialPrices[p.id] = { price: Number(p.current_price), change24h: 0 };
+          initialPrices[p.id] = { price: Number(p.current_price), change24h: Number(p.price_change_24h ?? 0) };
         }
       });
       if (Object.keys(initialPrices).length > 0) {
