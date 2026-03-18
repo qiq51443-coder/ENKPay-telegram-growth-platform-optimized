@@ -9,7 +9,7 @@ interface CharityProject {
   id: string;
   title: string;
   description: string;
-  image_url: string;
+  image_url?: string | null;
   status: 'active' | 'completed' | 'cancelled';
   ambassador_telegram?: string;
   is_active?: boolean;
@@ -17,14 +17,14 @@ interface CharityProject {
 
 interface CharityBanner {
   id: string;
-  image_url: string;
+  image_url?: string | null;
   title?: string;
 }
 
 const BANNER_ROTATION_INTERVAL = 10000; // 10 seconds
 
-const resolveImageUrl = (url: string): string => {
-  if (!url) return '';
+const resolveImageUrl = (url: string | null | undefined): string => {
+  if (!url || typeof url !== 'string') return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
   const apiBase = ((import.meta as any).env?.VITE_API_URL || '/api').replace(/\/api$/, '');
   return `${apiBase}${url}`;

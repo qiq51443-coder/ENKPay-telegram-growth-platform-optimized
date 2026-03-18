@@ -537,7 +537,7 @@ class ApiClient {
     return response.data;
   }
 
-  async updateCharityProject(id: string, data: any) {
+  async updateCharityProject(id: string | number, data: any) {
     const response = await this.client.put(`/charity/projects/${id}`, data);
     return response.data;
   }

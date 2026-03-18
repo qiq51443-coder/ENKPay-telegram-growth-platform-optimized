@@ -6,7 +6,7 @@ import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
 interface CharityProject {
-  id: string;
+  id: string | number;
   title: string;
   description?: string;
   image_url?: string;
@@ -110,7 +110,7 @@ export const CharityProjects: React.FC = () => {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleUpdateStatus = async (id: string | number, status: string) => {
     try {
       await apiClient.updateCharityProject(id, { status });
       message.success('状态更新成功');
@@ -168,7 +168,7 @@ export const CharityProjects: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 80,
-      render: (id: string) => id.substring(0, 8),
+      render: (id: string | number) => String(id).substring(0, 8),
     },
     {
       title: '封面',
