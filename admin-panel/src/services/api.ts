@@ -501,6 +501,25 @@ class ApiClient {
     return response.data;
   }
 
+  async updateTradingPairsSortOrder(orders: Array<{ id: string | number; sort_order: number }>) {
+    const response = await this.client.put('/admin/trading/pairs/sort-order', { orders });
+    return response.data;
+  }
+
+  async uploadTradingPairIcon(id: string, file: File) {
+    const formData = new FormData();
+    formData.append('icon', file);
+    const response = await this.client.post(`/admin/trading/pairs/${id}/icon`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async refreshTradingPairIcon(id: string) {
+    const response = await this.client.post(`/admin/trading/pairs/${id}/icon/refresh`);
+    return response.data;
+  }
+
   async getPricePresets(pairId: string) {
     const response = await this.client.get(`/admin/trading/pairs/${pairId}/presets`);
     return response.data;

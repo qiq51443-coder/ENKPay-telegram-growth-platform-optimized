@@ -86,10 +86,10 @@ router.get('/pairs', async (req, res) => {
     const result = await query(
       `SELECT 
          id, symbol, COALESCE(display_name, name, symbol) as display_name, pair_type, base_currency, quote_currency,
-         binance_symbol, is_active, created_at
+         binance_symbol, is_active, icon_url, sort_order, created_at
        FROM trading_pairs
        WHERE is_active = true
-       ORDER BY COALESCE(display_name, name, symbol)`
+       ORDER BY sort_order ASC, created_at DESC`
     );
 
     res.json({

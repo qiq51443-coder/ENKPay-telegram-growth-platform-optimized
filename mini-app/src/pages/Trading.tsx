@@ -12,6 +12,7 @@ interface TradingPair {
   display_name: string;
   pair_type: string;
   binance_symbol?: string;
+  icon_url?: string;
 }
 
 interface PriceInfo {
@@ -889,9 +890,30 @@ export const Trading: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ color: theme.text, fontWeight: '600', fontSize: '16px' }}>{pair.display_name}</div>
-                  <div style={{ color: theme.textSecondary, fontSize: '12px' }}>{pair.symbol}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {pair.icon_url ? (
+                    <img
+                      src={pair.icon_url}
+                      alt={pair.symbol}
+                      width={32}
+                      height={32}
+                      style={{ borderRadius: '50%', objectFit: 'cover' }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      backgroundColor: '#1677ff', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontWeight: '700', fontSize: '14px',
+                    }}>
+                      {pair.symbol[0]}
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ color: theme.text, fontWeight: '600', fontSize: '16px' }}>{pair.display_name}</div>
+                    <div style={{ color: theme.textSecondary, fontSize: '12px' }}>{pair.symbol}</div>
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: theme.text, fontWeight: '600' }}>
