@@ -151,16 +151,19 @@ export const Groups: React.FC = () => {
 
   const columns = [
     {
-      title: '群组 ID',
-      dataIndex: 'id',
-      key: 'id',
-      render: (id: string) => <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{id}</span>,
-    },
-    {
       title: '群组名称',
       dataIndex: 'group_name',
       key: 'group_name',
       render: (name: string) => name || '-',
+    },
+    {
+      title: '所属 Bot',
+      key: 'bot',
+      render: (_: any, record: Group) => (
+        record.bot_username
+          ? <Tag color="blue">@{record.bot_username}</Tag>
+          : <Tag>{record.bot_name || '-'}</Tag>
+      ),
     },
     {
       title: 'Telegram 群组 ID',
@@ -169,22 +172,10 @@ export const Groups: React.FC = () => {
       render: (group_id: string) => <span style={{ fontFamily: 'monospace' }}>{group_id}</span>,
     },
     {
-      title: '国家',
-      dataIndex: 'country',
-      key: 'country',
-      render: (country?: string) => country || '-',
-    },
-    {
-      title: '语言',
-      dataIndex: 'language',
-      key: 'language',
-      render: (language?: string) => language ? <Tag>{language}</Tag> : '-',
-    },
-    {
       title: '成员数',
       dataIndex: 'member_count',
       key: 'member_count',
-      render: (count?: number) => count ?? '-',
+      render: (count?: number) => count != null ? count.toLocaleString() : '-',
     },
     {
       title: '状态',
@@ -200,6 +191,18 @@ export const Groups: React.FC = () => {
       dataIndex: 'joined_at',
       key: 'joined_at',
       render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+    },
+    {
+      title: '国家',
+      dataIndex: 'country',
+      key: 'country',
+      render: (country?: string) => country || '-',
+    },
+    {
+      title: '语言',
+      dataIndex: 'language',
+      key: 'language',
+      render: (language?: string) => language ? <Tag>{language}</Tag> : '-',
     },
     {
       title: '操作',
@@ -256,6 +259,7 @@ export const Groups: React.FC = () => {
           <p style={{ color: '#666', marginTop: 4 }}>Bot 所在的群组列表（Bot 被添加到群组后自动记录）</p>
         </div>
         <Space>
+          <span style={{ color: '#666' }}>共 {groups.length} 个群组</span>
           <Button icon={<ReloadOutlined />} onClick={fetchGroups} loading={loading}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddModalVisible(true)}>手动添加群组</Button>
         </Space>
