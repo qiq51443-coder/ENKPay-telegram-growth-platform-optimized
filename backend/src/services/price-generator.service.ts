@@ -110,12 +110,33 @@ async function tick(): Promise<void> {
           [pair.id, newPrice]
         );
 
-        // Update cached price in trading_pairs table
+        // Calculate 24h change: prefer a real historical price point from 24h ago,
+        // fall back to custom_initial_price, otherwise default to 0.
+        let change24h = 0;
+        const price24hAgoResult = await query(
+          `SELECT price FROM price_points
+           WHERE pair_id = $1 AND timestamp <= NOW() - INTERVAL '24 hours'
+           ORDER BY timestamp DESC LIMIT 1`,
+          [pair.id]
+        );
+        if (price24hAgoResult.rows.length > 0) {
+          const price24hAgo = parseFloat(String(price24hAgoResult.rows[0].price));
+          if (price24hAgo > 0) {
+            change24h = ((newPrice - price24hAgo) / price24hAgo) * 100;
+          }
+        } else if (pair.custom_initial_price) {
+          const initPrice = parseFloat(String(pair.custom_initial_price));
+          if (initPrice > 0) {
+            change24h = ((newPrice - initPrice) / initPrice) * 100;
+          }
+        }
+
+        // Update cached price and 24h change in trading_pairs table
         await query(
           `UPDATE trading_pairs
-           SET current_price = $1, last_price_update = NOW()
-           WHERE id = $2`,
-          [newPrice, pair.id]
+           SET current_price = $1, price_change_24h = $2, last_price_update = NOW()
+           WHERE id = $3`,
+          [newPrice, change24h, pair.id]
         );
       } catch (pairErr: any) {
         console.error(`[PriceGenerator] Failed to generate price for pair ${pair.id}:`, pairErr.message);
