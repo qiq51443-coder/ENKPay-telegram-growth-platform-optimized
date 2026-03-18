@@ -1,18 +1,21 @@
 -- charity_projects table (used by charity.ts routes)
+-- IMPORTANT: column names must match those used in charity.ts:
+--   target_amount (not goal_amount), start_at (not start_date), end_at (not end_date)
 CREATE TABLE IF NOT EXISTS charity_projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   description TEXT,
   image_url TEXT,
-  goal_amount DECIMAL(10, 2) DEFAULT 0 CHECK (goal_amount >= 0),
+  target_amount DECIMAL(10, 2) DEFAULT 0 CHECK (target_amount >= 0),
   raised_amount DECIMAL(10, 2) DEFAULT 0 CHECK (raised_amount >= 0),
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
-  start_date TIMESTAMPTZ,
-  end_date TIMESTAMPTZ,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
   organization TEXT,
   website_url TEXT,
   ambassador_telegram TEXT,
   is_active BOOLEAN DEFAULT true,
+  show_in_app BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
