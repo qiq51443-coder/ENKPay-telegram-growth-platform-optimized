@@ -1,9 +1,10 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
-import { api, setInitData, authSync, isAuthSyncCompleted, setAuthSyncCompleted } from '../services/api';
+import { api, setInitData, authSync, setAuthSyncCompleted } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useTelegram } from '../hooks/useTelegram';
+import { useAuthSync } from '../context/AuthSyncContext';
 import { createChart } from 'lightweight-charts';
 
 interface TradingPair {
@@ -119,6 +120,7 @@ const CUSTOM_TICK_RANGE_PCT = 0.002;
 export const Trading: React.FC = () => {
   const { t } = useLang();
   const { initData, user: tgUser, tg } = useTelegram();
+  const { authSyncDone } = useAuthSync();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -176,13 +178,14 @@ export const Trading: React.FC = () => {
     };
   }, []);
 
-  // Fetch balance once Telegram WebApp is ready and initData is available
+  // Fetch balance once auth-sync has completed to avoid the race condition where
+  // fetchBalance fires before the user record exists in the database.
   useEffect(() => {
-    if (tg && initData) {
+    if (authSyncDone && initData) {
       fetchBalance();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tg, initData]);
+  }, [authSyncDone, initData]);
 
   // Track active order from order history
   useEffect(() => {
@@ -409,7 +412,7 @@ export const Trading: React.FC = () => {
     }
   };
 
-  const fetchBalance = async () => {
+  const fetchBalance = async (retryCount = 0) => {
     if (!initData) return;
     try {
       const res = await api.get('/miniapp/profile', {
@@ -427,8 +430,13 @@ export const Trading: React.FC = () => {
           setAvailableBalance(walletBal + redPacketBal);
         }
       }
-    } catch {
-      // non-critical
+    } catch (err: any) {
+      console.warn('[Trading] fetchBalance failed:', err?.response?.status, err?.message);
+      // If the user record is not yet found (auth-sync may still be writing on the backend
+      // side), retry up to 3 times with increasing delays.
+      if (err?.response?.status === 404 && retryCount < 3) {
+        setTimeout(() => fetchBalance(retryCount + 1), 2000 * (retryCount + 1));
+      }
     }
   };
 
@@ -541,7 +549,7 @@ export const Trading: React.FC = () => {
     setConfirmOpen(false);
 
     // Ensure auth-sync has completed at least once to avoid "User not found" race.
-    if (!isAuthSyncCompleted()) {
+    if (!authSyncDone) {
       try {
         await authSync(initData);
         setAuthSyncCompleted(true);

@@ -12,6 +12,7 @@ import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
 import { getAnnouncements, setInitData as setApiInitData, authSync, setAuthSyncCompleted } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
+import { AuthSyncContext } from './context/AuthSyncContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -27,6 +28,7 @@ function AppContent() {
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [authSyncDone, setAuthSyncDone] = useState(false);
   const { tg, initData } = useTelegram();
   const { lang } = useLang();
 
@@ -37,9 +39,13 @@ function AppContent() {
       // the moment the MiniApp opens. Failure is non-critical — profile fetch will surface
       // missing-user errors explicitly if the record still doesn't exist.
       authSync(initData)
-        .then(() => { setAuthSyncCompleted(true); })
+        .then(() => {
+          setAuthSyncCompleted(true);
+          setAuthSyncDone(true); // notify child components via Context
+        })
         .catch((err) => {
           console.warn('[App] auth-sync failed (non-critical):', String(err));
+          setAuthSyncDone(true); // mark done even on failure so children can still attempt requests
         });
     }
   }, [initData]);
@@ -86,6 +92,7 @@ function AppContent() {
   };
 
   return (
+    <AuthSyncContext.Provider value={{ authSyncDone }}>
     <div
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
       style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}
@@ -101,6 +108,7 @@ function AppContent() {
       {renderPage()}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
+    </AuthSyncContext.Provider>
   );
 }
 
