@@ -17,6 +17,8 @@ interface CharityProject {
   goal_amount?: number | string;
   raised_amount?: number | string;
   organization?: string | null;
+  progress_override?: number | null;
+  progress_images?: string[];
 }
 
 interface CharityBanner {
@@ -29,7 +31,7 @@ const BANNER_ROTATION_INTERVAL = 10000; // 10 seconds
 
 const resolveImageUrl = (url: string | null | undefined): string => {
   if (!url || typeof url !== 'string') return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
   const apiBase = ((import.meta as any).env?.VITE_API_URL || '/api').replace(/\/api$/, '');
   return `${apiBase}${url}`;
 };
@@ -37,6 +39,12 @@ const resolveImageUrl = (url: string | null | undefined): string => {
 const calcFundingPercent = (raised: number | string | undefined, goal: number | string | undefined): number => {
   const g = Number(goal);
   return g > 0 ? Math.min(100, (Number(raised || 0) / g) * 100) : 0;
+};
+
+const getDisplayPercent = (project: CharityProject): number => {
+  if (project.status === 'completed') return 100;
+  if (project.progress_override != null) return Math.min(100, Math.max(0, Number(project.progress_override)));
+  return calcFundingPercent(project.raised_amount, project.goal_amount);
 };
 
 export const Charity: React.FC = () => {
@@ -137,14 +145,14 @@ export const Charity: React.FC = () => {
               <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
-                  width: `${calcFundingPercent(selected.raised_amount, selected.goal_amount)}%`,
+                  width: `${getDisplayPercent(selected)}%`,
                   backgroundColor: '#F0B90B',
                   borderRadius: '3px',
                   transition: 'width 0.5s ease',
                 }} />
               </div>
               <div style={{ textAlign: 'center', fontSize: '11px', color: theme.textSecondary, marginTop: '4px' }}>
-                {`${calcFundingPercent(selected.raised_amount, selected.goal_amount).toFixed(1)}%`}
+                {`${getDisplayPercent(selected).toFixed(1)}%`}
               </div>
             </div>
           )}
@@ -153,6 +161,23 @@ export const Charity: React.FC = () => {
             <p style={{ color: theme.textSecondary, fontSize: '14px', lineHeight: '1.7', marginBottom: '24px' }}>
               {selected.description}
             </p>
+          )}
+
+          {selected.progress_images && selected.progress_images.length > 0 && (
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '13px', color: theme.textSecondary, marginBottom: '8px', fontWeight: '600' }}>📷 项目进展图片</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                {selected.progress_images.map((imgUrl, idx) => (
+                  <img
+                    key={idx}
+                    src={resolveImageUrl(imgUrl)}
+                    alt={`progress-${idx + 1}`}
+                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer' }}
+                    onClick={() => window.open(resolveImageUrl(imgUrl), '_blank')}
+                  />
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -289,7 +314,7 @@ export const Charity: React.FC = () => {
                       <div style={{ height: '3px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
                         <div style={{
                           height: '100%',
-                          width: `${calcFundingPercent(project.raised_amount, project.goal_amount)}%`,
+                          width: `${getDisplayPercent(project)}%`,
                           backgroundColor: '#F0B90B',
                           borderRadius: '2px',
                         }} />

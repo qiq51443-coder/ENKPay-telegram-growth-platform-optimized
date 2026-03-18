@@ -19,12 +19,14 @@ interface CharityProject {
   ambassador_telegram?: string;
   is_active?: boolean;
   show_in_app?: boolean;
+  progress_override?: number | null;
+  progress_images?: string[];
   created_at: string;
 }
 
 const resolveAdminImageUrl = (url: string | null | undefined): string => {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
   return `${window.location.origin}${url}`;
 };
 
@@ -35,6 +37,7 @@ export const CharityProjects: React.FC = () => {
   const [editingProject, setEditingProject] = useState<CharityProject | null>(null);
   const [form] = Form.useForm();
   const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
+  const [progressImageFileList, setProgressImageFileList] = useState<UploadFile[]>([]);
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
   const [newBannerUrl, setNewBannerUrl] = useState('');
@@ -80,10 +83,23 @@ export const CharityProjects: React.FC = () => {
       } else {
         setImageFileList([]);
       }
+      // Show existing progress images
+      if (project.progress_images && project.progress_images.length > 0) {
+        setProgressImageFileList(project.progress_images.map((url, i) => ({
+          uid: `-progress-${i}`,
+          name: `progress-${i + 1}`,
+          status: 'done' as const,
+          url: resolveAdminImageUrl(url),
+          response: { url },
+        })));
+      } else {
+        setProgressImageFileList([]);
+      }
     } else {
       setEditingProject(null);
       form.resetFields();
       setImageFileList([]);
+      setProgressImageFileList([]);
     }
     setModalOpen(true);
   };
@@ -99,6 +115,12 @@ export const CharityProjects: React.FC = () => {
       if (values.end_date) {
         values.end_date = values.end_date.toISOString();
       }
+
+      // Collect progress_images from upload file list (only successfully uploaded ones)
+      values.progress_images = progressImageFileList
+        .filter(f => f.status === 'done')
+        .map(f => f.response?.url || f.url || '')
+        .filter(Boolean);
       
       if (editingProject) {
         await apiClient.updateCharityProject(editingProject.id, values);
@@ -111,6 +133,7 @@ export const CharityProjects: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditingProject(null);
+      setProgressImageFileList([]);
       fetchProjects();
     } catch (error: any) {
       console.error('Failed to save project:', error);
@@ -222,11 +245,16 @@ export const CharityProjects: React.FC = () => {
       key: 'progress',
       width: 150,
       render: (_: any, record: CharityProject) => {
-        const ga = Number(record.goal_amount);
-        const ra = Number(record.raised_amount);
-        const percent = ga > 0
-          ? Math.min((ra / ga) * 100, 100)
-          : 0;
+        let percent: number;
+        if (record.status === 'completed') {
+          percent = 100;
+        } else if (record.progress_override != null) {
+          percent = Math.min(100, Math.max(0, Number(record.progress_override)));
+        } else {
+          const ga = Number(record.goal_amount);
+          const ra = Number(record.raised_amount);
+          percent = ga > 0 ? Math.min((ra / ga) * 100, 100) : 0;
+        }
         return (
           <Progress 
             percent={Number(percent.toFixed(1))} 
@@ -342,6 +370,7 @@ export const CharityProjects: React.FC = () => {
           setModalOpen(false);
           form.resetFields();
           setEditingProject(null);
+          setProgressImageFileList([]);
         }}
         okText="保存"
         cancelText="取消"
@@ -370,7 +399,7 @@ export const CharityProjects: React.FC = () => {
           <Form.Item label="封面图">
             <Upload
               name="file"
-              action="/api/admin/upload"
+              action="/api/charity/upload"
               headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
               listType="picture"
               fileList={imageFileList}
@@ -387,8 +416,8 @@ export const CharityProjects: React.FC = () => {
               beforeUpload={(file) => {
                 const isImage = file.type.startsWith('image/');
                 if (!isImage) { message.error('只能上传图片文件'); return false; }
-                const isLt10M = file.size / 1024 / 1024 < 10;
-                if (!isLt10M) { message.error('图片大小不能超过10MB'); return false; }
+                const isLt2M = file.size / 1024 / 1024 < 2;
+                if (!isLt2M) { message.error('封面图大小不能超过2MB'); return false; }
                 return true;
               }}
             >
@@ -466,6 +495,41 @@ export const CharityProjects: React.FC = () => {
             tooltip="即使项目已结束，开启后用户仍可在迷你App中看到此项目"
           >
             <Switch checkedChildren="展示" unCheckedChildren="隐藏" />
+          </Form.Item>
+
+          <Form.Item
+            name="progress_override"
+            label="进度百分比预设"
+            extra="留空=自动计算，0-100=手动指定进度百分比，项目已完结时自动显示100%"
+          >
+            <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} placeholder="留空则自动计算" />
+          </Form.Item>
+
+          <Form.Item label="进度图片（最多9张）">
+            <Upload
+              name="file"
+              action="/api/charity/upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              listType="picture"
+              fileList={progressImageFileList}
+              maxCount={9}
+              multiple
+              onChange={({ fileList, file }) => {
+                setProgressImageFileList(fileList);
+                if (file.status === 'error') {
+                  message.error('进度图片上传失败');
+                }
+              }}
+              beforeUpload={(file) => {
+                const isImage = file.type.startsWith('image/');
+                if (!isImage) { message.error('只能上传图片文件'); return false; }
+                const isLt1M = file.size / 1024 / 1024 < 1;
+                if (!isLt1M) { message.error('进度图片大小不能超过1MB'); return false; }
+                return true;
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传进度图片</Button>
+            </Upload>
           </Form.Item>
         </Form>
       </Modal>

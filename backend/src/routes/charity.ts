@@ -1,9 +1,35 @@
 import express from 'express';
+import multer from 'multer';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
+
+// Multer memory storage for Base64 image upload (no filesystem dependency)
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+/**
+ * POST /api/charity/upload
+ * Upload an image and return it as a Base64 Data URL (no disk storage)
+ */
+router.post('/upload', adminLimiter, authenticateAdmin, memUpload.single('file'), (req: AuthRequest, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  res.json({ success: true, url: dataUrl });
+});
 
 /**
  * GET /api/charity/banners
@@ -73,7 +99,8 @@ router.get('/projects', async (req, res) => {
         target_amount AS goal_amount, raised_amount,
         organization, website_url,
         status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
-        ambassador_telegram, is_active, show_in_app
+        ambassador_telegram, is_active, show_in_app,
+        progress_override, progress_images
       FROM charity_projects
       WHERE 1=1
     `;
@@ -167,6 +194,8 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       is_active,
       status,
       show_in_app,
+      progress_override,
+      progress_images,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -176,12 +205,14 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
     const result = await query(
       `INSERT INTO charity_projects 
        (title, description, image_url, target_amount, start_at, end_at,
-        organization, website_url, ambassador_telegram, is_active, status, show_in_app)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        organization, website_url, ambassador_telegram, is_active, status, show_in_app,
+        progress_override, progress_images)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id, title, description, image_url,
          target_amount AS goal_amount, raised_amount,
          organization, website_url, ambassador_telegram, is_active, status, show_in_app,
          start_at AS start_date, end_at AS end_date,
+         progress_override, progress_images,
          created_at, updated_at`,
       [
         title,
@@ -196,6 +227,8 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
         is_active !== undefined ? is_active : true,
         status || 'active',
         show_in_app !== undefined ? show_in_app : true,
+        progress_override != null ? (() => { const v = parseFloat(progress_override); return isNaN(v) ? null : Math.min(100, Math.max(0, v)); })() : null,
+        progress_images || [],
       ]
     );
 
@@ -235,6 +268,8 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       ambassador_telegram: 'ambassador_telegram',
       is_active: 'is_active',
       show_in_app: 'show_in_app',
+      progress_override: 'progress_override',
+      progress_images: 'progress_images',
     };
 
     for (const [frontendField, dbField] of Object.entries(fieldMapping)) {

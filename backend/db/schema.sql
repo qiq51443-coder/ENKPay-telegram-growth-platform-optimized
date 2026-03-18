@@ -550,3 +550,9 @@ CREATE INDEX IF NOT EXISTS idx_withdrawal_records_user_created ON withdrawal_rec
 
 -- deposit_records: per-user history with time ordering
 CREATE INDEX IF NOT EXISTS idx_deposit_records_user_created ON deposit_records(user_id, created_at DESC);
+
+-- Migration: add progress_override to charity_projects
+ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(5, 2) CHECK (progress_override >= 0 AND progress_override <= 100);
+
+-- Migration: add progress_images to charity_projects
+ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
