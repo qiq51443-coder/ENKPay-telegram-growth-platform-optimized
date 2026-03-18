@@ -1,14 +1,31 @@
 import express from 'express';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
-// Multer memory storage for Base64 image upload (no filesystem dependency)
-const memUpload = multer({
-  storage: multer.memoryStorage(),
+// Disk storage for charity banner uploads
+const charityUploadDir = path.join(__dirname, '../../uploads/charity-banners');
+if (!fs.existsSync(charityUploadDir)) {
+  fs.mkdirSync(charityUploadDir, { recursive: true });
+}
+
+const charityStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, charityUploadDir),
+  filename: (_req, file, cb) => {
+    const rawExt = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+    const ext = allowedExts.includes(rawExt) ? rawExt : '.png';
+    cb(null, `charity-banner-${Date.now()}${ext}`);
+  },
+});
+
+const charityUpload = multer({
+  storage: charityStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -21,14 +38,14 @@ const memUpload = multer({
 
 /**
  * POST /api/charity/upload
- * Upload an image and return it as a Base64 Data URL (no disk storage)
+ * Upload an image and return a persistent relative URL
  */
-router.post('/upload', adminLimiter, authenticateAdmin, memUpload.single('file'), (req: AuthRequest, res) => {
+router.post('/upload', adminLimiter, authenticateAdmin, charityUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-  res.json({ success: true, url: dataUrl });
+  const relativeUrl = `/uploads/charity-banners/${req.file.filename}`;
+  res.json({ success: true, url: relativeUrl });
 });
 
 /**

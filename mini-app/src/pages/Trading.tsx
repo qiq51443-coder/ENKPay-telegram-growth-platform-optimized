@@ -13,6 +13,7 @@ interface TradingPair {
   pair_type: string;
   binance_symbol?: string;
   icon_url?: string;
+  current_price?: number;
 }
 
 interface PriceInfo {
@@ -92,6 +93,14 @@ const QUICK_AMOUNTS = [10, 50, 100, 500];
 const safeFixed = (v: any, d = 2): string => {
   const n = Number(v);
   return isNaN(n) ? `0.${'0'.repeat(d)}` : n.toFixed(d);
+};
+
+const _apiBase = ((import.meta as any).env?.VITE_API_URL || '/api').replace(/\/api$/, '');
+
+const resolveIconUrl = (url: string | null | undefined): string => {
+  if (!url || typeof url !== 'string') return '';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  return `${_apiBase}${url}`;
 };
 
 const DEFAULT_RULES: TradingRule[] = [
@@ -378,6 +387,16 @@ export const Trading: React.FC = () => {
       const data = await api.get('/trading/pairs');
       const list: TradingPair[] = data.data?.data || [];
       setPairs(list);
+      // Pre-populate prices for custom pairs from current_price to avoid showing $0.00
+      const initialPrices: Record<string, PriceInfo> = {};
+      list.forEach((p) => {
+        if (p.pair_type === 'custom' && p.current_price != null) {
+          initialPrices[p.id] = { price: Number(p.current_price), change24h: 0 };
+        }
+      });
+      if (Object.keys(initialPrices).length > 0) {
+        setPrices((prev) => ({ ...initialPrices, ...prev }));
+      }
       if (list.length > 0) startPricePoll(list);
     } catch {
       setPairs([
@@ -649,7 +668,9 @@ export const Trading: React.FC = () => {
         {/* Price + 24h change */}
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
           <div style={{ fontSize: '28px', fontWeight: '700', color: theme.text }}>
-            ${priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {priceInfo.price === 0 && selectedPair.pair_type === 'custom'
+              ? t('loading') || '加载中...'
+              : `$${priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
           </div>
           <div style={{ fontSize: '14px', color: priceColor(priceInfo.change24h), marginTop: '4px' }}>
             {priceInfo.change24h >= 0 ? '▲' : '▼'} {safeFixed(Math.abs(Number(priceInfo.change24h)))}% 24h
@@ -983,7 +1004,7 @@ export const Trading: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {pair.icon_url ? (
                     <img
-                      src={pair.icon_url}
+                      src={resolveIconUrl(pair.icon_url)}
                       alt={pair.symbol}
                       width={32}
                       height={32}

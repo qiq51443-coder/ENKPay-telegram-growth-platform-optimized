@@ -146,10 +146,10 @@ router.post('/pairs/custom', authenticateAdmin, async (req: AuthRequest, res) =>
       const effectiveName = display_name || symbol;
       const pairResult = await client.query(
         `INSERT INTO trading_pairs 
-         (symbol, name, display_name, pair_type, base_currency, quote_currency)
-         VALUES ($1, $2, $3, 'custom', $4, $5)
+         (symbol, name, display_name, pair_type, base_currency, quote_currency, custom_initial_price)
+         VALUES ($1, $2, $3, 'custom', $4, $5, $6)
          RETURNING *`,
-        [symbol, effectiveName, effectiveName, base_currency, quote_currency]
+        [symbol, effectiveName, effectiveName, base_currency, quote_currency, parseFloat(initial_price)]
       );
 
       const pair = pairResult.rows[0];

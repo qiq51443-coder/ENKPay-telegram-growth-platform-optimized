@@ -324,7 +324,7 @@ export async function getCustomPairPrice(pairId: number): Promise<PriceData> {
     };
   }
 
-  throw new Error(`No price data available for custom pair ${pairId}`);
+  return { price: 0, timestamp: Date.now(), change24h: 0 };
 }
 
 /**
