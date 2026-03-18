@@ -22,6 +22,12 @@ function parseIntervalToSeconds(interval: string): number {
   return 60;
 }
 
+/** Minimum number of candles required before synthetic seed candles are injected. */
+const MIN_CANDLES_FOR_CHART = 10;
+/** Seed candle price jitter: each synthetic candle has a ±0.2% random variance. */
+const SEED_JITTER_RANGE = 0.004;
+const SEED_JITTER_OFFSET = 0.002;
+
 /**
  * Check whether the PostgreSQL error is a "relation does not exist" error,
  * which typically means a required database migration has not been run.
@@ -168,26 +174,40 @@ router.get('/pairs/:id/kline', async (req, res) => {
         klineData = [];
       }
     } else {
-      // Aggregate price_points into OHLC candles for custom pairs
+      // Aggregate price data into OHLC candles for custom pairs
       const intervalSeconds = parseIntervalToSeconds(intervalStr);
-      const intervalMs = intervalSeconds * 1000; // pre-compute once
+      const intervalMs = intervalSeconds * 1000;
+
+      const ohlcQuery = (table: string) => `
+        SELECT
+          (floor(extract(epoch from timestamp) / $3::float) * $4)::bigint AS open_time,
+          (ARRAY_AGG(price ORDER BY timestamp ASC))[1]                    AS open,
+          MAX(price)                                                       AS high,
+          MIN(price)                                                       AS low,
+          (ARRAY_AGG(price ORDER BY timestamp DESC))[1]                   AS close
+        FROM ${table}
+        WHERE pair_id = $1
+          AND timestamp >= NOW() - make_interval(secs => $2::int * $3::int)
+        GROUP BY floor(extract(epoch from timestamp) / $3::float)
+        ORDER BY open_time DESC
+        LIMIT $2`;
+
       try {
-        const result = await query(
-          `SELECT
-             (floor(extract(epoch from timestamp) / $3::float) * $4)::bigint AS open_time,
-             (ARRAY_AGG(price ORDER BY timestamp ASC))[1]                    AS open,
-             MAX(price)                                                       AS high,
-             MIN(price)                                                       AS low,
-             (ARRAY_AGG(price ORDER BY timestamp DESC))[1]                   AS close
-           FROM price_points
-           WHERE pair_id = $1
-             AND timestamp >= NOW() - make_interval(secs => $2::int * $3::int)
-           GROUP BY floor(extract(epoch from timestamp) / $3::float)
-           ORDER BY open_time DESC
-           LIMIT $2`,
-          [pairId, limitNum, intervalSeconds, intervalMs]
-        );
-        klineData = result.rows
+        // Query both price_points (auto-generated) and custom_price_points (admin-set)
+        const [ppResult, cppResult] = await Promise.all([
+          query(ohlcQuery('price_points'), [pairId, limitNum, intervalSeconds, intervalMs]),
+          query(ohlcQuery('custom_price_points'), [pairId, limitNum, intervalSeconds, intervalMs]),
+        ]);
+
+        // Merge by open_time — price_points takes precedence over custom_price_points
+        const mergedMap = new Map<number, any>();
+        for (const row of [...cppResult.rows, ...ppResult.rows]) {
+          mergedMap.set(parseFloat(row.open_time), row);
+        }
+
+        klineData = Array.from(mergedMap.values())
+          .sort((a: any, b: any) => parseFloat(a.open_time) - parseFloat(b.open_time))
+          .slice(-limitNum)
           .map((row: any) => ({
             open_time: parseFloat(row.open_time),
             timestamp: parseFloat(row.open_time),
@@ -196,8 +216,44 @@ router.get('/pairs/:id/kline', async (req, res) => {
             low:       parseFloat(row.low),
             close:     parseFloat(row.close),
             volume:    0,
-          }))
-          .reverse(); // oldest first
+          }));
+
+        // If fewer than MIN_CANDLES_FOR_CHART candles exist, synthesize seed candles from initial/current price
+        if (klineData.length < MIN_CANDLES_FOR_CHART) {
+          const pairInfoResult = await query(
+            `SELECT custom_initial_price, current_price FROM trading_pairs WHERE id = $1`,
+            [pairId]
+          );
+          const seedPrice = pairInfoResult.rows.length > 0
+            ? parseFloat(pairInfoResult.rows[0].current_price || pairInfoResult.rows[0].custom_initial_price || '0')
+            : 0;
+
+          if (seedPrice > 0) {
+            const neededCandles = limitNum - klineData.length;
+            const existingTimes = new Set(klineData.map((c: any) => c.open_time));
+            const nowBucket = Math.floor(Date.now() / intervalMs) * intervalMs;
+            const seedCandles: Array<{ open_time: number; timestamp: number; open: number; high: number; low: number; close: number; volume: number }> = [];
+
+            for (let i = neededCandles; i > 0; i--) {
+              const openTime = nowBucket - i * intervalMs;
+              if (!existingTimes.has(openTime)) {
+                // Apply a tiny random jitter so consecutive synthetic candles differ slightly (±0.2%)
+                const jitter = 1 + (Math.random() * SEED_JITTER_RANGE - SEED_JITTER_OFFSET);
+                const p = parseFloat((seedPrice * jitter).toFixed(8));
+                seedCandles.push({
+                  open_time: openTime,
+                  timestamp: openTime,
+                  open: p, high: p, low: p, close: p, volume: 0,
+                });
+              }
+            }
+
+            klineData = [
+              ...seedCandles,
+              ...klineData,
+            ].sort((a: any, b: any) => a.open_time - b.open_time).slice(-limitNum);
+          }
+        }
       } catch (klineErr: any) {
         console.warn('[kline] Custom pair aggregation error:', klineErr.message);
         klineData = [];

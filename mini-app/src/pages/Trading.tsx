@@ -98,6 +98,14 @@ const DEFAULT_RULES: TradingRule[] = [
   { id: 'default', duration_seconds: 60, odds: 1.95, min_bet: 1, max_bet: 1000 },
 ];
 
+// Chart tick timing constants (milliseconds)
+const CHART_TICK_MIN_MS = 1500;
+const CHART_TICK_VARIANCE_MS = 1000;
+
+// Custom pair price fluctuation range per tick (as a fraction, e.g. 0.001 = 0.1%)
+const CUSTOM_TICK_MIN_PCT = 0.001;
+const CUSTOM_TICK_RANGE_PCT = 0.002;
+
 export const Trading: React.FC = () => {
   const { t } = useLang();
   const { initData, user: tgUser, tg } = useTelegram();
@@ -130,6 +138,8 @@ export const Trading: React.FC = () => {
   const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pairsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedPairRef = useRef<TradingPair | null>(null);
+  const pricesRef = useRef<Record<string, PriceInfo>>({});
+  const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -150,6 +160,7 @@ export const Trading: React.FC = () => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (pairsPollRef.current) clearInterval(pairsPollRef.current);
+      if (chartTickRef.current) clearTimeout(chartTickRef.current);
       if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
       if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
     };
@@ -178,9 +189,15 @@ export const Trading: React.FC = () => {
     return () => { if (periodTimerRef.current) clearInterval(periodTimerRef.current); };
   }, [selectedDuration]);
 
-  // Push real-time price tick into the last candle of the chart
+  // Keep pricesRef in sync with prices state for use in timeout callbacks
   useEffect(() => {
-    if (!selectedPair || !candleSeriesRef.current || lastKlineTimeRef.current === 0) return;
+    pricesRef.current = prices;
+  }, [prices]);
+
+  // Push real-time price tick into the last candle of the chart (real pairs only)
+  useEffect(() => {
+    if (!selectedPair || selectedPair.pair_type === 'custom') return;
+    if (!candleSeriesRef.current || lastKlineTimeRef.current === 0) return;
     const priceInfo = prices[selectedPair.id];
     if (!priceInfo || !priceInfo.price) return;
     const newPrice = priceInfo.price;
@@ -200,6 +217,58 @@ export const Trading: React.FC = () => {
       // ignore chart update errors
     }
   }, [prices, selectedPair]);
+
+  // Randomized chart tick (1500–2500ms) for smooth real-time candle animation.
+  // Real pairs use the latest polled price; custom pairs get a small random fluctuation.
+  useEffect(() => {
+    if (chartTickRef.current) clearTimeout(chartTickRef.current);
+    if (!selectedPair) return;
+
+    let stopped = false;
+    const scheduleTick = () => {
+      const delay = CHART_TICK_MIN_MS + Math.random() * CHART_TICK_VARIANCE_MS; // 1500–2500ms
+      chartTickRef.current = setTimeout(() => {
+        if (stopped) return;
+        if (candleSeriesRef.current && lastKlineTimeRef.current !== 0 && lastCandleRef.current) {
+          const lastCandle = lastCandleRef.current;
+          let newPrice: number | null = null;
+
+          if (selectedPair.pair_type === 'custom') {
+            // Generate small random fluctuation (±0.1%–0.3%) around latest known price
+            const basePrice = pricesRef.current[selectedPair.id]?.price || lastCandle.close;
+            if (basePrice > 0) {
+              const pct = CUSTOM_TICK_MIN_PCT + Math.random() * CUSTOM_TICK_RANGE_PCT; // 0.1%–0.3%
+              const dir = Math.random() > 0.5 ? 1 : -1;
+              newPrice = basePrice * (1 + dir * pct);
+            }
+          } else {
+            // Real pair: push the latest polled price
+            const priceInfo = pricesRef.current[selectedPair.id];
+            if (priceInfo?.price) newPrice = priceInfo.price;
+          }
+
+          if (newPrice !== null && newPrice > 0) {
+            const updatedCandle = {
+              time: lastKlineTimeRef.current,
+              open: lastCandle.open,
+              high: Math.max(lastCandle.high, newPrice),
+              low: Math.min(lastCandle.low, newPrice),
+              close: newPrice,
+            };
+            lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: newPrice };
+            try { candleSeriesRef.current.update(updatedCandle); } catch {}
+          }
+        }
+        scheduleTick();
+      }, delay);
+    };
+
+    scheduleTick();
+    return () => {
+      stopped = true;
+      if (chartTickRef.current) clearTimeout(chartTickRef.current);
+    };
+  }, [selectedPair]);
 
   // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
@@ -280,10 +349,10 @@ export const Trading: React.FC = () => {
 
     fetchKline();
 
-    // Poll every 5 seconds for real-time chart updates
+    // Poll every 2 seconds for real-time chart updates
     const klinePoll = setInterval(() => {
       fetchKline().catch(() => {});
-    }, 5000);
+    }, 2000);
 
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
@@ -367,7 +436,7 @@ export const Trading: React.FC = () => {
     };
     fetchPrices();
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(fetchPrices, 5000);
+    pollRef.current = setInterval(fetchPrices, 2000);
   }, []);
 
   const openDetail = async (pair: TradingPair) => {

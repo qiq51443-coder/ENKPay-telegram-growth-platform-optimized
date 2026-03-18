@@ -183,20 +183,47 @@ export async function getKlineData(
 
 /**
  * Calculate 24h price change percentage for a custom pair.
- * Looks up price_points for the closest record >= 24 hours ago.
+ * Checks price_points, custom_price_points, and falls back to custom_initial_price.
  */
 async function calcCustomChange24h(pairId: number, currentPrice: number): Promise<number> {
   try {
-    const result = await query(
+    // 1. Check auto-generated price_points first
+    const ppResult = await query(
       `SELECT price FROM price_points
        WHERE pair_id = $1 AND timestamp <= NOW() - INTERVAL '24 hours'
        ORDER BY timestamp DESC LIMIT 1`,
       [pairId]
     );
-    if (result.rows.length > 0) {
-      const price24hAgo = parseFloat(result.rows[0].price);
+    if (ppResult.rows.length > 0) {
+      const price24hAgo = parseFloat(ppResult.rows[0].price);
       if (price24hAgo > 0) {
         return ((currentPrice - price24hAgo) / price24hAgo) * 100;
+      }
+    }
+
+    // 2. Check admin-set custom_price_points
+    const cppResult = await query(
+      `SELECT price FROM custom_price_points
+       WHERE pair_id = $1 AND timestamp <= NOW() - INTERVAL '24 hours'
+       ORDER BY timestamp DESC LIMIT 1`,
+      [pairId]
+    );
+    if (cppResult.rows.length > 0) {
+      const price24hAgo = parseFloat(cppResult.rows[0].price);
+      if (price24hAgo > 0) {
+        return ((currentPrice - price24hAgo) / price24hAgo) * 100;
+      }
+    }
+
+    // 3. Fall back to custom_initial_price as the 24h reference
+    const initResult = await query(
+      `SELECT custom_initial_price FROM trading_pairs WHERE id = $1`,
+      [pairId]
+    );
+    if (initResult.rows.length > 0 && initResult.rows[0].custom_initial_price) {
+      const initPrice = parseFloat(initResult.rows[0].custom_initial_price);
+      if (initPrice > 0) {
+        return ((currentPrice - initPrice) / initPrice) * 100;
       }
     }
   } catch {
