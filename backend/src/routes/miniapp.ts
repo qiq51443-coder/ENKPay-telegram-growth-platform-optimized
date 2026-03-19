@@ -243,7 +243,7 @@ async function buildCanonicalProfile(telegramId: number) {
   const result = await query(
     `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
             balance, telegram_id, wallet_balance, nft_balance,
-            COALESCE(red_packet_credits, 0) AS red_packet_balance,
+            COALESCE(red_packet_balance, red_packet_credits, 0) AS red_packet_balance,
             reward_balance, reward_unlock_traded, frozen_balance,
             total_recharged, total_withdrawn,
             invite_code, invited_by,
@@ -375,6 +375,9 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
              wallet_balance     = CASE WHEN wallet_balance IS NULL
                                     THEN COALESCE(balance, 0)
                                     ELSE wallet_balance END,
+             red_packet_balance = CASE WHEN red_packet_balance IS NULL
+                                    THEN COALESCE(red_packet_credits, 0)
+                                    ELSE red_packet_balance END,
              red_packet_credits = CASE WHEN red_packet_credits IS NULL
                                     THEN 0
                                     ELSE red_packet_credits END,
