@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, DatePicker, Switch, Radio, Upload } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import {
+  Table, Button, Drawer, Form, Input, InputNumber, message, Popconfirm, Tag, Space,
+  Select, DatePicker, Switch, Radio, Upload, Modal, Progress, Collapse, Spin, Tooltip,
+} from 'antd';
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, TranslationOutlined,
+  TeamOutlined, LoadingOutlined,
+} from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -9,6 +15,7 @@ interface NFTProduct {
   category_id: string;
   name: string;
   description?: string;
+  description_i18n?: Record<string, string>;
   image_url?: string;
   price: number;
   original_price?: number;
@@ -16,19 +23,33 @@ interface NFTProduct {
   product_type: string;
   status: string;
   duration_days?: number;
-  annual_yield_rate?: number;
-  attributes?: any;
+  term_days?: number;
+  daily_yield_rate?: number;
   rarity?: string;
   listing_time?: string;
   created_at: string;
-  category?: {
-    name: string;
-  };
+  display_holders_count?: number;
+  total_holders_count?: number;
+  current_holders?: number;
+  category?: { name: string };
 }
 
 interface NFTCategory {
   id: string;
   name: string;
+}
+
+interface Holder {
+  holding_id: string;
+  user_id: string;
+  username: string;
+  purchase_price: number;
+  purchase_date: string;
+  term_days: number;
+  days_elapsed: number;
+  status: string;
+  expires_at?: string;
+  total_income: number;
 }
 
 export const NFTProducts: React.FC = () => {
@@ -40,6 +61,18 @@ export const NFTProducts: React.FC = () => {
   const [form] = Form.useForm();
   const [imageMode, setImageMode] = useState<'upload' | 'url'>('url');
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Translation state
+  const [translating, setTranslating] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string> | null>(null);
+
+  // Holders modal state
+  const [holdersModalOpen, setHoldersModalOpen] = useState(false);
+  const [holdersProduct, setHoldersProduct] = useState<NFTProduct | null>(null);
+  const [holders, setHolders] = useState<Holder[]>([]);
+  const [holdersTotal, setHoldersTotal] = useState(0);
+  const [holdersLoading, setHoldersLoading] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -50,7 +83,7 @@ export const NFTProducts: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiClient.getNFTProducts();
-      setProducts(response.products || []);
+      setProducts(response.data || response.products || []);
     } catch (error) {
       console.error('Failed to fetch NFT products:', error);
       message.error('获取产品列表失败');
@@ -69,6 +102,7 @@ export const NFTProducts: React.FC = () => {
   };
 
   const handleOpenDrawer = (product?: NFTProduct) => {
+    setTranslations(null);
     if (product) {
       setEditingProduct(product);
       const formValues = {
@@ -87,20 +121,56 @@ export const NFTProducts: React.FC = () => {
     setDrawerOpen(true);
   };
 
+  const handleTranslate = async () => {
+    const description = form.getFieldValue('description');
+    if (!description) {
+      message.warning('请先输入产品描述');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const response = await apiClient.translateNFTDescription(description, 'zh');
+      setTranslations(response.data);
+      form.setFieldValue('description_i18n', response.data);
+      message.success('翻译成功');
+    } catch (error) {
+      message.error('翻译失败，请稍后重试');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const response = await apiClient.uploadNFTImage(file);
+      setImagePreview(response.url);
+      form.setFieldValue('image_url', response.url);
+      message.success('图片上传成功');
+    } catch (error) {
+      message.error('图片上传失败');
+    } finally {
+      setUploadingImage(false);
+    }
+    return false; // prevent default upload
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
-      // Convert listing_time to ISO string if present
+
       if (values.listing_time) {
         values.listing_time = values.listing_time.toISOString();
       }
 
-      // Use imagePreview as image_url if in upload mode
       if (imageMode === 'upload' && imagePreview) {
         values.image_url = imagePreview;
       }
-      
+
+      if (translations) {
+        values.description_i18n = translations;
+      }
+
       if (editingProduct) {
         await apiClient.updateNFTProduct(editingProduct.id, values);
         message.success('产品更新成功');
@@ -108,10 +178,11 @@ export const NFTProducts: React.FC = () => {
         await apiClient.createNFTProduct(values);
         message.success('产品创建成功');
       }
-      
+
       setDrawerOpen(false);
       form.resetFields();
       setEditingProduct(null);
+      setTranslations(null);
       fetchProducts();
     } catch (error: any) {
       console.error('Failed to save product:', error);
@@ -128,6 +199,26 @@ export const NFTProducts: React.FC = () => {
       console.error('Failed to delete product:', error);
       message.error(error.response?.data?.error || '删除失败');
     }
+  };
+
+  const handleShowHolders = async (product: NFTProduct) => {
+    setHoldersProduct(product);
+    setHoldersModalOpen(true);
+    setHoldersLoading(true);
+    try {
+      const response = await apiClient.getNFTProductHolders(product.id);
+      setHolders(response.holders || []);
+      setHoldersTotal(response.total || 0);
+    } catch (error) {
+      message.error('获取持有用户失败');
+    } finally {
+      setHoldersLoading(false);
+    }
+  };
+
+  const LANG_LABELS: Record<string, string> = {
+    zh: '中文', en: 'English', ja: '日本語', ar: 'العربية',
+    fr: 'Français', de: 'Deutsch', es: 'Español',
   };
 
   const columns = [
@@ -182,6 +273,32 @@ export const NFTProducts: React.FC = () => {
       width: 80,
     },
     {
+      title: '持有人数',
+      key: 'holders',
+      width: 100,
+      render: (_: any, record: NFTProduct) => {
+        const total = record.total_holders_count ?? (
+          (record.display_holders_count || 0) + (record.current_holders || 0)
+        );
+        return <span>{total.toLocaleString()}</span>;
+      },
+    },
+    {
+      title: '期限/日收益',
+      key: 'term_yield',
+      width: 110,
+      render: (_: any, record: NFTProduct) => (
+        <div>
+          {record.term_days && <div>{record.term_days}天</div>}
+          {record.daily_yield_rate && (
+            <div style={{ color: '#52c41a', fontSize: '12px' }}>
+              {(record.daily_yield_rate * 100).toFixed(2)}%/天
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
       title: '类型',
       dataIndex: 'product_type',
       key: 'product_type',
@@ -222,9 +339,17 @@ export const NFTProducts: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 150,
+      width: 200,
       render: (_: any, record: NFTProduct) => (
         <Space>
+          <Button
+            type="link"
+            size="small"
+            icon={<TeamOutlined />}
+            onClick={() => handleShowHolders(record)}
+          >
+            持有用户
+          </Button>
           <Button
             type="link"
             size="small"
@@ -248,6 +373,58 @@ export const NFTProducts: React.FC = () => {
     },
   ];
 
+  const holderColumns = [
+    {
+      title: '用户',
+      key: 'username',
+      render: (_: any, record: Holder) => record.username,
+    },
+    {
+      title: '购买金额',
+      dataIndex: 'purchase_price',
+      key: 'purchase_price',
+      render: (v: number) => `${v.toFixed(2)} USDT`,
+    },
+    {
+      title: '购买时间',
+      dataIndex: 'purchase_date',
+      key: 'purchase_date',
+      render: (d: string) => new Date(d).toLocaleString('zh-CN'),
+    },
+    {
+      title: '进度',
+      key: 'progress',
+      render: (_: any, record: Holder) => {
+        if (!record.term_days) return '-';
+        const pct = Math.min(100, Math.round((record.days_elapsed / record.term_days) * 100));
+        return (
+          <Tooltip title={`${record.days_elapsed}/${record.term_days} 天`}>
+            <Progress percent={pct} size="small" />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '累计收益',
+      dataIndex: 'total_income',
+      key: 'total_income',
+      render: (v: number) => `${v.toFixed(4)} USDT`,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (s: string) => {
+        const map: Record<string, { text: string; color: string }> = {
+          active: { text: '持有中', color: 'green' },
+          expired: { text: '已到期', color: 'default' },
+        };
+        const info = map[s] || { text: s, color: 'default' };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
+    },
+  ];
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -266,9 +443,10 @@ export const NFTProducts: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1600 }}
       />
 
+      {/* Product Create/Edit Drawer */}
       <Drawer
         title={editingProduct ? '编辑产品' : '添加产品'}
         open={drawerOpen}
@@ -276,8 +454,9 @@ export const NFTProducts: React.FC = () => {
           setDrawerOpen(false);
           form.resetFields();
           setEditingProduct(null);
+          setTranslations(null);
         }}
-        width={600}
+        width={640}
         footer={
           <div style={{ textAlign: 'right' }}>
             <Space>
@@ -290,17 +469,15 @@ export const NFTProducts: React.FC = () => {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ 
+          initialValues={{
             product_type: 'instant',
             status: 'active',
             stock: 0,
-            price: 0
+            price: 0,
+            display_holders_count: 0,
           }}
         >
-          <Form.Item
-            name="category_id"
-            label="分类（可选）"
-          >
+          <Form.Item name="category_id" label="分类（可选）">
             <Select placeholder="选择分类（可不选）" allowClear>
               {categories.map(cat => (
                 <Select.Option key={cat.id} value={cat.id}>{cat.name}</Select.Option>
@@ -316,11 +493,45 @@ export const NFTProducts: React.FC = () => {
             <Input placeholder="例如：限量版数字艺术品" />
           </Form.Item>
 
-          <Form.Item
-            name="description"
-            label="描述"
-          >
-            <Input.TextArea rows={3} placeholder="产品描述" />
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={3} placeholder="产品描述（支持翻译为7种语言）" />
+          </Form.Item>
+
+          <Form.Item label=" " colon={false}>
+            <Button
+              icon={translating ? <LoadingOutlined /> : <TranslationOutlined />}
+              onClick={handleTranslate}
+              loading={translating}
+            >
+              翻译为7种语言
+            </Button>
+            {translations && (
+              <Collapse
+                size="small"
+                style={{ marginTop: 8 }}
+                items={[
+                  {
+                    key: '1',
+                    label: '查看翻译预览',
+                    children: (
+                      <div>
+                        {Object.entries(translations).map(([lang, text]) => (
+                          <div key={lang} style={{ marginBottom: 8 }}>
+                            <Tag>{LANG_LABELS[lang] || lang}</Tag>
+                            <span style={{ fontSize: 12, color: '#555' }}>{text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Form.Item>
+
+          {/* Hidden field to hold description_i18n */}
+          <Form.Item name="description_i18n" hidden>
+            <Input />
           </Form.Item>
 
           <Form.Item label="封面图">
@@ -341,17 +552,11 @@ export const NFTProducts: React.FC = () => {
                 <Upload
                   accept="image/*"
                   showUploadList={false}
-                  beforeUpload={(file) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                      const base64 = e.target?.result as string;
-                      setImagePreview(base64);
-                    };
-                    reader.readAsDataURL(file);
-                    return false;
-                  }}
+                  beforeUpload={(file) => handleImageUpload(file)}
                 >
-                  <Button icon={<UploadOutlined />}>点击上传图片</Button>
+                  <Button icon={uploadingImage ? <LoadingOutlined /> : <UploadOutlined />} loading={uploadingImage}>
+                    点击上传图片
+                  </Button>
                 </Upload>
                 {imagePreview && (
                   <div style={{ marginTop: 8 }}>
@@ -395,10 +600,7 @@ export const NFTProducts: React.FC = () => {
             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="original_price"
-            label="原价 (USDT)"
-          >
+          <Form.Item name="original_price" label="原价 (USDT)">
             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
           </Form.Item>
 
@@ -408,6 +610,14 @@ export const NFTProducts: React.FC = () => {
             rules={[{ required: true, message: '请输入库存' }]}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="display_holders_count"
+            label="虚显持有人数"
+            tooltip="管理员设置的虚显人数，实际持有人数会自动叠加在此基础上"
+          >
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
           </Form.Item>
 
           <Form.Item
@@ -445,15 +655,6 @@ export const NFTProducts: React.FC = () => {
                   tooltip="描述收益结算规则"
                 >
                   <Input.TextArea rows={2} placeholder="例如：每日自动结算收益到账户余额" />
-                </Form.Item>
-
-                <Form.Item
-                  name="annual_yield_rate"
-                  label="年化收益率 (%)"
-                  rules={[{ required: true, message: '请输入年化收益率' }]}
-                  tooltip="例如：12 表示 12%/年"
-                >
-                  <InputNumber min={0} max={1000} step={0.1} style={{ width: '100%' }} addonAfter="%" />
                 </Form.Item>
 
                 <Form.Item
@@ -524,14 +725,6 @@ export const NFTProducts: React.FC = () => {
                 </Form.Item>
 
                 <Form.Item
-                  name="annual_yield_rate"
-                  label="年化收益率 (%)"
-                  tooltip="仅定期产品需要"
-                >
-                  <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
-                </Form.Item>
-
-                <Form.Item
                   name="term_days"
                   label="定期期限 (天)"
                   tooltip="定期产品持有天数，如 30"
@@ -546,18 +739,11 @@ export const NFTProducts: React.FC = () => {
                   <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
                 </Form.Item>
 
-                <Form.Item
-                  name="max_holders"
-                  label="总量上限 (最多可购人数)"
-                >
+                <Form.Item name="max_holders" label="总量上限 (最多可购人数)">
                   <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
                 </Form.Item>
 
-                <Form.Item
-                  name="is_purchase_limited"
-                  label="是否限购"
-                  valuePropName="checked"
-                >
+                <Form.Item name="is_purchase_limited" label="是否限购" valuePropName="checked">
                   <Switch checkedChildren="限购" unCheckedChildren="不限" />
                 </Form.Item>
 
@@ -575,10 +761,7 @@ export const NFTProducts: React.FC = () => {
             )}
           </Form.Item>
 
-          <Form.Item
-            name="rarity"
-            label="稀有度"
-          >
+          <Form.Item name="rarity" label="稀有度">
             <Select allowClear>
               <Select.Option value="common">普通</Select.Option>
               <Select.Option value="rare">稀有</Select.Option>
@@ -587,10 +770,7 @@ export const NFTProducts: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="listing_time"
-            label="上架时间"
-          >
+          <Form.Item name="listing_time" label="上架时间">
             <DatePicker showTime style={{ width: '100%' }} />
           </Form.Item>
 
@@ -604,16 +784,36 @@ export const NFTProducts: React.FC = () => {
               <Select.Option value="inactive">下架</Select.Option>
             </Select>
           </Form.Item>
-
-          <Form.Item
-            name="attributes"
-            label="属性 (JSON)"
-            tooltip='例如: {"artist": "张三", "edition": "1/100"}'
-          >
-            <Input.TextArea rows={2} placeholder='{"key": "value"}' />
-          </Form.Item>
         </Form>
       </Drawer>
+
+      {/* Holders Modal */}
+      <Modal
+        title={`持有用户 — ${holdersProduct?.name || ''}`}
+        open={holdersModalOpen}
+        onCancel={() => setHoldersModalOpen(false)}
+        footer={null}
+        width={800}
+      >
+        {holdersLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin />
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 12, color: '#666' }}>
+              共 <strong>{holdersTotal}</strong> 名用户正在持有
+            </div>
+            <Table
+              columns={holderColumns}
+              dataSource={holders}
+              rowKey="holding_id"
+              pagination={{ pageSize: 10 }}
+              size="small"
+            />
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

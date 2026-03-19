@@ -403,6 +403,28 @@ class ApiClient {
     return response.data;
   }
 
+  async getNFTProductHolders(id: string) {
+    const response = await this.client.get(`/nft/products/${id}/holders`);
+    return response.data;
+  }
+
+  async translateNFTDescription(text: string, sourceLang?: string) {
+    const response = await this.client.post('/nft/translate-description', {
+      text,
+      source_lang: sourceLang || 'zh',
+    });
+    return response.data;
+  }
+
+  async uploadNFTImage(file: File) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await this.client.post('/nft/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
   // Auction API
   async getAuctions(params?: any) {
     const response = await this.client.get('/auctions', { params });
