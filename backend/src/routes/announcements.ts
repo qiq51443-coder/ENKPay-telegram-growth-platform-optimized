@@ -3,6 +3,7 @@ import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
+import { translateToAllLangs } from '../utils/translate';
 
 const router = express.Router();
 
@@ -76,7 +77,23 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       ]
     );
 
-    res.json({ announcement: result.rows[0] });
+    const announcement = result.rows[0];
+
+    // Auto-translate content and title, then update DB
+    const [contentTranslations, titleTranslations] = await Promise.all([
+      translateToAllLangs(content),
+      translateToAllLangs(title || ''),
+    ]);
+
+    await query(
+      'UPDATE announcements SET content_translations = $1, title_translations = $2 WHERE id = $3',
+      [JSON.stringify(contentTranslations), JSON.stringify(titleTranslations), announcement.id]
+    );
+
+    announcement.content_translations = contentTranslations;
+    announcement.title_translations = titleTranslations;
+
+    res.json({ announcement });
   } catch (error) {
     console.error('Create announcement error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -133,7 +150,23 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Announcement not found' });
     }
 
-    res.json({ announcement: result.rows[0] });
+    const announcement = result.rows[0];
+
+    // If content or title changed, re-translate only the changed fields
+    if (content !== undefined || title !== undefined) {
+      const [newContentTranslations, newTitleTranslations] = await Promise.all([
+        content !== undefined ? translateToAllLangs(content || '') : Promise.resolve(announcement.content_translations || {}),
+        title !== undefined ? translateToAllLangs(title || '') : Promise.resolve(announcement.title_translations || {}),
+      ]);
+      await query(
+        'UPDATE announcements SET content_translations = $1, title_translations = $2 WHERE id = $3',
+        [JSON.stringify(newContentTranslations), JSON.stringify(newTitleTranslations), id]
+      );
+      announcement.content_translations = newContentTranslations;
+      announcement.title_translations = newTitleTranslations;
+    }
+
+    res.json({ announcement });
   } catch (error) {
     console.error('Update announcement error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -161,23 +194,29 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     const targets: string[] = announcement.targets || [];
     const images: string[] = announcement.images || [];
     const targetGroupIds: string[] = announcement.target_group_ids || [];
+    const contentTranslations: Record<string, string> = announcement.content_translations || {};
+    const titleTranslations: Record<string, string> = announcement.title_translations || {};
 
     let sentCount = 0;
     let failedCount = 0;
 
     const BATCH_SIZE = 25;
-    const BATCH_DELAY_MS = 1000;
+    const BATCH_DELAY_MS = 1100;
 
-    const escapeHtml = (text: string) =>
-      text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const getLocalizedMessage = (lang: string | null): string => {
+      const safeLang = lang && contentTranslations[lang] ? lang : (contentTranslations['en'] ? 'en' : null);
+      const title = (safeLang ? titleTranslations[safeLang] : null) || announcement.title || '';
+      const content = (safeLang ? contentTranslations[safeLang] : null) || announcement.content || '';
+      return title ? `<b>${title}</b>\n\n${content}` : content;
+    };
 
-    // Helper to send a single message to one chatId
-    const sendToChat = async (telegram: TelegramAPI, chatId: number | string) => {
-      const caption = `<b>${escapeHtml(announcement.title)}</b>\n\n${announcement.content}`;
+    // Helper to send a single message to one chatId with optional language
+    const sendToChat = async (telegram: TelegramAPI, chatId: number | string, lang?: string | null) => {
+      const text = getLocalizedMessage(lang ?? null);
       if (images.length > 0) {
-        await telegram.sendPhoto(chatId, images[0], { caption, parse_mode: 'HTML' });
+        await telegram.sendPhoto(chatId, images[0], { caption: text, parse_mode: 'HTML' });
       } else {
-        await telegram.sendMessage(chatId, caption, { parse_mode: 'HTML' });
+        await telegram.sendMessage(chatId, text, { parse_mode: 'HTML' });
       }
     };
 
@@ -190,10 +229,12 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
           const batch = targetGroupIds.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (chatId) => {
             try {
-              await sendToChat(telegram, chatId);
+              // Groups use default language (zh if available, else en)
+              const groupLang = contentTranslations['zh'] ? 'zh' : 'en';
+              await sendToChat(telegram, chatId, groupLang);
               sentCount++;
-            } catch (err) {
-              console.error('Failed to send announcement to group:', chatId, err);
+            } catch (err: any) {
+              console.error('Failed to send announcement to group:', chatId, err?.response?.data || err?.message);
               failedCount++;
             }
           }));
@@ -210,17 +251,17 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       if (botResult.rows.length > 0) {
         const telegram = new TelegramAPI(botResult.rows[0].token);
         const usersResult = await query(
-          'SELECT telegram_id FROM users WHERE bot_id = $1',
+          'SELECT telegram_id, language_code FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL',
           [announcement.announcement_bot_id]
         );
         for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
           const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (user) => {
             try {
-              await sendToChat(telegram, user.telegram_id);
+              await sendToChat(telegram, user.telegram_id, user.language_code);
               sentCount++;
-            } catch (err) {
-              console.error('Failed to send announcement to user:', user.telegram_id, err);
+            } catch (err: any) {
+              console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
               failedCount++;
             }
           }));

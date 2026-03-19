@@ -19,6 +19,8 @@ interface Broadcast {
   created_at: string;
   sent_at?: string;
   media_url?: string;
+  content_translations?: Record<string, string>;
+  title_translations?: Record<string, string>;
 }
 
 interface Bot {
@@ -120,6 +122,16 @@ export const Broadcasts: React.FC = () => {
       key: 'content',
       ellipsis: true,
       width: 300,
+      render: (content: string, record: Broadcast) => (
+        <div>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{content}</div>
+          {record.content_translations && Object.keys(record.content_translations).length > 0 ? (
+            <Tag color="green" style={{ marginTop: 4, fontSize: 11 }}>✓ 已翻译为{Object.keys(record.content_translations).length}种语言</Tag>
+          ) : (
+            <Tag color="default" style={{ marginTop: 4, fontSize: 11 }}>翻译中...</Tag>
+          )}
+        </div>
+      ),
     },
     {
       title: '目标用户',
@@ -146,6 +158,7 @@ export const Broadcasts: React.FC = () => {
           draft: { text: '草稿', color: 'default' },
           scheduled: { text: '已安排', color: 'processing' },
           sending: { text: '发送中', color: 'warning' },
+          sent: { text: '已发送', color: 'success' },
           completed: { text: '已完成', color: 'success' },
           failed: { text: '失败', color: 'error' },
         };
