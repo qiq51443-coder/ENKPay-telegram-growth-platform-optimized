@@ -368,12 +368,19 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
              username           = COALESCE($3, username),
              language_code      = $4,
              updated_at         = NOW(),
+             last_active_at     = NOW(),
              unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
                                     THEN 'U' || LPAD(CAST($5 AS TEXT), 8, '0')
                                     ELSE unique_id END,
-             wallet_balance     = COALESCE(wallet_balance, balance, 0),
-             red_packet_credits = COALESCE(red_packet_credits, 0),
-             nft_balance        = COALESCE(nft_balance, 0)
+             wallet_balance     = CASE WHEN wallet_balance IS NULL
+                                    THEN COALESCE(balance, 0)
+                                    ELSE wallet_balance END,
+             red_packet_credits = CASE WHEN red_packet_credits IS NULL
+                                    THEN 0
+                                    ELSE red_packet_credits END,
+             nft_balance        = CASE WHEN nft_balance IS NULL
+                                    THEN 0
+                                    ELSE nft_balance END
          WHERE id = $1`,
         [existing.rows[0].id, firstName, username, languageCode, telegramId]
       );
