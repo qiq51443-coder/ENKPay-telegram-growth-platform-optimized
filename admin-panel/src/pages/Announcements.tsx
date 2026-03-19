@@ -24,6 +24,8 @@ interface Announcement {
   created_at: string;
   announcement_bot_id?: string;
   target_group_ids?: string[];
+  content_translations?: Record<string, string>;
+  title_translations?: Record<string, string>;
 }
 
 interface Bot {
@@ -193,6 +195,16 @@ export const Announcements: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       ellipsis: true,
+      render: (title: string, record: Announcement) => (
+        <div>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+          {record.content_translations && Object.keys(record.content_translations).length > 0 ? (
+            <Tag color="green" style={{ marginTop: 4, fontSize: 11 }}>✓ 已翻译为{Object.keys(record.content_translations).length}种语言</Tag>
+          ) : (
+            <Tag color="default" style={{ marginTop: 4, fontSize: 11 }}>翻译中...</Tag>
+          )}
+        </div>
+      ),
     },
     {
       title: '发送目标',
