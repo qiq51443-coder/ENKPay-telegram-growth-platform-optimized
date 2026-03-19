@@ -69,8 +69,8 @@ export const handleStart = async (ctx: Context) => {
     }
 
     const finalWebAppUrl = startToken
-      ? `${webAppUrl}?start_token=${startToken}`
-      : webAppUrl;
+      ? `${webAppUrl}?start_token=${startToken}&telegram_id=${ctx.from.id}`
+      : `${webAppUrl}?telegram_id=${ctx.from.id}`;
 
     await ctx.replyWithHTML(welcomeText, Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],

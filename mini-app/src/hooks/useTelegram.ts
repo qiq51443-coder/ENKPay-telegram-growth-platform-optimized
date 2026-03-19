@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 declare global {
   interface Window {
@@ -34,6 +34,9 @@ declare global {
 const _urlParams = new URLSearchParams(window.location.search);
 const _startToken = _urlParams.get('start_token') || '';
 
+// Number of retries that use the shorter (5s) timeout before switching to the longer (10s) one
+const MAX_FAST_RETRIES = 2;
+
 export function useTelegram() {
   // Initialise synchronously — this already works when the SDK has loaded
   // before React renders (the common case). The state + effect below handle
@@ -43,7 +46,15 @@ export function useTelegram() {
   const [user, setUser] = useState(() => window.Telegram?.WebApp?.initDataUnsafe?.user);
   // sdkFailed is true when polling has given up and no initData was found
   const [sdkFailed, setSdkFailed] = useState(false);
+  // sdkRetryCount is incremented by retrySDK() to trigger a fresh polling attempt
+  const [sdkRetryCount, setSdkRetryCount] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Allow external callers to trigger a fresh SDK poll attempt
+  const retrySDK = useCallback(() => {
+    setSdkFailed(false);
+    setSdkRetryCount(c => c + 1);
+  }, []);
 
   useEffect(() => {
     // Call ready() as soon as tg is available AND initData is non-empty.
@@ -84,7 +95,9 @@ export function useTelegram() {
       loadListenerAdded = true;
     }
 
-    // SDK not ready yet (or initData still empty) – poll every 100ms for up to 5 seconds
+    // Poll every 100ms; use a shorter timeout for the first MAX_FAST_RETRIES attempts,
+    // then a longer timeout to give Telegram WebApp more time to load on slow devices.
+    const maxWait = sdkRetryCount < MAX_FAST_RETRIES ? 5000 : 10000;
     let elapsed = 0;
     pollRef.current = setInterval(() => {
       elapsed += 100;
@@ -95,8 +108,8 @@ export function useTelegram() {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } else if (elapsed >= 8000) {
-        // Give up after 8 seconds; notify callers so they can show error state
+      } else if (elapsed >= maxWait) {
+        // Give up; notify callers so they can show error state
         setSdkFailed(true);
         if (pollRef.current) {
           clearInterval(pollRef.current);
@@ -115,7 +128,7 @@ export function useTelegram() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sdkRetryCount]);
 
-  return { tg, user, initData, sdkFailed, startToken: _startToken };
+  return { tg, user, initData, sdkFailed, startToken: _startToken, retrySDK };
 }
