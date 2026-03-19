@@ -44,6 +44,7 @@ import walletRoutes from './routes/wallet';
 import walletAdminRoutes from './routes/wallet-admin';
 import depositWebhookRoutes from './routes/webhook-deposit';
 import miniappRoutes from './routes/miniapp';
+import miniappBotTokenRoutes from './routes/miniapp-bot-token';
 import profileRoutes from './routes/profile';
 import dbRepairRoutes from './routes/db-repair';
 
@@ -129,6 +130,7 @@ app.use('/api/charity', charityRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/admin/wallet', walletAdminRoutes);
 app.use('/api/miniapp', miniappRoutes);
+app.use('/api/miniapp/bot-token', miniappBotTokenRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
 

@@ -30,6 +30,10 @@ declare global {
   }
 }
 
+// Read start_token from the URL query string once (static — the URL won't change at runtime).
+const _urlParams = new URLSearchParams(window.location.search);
+const _startToken = _urlParams.get('start_token') || '';
+
 export function useTelegram() {
   // Initialise synchronously — this already works when the SDK has loaded
   // before React renders (the common case). The state + effect below handle
@@ -113,5 +117,5 @@ export function useTelegram() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { tg, user, initData, sdkFailed };
+  return { tg, user, initData, sdkFailed, startToken: _startToken };
 }
