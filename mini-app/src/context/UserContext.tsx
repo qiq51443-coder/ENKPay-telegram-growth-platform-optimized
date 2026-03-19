@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { getUserProfile } from '../services/api';
-import { useTelegram } from '../hooks/useTelegram';
 
 export interface UserProfile {
   id?: string;
@@ -32,7 +31,6 @@ export interface UserProfile {
 interface UserContextType {
   user: UserProfile | null;
   setUser: (user: UserProfile | null) => void;
-  /** Lightweight balance refresh — calls GET /miniapp/profile, never authSync */
   refreshBalance: () => Promise<void>;
   loading: boolean;
   setLoading: (loading: boolean) => void;
@@ -54,12 +52,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { initData } = useTelegram();
 
-  // Lightweight refresh — only calls GET /miniapp/profile, never triggers auth-sync
   const refreshBalance = useCallback(async () => {
     try {
-      const data = await getUserProfile(initData || undefined);
+      const data = await getUserProfile();
       const profileData: UserProfile | null = data.user || data;
       if (profileData) {
         setUser(profileData);
@@ -67,9 +63,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: any) {
       console.warn('[UserContext] refreshBalance error:', err?.message);
-      // Keep existing user data on refresh failure — don't clear the profile
     }
-  }, [initData]);
+  }, []);
 
   return (
     <UserContext.Provider value={{ user, setUser, refreshBalance, loading, setLoading, error }}>

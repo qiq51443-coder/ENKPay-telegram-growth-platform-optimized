@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
-import { api, setInitData } from '../services/api';
+import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuthSync } from '../context/AuthSyncContext';
@@ -120,7 +120,7 @@ const CUSTOM_TICK_RANGE_PCT = 0.002;
 
 export const Trading: React.FC = () => {
   const { t } = useLang();
-  const { initData, user: tgUser, tg } = useTelegram();
+  const { user: tgUser, tg } = useTelegram();
   const { authSyncDone } = useAuthSync();
   const { user: contextUser, refreshBalance: refreshContextBalance } = useUser();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
@@ -175,13 +175,6 @@ export const Trading: React.FC = () => {
     }
   }, [contextUser]);
 
-  // Set global initData header so all requests carry it automatically
-  useEffect(() => {
-    if (initData) {
-      setInitData(initData);
-    }
-  }, [initData]);
-
   useEffect(() => {
     fetchPairs();
     pairsPollRef.current = setInterval(fetchPairs, 30000);
@@ -198,11 +191,11 @@ export const Trading: React.FC = () => {
   // fetchBalance fires before the user record exists in the database.
   // If we already have the balance from UserContext, skip the extra request.
   useEffect(() => {
-    if (authSyncDone && initData && availableBalance === null) {
+    if (authSyncDone && availableBalance === null) {
       fetchBalance();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSyncDone, initData]);
+  }, [authSyncDone]);
 
   // Track active order from order history
   useEffect(() => {
@@ -542,8 +535,8 @@ export const Trading: React.FC = () => {
 
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
-    if (!initData || !tgUser?.id) {
-      console.warn('Trading: initData not available, cannot place order');
+    if (!tgUser?.id) {
+      console.warn('Trading: user not available, cannot place order');
       setConfirmOpen(false);
       return;
     }
@@ -566,8 +559,6 @@ export const Trading: React.FC = () => {
         duration: selectedDuration,
         direction: confirmDirection,
         amount: Number(amount),
-      }, {
-        headers: { 'X-Telegram-Init-Data': initData },
       });
       const sessionEnd = res.data?.data?.session?.end_time
         ? new Date(res.data.data.session.end_time).getTime()
@@ -615,7 +606,6 @@ export const Trading: React.FC = () => {
       try {
         const res = await api.get('/trading/orders/my', {
           params: { limit: 50, status: 'settled' },
-          headers: { 'X-Telegram-Init-Data': initData },
         });
         const order = res.data?.data?.find((o: any) => o.id === orderId);
         if (order) {
@@ -631,11 +621,9 @@ export const Trading: React.FC = () => {
   };
 
   const fetchOrderHistory = async () => {
-    if (!initData) return;
     try {
       const res = await api.get('/trading/orders/my', {
         params: { limit: 20 },
-        headers: { 'X-Telegram-Init-Data': initData },
       });
       setOrders(res.data?.data || []);
     } catch {}
