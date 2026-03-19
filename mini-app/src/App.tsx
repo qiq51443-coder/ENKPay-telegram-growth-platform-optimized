@@ -30,28 +30,35 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  // authStatus: 'pending' | 'ok' | 'error'
+  const [authStatus, setAuthStatus] = useState<'pending' | 'ok' | 'error'>('pending');
   const authAttemptedRef = useRef(false);
 
   const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
   const { setUser } = useUser();
 
-  // Auth sync: once initData is available, call authSync once
+  // Single auth effect: fires once when sdkReady changes from null to true/false
   useEffect(() => {
+    // Skip if already attempted
     if (authAttemptedRef.current) return;
-
-    // Not ready yet — SDK still loading (null = polling in progress)
+    // Still polling — wait
     if (sdkReady === null) return;
 
-    // SDK loaded but no initData means not opened from Telegram (sdkReady === false)
-    if (sdkReady === false && !initData) {
-      setAuthError(true);
+    if (sdkReady === false) {
+      // SDK definitively not available (not opened from Telegram)
+      setAuthStatus('error');
       setAuthSyncDone(true);
       return;
     }
 
-    if (!initData) return;
+    // sdkReady === true: we have initData
+    if (!initData) {
+      // Shouldn't happen, but handle gracefully
+      setAuthStatus('error');
+      setAuthSyncDone(true);
+      return;
+    }
 
     authAttemptedRef.current = true;
     setApiInitData(initData);
@@ -61,32 +68,24 @@ function AppContent() {
         if (data?.user) {
           setUser(data.user);
         }
+        setAuthStatus('ok');
       })
       .catch((err) => {
-        console.warn('[App] auth-sync failed:', String(err));
-        // Non-fatal: user data will be null but app can still show public content
+        console.warn('[App] authSync failed:', String(err));
+        // Non-fatal: still show the app, user data will refresh on demand
+        setAuthStatus('ok');
       })
       .finally(() => {
         setAuthSyncDone(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData, sdkReady]);
+  }, [sdkReady, initData, setUser]);
 
-  // After 10 seconds without initData, show error
+  // Loading progress animation (independent of auth)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!initData && !authAttemptedRef.current) {
-        setAuthError(true);
-        setAuthSyncDone(true);
-      }
-    }, 10000);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData]);
-
-  // Loading progress animation
-  useEffect(() => {
-    tg?.expand();
+    if (tg) {
+      try { tg.expand(); } catch { /* non-critical */ }
+    }
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
@@ -113,7 +112,7 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
-  if (authError) {
+  if (authStatus === 'error') {
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: theme.bgPrimary,
@@ -152,6 +151,11 @@ function AppContent() {
         </button>
       </div>
     );
+  }
+
+  // While sdkReady is still null (polling), show loading skeleton instead of error
+  if (authStatus === 'pending' && sdkReady === null) {
+    return <LoadingScreen progress={95} />;
   }
 
   const renderPage = () => {

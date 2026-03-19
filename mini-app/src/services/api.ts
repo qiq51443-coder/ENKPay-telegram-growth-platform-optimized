@@ -4,6 +4,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const api = axios.create({
   baseURL: BASE_URL,
+  timeout: 15000, // 15s: accommodates 10s SDK polling window + server processing time
 });
 
 // ─── Init data management ──────────────────────────────────────────────────────
@@ -54,9 +55,9 @@ export async function placeQuickSession(params: {
   return response.data;
 }
 
-export async function getMyOrders(userId: number, options?: { status?: string; limit?: number }) {
-  const response = await api.get('/trading/my-orders', {
-    params: { user_id: userId, ...options },
+export async function getMyOrders(options?: { status?: string; limit?: number }) {
+  const response = await api.get('/trading/orders/my', {
+    params: options,
   });
   return response.data;
 }
@@ -120,6 +121,13 @@ export async function getMyAuctions() {
 
 export async function redeemAuction(resultId: string) {
   const response = await api.post(`/auctions/results/${resultId}/redeem`, {});
+  return response.data;
+}
+
+// ─── Agreement ────────────────────────────────────────────────────────────────
+
+export async function getAgreement() {
+  const response = await api.get('/miniapp/agreement');
   return response.data;
 }
 

@@ -62,7 +62,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setError(null);
       }
     } catch (err: any) {
+      const status = err?.response?.status;
+      // 401 = not authenticated yet, silently ignore
+      if (status === 401) {
+        console.warn('[UserContext] refreshBalance: not authenticated yet');
+        return;
+      }
       console.warn('[UserContext] refreshBalance error:', err?.message);
+      setError(err?.message || 'Failed to load profile');
     }
   }, []);
 
