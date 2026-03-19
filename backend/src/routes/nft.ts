@@ -118,9 +118,9 @@ router.get('/products', async (req, res) => {
     if (status) {
       params.push(status);
       queryText += ` AND p.status = $${params.length}`;
-    } else {
-      queryText += ` AND p.status = 'active'`;
     }
+    // No default status filter — callers (e.g. admin panel) can see all products;
+    // front-end mini-app passes status=active explicitly when needed.
 
     queryText += ` ORDER BY p.created_at DESC`;
     params.push(Number(limit), offset);
