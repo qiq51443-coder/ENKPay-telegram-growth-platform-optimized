@@ -185,9 +185,22 @@ export async function authSync(initData: string) {
  * Exchange a one-time bot temp token for a session token + full user profile.
  * On success, call setSessionToken(data.session_token) so subsequent requests
  * are automatically authenticated.
+ * Sends telegram_id from the URL as a fallback so the backend can recover
+ * even if the one-time token has already been consumed (e.g. user reopened
+ * the same cached Telegram WebApp button URL).
  */
 export async function exchangeBotToken(botToken: string) {
-  const response = await api.post('/miniapp/bot-token/exchange', { token: botToken });
+  // Attempt to read telegram_id from URL as fallback for expired/consumed tokens
+  const urlParams = new URLSearchParams(window.location.search);
+  const telegramIdStr = urlParams.get('telegram_id');
+  const body: Record<string, unknown> = { token: botToken };
+  if (telegramIdStr) {
+    const telegramId = parseInt(telegramIdStr, 10);
+    if (!isNaN(telegramId)) {
+      body.telegram_id = telegramId;
+    }
+  }
+  const response = await api.post('/miniapp/bot-token/exchange', body);
   return response.data; // { success, user, session_token, bot_id }
 }
 

@@ -8,6 +8,8 @@ const router = express.Router();
 
 const TEMP_TOKEN_TTL = 600;      // 10 minutes
 const SESSION_TOKEN_TTL = 86400; // 24 hours
+// Sentinel bot_id used when a session is recovered via telegram_id fallback
+const BOT_ID_TOKEN_RECOVERY = 'token_recovery';
 
 function tempTokenKey(token: string): string {
   return `bot_temp_token:${token}`;
@@ -59,10 +61,12 @@ router.post('/generate', async (req, res) => {
  * POST /api/miniapp/bot-token/exchange
  * Called by the Mini App to trade the one-time temp token for a session token + user profile.
  * No authentication required — the token itself is the credential.
+ * If the token is expired/consumed but a telegram_id is provided and the user already
+ * exists in the database, a fresh session is issued (recovery for cached WebApp URLs).
  */
 router.post('/exchange', async (req, res) => {
   try {
-    const { token } = req.body as { token?: string };
+    const { token, telegram_id: fallbackTelegramId } = req.body as { token?: string; telegram_id?: number };
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ error: 'token is required' });
     }
@@ -71,6 +75,34 @@ router.post('/exchange', async (req, res) => {
     const payload = await getCache<{ telegramId: number; botId: string; createdAt: number }>(cacheKey);
 
     if (!payload) {
+      // Token is invalid or expired.
+      // Fallback: if a telegram_id is provided AND the user already exists in the DB,
+      // issue a fresh session (the user was previously authenticated by the bot).
+      if (fallbackTelegramId && typeof fallbackTelegramId === 'number') {
+        const userCheck = await query(
+          `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+          [fallbackTelegramId]
+        );
+        if (userCheck.rows.length > 0) {
+          console.info(`[bot-token/exchange] Token expired but user ${fallbackTelegramId} exists — issuing recovery session`);
+          const userProfile = await buildCanonicalProfile(fallbackTelegramId);
+          if (userProfile) {
+            const sessionToken = crypto.randomBytes(32).toString('hex');
+            await setCache(
+              sessionTokenKey(sessionToken),
+              { telegramId: fallbackTelegramId, botId: BOT_ID_TOKEN_RECOVERY },
+              SESSION_TOKEN_TTL
+            );
+            return res.json({
+              success: true,
+              user: userProfile,
+              bot_id: BOT_ID_TOKEN_RECOVERY,
+              session_token: sessionToken,
+              recovered: true,
+            });
+          }
+        }
+      }
       return res.status(401).json({ error: 'Token invalid or expired' });
     }
 
