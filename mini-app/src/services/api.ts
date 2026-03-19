@@ -24,11 +24,15 @@ export function setSessionToken(token: string): void {
   }
 }
 
-// Automatically attach session token to every outgoing request when available
+// Automatically attach auth headers to every outgoing request.
+// Rule: if a session token is present, use it exclusively and omit initData
+// to avoid confusing the backend middleware with two auth signals at once.
 api.interceptors.request.use((config) => {
   const token = getSessionToken();
   if (token) {
     config.headers['X-Session-Token'] = token;
+    // Remove any per-instance initData to prevent dual-auth confusion
+    delete config.headers['X-Telegram-Init-Data'];
   }
   return config;
 });
@@ -39,10 +43,13 @@ export function setInitData(initData: string) {
   api.defaults.headers.common['X-Telegram-Init-Data'] = initData;
 }
 
-export async function getUserProfile(initData: string) {
-  const response = await api.get('/miniapp/profile', {
-    headers: { 'X-Telegram-Init-Data': initData },
-  });
+export async function getUserProfile(initData?: string) {
+  const headers: Record<string, string> = {};
+  // Only attach initData when there is no session token to avoid dual-auth
+  if (initData && !getSessionToken()) {
+    headers['X-Telegram-Init-Data'] = initData;
+  }
+  const response = await api.get('/miniapp/profile', { headers });
   return response.data;
 }
 

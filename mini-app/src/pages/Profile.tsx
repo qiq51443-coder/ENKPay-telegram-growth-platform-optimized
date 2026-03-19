@@ -1,33 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
 import { useTelegram } from '../hooks/useTelegram';
-import { getUserProfile, getTransactions, getAnnouncements, api, authSync } from '../services/api';
+import { getUserProfile, getTransactions, getAnnouncements, api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { useUser, UserProfile } from '../context/UserContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
-
-interface UserProfile {
-  /** Internal database ID — stable reference used by trading and server-side operations */
-  id?: string;
-  unique_id: string;
-  telegram_id?: number;
-  balance: number;
-  wallet_balance?: number;
-  reward_balance?: number;
-  reward_unlock_progress?: number;
-  reward_unlock_required?: number;
-  nft_balance?: number;
-  red_packet_balance?: number;
-  red_packet_credits?: number;
-  frozen_balance?: number;
-  /** Backend-computed tradable balance: wallet_balance + red_packet_balance */
-  tradable_balance?: number;
-  account_status?: string;
-  wallet_tip_message?: string;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  language_code?: string;
-}
 
 interface Transaction {
   id: string;
@@ -67,11 +44,10 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
 
 type ProfileView = 'main' | 'orders' | 'agreement';
 
-const PROFILE_RETRY_DELAY_MS = 2000;
-
 export const Profile: React.FC = () => {
   const { tg, user: tgUser, initData, sdkFailed } = useTelegram();
   const { lang, setLang, t } = useLang();
+  const { user: contextUser, setUser, refreshBalance } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ProfileView>('main');
@@ -83,61 +59,58 @@ export const Profile: React.FC = () => {
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
 
-  const fetchProfile = async (retrying = false) => {
-    try {
-      if (initData) {
-        let profileData: any = null;
-        try {
-          // auth-sync: validate + upsert + return canonical profile
-          const data = await authSync(initData);
-          profileData = data.user;
-        } catch (authErr: any) {
-          console.warn('Profile: authSync failed, falling back to getUserProfile', authErr);
-          // Only fall back for non-5xx errors, or if we're already retrying
-          if (authErr?.response?.status !== 500 || retrying) {
-            try {
-              const data = await getUserProfile(initData);
-              profileData = data.user || data;
-            } catch (profileErr) {
-              console.warn('Profile: getUserProfile also failed', profileErr);
-              // Both failed — schedule a retry once, keep loading spinner up
-              if (!retrying) {
-                setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
-                return; // Do NOT call setLoading(false) — keep spinner visible
-              }
-            }
-          } else if (!retrying) {
-            // 5xx from auth-sync and not yet retrying — retry silently
-            setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
-            return; // Do NOT call setLoading(false) — keep spinner visible
-          }
+  // Sync local profile state from UserContext
+  useEffect(() => {
+    if (contextUser) {
+      setProfile(contextUser);
+      // Sync language preference from backend profile
+      if (contextUser.language_code) {
+        const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
+        if (supportedCodes.includes(contextUser.language_code)) {
+          setLang(contextUser.language_code as LangCode);
         }
-        if (profileData) {
-          setProfile(profileData);
-          // Sync language from backend profile
-          if (profileData.language_code) {
-            const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
-            if (supportedCodes.includes(profileData.language_code)) {
-              setLang(profileData.language_code as LangCode);
-            }
-          }
-        }
-        setLoading(false);
-      } else if (sdkFailed) {
-        // SDK gave up without initData — surface the error state
-        setLoading(false);
-        // profile remains null; the render guard below shows the error UI
       }
-      // else: SDK still initialising — keep the loading spinner and wait.
-      // The useEffect watching [initData, tgUser, sdkFailed] will re-invoke
-      // fetchProfile once something changes.
-    } catch (err: any) {
-      console.warn('Profile: fetchProfile error', err);
       setLoading(false);
-      // Retry once after PROFILE_RETRY_DELAY_MS
-      if (!retrying) {
-        setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
-      }
+    }
+  }, [contextUser, setLang]);
+
+  // Fetch profile once on mount if context doesn't have user yet
+  useEffect(() => {
+    if (contextUser) {
+      // Already have user from App-level auth — just stop loading
+      setLoading(false);
+      return;
+    }
+    if (!initData && !sdkFailed) {
+      // SDK still initialising — keep spinner
+      return;
+    }
+    if (sdkFailed && !initData) {
+      setLoading(false);
+      return;
+    }
+    // Lightweight GET profile (no auth-sync)
+    getUserProfile(initData || undefined)
+      .then((data) => {
+        const profileData = data.user || data;
+        if (profileData) {
+          setUser(profileData);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.warn('[Profile] initial getUserProfile failed:', err?.message);
+        setLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initData, sdkFailed]);
+
+  // Lightweight balance refresh — calls GET /miniapp/profile only (no auth-sync)
+  const doRefreshBalance = async () => {
+    try {
+      await refreshBalance();
+    } catch (err: any) {
+      console.warn('[Profile] refreshBalance error:', err?.message);
     }
   };
 
@@ -197,30 +170,25 @@ export const Profile: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchProfile();
-
-    // Re-fetch when user returns to the page (tab focus / visibility change)
+    // Re-refresh balance when user returns to the page (tab focus / visibility change)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchProfile();
+        doRefreshBalance();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Also poll every 30 seconds while visible
+    // Also poll every 30 seconds while visible — lightweight GET only, no auth-sync
     const interval = setInterval(() => {
-      if (!document.hidden) fetchProfile();
+      if (!document.hidden) doRefreshBalance();
     }, 30000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  // Re-run when initData, tgUser, or sdkFailed changes so that:
-  // • a late-arriving initData triggers a real profile fetch, and
-  // • sdkFailed=true triggers the final "give up" path in fetchProfile.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData, tgUser, sdkFailed]);
+  }, []);
 
   // Poll transactions every 30 seconds while in orders view
   useEffect(() => {
@@ -248,14 +216,14 @@ export const Profile: React.FC = () => {
           {t('profile_load_failed')}
         </div>
         <button
-          onClick={() => { setLoading(true); fetchProfile(); }}
-          style={{
-            backgroundColor: '#F0B90B', color: '#000', border: 'none',
-            borderRadius: '8px', padding: '10px 24px', fontSize: '14px',
-            fontWeight: '600', cursor: 'pointer',
-          }}
-        >
-          {t('retry')}
+              onClick={() => { setLoading(true); doRefreshBalance().finally(() => setLoading(false)); }}
+              style={{
+                backgroundColor: '#F0B90B', color: '#000', border: 'none',
+                borderRadius: '8px', padding: '10px 24px', fontSize: '14px',
+                fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              {t('retry')}
         </button>
       </div>
     );
@@ -381,7 +349,7 @@ export const Profile: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <div style={{ color: theme.textSecondary, fontSize: '12px' }}>{t('account_balance')}</div>
             <button
-              onClick={() => fetchProfile()}
+              onClick={() => doRefreshBalance()}
               style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '14px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
               title="Refresh"
             >

@@ -21,6 +21,7 @@ import {
 } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 import { AuthSyncContext } from './context/AuthSyncContext';
+import { UserProvider, useUser } from './context/UserContext';
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -39,6 +40,7 @@ function AppContent() {
   const [authSyncDone, setAuthSyncDone] = useState(false);
   const { tg, initData, sdkFailed, startToken } = useTelegram();
   const { lang } = useLang();
+  const { setUser } = useUser();
 
   useEffect(() => {
     // ── Priority 1: bot temp token exchange (bypasses initData entirely) ──────
@@ -48,6 +50,11 @@ function AppContent() {
           if (data.session_token) {
             setSessionToken(data.session_token);
           }
+          // Store the full profile returned by the token exchange so child
+          // components (Profile, Trading) don't need to re-authenticate.
+          if (data.user) {
+            setUser(data.user);
+          }
           setAuthSyncCompleted(true);
         })
         .catch((err) => {
@@ -56,7 +63,10 @@ function AppContent() {
           if (initData) {
             setApiInitData(initData);
             authSync(initData)
-              .then(() => { setAuthSyncCompleted(true); })
+              .then((authData) => {
+                if (authData?.user) setUser(authData.user);
+                setAuthSyncCompleted(true);
+              })
               .catch((e) => { console.warn('[App] auth-sync fallback also failed:', String(e)); });
           }
         })
@@ -72,12 +82,18 @@ function AppContent() {
     // missing-user errors explicitly if the record still doesn't exist.
     let cancelled = false;
     authSync(initData)
-      .then(() => { if (!cancelled) setAuthSyncCompleted(true); })
+      .then((authData) => {
+        if (!cancelled) {
+          if (authData?.user) setUser(authData.user);
+          setAuthSyncCompleted(true);
+        }
+      })
       .catch((err) => {
         console.warn('[App] auth-sync failed (non-critical):', String(err));
       })
       .finally(() => { if (!cancelled) setAuthSyncDone(true); });
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startToken, initData]);
 
   useEffect(() => {
@@ -173,7 +189,9 @@ function AppContent() {
 function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <UserProvider>
+        <AppContent />
+      </UserProvider>
     </LanguageProvider>
   );
 }
