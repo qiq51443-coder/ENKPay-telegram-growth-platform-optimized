@@ -123,40 +123,16 @@ export const Profile: React.FC = () => {
           }
         }
         setLoading(false);
-      } else if (tgUser) {
-        // Fallback: show basic info from Telegram user when initData is unavailable
-        setProfile({
-          unique_id: String(tgUser.id),
-          balance: 0,
-          username: tgUser.username,
-          first_name: tgUser.first_name,
-        });
+      } else if (sdkFailed) {
+        // SDK gave up without initData — surface the error state
         setLoading(false);
-        // Retry after PROFILE_RETRY_DELAY_MS in case initData becomes available
-        if (!retrying) {
-          setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
-        }
-      } else {
-        // Neither initData nor tgUser available yet.
-        // Only stop loading once the SDK has definitively given up (sdkFailed=true);
-        // until then keep the spinner visible so we don't flash '#N/A'.
-        if (sdkFailed) {
-          setLoading(false);
-        }
-        // else: keep loading — the useEffect watching [sdkFailed] will re-call
-        // fetchProfile once the SDK polling has timed out.
+        // profile remains null; the render guard below shows the error UI
       }
+      // else: SDK still initialising — keep the loading spinner and wait.
+      // The useEffect watching [initData, tgUser, sdkFailed] will re-invoke
+      // fetchProfile once something changes.
     } catch (err: any) {
       console.warn('Profile: fetchProfile error', err);
-      if (tgUser) {
-        // Show basic Telegram info on error
-        setProfile({
-          unique_id: String(tgUser.id),
-          balance: 0,
-          username: tgUser.username,
-          first_name: tgUser.first_name,
-        });
-      }
       setLoading(false);
       // Retry once after PROFILE_RETRY_DELAY_MS
       if (!retrying) {
@@ -240,18 +216,11 @@ export const Profile: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  // Re-run when initData or tgUser becomes available (fixes timing race with SDK load)
+  // Re-run when initData, tgUser, or sdkFailed changes so that:
+  // • a late-arriving initData triggers a real profile fetch, and
+  // • sdkFailed=true triggers the final "give up" path in fetchProfile.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData, tgUser]);
-
-  // When SDK gives up (sdkFailed becomes true) and we still have no data,
-  // trigger a final fetchProfile so the component exits the loading state.
-  useEffect(() => {
-    if (sdkFailed && !initData && !tgUser) {
-      fetchProfile();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdkFailed]);
+  }, [initData, tgUser, sdkFailed]);
 
   // Poll transactions every 30 seconds while in orders view
   useEffect(() => {
@@ -263,7 +232,11 @@ export const Profile: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, initData]);
 
-  if (loading) {
+  // Keep the loading spinner while:
+  //   a) we are genuinely loading, OR
+  //   b) loading finished but profile is still null and SDK hasn't given up yet
+  //      (initData may arrive any moment — don't flash an error prematurely).
+  if (loading || (!profile && !sdkFailed)) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
 
