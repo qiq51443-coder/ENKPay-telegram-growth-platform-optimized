@@ -22,6 +22,8 @@ function sessionTokenKey(token: string): string {
 /**
  * Attempt to authenticate the request using the X-Session-Token header.
  * Returns true if a valid session token was found and req.telegramUser was set.
+ * Returns false if no session token was provided or the token is invalid/expired
+ * (caller should fall through to initData validation instead of sending an error).
  */
 async function trySessionToken(
   req: MiniAppAuthRequest,
@@ -35,15 +37,18 @@ async function trySessionToken(
       sessionTokenKey(sessionToken)
     );
     if (!payload?.telegramId) {
-      res.status(401).json({ error: 'Session token invalid or expired' });
-      return true; // Handled (with error)
+      // Token invalid or expired — fall through to initData validation
+      console.info('[miniapp-auth] Session token invalid/expired, falling back to initData', {
+        path: req.path,
+      });
+      return false;
     }
     req.telegramUser = { id: payload.telegramId };
     return true;
   } catch (err: any) {
     console.error('[miniapp-auth] session token lookup error:', err?.message);
-    res.status(500).json({ error: 'Authentication failed' });
-    return true; // Handled (with error)
+    // On lookup error, fall through to initData validation rather than blocking the request
+    return false;
   }
 }
 
@@ -99,13 +104,13 @@ export function authenticateMiniApp(
   (async () => {
     try {
       // ── Priority 1: session token (issued by /bot-token/exchange) ───────────
-      const sessionHandled = await trySessionToken(req, res);
-      if (sessionHandled) {
-        // trySessionToken either sent an error response or set req.telegramUser.
-        // Either way, we must not fall through to the initData validation.
+      const sessionAuthenticated = await trySessionToken(req, res);
+      if (sessionAuthenticated) {
+        // Session token was valid — proceed without initData validation
         if (!res.headersSent) next();
         return;
       }
+      // If session token was present but invalid/expired, fall through to initData
 
       // ── Priority 2: Telegram WebApp initData (original flow) ────────────────
       const initData = req.headers['x-telegram-init-data'] as string;

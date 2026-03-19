@@ -1,10 +1,11 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { theme } from '../theme';
-import { api, setInitData, authSync, setAuthSyncCompleted } from '../services/api';
+import { api, setInitData } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuthSync } from '../context/AuthSyncContext';
+import { useUser } from '../context/UserContext';
 import { createChart } from 'lightweight-charts';
 
 interface TradingPair {
@@ -121,6 +122,7 @@ export const Trading: React.FC = () => {
   const { t } = useLang();
   const { initData, user: tgUser, tg } = useTelegram();
   const { authSyncDone } = useAuthSync();
+  const { user: contextUser, refreshBalance: refreshContextBalance } = useUser();
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -143,7 +145,7 @@ export const Trading: React.FC = () => {
   const orderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [klineInterval, setKlineInterval] = useState('1m');
   const [klineError, setKlineError] = useState(false);
-  // Available balance: wallet_balance + red_packet_balance
+  // Available balance: wallet_balance + red_packet_balance (kept in sync with UserContext)
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,6 +160,20 @@ export const Trading: React.FC = () => {
   const candleSeriesRef = useRef<any>(null);
   const lastKlineTimeRef = useRef<number>(0);
   const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
+
+  // Sync availableBalance from UserContext whenever context user changes
+  useEffect(() => {
+    if (contextUser) {
+      const tradable = contextUser.tradable_balance;
+      if (tradable !== undefined) {
+        setAvailableBalance(parseFloat(String(tradable)));
+      } else {
+        const walletBal = parseFloat(String(contextUser.wallet_balance ?? contextUser.balance ?? 0));
+        const redPacketBal = parseFloat(String(contextUser.red_packet_balance ?? contextUser.red_packet_credits ?? 0));
+        setAvailableBalance(walletBal + redPacketBal);
+      }
+    }
+  }, [contextUser]);
 
   // Set global initData header so all requests carry it automatically
   useEffect(() => {
@@ -180,8 +196,9 @@ export const Trading: React.FC = () => {
 
   // Fetch balance once auth-sync has completed to avoid the race condition where
   // fetchBalance fires before the user record exists in the database.
+  // If we already have the balance from UserContext, skip the extra request.
   useEffect(() => {
-    if (authSyncDone && initData) {
+    if (authSyncDone && initData && availableBalance === null) {
       fetchBalance();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -413,27 +430,13 @@ export const Trading: React.FC = () => {
   };
 
   const fetchBalance = async (retryCount = 0) => {
-    if (!initData) return;
     try {
-      const res = await api.get('/miniapp/profile', {
-        headers: { 'X-Telegram-Init-Data': initData },
-      });
-      const user = res.data?.user;
-      if (user) {
-        // Prefer the backend-computed tradable_balance (wallet_balance + red_packet_balance).
-        // Fall back to a manual sum for backward compatibility with older backend versions.
-        if (user.tradable_balance !== undefined) {
-          setAvailableBalance(parseFloat(String(user.tradable_balance)));
-        } else {
-          const walletBal = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
-          const redPacketBal = parseFloat(String(user.red_packet_balance ?? user.red_packet_credits ?? 0));
-          setAvailableBalance(walletBal + redPacketBal);
-        }
-      }
+      // Delegate to UserContext refreshBalance which calls GET /miniapp/profile
+      // (session token or initData is handled by the request interceptor)
+      await refreshContextBalance();
     } catch (err: any) {
       console.warn('[Trading] fetchBalance failed:', err?.response?.status, err?.message);
-      // If the user record is not yet found (auth-sync may still be writing on the backend
-      // side), retry up to 3 times with increasing delays.
+      // If the user record is not yet found, retry up to 3 times with increasing delays
       if (err?.response?.status === 404 && retryCount < 3) {
         setTimeout(() => fetchBalance(retryCount + 1), 2000 * (retryCount + 1));
       }
@@ -548,17 +551,13 @@ export const Trading: React.FC = () => {
     setSubmitting(true);
     setConfirmOpen(false);
 
-    // Ensure auth-sync has completed at least once to avoid "User not found" race.
+    // Auth is handled at the App level — if authSyncDone is false we still proceed
+    // but show a friendlier error if the backend rejects with "User not found"
     if (!authSyncDone) {
-      try {
-        await authSync(initData);
-        setAuthSyncCompleted(true);
-      } catch (syncErr: any) {
-        setSubmitting(false);
-        setOrderError('Please wait, initializing your account...');
-        orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
-        return;
-      }
+      setSubmitting(false);
+      setOrderError('Please wait, initializing your account...');
+      orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
+      return;
     }
 
     try {
