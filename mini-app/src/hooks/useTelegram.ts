@@ -31,50 +31,56 @@ declare global {
 }
 
 export function useTelegram() {
+  // Try to read initData synchronously first (works on most Telegram versions)
+  const initialInitData = window.Telegram?.WebApp?.initData ?? '';
+
   const [tg, setTg] = useState<Window['Telegram']['WebApp'] | null>(() => {
     return window.Telegram?.WebApp ?? null;
   });
-  const [initData, setInitData] = useState<string>(() => {
-    return window.Telegram?.WebApp?.initData ?? '';
-  });
-  // null = still loading/polling, true = SDK ready, false = timed out (not opened from Telegram)
+  const [initData, setInitData] = useState<string>(() => initialInitData);
+
+  // If we already have initData synchronously, sdkReady starts as true.
+  // Otherwise, null = still polling.
   const [sdkReady, setSdkReady] = useState<boolean | null>(() => {
-    return window.Telegram?.WebApp?.initData ? true : null;
+    return initialInitData ? true : null;
   });
 
   useEffect(() => {
-    // If already have initData from synchronous init, we're done
-    if (initData) {
+    // Already have initData — just call SDK lifecycle methods
+    if (initialInitData) {
       try { window.Telegram?.WebApp?.ready(); } catch { /* non-critical */ }
       try { window.Telegram?.WebApp?.expand(); } catch { /* non-critical */ }
-      setSdkReady(true);
+      // sdkReady is already true from useState init
       return;
     }
 
-    // Poll for SDK availability (max 8 seconds, every 100ms = 80 attempts)
+    // Poll for SDK availability
+    // Telegram mobile apps typically inject initData within 0-500ms
+    // Give up after 10 seconds (100 attempts × 100ms)
     let attempts = 0;
-    const MAX_ATTEMPTS = 80;
+    const MAX_ATTEMPTS = 100; // 10 seconds
 
     const timer = setInterval(() => {
       attempts++;
       const webApp = window.Telegram?.WebApp;
-      if (webApp?.initData) {
+      const currentInitData = webApp?.initData;
+
+      if (currentInitData) {
         clearInterval(timer);
-        setTg(webApp);
-        setInitData(webApp.initData);
+        setTg(webApp!);
+        setInitData(currentInitData);
         setSdkReady(true);
-        try { webApp.ready(); } catch { /* non-critical */ }
-        try { webApp.expand(); } catch { /* non-critical */ }
+        try { webApp!.ready(); } catch { /* non-critical */ }
+        try { webApp!.expand(); } catch { /* non-critical */ }
       } else if (attempts >= MAX_ATTEMPTS) {
         clearInterval(timer);
-        // SDK not available - app must be opened from Telegram
-        setSdkReady(false);
+        setSdkReady(false); // Definitively not available
       }
     }, 100);
 
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Run once on mount only
 
   return {
     tg,
