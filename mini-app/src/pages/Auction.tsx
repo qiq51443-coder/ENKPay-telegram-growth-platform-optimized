@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { theme } from '../theme';
-import { useTelegram } from '../hooks/useTelegram';
 import { useLang } from '../context/LanguageContext';
 import {
   getAuctions,
@@ -146,9 +145,8 @@ const AuctionCard: React.FC<{ auction: Auction; onClick: () => void }> = ({ auct
 
 const AuctionDetail: React.FC<{
   auctionId: string;
-  initData: string;
   onBack: () => void;
-}> = ({ auctionId, initData, onBack }) => {
+}> = ({ auctionId, onBack }) => {
   const { t } = useLang();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,7 +164,7 @@ const AuctionDetail: React.FC<{
     setJoining(true);
     setMsg('');
     try {
-      await joinAuction(auctionId, qty, initData);
+      await joinAuction(auctionId, qty);
       setMsg('✅ ' + t('auction_join_success'));
       const d = await getAuctionDetail(auctionId);
       setAuction(d.data);
@@ -276,7 +274,6 @@ const AuctionDetail: React.FC<{
 };
 
 export const Auction: React.FC = () => {
-  const { initData } = useTelegram();
   const { t } = useLang();
   const [view, setView] = useState<AuctionView>('list');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -314,17 +311,16 @@ export const Auction: React.FC = () => {
   }, []);
 
   const fetchMyAuctions = useCallback(async () => {
-    if (!initData) return;
     setLoading(true);
     try {
-      const data = await getMyAuctions(initData);
+      const data = await getMyAuctions();
       setMyAuctions(data.data || []);
     } catch {
       setMyAuctions([]);
     } finally {
       setLoading(false);
     }
-  }, [initData]);
+  }, []);
 
   useEffect(() => {
     if (view === 'list') fetchList();
@@ -333,10 +329,9 @@ export const Auction: React.FC = () => {
   }, [view, fetchList, fetchResults, fetchMyAuctions]);
 
   const handleRedeem = async (resultId: string) => {
-    if (!initData) return;
     setRedeeming(resultId);
     try {
-      await redeemAuction(resultId, initData);
+      await redeemAuction(resultId);
       fetchMyAuctions();
     } catch (e: any) {
       alert(e.response?.data?.error || t('auction_join_failed'));
@@ -346,7 +341,7 @@ export const Auction: React.FC = () => {
   };
 
   if (view === 'detail') {
-    return <AuctionDetail auctionId={selectedId} initData={initData || ''} onBack={() => setView('list')} />;
+    return <AuctionDetail auctionId={selectedId} onBack={() => setView('list')} />;
   }
 
   return (

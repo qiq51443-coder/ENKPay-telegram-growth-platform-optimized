@@ -45,7 +45,7 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
 type ProfileView = 'main' | 'orders' | 'agreement';
 
 export const Profile: React.FC = () => {
-  const { tg, user: tgUser, initData, sdkFailed } = useTelegram();
+  const { tg, user: tgUser } = useTelegram();
   const { lang, setLang, t } = useLang();
   const { user: contextUser, setUser, refreshBalance } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -81,16 +81,8 @@ export const Profile: React.FC = () => {
       setLoading(false);
       return;
     }
-    if (!initData && !sdkFailed) {
-      // SDK still initialising — keep spinner
-      return;
-    }
-    if (sdkFailed && !initData) {
-      setLoading(false);
-      return;
-    }
     // Lightweight GET profile (no auth-sync)
-    getUserProfile(initData || undefined)
+    getUserProfile()
       .then((data) => {
         const profileData = data.user || data;
         if (profileData) {
@@ -103,7 +95,7 @@ export const Profile: React.FC = () => {
         setLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initData, sdkFailed]);
+  }, []);
 
   // Lightweight balance refresh — calls GET /miniapp/profile only (no auth-sync)
   const doRefreshBalance = async () => {
@@ -135,10 +127,9 @@ export const Profile: React.FC = () => {
   };
 
   const fetchTransactions = async () => {
-    if (!initData) return;
     setTxLoading(true);
     try {
-      const data = await getTransactions(initData);
+      const data = await getTransactions();
       setTransactions(data.transactions || data.data || []);
     } catch {
       setTransactions([]);
@@ -149,9 +140,7 @@ export const Profile: React.FC = () => {
 
   const openOrders = async () => {
     setView('orders');
-    if (initData) {
-      fetchTransactions();
-    }
+    fetchTransactions();
   };
 
   const openAgreement = async () => {
@@ -192,19 +181,19 @@ export const Profile: React.FC = () => {
 
   // Poll transactions every 30 seconds while in orders view
   useEffect(() => {
-    if (view !== 'orders' || !initData) return;
+    if (view !== 'orders') return;
     const txInterval = setInterval(() => {
       fetchTransactions();
     }, 30000);
     return () => clearInterval(txInterval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, initData]);
+  }, [view]);
 
   // Keep the loading spinner while:
   //   a) we are genuinely loading, OR
   //   b) loading finished but profile is still null and SDK hasn't given up yet
   //      (initData may arrive any moment — don't flash an error prematurely).
-  if (loading || (!profile && !sdkFailed)) {
+  if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
 

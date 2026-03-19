@@ -10,23 +10,10 @@ import { Charity } from './pages/Charity';
 import { Profile } from './pages/Profile';
 import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
-import {
-  getAnnouncements,
-  setInitData as setApiInitData,
-  authSync,
-  setAuthSyncCompleted,
-  isAuthSyncCompleted,
-  exchangeBotToken,
-  setSessionToken,
-  getSessionToken,
-} from './services/api';
+import { getAnnouncements, setInitData as setApiInitData, authSync } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 import { AuthSyncContext } from './context/AuthSyncContext';
 import { UserProvider, useUser } from './context/UserContext';
-
-// Grace period (ms) before declaring a fatal auth error after SDK timeout.
-// Allows any in-flight bot-token exchange to complete before we give up.
-const AUTH_FATAL_GRACE_PERIOD_MS = 1000;
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
@@ -43,136 +30,61 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  // Track whether auth has completely and unrecoverably failed (no token, no initData)
-  const [authFatalError, setAuthFatalError] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const authAttemptedRef = useRef(false);
-  const { tg, initData, sdkFailed, startToken, retrySDK } = useTelegram();
+
+  const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
   const { setUser } = useUser();
 
-  // Version-change detection: clear stale session data ONLY when no startToken is present.
-  // If a startToken was provided by the bot, we do NOT clear the session here — the token
-  // exchange will naturally refresh the session if needed.
+  // Auth sync: once initData is available, call authSync once
   useEffect(() => {
-    try {
-      const APP_VERSION = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'dev';
-      if (startToken) {
-        // When a fresh bot token is provided, just update the version marker
-        // but preserve existing session token as fallback in case exchange fails.
-        sessionStorage.setItem('_app_version', APP_VERSION);
-        return;
-      }
-      const storedVersion = sessionStorage.getItem('_app_version');
-      if (storedVersion !== APP_VERSION) {
-        // Only clear session token when version changes AND no startToken is present
-        sessionStorage.removeItem('_session_token');
-        sessionStorage.setItem('_app_version', APP_VERSION);
-        console.info('[App] New version detected, cleared stale session data');
-      }
-    } catch {
-      // sessionStorage not available (e.g. private mode) — ignore
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    // Prevent duplicate auth attempts
     if (authAttemptedRef.current) return;
 
-    // ── Priority 1: bot temp token exchange (bypasses initData entirely) ──────
-    if (startToken) {
-      authAttemptedRef.current = true;
-      exchangeBotToken(startToken)
-        .then((data) => {
-          if (data.session_token) {
-            setSessionToken(data.session_token);
-          }
-          // Store the full profile returned by the token exchange so child
-          // components (Profile, Trading) don't need to re-authenticate.
-          if (data.user) {
-            setUser(data.user);
-          }
-          setAuthSyncCompleted(true);
-          setAuthSyncDone(true);
-        })
-        .catch((err) => {
-          console.warn('[App] bot-token exchange failed, falling back to initData:', String(err));
-          // Fall back to the initData flow if the token exchange fails
-          if (initData) {
-            setApiInitData(initData);
-            authSync(initData)
-              .then((authData) => {
-                if (authData?.user) setUser(authData.user);
-                setAuthSyncCompleted(true);
-              })
-              .catch((e) => {
-                console.warn('[App] auth-sync fallback also failed:', String(e));
-                // If we have an existing session token from a previous valid session, proceed anyway
-                if (getSessionToken()) {
-                  setAuthSyncCompleted(true);
-                }
-              })
-              .finally(() => { setAuthSyncDone(true); });
-          } else {
-            // No initData either — check if we have a stored session token we can reuse
-            const existingToken = getSessionToken();
-            if (existingToken) {
-              console.info('[App] No initData, reusing existing session token');
-              setAuthSyncCompleted(true);
-              setAuthSyncDone(true);
-            } else {
-              setAuthSyncDone(true);
-            }
-          }
-        });
-      return;
-    }
+    // Not ready yet — SDK still loading (null = polling in progress)
+    if (sdkReady === null) return;
 
-    // ── Priority 2: Existing session token (user already authenticated before) ─
-    const existingToken = getSessionToken();
-    if (existingToken) {
-      // We have a valid session token — skip auth-sync for now, it will be refreshed as needed
-      setApiInitData(initData || '');
-      setAuthSyncCompleted(true);
+    // SDK loaded but no initData means not opened from Telegram (sdkReady === false)
+    if (sdkReady === false && !initData) {
+      setAuthError(true);
       setAuthSyncDone(true);
-      authAttemptedRef.current = true;
       return;
     }
 
-    // ── Priority 3: Telegram initData (standard flow) ────────────────────────
     if (!initData) return;
+
     authAttemptedRef.current = true;
     setApiInitData(initData);
-    let cancelled = false;
+
     authSync(initData)
-      .then((authData) => {
-        if (!cancelled) {
-          if (authData?.user) setUser(authData.user);
-          setAuthSyncCompleted(true);
+      .then((data) => {
+        if (data?.user) {
+          setUser(data.user);
         }
       })
       .catch((err) => {
-        console.warn('[App] auth-sync failed (non-critical):', String(err));
+        console.warn('[App] auth-sync failed:', String(err));
+        // Non-fatal: user data will be null but app can still show public content
       })
-      .finally(() => { if (!cancelled) setAuthSyncDone(true); });
-    return () => { cancelled = true; };
+      .finally(() => {
+        setAuthSyncDone(true);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startToken, initData]);
+  }, [initData, sdkReady]);
 
-  // When SDK fails AND we have no session token AND no startToken, set fatal error
+  // After 10 seconds without initData, show error
   useEffect(() => {
-    if (sdkFailed && !initData && !getSessionToken() && !startToken) {
-      // Give a brief window for the bot-token exchange to complete before declaring fatal
-      const timer = setTimeout(() => {
-        if (!getSessionToken() && !isAuthSyncCompleted()) {
-          setAuthFatalError(true);
-        }
-      }, AUTH_FATAL_GRACE_PERIOD_MS);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      if (!initData && !authAttemptedRef.current) {
+        setAuthError(true);
+        setAuthSyncDone(true);
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdkFailed, initData, startToken]);
+  }, [initData]);
 
+  // Loading progress animation
   useEffect(() => {
     tg?.expand();
     const interval = setInterval(() => {
@@ -181,7 +93,6 @@ function AppContent() {
           clearInterval(interval);
           setTimeout(() => {
             setLoading(false);
-            // Fetch launch announcements after loading completes
             getAnnouncements(true)
               .then(data => {
                 const list: Announcement[] = data?.announcements || data?.data || [];
@@ -195,7 +106,6 @@ function AppContent() {
       });
     }, 80);
     return () => clearInterval(interval);
-  // tg is stable after initial mount; expand only needs to be called once
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -203,9 +113,7 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
-  // Fatal auth error: SDK timed out, no session token, no startToken.
-  // Show a friendly "please reopen from Telegram" message instead of a reload loop.
-  if (authFatalError) {
+  if (authError) {
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: theme.bgPrimary,
@@ -221,12 +129,7 @@ function AppContent() {
           </span>
         </div>
         <button
-          onClick={() => {
-            // Try retrying SDK poll — may work if Telegram WebApp just took longer to load
-            setAuthFatalError(false);
-            authAttemptedRef.current = false;
-            retrySDK();
-          }}
+          onClick={() => window.location.reload()}
           style={{
             backgroundColor: '#F0B90B', color: '#000', border: 'none',
             borderRadius: '8px', padding: '12px 32px',
@@ -251,37 +154,6 @@ function AppContent() {
     );
   }
 
-  // SDK timed out and no initData available — the app cannot function without it.
-  // Exception: if a session token was obtained via bot-token exchange, we can
-  // proceed normally even when Telegram SDK initData is absent.
-  if (sdkFailed && !initData && !getSessionToken()) {
-    return (
-      <div style={{
-        minHeight: '100vh', backgroundColor: theme.bgPrimary,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '32px', gap: '16px',
-      }}>
-        <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center' }}>
-          加载失败，请重试
-        </div>
-        <button
-          onClick={() => {
-            authAttemptedRef.current = false;
-            retrySDK();
-          }}
-          style={{
-            backgroundColor: '#F0B90B', color: '#000', border: 'none',
-            borderRadius: '8px', padding: '12px 32px',
-            fontSize: '15px', fontWeight: '600', cursor: 'pointer',
-          }}
-        >
-          重试
-        </button>
-      </div>
-    );
-  }
-
   const renderPage = () => {
     switch (activeTab) {
       case 'trading': return <ErrorBoundary><Trading /></ErrorBoundary>;
@@ -295,21 +167,21 @@ function AppContent() {
 
   return (
     <AuthSyncContext.Provider value={{ authSyncDone }}>
-    <div
-      dir={lang === 'ar' ? 'rtl' : 'ltr'}
-      style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}
-    >
-      {announcement && (
-        <AnnouncementModal
-          title={announcement.title}
-          content={announcement.content}
-          images={announcement.images}
-          onClose={() => setAnnouncement(null)}
-        />
-      )}
-      {renderPage()}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-    </div>
+      <div
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}
+      >
+        {announcement && (
+          <AnnouncementModal
+            title={announcement.title}
+            content={announcement.content}
+            images={announcement.images}
+            onClose={() => setAnnouncement(null)}
+          />
+        )}
+        {renderPage()}
+        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
     </AuthSyncContext.Provider>
   );
 }
