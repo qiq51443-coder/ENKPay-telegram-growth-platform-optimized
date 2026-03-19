@@ -32,7 +32,7 @@ async function getActiveBotTokens(): Promise<string[]> {
     return tokens;
   } catch (err: any) {
     // If DB is unavailable fall back to cached tokens or env var only
-    console.warn('[miniapp-auth] Failed to load bot tokens from DB:', err?.message);
+    console.error('[miniapp-auth] Failed to load bot tokens from DB:', err?.message, err);
     return tokenCache?.tokens ?? [];
   }
 }
@@ -96,13 +96,16 @@ export function authenticateMiniApp(
         .map((entry: any) => `${entry[0]}=${entry[1]}`)
         .join('\n');
 
-      // Build candidate token list: env var first, then DB tokens
-      const candidateTokens: string[] = [];
-      if (process.env.BOT_TOKEN) candidateTokens.push(process.env.BOT_TOKEN);
+      // Build candidate token list: env var first, then DB tokens.
+      // Track whether tokens will actually be served from the in-memory cache
+      // (as opposed to freshly loaded from DB) so we can bust it and retry
+      // when verification fails — this handles newly-added bots within the TTL window.
+      const usingCachedTokens = tokenCache !== null && (Date.now() - tokenCache.fetchedAt < TOKEN_CACHE_TTL_MS);
+      const candidateSet = new Set<string>();
+      if (process.env.BOT_TOKEN) candidateSet.add(process.env.BOT_TOKEN);
       const dbTokens = await getActiveBotTokens();
-      for (const t of dbTokens) {
-        if (!candidateTokens.includes(t)) candidateTokens.push(t);
-      }
+      for (const t of dbTokens) candidateSet.add(t);
+      const candidateTokens = Array.from(candidateSet);
 
       if (candidateTokens.length === 0) {
         console.error(
@@ -117,12 +120,39 @@ export function authenticateMiniApp(
       }
 
       // Try each token until one matches
-      const valid = candidateTokens.some(token => computeHash(dataCheckString, token) === hash);
+      let valid = candidateTokens.some(token => computeHash(dataCheckString, token) === hash);
+      let finalCandidates = candidateTokens;
+
+      // Cache-bust-on-failure: if the cached token list was used and verification
+      // failed, clear the cache and retry once with freshly-loaded DB tokens.
+      // This handles the case where an admin just added a new bot and the cached
+      // list is stale (no need to wait up to 5 minutes for the cache to expire).
+      if (!valid && usingCachedTokens) {
+        console.info('[miniapp-auth] HMAC mismatch with cached tokens; busting cache and retrying with fresh DB tokens', {
+          path: req.path,
+        });
+        tokenCache = null;
+        const freshDbTokens = await getActiveBotTokens();
+        const freshSet = new Set<string>();
+        if (process.env.BOT_TOKEN) freshSet.add(process.env.BOT_TOKEN);
+        for (const t of freshDbTokens) freshSet.add(t);
+        const freshCandidates = Array.from(freshSet);
+        valid = freshCandidates.some(token => computeHash(dataCheckString, token) === hash);
+        finalCandidates = freshCandidates;
+      }
+
       if (!valid) {
+        const authDateStr = params.get('auth_date');
+        const ageSeconds = authDateStr
+          ? Math.floor(Date.now() / 1000) - parseInt(authDateStr, 10)
+          : null;
         console.warn('[miniapp-auth] REJECTED: HMAC hash mismatch', {
           path: req.path,
-          candidateCount: candidateTokens.length,
+          candidateCount: finalCandidates.length,
           dataCheckStringPreview: dataCheckString.substring(0, 80),
+          hashPrefix: hash.substring(0, 8),
+          authDateAgeSeconds: ageSeconds,
+          tokenPrefixes: finalCandidates.map(t => `${t.substring(0, 6)}...`),
         });
         res.status(401).json({
           error: 'Invalid init data signature',

@@ -41,11 +41,12 @@ function AppContent() {
       authSync(initData)
         .then(() => {
           setAuthSyncCompleted(true);
-          setAuthSyncDone(true); // notify child components via Context
         })
         .catch((err) => {
           console.warn('[App] auth-sync failed (non-critical):', String(err));
-          setAuthSyncDone(true); // mark done even on failure so children can still attempt requests
+        })
+        .finally(() => {
+          setAuthSyncDone(true); // notify child components regardless of outcome
         });
     }
   }, [initData]);
