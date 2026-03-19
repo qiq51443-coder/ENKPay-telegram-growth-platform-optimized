@@ -120,6 +120,13 @@ ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS max_purchases_per_user INT DEF
 -- Sync name from title if null
 UPDATE nft_products SET name = title WHERE name IS NULL AND title IS NOT NULL;
 
+-- Ensure additional NFT product columns required by admin API
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS description_i18n JSONB DEFAULT '{}';
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS display_holders_count INTEGER DEFAULT 0;
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS listing_time TIMESTAMP;
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS settlement_description TEXT;
+ALTER TABLE nft_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
 -- Ensure charity_projects has progress columns (added in migration 952)
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(5, 2) CHECK (progress_override IS NULL OR (progress_override >= 0 AND progress_override <= 100));
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
