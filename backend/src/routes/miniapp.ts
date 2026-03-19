@@ -330,7 +330,7 @@ async function buildCanonicalProfile(telegramId: number) {
     total_withdrawn: parseFloat(String(user.total_withdrawn ?? 0)),
     reward_unlock_progress: rewardUnlockProgress,
     reward_unlock_required: parseFloat(rewardUnlockRequired.toFixed(2)),
-    account_status: user.account_status,
+    account_status: user.account_status ?? 'active',
     wallet_tip_message: walletTipMessage,
     // tradable_balance: combined amount available for instant trading
     // Business rule: wallet_balance + red_packet_balance may both be used for trading

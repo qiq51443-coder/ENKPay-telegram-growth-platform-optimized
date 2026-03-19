@@ -46,7 +46,7 @@ export function useTelegram() {
     // If tg exists but initData is still empty the SDK hasn't fully initialised
     // yet — fall through to polling so we wait for initData to populate.
     if (tg && initData) {
-      tg.ready();
+      try { tg.ready(); } catch { /* non-critical */ }
       return; // Already have complete data, no polling needed
     }
 
@@ -55,7 +55,7 @@ export function useTelegram() {
       setTg(webApp);
       setInitData(webApp.initData);
       setUser(webApp.initDataUnsafe?.user);
-      webApp.ready();
+      try { webApp.ready(); } catch { /* non-critical */ }
     };
 
     // Backup: also listen for window 'load' event in case the SDK script
@@ -91,8 +91,8 @@ export function useTelegram() {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } else if (elapsed >= 5000) {
-        // Give up after 5 seconds; notify callers so they can show error state
+      } else if (elapsed >= 8000) {
+        // Give up after 8 seconds; notify callers so they can show error state
         setSdkFailed(true);
         if (pollRef.current) {
           clearInterval(pollRef.current);

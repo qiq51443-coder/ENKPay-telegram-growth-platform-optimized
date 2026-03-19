@@ -29,26 +29,23 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  const { tg, initData } = useTelegram();
+  const { tg, initData, sdkFailed } = useTelegram();
   const { lang } = useLang();
 
   useEffect(() => {
-    if (initData) {
-      setApiInitData(initData);
-      // Ensure the backend has a complete user record (with unique_id, invite_code, etc.)
-      // the moment the MiniApp opens. Failure is non-critical — profile fetch will surface
-      // missing-user errors explicitly if the record still doesn't exist.
-      authSync(initData)
-        .then(() => {
-          setAuthSyncCompleted(true);
-        })
-        .catch((err) => {
-          console.warn('[App] auth-sync failed (non-critical):', String(err));
-        })
-        .finally(() => {
-          setAuthSyncDone(true); // notify child components regardless of outcome
-        });
-    }
+    if (!initData) return;
+    setApiInitData(initData);
+    // Ensure the backend has a complete user record (with unique_id, invite_code, etc.)
+    // the moment the MiniApp opens. Failure is non-critical — profile fetch will surface
+    // missing-user errors explicitly if the record still doesn't exist.
+    let cancelled = false;
+    authSync(initData)
+      .then(() => { if (!cancelled) setAuthSyncCompleted(true); })
+      .catch((err) => {
+        console.warn('[App] auth-sync failed (non-critical):', String(err));
+      })
+      .finally(() => { if (!cancelled) setAuthSyncDone(true); });
+    return () => { cancelled = true; };
   }, [initData]);
 
   useEffect(() => {
@@ -79,6 +76,32 @@ function AppContent() {
 
   if (loading) {
     return <LoadingScreen progress={progress} />;
+  }
+
+  // SDK timed out and no initData available — the app cannot function without it
+  if (sdkFailed && !initData) {
+    return (
+      <div style={{
+        minHeight: '100vh', backgroundColor: theme.bgPrimary,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '32px', gap: '16px',
+      }}>
+        <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center' }}>
+          加载失败，请重试
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            backgroundColor: '#F0B90B', color: '#000', border: 'none',
+            borderRadius: '8px', padding: '12px 32px',
+            fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+          }}
+        >
+          重试
+        </button>
+      </div>
+    );
   }
 
   const renderPage = () => {
