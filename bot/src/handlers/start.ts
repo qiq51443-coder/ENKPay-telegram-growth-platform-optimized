@@ -4,6 +4,9 @@ import { getSettings } from '../services/settings';
 import { t, isSupportedLang } from '../i18n';
 import { clearUserState } from '../utils/state';
 import axios from 'axios';
+import crypto from 'crypto';
+
+const JT_TOKEN_TTL = 1800; // 30 minutes — matches backend Redis TTL
 
 export const handleStart = async (ctx: Context) => {
   try {
@@ -26,7 +29,9 @@ export const handleStart = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId, inviteCodeUsed);
 
     // Clear any in-progress flow state so /start always shows a clean view
-    await clearUserState(user.id.toString()).catch((err) => console.error('Failed to clear user state on /start:', err));
+    await clearUserState(user.id.toString()).catch((err) =>
+      console.error('Failed to clear user state on /start:', err)
+    );
 
     // Language priority: Telegram user language (if supported) > Bot default_language > 'en'
     let lang = 'en';
@@ -54,8 +59,7 @@ export const handleStart = async (ctx: Context) => {
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
-    // Pre-register / refresh user info in the backend so Mini App gets real
-    // first_name, username, and language_code (fire-and-forget, non-blocking)
+    // ── Step 1: Pre-register / refresh user info (fire-and-forget) ────────────
     try {
       await axios.post(
         `${backendUrl}/api/miniapp/preregister`,
@@ -72,8 +76,33 @@ export const handleStart = async (ctx: Context) => {
       // Graceful degradation: Mini App will still work via authSync
     }
 
-    // WebApp URL: always clean — no token, no telegram_id in query params
-    const finalWebAppUrl = webAppUrl;
+    // ── Step 2: Generate a one-time jt token and store in backend Redis ────────
+    // This bypasses Telegram initData HMAC entirely — the Mini App reads ?jt=
+    // from the URL on mount (no SDK needed) and exchanges it for a session.
+    let finalWebAppUrl = webAppUrl;
+    try {
+      const jtToken = crypto.randomBytes(32).toString('hex');
+      await axios.post(
+        `${backendUrl}/api/miniapp/jt-store`,
+        {
+          jt: jtToken,
+          telegram_id: ctx.from.id,
+          bot_id: botId,
+          first_name: ctx.from.first_name || '',
+          username: ctx.from.username || null,
+          language_code: ctx.from.language_code || lang,
+          ttl: JT_TOKEN_TTL,
+        },
+        { headers: { 'X-Bot-Id': botId }, timeout: 3000 }
+      );
+      // Append ?jt= to WebApp URL so Mini App can read it on mount
+      const separator = webAppUrl.includes('?') ? '&' : '?';
+      finalWebAppUrl = `${webAppUrl}${separator}jt=${jtToken}`;
+    } catch (err: any) {
+      console.warn(`[bot ${botId}] Failed to store jt token:`, err?.message);
+      // Graceful degradation: Mini App falls back to initData auth
+      finalWebAppUrl = webAppUrl;
+    }
 
     await ctx.replyWithHTML(welcomeText, Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
