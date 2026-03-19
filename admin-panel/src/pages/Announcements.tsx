@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Modal, Form, Input, Select, Switch, Tag, Space, message, Popconfirm, DatePicker,
+  Table, Button, Modal, Form, Input, Select, Switch, Tag, Space, message, Popconfirm, DatePicker, Upload, Collapse,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import axios from 'axios';
+import TranslateButton from '../components/TranslateButton';
 
 const { TextArea } = Input;
 
@@ -20,6 +22,21 @@ interface Announcement {
   status: string;
   sent_at?: string;
   created_at: string;
+  announcement_bot_id?: string;
+  target_group_ids?: string[];
+}
+
+interface Bot {
+  id: string;
+  name: string;
+  username?: string;
+}
+
+interface AuthorizedGroup {
+  id: string;
+  chat_id: string;
+  chat_title: string;
+  chat_type?: string;
 }
 
 const TARGET_OPTIONS = [
@@ -38,9 +55,14 @@ export const Announcements: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [form] = Form.useForm();
+  const [bots, setBots] = useState<Bot[]>([]);
+  const [groups, setGroups] = useState<AuthorizedGroup[]>([]);
+  const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [mediaUrl, setMediaUrl] = useState<string>('');
 
   useEffect(() => {
     fetchAnnouncements();
+    fetchBots();
   }, []);
 
   const fetchAnnouncements = async () => {
@@ -56,18 +78,50 @@ export const Announcements: React.FC = () => {
     }
   };
 
+  const fetchBots = async () => {
+    try {
+      const response = await axios.get('/api/admin/bots', { headers: authHeaders() });
+      setBots(response.data.bots || []);
+    } catch (error) {
+      console.error('Failed to fetch bots:', error);
+    }
+  };
+
+  const fetchGroupsForBot = async (botId: string) => {
+    if (!botId) { setGroups([]); return; }
+    try {
+      const response = await axios.get(`/api/admin/bots/${botId}/groups`, { headers: authHeaders() });
+      setGroups(response.data.groups || []);
+    } catch (error) {
+      console.error('Failed to fetch groups:', error);
+      message.error('获取群组列表失败');
+      setGroups([]);
+    }
+  };
+
   const handleOpenModal = (announcement?: Announcement) => {
     if (announcement) {
       setEditingAnnouncement(announcement);
+      const targets = announcement.targets || [];
+      setSelectedTargets(targets);
+      setMediaUrl(announcement.images?.[0] || '');
       form.setFieldsValue({
         title: announcement.title,
         content: announcement.content,
-        targets: announcement.targets || [],
+        targets,
         is_pinned: announcement.is_pinned,
         show_on_app_launch: announcement.show_on_app_launch,
+        announcement_bot_id: announcement.announcement_bot_id || undefined,
+        target_group_ids: announcement.target_group_ids || [],
       });
+      if (announcement.announcement_bot_id) {
+        fetchGroupsForBot(announcement.announcement_bot_id);
+      }
     } else {
       setEditingAnnouncement(null);
+      setSelectedTargets([]);
+      setMediaUrl('');
+      setGroups([]);
       form.resetFields();
     }
     setModalOpen(true);
@@ -76,10 +130,14 @@ export const Announcements: React.FC = () => {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      const images = mediaUrl ? [mediaUrl] : (editingAnnouncement?.images || []);
       const payload = {
         ...values,
+        images,
         scheduled_at: values.scheduled_at?.toISOString?.() || values.scheduled_at || null,
         expires_at: values.expires_at?.toISOString?.() || values.expires_at || null,
+        announcement_bot_id: values.announcement_bot_id || null,
+        target_group_ids: values.target_group_ids || [],
       };
 
       if (editingAnnouncement) {
@@ -91,6 +149,8 @@ export const Announcements: React.FC = () => {
       }
 
       setModalOpen(false);
+      setMediaUrl('');
+      setGroups([]);
       fetchAnnouncements();
     } catch (error: any) {
       console.error('Failed to save announcement:', error);
@@ -233,7 +293,12 @@ export const Announcements: React.FC = () => {
         title={editingAnnouncement ? '编辑公告' : '创建公告'}
         open={modalOpen}
         onOk={handleSave}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => {
+          setModalOpen(false);
+          setMediaUrl('');
+          setGroups([]);
+          setSelectedTargets([]);
+        }}
         okText="保存"
         cancelText="取消"
         width={700}
@@ -255,12 +320,113 @@ export const Announcements: React.FC = () => {
             <TextArea rows={5} placeholder="公告内容（支持 HTML 格式）" />
           </Form.Item>
 
+          {selectedTargets.includes('app') && (
+            <Form.Item label="翻译" colon={false}>
+              <TranslateButton
+                text={form.getFieldValue('content') || ''}
+                onTranslated={(t) => {
+                  const lang = Object.keys(t)[0];
+                  if (lang && t[lang]) {
+                    form.setFieldValue('content', t[lang]);
+                  }
+                }}
+              />
+            </Form.Item>
+          )}
+
           <Form.Item name="targets" label="发送目标">
-            <Select mode="multiple" placeholder="选择发送目标（可多选）">
+            <Select
+              mode="multiple"
+              placeholder="选择发送目标（可多选）"
+              onChange={(vals: string[]) => setSelectedTargets(vals)}
+            >
               {TARGET_OPTIONS.map(o => (
                 <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>
               ))}
             </Select>
+          </Form.Item>
+
+          {selectedTargets.includes('groups') && (
+            <>
+              <Form.Item
+                name="announcement_bot_id"
+                label="目标 Bot"
+                rules={[{ required: true, message: '请选择用于发送的 Bot' }]}
+              >
+                <Select
+                  placeholder="请选择 Bot..."
+                  onChange={(val: string) => {
+                    form.setFieldValue('target_group_ids', []);
+                    fetchGroupsForBot(val);
+                  }}
+                >
+                  {bots.map((bot) => (
+                    <Select.Option key={bot.id} value={bot.id}>
+                      {bot.username ? `@${bot.username}` : bot.name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="target_group_ids"
+                label="目标群组/频道"
+                rules={[{ required: true, message: '请选择至少一个群组或频道' }]}
+              >
+                <Select
+                  mode="multiple"
+                  placeholder={groups.length > 0 ? '请选择群组/频道...' : '暂无群组，请先选择 Bot'}
+                  options={groups.map((g) => ({
+                    value: String(g.chat_id),
+                    label: g.chat_title ? `${g.chat_title} (${g.chat_id})` : String(g.chat_id),
+                  }))}
+                />
+              </Form.Item>
+            </>
+          )}
+
+          <Form.Item label="媒体（图片/GIF）" extra="支持 JPG/PNG/GIF，最大 10MB">
+            <Upload
+              name="file"
+              listType="picture"
+              maxCount={1}
+              accept="image/*,.gif"
+              action="/api/admin/upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              onChange={(info: UploadChangeParam<UploadFile>) => {
+                if (info.file.status === 'done') {
+                  const url = info.file.response?.url;
+                  if (url) {
+                    setMediaUrl(url);
+                    message.success('图片上传成功');
+                  }
+                } else if (info.file.status === 'removed') {
+                  setMediaUrl('');
+                } else if (info.file.status === 'error') {
+                  message.error('图片上传失败');
+                }
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传</Button>
+            </Upload>
+            {mediaUrl && (
+              <img src={mediaUrl} alt="预览" style={{ marginTop: 8, maxHeight: 120, maxWidth: '100%', borderRadius: 4 }} />
+            )}
+            <Collapse
+              size="small"
+              style={{ marginTop: 8 }}
+              items={[{
+                key: 'url',
+                label: '或直接输入媒体 URL',
+                children: (
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                  />
+                ),
+              }]}
+            />
           </Form.Item>
 
           <Form.Item name="scheduled_at" label="定时发送（留空立即发送）">

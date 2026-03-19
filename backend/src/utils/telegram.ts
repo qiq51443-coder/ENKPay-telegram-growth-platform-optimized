@@ -154,6 +154,24 @@ export class TelegramAPI {
     }
   }
 
+  async sendAnimation(chatId: number | string, animation: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendAnimation`, {
+        chat_id: chatId,
+        animation,
+        ...options,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Telegram sendAnimation error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
   async sendPhotoFile(chatId: number | string, filePath: string, options?: {
     caption?: string;
     parse_mode?: string;

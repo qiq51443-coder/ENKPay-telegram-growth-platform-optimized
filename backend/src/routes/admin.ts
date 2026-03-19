@@ -9,6 +9,7 @@ import { botManager } from '../services/bot-manager.service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import axios from 'axios';
 
 const router = express.Router();
 
@@ -984,6 +985,42 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
   } catch (error: any) {
     console.error('Upload error:', error);
     res.status(500).json({ error: error.message || 'Upload failed' });
+  }
+});
+
+// Translate text to multiple languages
+router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { text, languages } = req.body as { text: string; languages: string[] };
+    if (!text || !Array.isArray(languages) || languages.length === 0) {
+      return res.status(400).json({ error: 'text and languages are required' });
+    }
+
+    const translations: Record<string, string> = {};
+
+    await Promise.all(
+      languages.map(async (lang) => {
+        try {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(lang)}&dt=t&q=${encodeURIComponent(text)}`;
+          const response = await axios.get(url, { timeout: 5000 });
+          const data = response.data;
+          // Response format: [[["translated","original",...],...],...]
+          let translated = '';
+          if (Array.isArray(data) && Array.isArray(data[0])) {
+            translated = data[0].map((segment: any[]) => segment[0] || '').join('');
+          }
+          translations[lang] = translated;
+        } catch (err) {
+          console.error(`Translation failed for lang ${lang}:`, err);
+          translations[lang] = '';
+        }
+      })
+    );
+
+    res.json({ translations });
+  } catch (error: any) {
+    console.error('Translate error:', error);
+    res.status(500).json({ error: error.message || 'Translation failed' });
   }
 });
 
