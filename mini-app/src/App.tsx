@@ -13,7 +13,9 @@ import { theme } from './theme';
 import {
   getAnnouncements,
   setInitData as setApiInitData,
+  setSessionToken,
   authSync,
+  jtAuth,
 } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 import { AuthSyncContext } from './context/AuthSyncContext';
@@ -28,23 +30,32 @@ interface Announcement {
   images?: string[];
 }
 
+/** Read a single query-param from the current URL without depending on any framework. */
+function getUrlParam(name: string): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get(name);
+  } catch {
+    return null;
+  }
+}
+
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  // authStatus: 'pending' | 'ok' | 'error'
   const [authStatus, setAuthStatus] = useState<'pending' | 'ok' | 'error'>('pending');
 
-  // Prevent duplicate auth attempts (guard against React StrictMode double-invoke)
+  // Guards against React StrictMode double-invoke
+  const jtAttemptedRef = useRef(false);
   const initDataAttemptedRef = useRef(false);
 
   const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
   const { setUser } = useUser();
 
-  // ── Loading progress animation: 0 → 90 % (then waits for authSyncDone) ─────
+  // ── Loading progress animation: 0 → 90% (holds until authSyncDone) ──────────
   useEffect(() => {
     if (tg) {
       try { tg.expand(); } catch { /* non-critical */ }
@@ -53,7 +64,7 @@ function AppContent() {
       setProgress(prev => {
         if (prev >= 90) {
           clearInterval(interval);
-          return 90; // Hold at 90 % — wait for auth to finish
+          return 90;
         }
         return prev + 10;
       });
@@ -78,28 +89,64 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [authSyncDone]);
 
-  // ── 12 s timeout safety net (force-close loading if auth never settles) ────
+  // ── 16s timeout safety net (covers 15s SDK polling + network time) ─────────
   useEffect(() => {
     const timer = setTimeout(() => {
       if (loading) {
-        console.warn('[App] Auth timeout after 12 s — force-closing loading screen');
+        console.warn('[App] Auth timeout after 16s — force-closing loading screen');
         setAuthStatus('error');
         setAuthSyncDone(true);
       }
-    }, 12000);
+    }, 16000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Main auth path: Telegram SDK / initData ────────────────────────────────
+  // ── Phase 1: jt token auth (runs immediately on mount, no SDK required) ─────
+  // The Bot embeds ?jt=<token> in the WebApp URL on every /start command.
+  // This token is stored in Redis for 30 minutes and is single-use.
+  // Because this requires only a URL param read + HTTP POST, it works even when
+  // Telegram does not inject initData (observed on Desktop and some Android builds).
   useEffect(() => {
+    if (jtAttemptedRef.current) return;
+    jtAttemptedRef.current = true;
+
+    const jtToken = getUrlParam('jt');
+    if (!jtToken) {
+      // No jt param in URL — skip Phase 1, let Phase 2 (initData) handle it
+      console.info('[App] No ?jt= param — skipping jt-auth, waiting for initData');
+      return;
+    }
+
+    console.info('[App] ?jt= param found — attempting jt-auth (Phase 1)');
+
+    jtAuth(jtToken)
+      .then(data => {
+        if (data?.user) setUser(data.user);
+        if (data?.session_token) setSessionToken(data.session_token);
+        console.info('[App] jt-auth succeeded');
+        setAuthStatus('ok');
+        setAuthSyncDone(true);
+      })
+      .catch(err => {
+        // jt token expired or already consumed — fall through to Phase 2
+        console.warn('[App] jt-auth failed (token may be expired), falling back to initData:', err?.message);
+        // Do NOT set authStatus/authSyncDone here — let Phase 2 handle it
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Phase 2: initData fallback (runs once SDK is ready) ───────────────────
+  // Only runs if Phase 1 did not already set authSyncDone.
+  useEffect(() => {
+    if (authSyncDone) return;           // Phase 1 already succeeded — skip
     if (initDataAttemptedRef.current) return;
-    if (sdkReady === null) return; // Still polling — wait
+    if (sdkReady === null) return;      // Still polling Telegram SDK — wait
 
     initDataAttemptedRef.current = true;
 
     if (sdkReady === false) {
-      console.warn('[App] Telegram SDK unavailable — cannot authenticate');
+      console.warn('[App] Telegram SDK unavailable and no jt token — cannot authenticate');
       setAuthStatus('error');
       setAuthSyncDone(true);
       return;
@@ -114,12 +161,14 @@ function AppContent() {
 
     setApiInitData(initData);
 
+    console.info('[App] initData available — attempting authSync (Phase 2)');
+
     authSync(initData)
-      .then((data) => {
+      .then(data => {
         if (data?.user) setUser(data.user);
         setAuthStatus('ok');
       })
-      .catch((err) => {
+      .catch(err => {
         console.error('[App] authSync failed:', err?.message || String(err));
         setAuthStatus('error');
       })
@@ -127,16 +176,12 @@ function AppContent() {
         setAuthSyncDone(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdkReady, initData, setUser]);
+  }, [sdkReady, initData, authSyncDone, setUser]);
 
   if (loading) {
     return <LoadingScreen progress={progress} />;
   }
 
-  // FIX: only hold on the "95% loading" screen while SDK is still polling AND
-  // bot-token exchange has not already succeeded.  Previously this guard was
-  // unconditional, which blocked the app from rendering even after a successful
-  // bot-token exchange while Telegram SDK was still initializing.
   if (authStatus === 'error') {
     return (
       <div style={{
@@ -180,12 +225,12 @@ function AppContent() {
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'trading': return <ErrorBoundary><Trading /></ErrorBoundary>;
-      case 'auction': return <ErrorBoundary><Auction /></ErrorBoundary>;
+      case 'trading':  return <ErrorBoundary><Trading /></ErrorBoundary>;
+      case 'auction':  return <ErrorBoundary><Auction /></ErrorBoundary>;
       case 'products': return <ErrorBoundary><Products /></ErrorBoundary>;
-      case 'charity': return <ErrorBoundary><Charity /></ErrorBoundary>;
-      case 'profile': return <ErrorBoundary><Profile /></ErrorBoundary>;
-      default: return <ErrorBoundary><Trading /></ErrorBoundary>;
+      case 'charity':  return <ErrorBoundary><Charity /></ErrorBoundary>;
+      case 'profile':  return <ErrorBoundary><Profile /></ErrorBoundary>;
+      default:         return <ErrorBoundary><Trading /></ErrorBoundary>;
     }
   };
 
