@@ -37,6 +37,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor: clear session token on 401 so the next request
+// falls back to initData validation instead of retrying with a stale token.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      const currentToken = getSessionToken();
+      if (currentToken) {
+        console.warn('[api] Received 401 — clearing stale session token');
+        setSessionToken('');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ─── Existing helpers ─────────────────────────────────────────────────────────
 
 export function setInitData(initData: string) {
