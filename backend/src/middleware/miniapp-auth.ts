@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { query } from '../db';
 import { getCache } from '../utils/cache';
+import { sessionTokenKey } from '../utils/cache-keys';
 
 export interface MiniAppAuthRequest extends Request {
   telegramUser?: {
@@ -14,11 +15,6 @@ export interface MiniAppAuthRequest extends Request {
 }
 
 // ─── Session-token validation ────────────────────────────────────────────────
-
-function sessionTokenKey(token: string): string {
-  return `session_token:${token}`;
-}
-
 /**
  * Attempt to authenticate the request using the X-Session-Token header.
  * Returns true if a valid session token was found and req.telegramUser was set.

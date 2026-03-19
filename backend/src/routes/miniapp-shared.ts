@@ -10,6 +10,13 @@ const DEFAULT_FIRST_NAME = '';
 const DEFAULT_LANGUAGE_CODE = 'zh';
 const DEFAULT_RED_PACKET_CREDITS = 3;
 
+/** Optional real user info provided by the Bot during pre-registration. */
+export interface TelegramUserInfo {
+  firstName?: string;
+  username?: string;
+  languageCode?: string;
+}
+
 /**
  * Build the canonical profile response object for a given telegramId.
  * Used by /profile, /auth-sync, and /bot-token/exchange so they all return identical shapes.
@@ -111,38 +118,78 @@ export async function buildCanonicalProfile(telegramId: number) {
 /**
  * Ensure a user record exists for the given telegramId.
  * If no record exists, creates one with minimal defaults.
+ * When `userInfo` is provided (e.g. from the Bot pre-registration call), real
+ * first_name / username / language_code values are written instead of defaults.
  * This mirrors the upsert logic in POST /api/miniapp/auth-sync.
  */
-export async function upsertUserFromTelegramId(telegramId: number): Promise<void> {
+export async function upsertUserFromTelegramId(
+  telegramId: number,
+  userInfo?: TelegramUserInfo
+): Promise<void> {
   const existing = await query(
     `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
     [telegramId]
   );
 
   if (existing.rows.length > 0) {
-    // Update last_active_at and backfill nullable columns
-    await query(
-      `UPDATE users
-       SET updated_at         = NOW(),
-           last_active_at     = NOW(),
-           unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
-                                  THEN 'U' || LPAD(CAST($2 AS TEXT), 8, '0')
-                                  ELSE unique_id END,
-           wallet_balance     = CASE WHEN wallet_balance IS NULL
-                                  THEN COALESCE(balance, 0)
-                                  ELSE wallet_balance END,
-           red_packet_balance = CASE WHEN red_packet_balance IS NULL
-                                  THEN COALESCE(red_packet_credits, 0)
-                                  ELSE red_packet_balance END,
-           red_packet_credits = CASE WHEN red_packet_credits IS NULL
-                                  THEN 0
-                                  ELSE red_packet_credits END,
-           nft_balance        = CASE WHEN nft_balance IS NULL
-                                  THEN 0
-                                  ELSE nft_balance END
-       WHERE id = $1`,
-      [existing.rows[0].id, telegramId]
-    );
+    if (userInfo) {
+      // Bot pre-registration: overwrite with real user data supplied by the Bot
+      await query(
+        `UPDATE users
+         SET updated_at         = NOW(),
+             last_active_at     = NOW(),
+             first_name         = COALESCE(NULLIF($2, ''), first_name),
+             username           = COALESCE($3, username),
+             language_code      = COALESCE(NULLIF($4, ''), language_code),
+             unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
+                                     THEN 'U' || LPAD(CAST($5 AS TEXT), 8, '0')
+                                     ELSE unique_id END,
+             wallet_balance     = CASE WHEN wallet_balance IS NULL
+                                     THEN COALESCE(balance, 0)
+                                     ELSE wallet_balance END,
+             red_packet_balance = CASE WHEN red_packet_balance IS NULL
+                                     THEN COALESCE(red_packet_credits, 0)
+                                     ELSE red_packet_balance END,
+             red_packet_credits = CASE WHEN red_packet_credits IS NULL
+                                     THEN 0
+                                     ELSE red_packet_credits END,
+             nft_balance        = CASE WHEN nft_balance IS NULL
+                                     THEN 0
+                                     ELSE nft_balance END
+         WHERE id = $1`,
+        [
+          existing.rows[0].id,
+          userInfo.firstName || '',
+          userInfo.username || null,
+          userInfo.languageCode || '',
+          telegramId,
+        ]
+      );
+    } else {
+      // Update last_active_at and backfill nullable columns (no user-info override)
+      await query(
+        `UPDATE users
+         SET updated_at         = NOW(),
+             last_active_at     = NOW(),
+             unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
+                                     THEN 'U' || LPAD(CAST($2 AS TEXT), 8, '0')
+                                     ELSE unique_id END,
+             wallet_balance     = CASE WHEN wallet_balance IS NULL
+                                     THEN COALESCE(balance, 0)
+                                     ELSE wallet_balance END,
+             red_packet_balance = CASE WHEN red_packet_balance IS NULL
+                                     THEN COALESCE(red_packet_credits, 0)
+                                     ELSE red_packet_balance END,
+             red_packet_credits = CASE WHEN red_packet_credits IS NULL
+                                     THEN 0
+                                     ELSE red_packet_credits END,
+             nft_balance        = CASE WHEN nft_balance IS NULL
+                                     THEN 0
+                                     ELSE nft_balance END
+         WHERE id = $1`,
+        [existing.rows[0].id, telegramId]
+      );
+    }
     return;
   }
 
@@ -168,12 +215,16 @@ export async function upsertUserFromTelegramId(telegramId: number): Promise<void
     throw new Error('Failed to generate a unique user ID after 10 attempts');
   }
 
+  const firstName = userInfo?.firstName || DEFAULT_FIRST_NAME;
+  const username = userInfo?.username || null;
+  const languageCode = userInfo?.languageCode || DEFAULT_LANGUAGE_CODE;
+
   await query(
     `INSERT INTO users (telegram_id, first_name, username, language_code,
                         wallet_balance, reward_balance, frozen_balance,
                         red_packet_credits, unique_id, created_at, updated_at)
-     VALUES ($1, $2, NULL, $3, 0, 0, 0, $4, $5, NOW(), NOW())
+     VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6, NOW(), NOW())
      ON CONFLICT DO NOTHING`,
-    [telegramId, DEFAULT_FIRST_NAME, DEFAULT_LANGUAGE_CODE, DEFAULT_RED_PACKET_CREDITS, newUniqueId]
+    [telegramId, firstName, username, languageCode, DEFAULT_RED_PACKET_CREDITS, newUniqueId]
   );
 }

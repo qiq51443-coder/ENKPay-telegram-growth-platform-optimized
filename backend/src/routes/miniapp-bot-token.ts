@@ -1,8 +1,17 @@
+/**
+ * @deprecated
+ * These endpoints (/generate and /exchange) are preserved for backward
+ * compatibility with older clients.  The new authentication flow (B1) no
+ * longer calls /generate from the Bot; instead, the Bot calls
+ * POST /api/miniapp/preregister and the Mini App authenticates exclusively
+ * via Telegram initData (POST /api/miniapp/auth-sync).
+ */
 import express from 'express';
 import crypto from 'crypto';
 import { query } from '../db';
 import { getCache, setCache, deleteCache } from '../utils/cache';
 import { buildCanonicalProfile, upsertUserFromTelegramId } from './miniapp-shared';
+import { tempTokenKey, sessionTokenKey } from '../utils/cache-keys';
 
 const router = express.Router();
 
@@ -10,14 +19,6 @@ const TEMP_TOKEN_TTL = 600;      // 10 minutes
 const SESSION_TOKEN_TTL = 86400; // 24 hours
 // Sentinel bot_id used when a session is recovered via telegram_id fallback
 const BOT_ID_TOKEN_RECOVERY = 'token_recovery';
-
-function tempTokenKey(token: string): string {
-  return `bot_temp_token:${token}`;
-}
-
-function sessionTokenKey(token: string): string {
-  return `session_token:${token}`;
-}
 
 /**
  * POST /api/miniapp/bot-token/generate
