@@ -45,7 +45,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  const [authStatus, setAuthStatus] = useState<'pending' | 'ok' | 'error'>('pending');
+  const [authStatus, setAuthStatus] = useState<'pending' | 'ok' | 'error' | 'expired'>('pending');
 
   // Guards against React StrictMode double-invoke
   const jtAttemptedRef = useRef(false);
@@ -104,7 +104,8 @@ function AppContent() {
 
   // ── Phase 1: jt token auth (runs immediately on mount, no SDK required) ─────
   // The Bot embeds ?jt=<token> in the WebApp URL on every /start command.
-  // This token is stored in Redis for 30 minutes and is single-use.
+  // This token is stored in Redis for 30 minutes; after first use its TTL is
+  // reset to 5 minutes (sliding window) so Telegram's cached URL can be reopened.
   // Because this requires only a URL param read + HTTP POST, it works even when
   // Telegram does not inject initData (observed on Desktop and some Android builds).
   useEffect(() => {
@@ -129,8 +130,18 @@ function AppContent() {
         setAuthSyncDone(true);
       })
       .catch(err => {
-        // jt token expired or already consumed — fall through to Phase 2
-        console.warn('[App] jt-auth failed (token may be expired), falling back to initData:', err?.message);
+        const is401 = err?.response?.status === 401;
+        if (is401) {
+          // Token expired or definitively invalid. Keyboard-button WebApps don't
+          // inject initData either, so Phase 2 would also fail — skip it and show
+          // a targeted "link expired" message instead of the generic error screen.
+          console.warn('[App] jt-auth 401: token expired — showing expired-link screen');
+          setAuthStatus('expired');
+          setAuthSyncDone(true);
+          return;
+        }
+        // Network / server error — fall through to Phase 2 (initData) as a last resort
+        console.warn('[App] jt-auth failed (network error), falling back to initData:', err?.message);
         // Do NOT set authStatus/authSyncDone here — let Phase 2 handle it
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,6 +229,37 @@ function AppContent() {
           }}
         >
           关闭
+        </button>
+      </div>
+    );
+  }
+
+  if (authStatus === 'expired') {
+    return (
+      <div style={{
+        minHeight: '100vh', backgroundColor: theme.bgPrimary,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '32px', gap: '20px',
+      }}>
+        <div style={{ fontSize: '48px', textAlign: 'center' }}>🔗</div>
+        <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center', lineHeight: '1.6' }}>
+          链接已过期<br />
+          <span style={{ fontSize: '13px', opacity: 0.7 }}>
+            请返回聊天界面，点击「打开应用」按钮重新进入
+          </span>
+        </div>
+        <button
+          onClick={() => {
+            try { window.Telegram?.WebApp?.close(); } catch (e) { console.warn('[App] WebApp.close() failed:', e); }
+          }}
+          style={{
+            backgroundColor: '#F0B90B', color: '#000', border: 'none',
+            borderRadius: '8px', padding: '12px 32px',
+            fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+          }}
+        >
+          返回 Telegram
         </button>
       </div>
     );
