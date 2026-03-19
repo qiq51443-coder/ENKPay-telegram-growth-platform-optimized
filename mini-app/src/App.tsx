@@ -193,47 +193,6 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
-  if (authStatus === 'error') {
-    return (
-      <div style={{
-        minHeight: '100vh', backgroundColor: theme.bgPrimary,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '32px', gap: '20px',
-      }}>
-        <div style={{ fontSize: '48px', textAlign: 'center' }}>⚠️</div>
-        <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center', lineHeight: '1.6' }}>
-          无法连接到 Telegram<br />
-          <span style={{ fontSize: '13px', opacity: 0.7 }}>
-            请关闭此页面，从 Telegram 重新点击「打开应用」按钮
-          </span>
-        </div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            backgroundColor: '#F0B90B', color: '#000', border: 'none',
-            borderRadius: '8px', padding: '12px 32px',
-            fontSize: '15px', fontWeight: '600', cursor: 'pointer',
-          }}
-        >
-          重试
-        </button>
-        <button
-          onClick={() => {
-            try { window.Telegram?.WebApp?.close(); } catch { /* non-critical */ }
-          }}
-          style={{
-            backgroundColor: 'transparent', color: theme.text, border: `1px solid ${theme.text}`,
-            borderRadius: '8px', padding: '10px 24px',
-            fontSize: '14px', fontWeight: '500', cursor: 'pointer', opacity: 0.7,
-          }}
-        >
-          关闭
-        </button>
-      </div>
-    );
-  }
-
   if (authStatus === 'expired') {
     return (
       <div style={{
