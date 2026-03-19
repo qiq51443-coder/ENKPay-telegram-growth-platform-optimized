@@ -11,6 +11,7 @@ import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { startPriceGenerator } from './services/price-generator.service';
+import { startNFTDailySettle } from './jobs/nft-daily-settle';
 import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
@@ -223,6 +224,9 @@ const startServer = async () => {
 
     // Start price generator for custom trading pairs
     startPriceGenerator();
+
+    // Start NFT daily settlement job (00:05 every day)
+    startNFTDailySettle();
 
     app.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
