@@ -12,17 +12,17 @@ const scheduledTasks = new Map<string, cron.ScheduledTask>();
 // Create broadcast
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, title, content, target_type, scheduled_at } = req.body;
+    const { bot_id, title, content, target_type, scheduled_at, media_url } = req.body;
 
     if (!bot_id || !content) {
       return res.status(400).json({ error: 'Bot ID and content required' });
     }
 
     const result = await query(
-      `INSERT INTO broadcasts (bot_id, title, content, target_type, scheduled_at, created_by, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO broadcasts (bot_id, title, content, target_type, scheduled_at, created_by, status, media_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [bot_id, title, content, target_type || 'all', scheduled_at, req.user?.id, scheduled_at ? 'draft' : 'draft']
+      [bot_id, title, content, target_type || 'all', scheduled_at, req.user?.id, scheduled_at ? 'draft' : 'draft', media_url || null]
     );
 
     res.json({ broadcast: result.rows[0] });
@@ -122,11 +122,28 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     const BATCH_SIZE = 25;
     const BATCH_DELAY_MS = 1000;
 
+    const isGif = broadcast.media_url &&
+      /\.gif(\?.*)?$/i.test(broadcast.media_url);
+
     for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
       const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
       const sendPromises = batch.map(async (user) => {
         try {
-          await telegram.sendMessage(user.telegram_id, broadcast.content);
+          if (broadcast.media_url) {
+            if (isGif) {
+              await telegram.sendAnimation(user.telegram_id, broadcast.media_url, {
+                caption: broadcast.content,
+                parse_mode: 'HTML',
+              });
+            } else {
+              await telegram.sendPhoto(user.telegram_id, broadcast.media_url, {
+                caption: broadcast.content,
+                parse_mode: 'HTML',
+              });
+            }
+          } else {
+            await telegram.sendMessage(user.telegram_id, broadcast.content);
+          }
           sentCount++;
         } catch (error) {
           console.error('Failed to send to user:', user.telegram_id, error);

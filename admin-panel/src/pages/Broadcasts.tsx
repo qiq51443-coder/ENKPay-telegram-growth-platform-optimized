@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm } from 'antd';
-import { PlusOutlined, SendOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, message, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm, Upload, Collapse } from 'antd';
+import { PlusOutlined, SendOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
+import TranslateButton from '../components/TranslateButton';
 
 const { TextArea } = Input;
 
@@ -16,11 +18,13 @@ interface Broadcast {
   failed_count?: number;
   created_at: string;
   sent_at?: string;
+  media_url?: string;
 }
 
 interface Bot {
   id: string;
   name: string;
+  username?: string;
 }
 
 export const Broadcasts: React.FC = () => {
@@ -29,6 +33,8 @@ export const Broadcasts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [mediaUrl, setMediaUrl] = useState<string>('');
+  const [targetType, setTargetType] = useState<string>('all');
 
   useEffect(() => {
     fetchBroadcasts();
@@ -60,10 +66,12 @@ export const Broadcasts: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await apiClient.createBroadcast(values);
+      await apiClient.createBroadcast({ ...values, media_url: mediaUrl || undefined });
       message.success('广播创建成功');
       setModalOpen(false);
       form.resetFields();
+      setMediaUrl('');
+      setTargetType('all');
       fetchBroadcasts();
     } catch (error: any) {
       console.error('Failed to create broadcast:', error);
@@ -234,6 +242,8 @@ export const Broadcasts: React.FC = () => {
         onCancel={() => {
           setModalOpen(false);
           form.resetFields();
+          setMediaUrl('');
+          setTargetType('all');
         }}
         okText="创建"
         cancelText="取消"
@@ -248,7 +258,7 @@ export const Broadcasts: React.FC = () => {
             <Select placeholder="请选择...">
               {bots.map((bot) => (
                 <Select.Option key={bot.id} value={bot.id}>
-                  {bot.name}
+                  {bot.username ? `@${bot.username}` : bot.name}
                 </Select.Option>
               ))}
             </Select>
@@ -270,18 +280,76 @@ export const Broadcasts: React.FC = () => {
             <TextArea rows={5} placeholder="输入广播内容..." />
           </Form.Item>
 
+          {targetType === 'all' && (
+            <Form.Item label="翻译" colon={false}>
+              <TranslateButton
+                text={form.getFieldValue('content') || ''}
+                onTranslated={(t) => {
+                  const lang = Object.keys(t)[0];
+                  if (lang && t[lang]) {
+                    form.setFieldValue('content', t[lang]);
+                  }
+                }}
+              />
+            </Form.Item>
+          )}
+
           <Form.Item
             name="target_type"
             label="目标用户"
             rules={[{ required: true, message: '请选择目标用户' }]}
             initialValue="all"
           >
-            <Select>
+            <Select onChange={(val) => setTargetType(val)}>
               <Select.Option value="all">全部用户</Select.Option>
               <Select.Option value="active">活跃用户</Select.Option>
               <Select.Option value="bound">已绑定用户</Select.Option>
               <Select.Option value="unbound">未绑定用户</Select.Option>
             </Select>
+          </Form.Item>
+
+          <Form.Item label="媒体（图片/GIF）" extra="支持 JPG/PNG/GIF，最大 10MB">
+            <Upload
+              name="file"
+              listType="picture"
+              maxCount={1}
+              accept="image/*,.gif"
+              action="/api/admin/upload"
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+              onChange={(info: UploadChangeParam<UploadFile>) => {
+                if (info.file.status === 'done') {
+                  const url = info.file.response?.url;
+                  if (url) {
+                    setMediaUrl(url);
+                    message.success('图片上传成功');
+                  }
+                } else if (info.file.status === 'removed') {
+                  setMediaUrl('');
+                } else if (info.file.status === 'error') {
+                  message.error('图片上传失败');
+                }
+              }}
+            >
+              <Button icon={<UploadOutlined />}>点击上传</Button>
+            </Upload>
+            {mediaUrl && (
+              <img src={mediaUrl} alt="预览" style={{ marginTop: 8, maxHeight: 120, maxWidth: '100%', borderRadius: 4 }} />
+            )}
+            <Collapse
+              size="small"
+              style={{ marginTop: 8 }}
+              items={[{
+                key: 'url',
+                label: '或直接输入媒体 URL',
+                children: (
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                  />
+                ),
+              }]}
+            />
           </Form.Item>
         </Form>
       </Modal>
