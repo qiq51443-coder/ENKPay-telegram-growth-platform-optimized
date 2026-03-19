@@ -54,9 +54,27 @@ export const handleStart = async (ctx: Context) => {
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
+    // Generate a short-lived temp token so the Mini App can authenticate without initData
+    let startToken = '';
+    try {
+      const tokenRes = await axios.post(
+        `${backendUrl}/api/miniapp/bot-token/generate`,
+        { telegram_id: ctx.from.id, bot_id: botId },
+        { headers: { 'X-Bot-Id': botId }, timeout: 5000 }
+      );
+      startToken = tokenRes.data?.token || '';
+    } catch (err: any) {
+      console.warn(`[bot ${botId}] Failed to generate start token:`, err?.message);
+      // Graceful degradation: open Mini App without token; initData flow will handle auth
+    }
+
+    const finalWebAppUrl = startToken
+      ? `${webAppUrl}?start_token=${startToken}`
+      : webAppUrl;
+
     await ctx.replyWithHTML(welcomeText, Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-      [Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)],
+      [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
     ]).resize());
   } catch (error) {
     console.error('Start handler error:', error);

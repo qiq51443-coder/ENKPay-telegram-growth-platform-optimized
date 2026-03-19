@@ -10,7 +10,15 @@ import { Charity } from './pages/Charity';
 import { Profile } from './pages/Profile';
 import { useTelegram } from './hooks/useTelegram';
 import { theme } from './theme';
-import { getAnnouncements, setInitData as setApiInitData, authSync, setAuthSyncCompleted } from './services/api';
+import {
+  getAnnouncements,
+  setInitData as setApiInitData,
+  authSync,
+  setAuthSyncCompleted,
+  exchangeBotToken,
+  setSessionToken,
+  getSessionToken,
+} from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 import { AuthSyncContext } from './context/AuthSyncContext';
 
@@ -29,10 +37,34 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('trading');
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [authSyncDone, setAuthSyncDone] = useState(false);
-  const { tg, initData, sdkFailed } = useTelegram();
+  const { tg, initData, sdkFailed, startToken } = useTelegram();
   const { lang } = useLang();
 
   useEffect(() => {
+    // ── Priority 1: bot temp token exchange (bypasses initData entirely) ──────
+    if (startToken) {
+      exchangeBotToken(startToken)
+        .then((data) => {
+          if (data.session_token) {
+            setSessionToken(data.session_token);
+          }
+          setAuthSyncCompleted(true);
+        })
+        .catch((err) => {
+          console.warn('[App] bot-token exchange failed, falling back to initData:', String(err));
+          // Fall back to the initData flow if the token exchange fails
+          if (initData) {
+            setApiInitData(initData);
+            authSync(initData)
+              .then(() => { setAuthSyncCompleted(true); })
+              .catch((e) => { console.warn('[App] auth-sync fallback also failed:', String(e)); });
+          }
+        })
+        .finally(() => { setAuthSyncDone(true); });
+      return;
+    }
+
+    // ── Priority 2: Telegram initData (legacy / fallback) ────────────────────
     if (!initData) return;
     setApiInitData(initData);
     // Ensure the backend has a complete user record (with unique_id, invite_code, etc.)
@@ -46,7 +78,7 @@ function AppContent() {
       })
       .finally(() => { if (!cancelled) setAuthSyncDone(true); });
     return () => { cancelled = true; };
-  }, [initData]);
+  }, [startToken, initData]);
 
   useEffect(() => {
     tg?.expand();
@@ -78,8 +110,10 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
-  // SDK timed out and no initData available — the app cannot function without it
-  if (sdkFailed && !initData) {
+  // SDK timed out and no initData available — the app cannot function without it.
+  // Exception: if a session token was obtained via bot-token exchange, we can
+  // proceed normally even when Telegram SDK initData is absent.
+  if (sdkFailed && !initData && !getSessionToken()) {
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: theme.bgPrimary,

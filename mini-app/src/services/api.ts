@@ -7,6 +7,34 @@ export const api = axios.create({
   baseURL: BASE_URL,
 });
 
+// ─── Session token management ─────────────────────────────────────────────────
+
+let _sessionToken: string = sessionStorage.getItem('_session_token') || '';
+
+export function getSessionToken(): string {
+  return _sessionToken;
+}
+
+export function setSessionToken(token: string): void {
+  _sessionToken = token;
+  if (token) {
+    sessionStorage.setItem('_session_token', token);
+  } else {
+    sessionStorage.removeItem('_session_token');
+  }
+}
+
+// Automatically attach session token to every outgoing request when available
+api.interceptors.request.use((config) => {
+  const token = getSessionToken();
+  if (token) {
+    config.headers['X-Session-Token'] = token;
+  }
+  return config;
+});
+
+// ─── Existing helpers ─────────────────────────────────────────────────────────
+
 export function setInitData(initData: string) {
   api.defaults.headers.common['X-Telegram-Init-Data'] = initData;
 }
@@ -128,6 +156,20 @@ export async function authSync(initData: string) {
   return response.data;
 }
 
+// ─── Bot temp-token exchange ──────────────────────────────────────────────────
+
+/**
+ * Exchange a one-time bot temp token for a session token + full user profile.
+ * On success, call setSessionToken(data.session_token) so subsequent requests
+ * are automatically authenticated.
+ */
+export async function exchangeBotToken(botToken: string) {
+  const response = await api.post('/miniapp/bot-token/exchange', { token: botToken });
+  return response.data; // { success, user, session_token, bot_id }
+}
+
+// ─── Auth-sync state flag ─────────────────────────────────────────────────────
+
 // Module-level flag so Trading.tsx can check whether auth-sync has already
 // completed at least once (prevents "User not found" race on first open).
 let _authSyncCompleted = false;
@@ -139,4 +181,5 @@ export function isAuthSyncCompleted(): boolean {
 export function setAuthSyncCompleted(value: boolean): void {
   _authSyncCompleted = value;
 }
+
 

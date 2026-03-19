@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { query } from '../db';
+import { getCache } from '../utils/cache';
 
 export interface MiniAppAuthRequest extends Request {
   telegramUser?: {
@@ -10,6 +11,40 @@ export interface MiniAppAuthRequest extends Request {
     username?: string;
     language_code?: string;
   };
+}
+
+// ─── Session-token validation ────────────────────────────────────────────────
+
+function sessionTokenKey(token: string): string {
+  return `session_token:${token}`;
+}
+
+/**
+ * Attempt to authenticate the request using the X-Session-Token header.
+ * Returns true if a valid session token was found and req.telegramUser was set.
+ */
+async function trySessionToken(
+  req: MiniAppAuthRequest,
+  res: Response
+): Promise<boolean> {
+  const sessionToken = req.headers['x-session-token'] as string | undefined;
+  if (!sessionToken) return false;
+
+  try {
+    const payload = await getCache<{ telegramId: number; botId: string }>(
+      sessionTokenKey(sessionToken)
+    );
+    if (!payload?.telegramId) {
+      res.status(401).json({ error: 'Session token invalid or expired' });
+      return true; // Handled (with error)
+    }
+    req.telegramUser = { id: payload.telegramId };
+    return true;
+  } catch (err: any) {
+    console.error('[miniapp-auth] session token lookup error:', err?.message);
+    res.status(500).json({ error: 'Authentication failed' });
+    return true; // Handled (with error)
+  }
 }
 
 // ─── Bot-token cache (avoids hitting the DB on every request) ────────────────
@@ -63,6 +98,16 @@ export function authenticateMiniApp(
 ): void {
   (async () => {
     try {
+      // ── Priority 1: session token (issued by /bot-token/exchange) ───────────
+      const sessionHandled = await trySessionToken(req, res);
+      if (sessionHandled) {
+        // trySessionToken either sent an error response or set req.telegramUser.
+        // Either way, we must not fall through to the initData validation.
+        if (!res.headersSent) next();
+        return;
+      }
+
+      // ── Priority 2: Telegram WebApp initData (original flow) ────────────────
       const initData = req.headers['x-telegram-init-data'] as string;
 
       if (!initData) {
