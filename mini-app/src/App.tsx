@@ -42,6 +42,17 @@ function AppContent() {
   const { lang } = useLang();
   const { setUser } = useUser();
 
+  // Version-change detection: clear stale session data when a new build is deployed
+  useEffect(() => {
+    const APP_VERSION = __BUILD_TIMESTAMP__;
+    const storedVersion = sessionStorage.getItem('_app_version');
+    if (storedVersion !== APP_VERSION) {
+      sessionStorage.removeItem('_session_token');
+      sessionStorage.setItem('_app_version', APP_VERSION);
+      console.info('[App] New version detected, cleared stale session data');
+    }
+  }, []);
+
   useEffect(() => {
     // ── Priority 1: bot temp token exchange (bypasses initData entirely) ──────
     if (startToken) {

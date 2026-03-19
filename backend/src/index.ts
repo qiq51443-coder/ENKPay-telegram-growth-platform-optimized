@@ -76,17 +76,43 @@ app.get('/health', (req, res) => {
 // Static file serving for uploads (legacy)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Helper: set cache-control headers based on file type
+function staticCacheHeaders(res: express.Response, filePath: string) {
+  if (filePath.endsWith('.html')) {
+    // HTML entry points must never be cached — they reference hashed assets
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  } else if (/\.[a-f0-9]{8,}\.(js|css)$/.test(filePath)) {
+    // Vite content-hashed JS/CSS — immutable, long cache
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  } else {
+    // Other static assets (images, fonts, etc.) — short cache
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+}
+
 // Static file serving for admin-panel SPA
 const adminDistPath = path.join(__dirname, 'public/admin');
-app.use('/admin', express.static(adminDistPath));
+app.use('/admin', express.static(adminDistPath, {
+  setHeaders: (res, filePath) => staticCacheHeaders(res, filePath),
+}));
 app.get('/admin/*', generalLimiter, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(adminDistPath, 'index.html'));
 });
 
 // Static file serving for mini-app SPA
 const appDistPath = path.join(__dirname, 'public/app');
-app.use('/app', express.static(appDistPath));
+app.use('/app', express.static(appDistPath, {
+  setHeaders: (res, filePath) => staticCacheHeaders(res, filePath),
+}));
 app.get('/app/*', generalLimiter, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(appDistPath, 'index.html'));
 });
 
