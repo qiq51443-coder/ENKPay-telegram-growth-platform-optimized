@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -15,6 +15,13 @@ declare global {
           };
           start_param?: string;
         };
+        version?: string;
+        platform?: string;
+        colorScheme?: string;
+        themeParams?: Record<string, string>;
+        isExpanded?: boolean;
+        viewportHeight?: number;
+        viewportStableHeight?: number;
         expand: () => void;
         close: () => void;
         ready: () => void;
@@ -27,59 +34,67 @@ declare global {
         };
       };
     };
+    TelegramGameProxy?: unknown; // Legacy Telegram game proxy
   }
 }
 
+const POLL_INTERVAL_MS = 100;
+const MAX_POLL_ATTEMPTS = 150; // 15 seconds total
+
 export function useTelegram() {
-  // Try to read initData synchronously first (works on most Telegram versions)
-  const initialInitData = window.Telegram?.WebApp?.initData ?? '';
-
-  const [tg, setTg] = useState<Window['Telegram']['WebApp'] | null>(() => {
-    return window.Telegram?.WebApp ?? null;
-  });
-  const [initData, setInitData] = useState<string>(() => initialInitData);
-
-  // If we already have initData synchronously, sdkReady starts as true.
-  // Otherwise, null = still polling.
-  const [sdkReady, setSdkReady] = useState<boolean | null>(() => {
-    return initialInitData ? true : null;
-  });
+  const [tg, setTg] = useState<Window['Telegram']['WebApp'] | null>(null);
+  const [initData, setInitData] = useState<string>('');
+  // null = still detecting; true = SDK ready; false = SDK unavailable
+  const [sdkReady, setSdkReady] = useState<boolean | null>(null);
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
-    // Already have initData — just call SDK lifecycle methods
-    if (initialInitData) {
-      try { window.Telegram?.WebApp?.ready(); } catch { /* non-critical */ }
-      try { window.Telegram?.WebApp?.expand(); } catch { /* non-critical */ }
-      // sdkReady is already true from useState init
-      return;
-    }
+    // Guard against StrictMode double-invocation and re-renders
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
-    // Poll for SDK availability
-    // Telegram mobile apps typically inject initData within 0-500ms
-    // Give up after 10 seconds (100 attempts × 100ms)
-    let attempts = 0;
-    const MAX_ATTEMPTS = 100; // 10 seconds
-
-    const timer = setInterval(() => {
-      attempts++;
+    function tryInit(): boolean {
       const webApp = window.Telegram?.WebApp;
       const currentInitData = webApp?.initData;
-
-      if (currentInitData) {
-        clearInterval(timer);
+      if (currentInitData && currentInitData.length > 0) {
         setTg(webApp!);
         setInitData(currentInitData);
         setSdkReady(true);
         try { webApp!.ready(); } catch { /* non-critical */ }
-        try { webApp!.expand(); } catch { /* non-critical */ }
-      } else if (attempts >= MAX_ATTEMPTS) {
+        // Delay expand() slightly to avoid iOS issues with early calls
+        setTimeout(() => {
+          try { webApp!.expand(); } catch { /* non-critical */ }
+        }, 100);
+        return true;
+      }
+      return false;
+    }
+
+    // Attempt synchronous detection first (works when Telegram injects initData before render)
+    if (tryInit()) return;
+
+    // Poll for SDK availability
+    // Telegram mobile/desktop apps may inject initData after the page starts rendering
+    // Give up after 15 seconds (150 attempts × 100ms)
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts++;
+      if (tryInit()) {
         clearInterval(timer);
+        return;
+      }
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        clearInterval(timer);
+        // Log diagnostic info to aid debugging
+        const webApp = window.Telegram?.WebApp;
+        if (webApp && webApp.initData === '') {
+          console.warn('[useTelegram] Telegram SDK present but no initData after 15s. Not opened from Telegram?');
+        }
         setSdkReady(false); // Definitively not available
       }
-    }, 100);
+    }, POLL_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount only
 
   return {
