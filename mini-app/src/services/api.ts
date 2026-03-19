@@ -4,8 +4,23 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000, // 15s: accommodates 10s SDK polling window + server processing time
+  timeout: 15000, // 15s: accommodates 15s SDK polling window + server processing time
 });
+
+// ─── Response interceptor ─────────────────────────────────────────────────────
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('[API] 401 Unauthorized — initData may be invalid or expired');
+    } else if (error.response?.status >= 500) {
+      console.error('[API] Server error:', error.response?.status, error.response?.data);
+    } else if (!error.response) {
+      console.error('[API] Network error — no response received:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ─── Init data management ──────────────────────────────────────────────────────
 export function setInitData(initData: string) {

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/app/',
+  base: '/app/', // Must match the deployment sub-path. Change to '/' if deployed at root.
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
   },

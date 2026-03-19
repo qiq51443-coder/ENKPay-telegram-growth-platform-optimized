@@ -112,6 +112,11 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
+  // SDK still polling — keep showing loading screen instead of jumping to error
+  if (sdkReady === null) {
+    return <LoadingScreen progress={95} />;
+  }
+
   if (authStatus === 'error') {
     return (
       <div style={{
@@ -151,11 +156,6 @@ function AppContent() {
         </button>
       </div>
     );
-  }
-
-  // While sdkReady is still null (polling), show loading skeleton instead of error
-  if (authStatus === 'pending' && sdkReady === null) {
-    return <LoadingScreen progress={95} />;
   }
 
   const renderPage = () => {
