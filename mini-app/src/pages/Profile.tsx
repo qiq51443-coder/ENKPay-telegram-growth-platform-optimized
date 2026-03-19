@@ -70,7 +70,7 @@ type ProfileView = 'main' | 'orders' | 'agreement';
 const PROFILE_RETRY_DELAY_MS = 2000;
 
 export const Profile: React.FC = () => {
-  const { tg, user: tgUser, initData } = useTelegram();
+  const { tg, user: tgUser, initData, sdkFailed } = useTelegram();
   const { lang, setLang, t } = useLang();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,9 +137,14 @@ export const Profile: React.FC = () => {
           setTimeout(() => fetchProfile(true), PROFILE_RETRY_DELAY_MS);
         }
       } else {
-        // Neither initData nor tgUser available yet — stop loading so the page renders.
-        // The useEffect will re-run when initData or tgUser becomes available.
-        setLoading(false);
+        // Neither initData nor tgUser available yet.
+        // Only stop loading once the SDK has definitively given up (sdkFailed=true);
+        // until then keep the spinner visible so we don't flash '#N/A'.
+        if (sdkFailed) {
+          setLoading(false);
+        }
+        // else: keep loading — the useEffect watching [sdkFailed] will re-call
+        // fetchProfile once the SDK polling has timed out.
       }
     } catch (err: any) {
       console.warn('Profile: fetchProfile error', err);
@@ -239,6 +244,15 @@ export const Profile: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initData, tgUser]);
 
+  // When SDK gives up (sdkFailed becomes true) and we still have no data,
+  // trigger a final fetchProfile so the component exits the loading state.
+  useEffect(() => {
+    if (sdkFailed && !initData && !tgUser) {
+      fetchProfile();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdkFailed]);
+
   // Poll transactions every 30 seconds while in orders view
   useEffect(() => {
     if (view !== 'orders' || !initData) return;
@@ -251,6 +265,27 @@ export const Profile: React.FC = () => {
 
   if (loading) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
+  }
+
+  // Error state: SDK gave up and no profile could be loaded — show friendly message with retry
+  if (!profile) {
+    return (
+      <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '16px', marginBottom: '16px' }}>
+          {t('profile_load_failed')}
+        </div>
+        <button
+          onClick={() => { setLoading(true); fetchProfile(); }}
+          style={{
+            backgroundColor: '#F0B90B', color: '#000', border: 'none',
+            borderRadius: '8px', padding: '10px 24px', fontSize: '14px',
+            fontWeight: '600', cursor: 'pointer',
+          }}
+        >
+          {t('retry')}
+        </button>
+      </div>
+    );
   }
 
   // Orders sub-page
