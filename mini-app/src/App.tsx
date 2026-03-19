@@ -14,8 +14,6 @@ import {
   getAnnouncements,
   setInitData as setApiInitData,
   authSync,
-  exchangeBotToken,
-  setSessionToken,
 } from './services/api';
 import { LanguageProvider, useLang } from './context/LanguageContext';
 import { AuthSyncContext } from './context/AuthSyncContext';
@@ -39,92 +37,76 @@ function AppContent() {
   // authStatus: 'pending' | 'ok' | 'error'
   const [authStatus, setAuthStatus] = useState<'pending' | 'ok' | 'error'>('pending');
 
-  // Prevent duplicate auth attempts per phase
-  const botTokenAttemptedRef = useRef(false);
+  // Prevent duplicate auth attempts (guard against React StrictMode double-invoke)
   const initDataAttemptedRef = useRef(false);
-  // Shared flag: set true as soon as ANY auth path succeeds
-  const authSucceededRef = useRef(false);
-
-  // Read URL query params once on mount (stable across renders)
-  const urlParamsRef = useRef(new URLSearchParams(window.location.search));
-  const startTokenRef = useRef(urlParamsRef.current.get('start_token') || '');
-  const urlTelegramIdRef = useRef(
-    parseInt(urlParamsRef.current.get('telegram_id') || '', 10) || undefined
-  );
 
   const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
   const { setUser } = useUser();
 
-  // ── Phase 1: Bot-token exchange (immediate — does NOT need Telegram SDK) ──────
-  //
-  // The bot embeds a short-lived `start_token` and `telegram_id` in the WebApp
-  // URL (?start_token=...&telegram_id=...).  Exchanging it gives a 24-hour
-  // session token + canonical user profile without relying on initData HMAC
-  // validation, which is sensitive to bot-token misconfiguration.
-  //
-  // The backend exchange endpoint also has a fallback: if the token is already
-  // expired but `telegram_id` belongs to an existing user, it issues a fresh
-  // recovery session — so even cached/replayed URLs often succeed.
+  // ── Loading progress animation: 0 → 90 % (then waits for authSyncDone) ─────
   useEffect(() => {
-    const startToken = startTokenRef.current;
-    const urlTelegramId = urlTelegramIdRef.current;
-
-    if (!startToken) return; // No bot token in URL — skip, let Phase 2 handle auth
-    if (botTokenAttemptedRef.current) return;
-    botTokenAttemptedRef.current = true;
-
-    console.info('[App] Attempting bot-token exchange');
-
-    exchangeBotToken(startToken, urlTelegramId)
-      .then((data) => {
-        // Always persist the session token so subsequent API calls use it
-        if (data?.session_token) {
-          setSessionToken(data.session_token);
+    if (tg) {
+      try { tg.expand(); } catch { /* non-critical */ }
+    }
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return 90; // Hold at 90 % — wait for auth to finish
         }
-        if (authSucceededRef.current) return; // Phase 2 (initData) won the race
-        if (data?.user) {
-          setUser(data.user);
-        }
-        authSucceededRef.current = true;
-        setAuthStatus('ok');
-        setAuthSyncDone(true);
-        console.info('[App] Bot-token exchange succeeded', { recovered: !!data?.recovered });
-      })
-      .catch((err) => {
-        console.warn('[App] Bot-token exchange failed — falling back to initData:', err?.message || String(err));
-        // Do NOT set 'error' here; Phase 2 (initData) will decide the final outcome.
+        return prev + 10;
       });
+    }, 80);
+    return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run exactly once on mount
+  }, []);
 
-  // ── Phase 2: Telegram SDK / initData auth (fires when sdkReady settles) ──────
-  //
-  // Fallback path when no start_token in URL or bot-token exchange failed.
-  //
-  // FIX: previously, authSync failures were silently ignored and authStatus was
-  // forced to 'ok' regardless.  This caused the app to render with no user data
-  // and made all subsequent API calls fail with 401.  The failure is now
-  // correctly propagated so the user sees the retry screen.
+  // ── Complete loading once auth finishes ────────────────────────────────────
   useEffect(() => {
-    if (authSucceededRef.current) return; // Phase 1 already succeeded
+    if (!authSyncDone) return;
+    setProgress(100);
+    const timer = setTimeout(() => {
+      setLoading(false);
+      getAnnouncements(true)
+        .then(data => {
+          const list: Announcement[] = data?.announcements || data?.data || [];
+          if (list.length > 0) setAnnouncement(list[0]);
+        })
+        .catch(() => {/* non-critical */});
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [authSyncDone]);
+
+  // ── 12 s timeout safety net (force-close loading if auth never settles) ────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.warn('[App] Auth timeout after 12 s — force-closing loading screen');
+        setAuthStatus('error');
+        setAuthSyncDone(true);
+      }
+    }, 12000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Main auth path: Telegram SDK / initData ────────────────────────────────
+  useEffect(() => {
     if (initDataAttemptedRef.current) return;
     if (sdkReady === null) return; // Still polling — wait
 
     initDataAttemptedRef.current = true;
 
     if (sdkReady === false) {
-      console.warn('[App] SDK unavailable and no valid bot-token — cannot authenticate');
+      console.warn('[App] Telegram SDK unavailable — cannot authenticate');
       setAuthStatus('error');
       setAuthSyncDone(true);
       return;
     }
 
     if (!initData) {
-      // SDK reports ready but initData is empty.  This can happen if the
-      // Telegram client version is too old to inject initData, or if the
-      // page is being viewed outside a proper WebApp context.
-      console.warn('[App] SDK reports ready but initData is empty — possible old Telegram client or non-WebApp context');
+      console.warn('[App] SDK ready but initData is empty — non-WebApp context?');
       setAuthStatus('error');
       setAuthSyncDone(true);
       return;
@@ -134,17 +116,11 @@ function AppContent() {
 
     authSync(initData)
       .then((data) => {
-        if (authSucceededRef.current) return; // Bot-token exchange won the race
-        if (data?.user) {
-          setUser(data.user);
-        }
-        authSucceededRef.current = true;
+        if (data?.user) setUser(data.user);
         setAuthStatus('ok');
       })
       .catch((err) => {
-        if (authSucceededRef.current) return; // Bot-token exchange won the race
         console.error('[App] authSync failed:', err?.message || String(err));
-        // FIX: propagate failure instead of silently setting 'ok'
         setAuthStatus('error');
       })
       .finally(() => {
@@ -152,33 +128,6 @@ function AppContent() {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sdkReady, initData, setUser]);
-
-  // Loading progress animation (independent of auth)
-  useEffect(() => {
-    if (tg) {
-      try { tg.expand(); } catch { /* non-critical */ }
-    }
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setLoading(false);
-            getAnnouncements(true)
-              .then(data => {
-                const list: Announcement[] = data?.announcements || data?.data || [];
-                if (list.length > 0) setAnnouncement(list[0]);
-              })
-              .catch(() => {/* non-critical */});
-          }, 200);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 80);
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   if (loading) {
     return <LoadingScreen progress={progress} />;
@@ -188,10 +137,6 @@ function AppContent() {
   // bot-token exchange has not already succeeded.  Previously this guard was
   // unconditional, which blocked the app from rendering even after a successful
   // bot-token exchange while Telegram SDK was still initializing.
-  if (sdkReady === null && !authSucceededRef.current) {
-    return <LoadingScreen progress={95} />;
-  }
-
   if (authStatus === 'error') {
     return (
       <div style={{

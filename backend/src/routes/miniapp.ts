@@ -2,9 +2,52 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { generateUniqueIdCandidate, generateUniqueUserId } from '../utils/uniqueId';
-import { buildCanonicalProfile } from './miniapp-shared';
+import { buildCanonicalProfile, upsertUserFromTelegramId } from './miniapp-shared';
 
 const router = express.Router();
+
+/**
+ * POST /api/miniapp/preregister
+ * Called by the Bot on /start to pre-register or refresh user info.
+ * Auth: X-Bot-Id header (must match an active bot in the DB).
+ * Body: { telegram_id, first_name?, username?, language_code? }
+ */
+router.post('/preregister', async (req, res) => {
+  try {
+    const botId = req.headers['x-bot-id'] as string;
+    if (!botId) return res.status(403).json({ error: 'Missing X-Bot-Id header' });
+
+    // Verify bot is active
+    const botResult = await query(
+      `SELECT id FROM bots WHERE id = $1 AND is_active = true LIMIT 1`,
+      [botId]
+    );
+    if (botResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Bot not found or inactive' });
+    }
+
+    const { telegram_id, first_name, username, language_code } = req.body as {
+      telegram_id?: number;
+      first_name?: string;
+      username?: string;
+      language_code?: string;
+    };
+    if (!telegram_id || typeof telegram_id !== 'number') {
+      return res.status(400).json({ error: 'telegram_id (number) is required' });
+    }
+
+    await upsertUserFromTelegramId(telegram_id, {
+      firstName: first_name,
+      username,
+      languageCode: language_code,
+    });
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[miniapp/preregister] error:', err?.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 /**
  * GET /api/miniapp/profile

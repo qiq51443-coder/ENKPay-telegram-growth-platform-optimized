@@ -54,23 +54,26 @@ export const handleStart = async (ctx: Context) => {
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
-    // Generate a short-lived temp token so the Mini App can authenticate without initData
-    let startToken = '';
+    // Pre-register / refresh user info in the backend so Mini App gets real
+    // first_name, username, and language_code (fire-and-forget, non-blocking)
     try {
-      const tokenRes = await axios.post(
-        `${backendUrl}/api/miniapp/bot-token/generate`,
-        { telegram_id: ctx.from.id, bot_id: botId },
-        { headers: { 'X-Bot-Id': botId }, timeout: 5000 }
+      await axios.post(
+        `${backendUrl}/api/miniapp/preregister`,
+        {
+          telegram_id: ctx.from.id,
+          first_name: ctx.from.first_name || '',
+          username: ctx.from.username || null,
+          language_code: ctx.from.language_code || lang,
+        },
+        { headers: { 'X-Bot-Id': botId }, timeout: 3000 }
       );
-      startToken = tokenRes.data?.token || '';
     } catch (err: any) {
-      console.warn(`[bot ${botId}] Failed to generate start token:`, err?.message);
-      // Graceful degradation: open Mini App without token; initData flow will handle auth
+      console.warn(`[bot ${botId}] Failed to preregister user:`, err?.message);
+      // Graceful degradation: Mini App will still work via authSync
     }
 
-    const finalWebAppUrl = startToken
-      ? `${webAppUrl}?start_token=${startToken}&telegram_id=${ctx.from.id}`
-      : `${webAppUrl}?telegram_id=${ctx.from.id}`;
+    // WebApp URL: always clean — no token, no telegram_id in query params
+    const finalWebAppUrl = webAppUrl;
 
     await ctx.replyWithHTML(welcomeText, Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
