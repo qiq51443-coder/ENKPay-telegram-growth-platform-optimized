@@ -185,7 +185,7 @@ const AuctionDetail: React.FC<{
 
   return (
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '14px', padding: 0, marginBottom: '12px' }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '16px', fontWeight: '700', padding: 0, marginBottom: '12px' }}>
         {t('back')}
       </button>
 
@@ -373,7 +373,7 @@ export const Auction: React.FC = () => {
 
       {view === 'results' && (
         <>
-          <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '13px', padding: 0, marginBottom: '12px' }}>{t('back')}</button>
+          <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '16px', fontWeight: '700', padding: 0, marginBottom: '12px' }}>{t('back')}</button>
           {loading
             ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
             : results.length === 0
@@ -397,7 +397,7 @@ export const Auction: React.FC = () => {
 
       {view === 'my' && (
         <>
-          <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '13px', padding: 0, marginBottom: '12px' }}>{t('back')}</button>
+          <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '16px', fontWeight: '700', padding: 0, marginBottom: '12px' }}>{t('back')}</button>
           {loading
             ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
             : myAuctions.length === 0
