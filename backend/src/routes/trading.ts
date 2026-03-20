@@ -715,18 +715,6 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         throw Object.assign(new Error('Insufficient balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
       }
 
-      // Create a new session
-      const now = new Date();
-      const endTime = new Date(now.getTime() + durationSeconds * 1000);
-
-      const sessionResult = await client.query(
-        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds)
-         VALUES ($1, $2, 'active', $3, $4, $5)
-         RETURNING *`,
-        [pairIdInt, ruleId, now, endTime, durationSeconds]
-      );
-      const session = sessionResult.rows[0];
-
       // Get current price: try price_points cache first, then fall back to live price
       const priceResult = await client.query(
         `SELECT price FROM price_points WHERE pair_id = $1 ORDER BY timestamp DESC LIMIT 1`,
@@ -749,6 +737,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           throw new Error(`Price data not available and live fetch failed: ${priceErr.message}`);
         }
       }
+
+      // Create a new session (include open_price so NOT NULL constraint is satisfied)
+      const now = new Date();
+      const endTime = new Date(now.getTime() + durationSeconds * 1000);
+
+      const sessionResult = await client.query(
+        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price)
+         VALUES ($1, $2, 'active', $3, $4, $5, $6)
+         RETURNING *`,
+        [pairIdInt, ruleId, now, endTime, durationSeconds, entryPrice]
+      );
+      const session = sessionResult.rows[0];
 
       // Deduct from red_packet_balance first, then wallet_balance
       const fromRedPacket = Math.min(redPacketBal, orderAmount);
