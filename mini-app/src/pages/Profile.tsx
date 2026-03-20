@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { theme } from '../theme';
 import { useTelegram } from '../hooks/useTelegram';
-import { getUserProfile, getTransactions, getAnnouncements, api } from '../services/api';
+import { getTransactions, getAnnouncements, api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
-import { useUser, UserProfile } from '../context/UserContext';
+import { useUser } from '../context/UserContext';
+import { useAuthSync } from '../context/AuthSyncContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
 
 interface Transaction {
@@ -45,11 +46,10 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
 type ProfileView = 'main' | 'orders' | 'agreement';
 
 export const Profile: React.FC = () => {
-  const { tg, user: tgUser } = useTelegram();
+  const { user: tgUser } = useTelegram();
   const { lang, setLang, t } = useLang();
-  const { user: contextUser, setUser, refreshBalance } = useUser();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user: contextUser, refreshBalance } = useUser();
+  const { authSyncDone } = useAuthSync();
   const [view, setView] = useState<ProfileView>('main');
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -59,43 +59,34 @@ export const Profile: React.FC = () => {
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
 
-  // Sync local profile state from UserContext; fetch from backend if not yet available
+  // Use contextUser (set by App-level auth flow) as the single source of truth
+  const profile = contextUser;
+
+  // Sync language preference from backend profile when contextUser becomes available
   useEffect(() => {
-    if (contextUser) {
-      setProfile(contextUser);
-      // Sync language preference from backend profile
-      if (contextUser.language_code) {
-        const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
-        if (supportedCodes.includes(contextUser.language_code)) {
-          setLang(contextUser.language_code as LangCode);
-        }
+    if (contextUser?.language_code) {
+      const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
+      if (supportedCodes.includes(contextUser.language_code)) {
+        setLang(contextUser.language_code as LangCode);
       }
-      setLoading(false);
-      return;
     }
-    // Lightweight GET profile (no auth-sync) — only needed when App-level auth hasn't run yet
-    getUserProfile()
-      .then((data) => {
-        const profileData = data.user || data;
-        if (profileData) {
-          setUser(profileData);
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.warn('[Profile] initial getUserProfile failed:', err?.message);
-        setLoading(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextUser]);
 
-  // Lightweight balance refresh — calls GET /miniapp/profile only (no auth-sync)
-  const doRefreshBalance = async () => {
-    try {
-      await refreshBalance();
-    } catch (err: any) {
-      console.warn('[Profile] refreshBalance error:', err?.message);
+  // When auth is done but profile is still null, attempt one final balance refresh
+  useEffect(() => {
+    if (authSyncDone && !contextUser) {
+      refreshBalance().catch(err => {
+        console.warn('[Profile] post-auth refreshBalance failed:', err?.message);
+      });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authSyncDone, contextUser]);
+
+  // Lightweight balance refresh — calls GET /miniapp/profile only (no auth-sync)
+  const doRefreshBalance = () => {
+    refreshBalance().catch(err => {
+      console.warn('[Profile] refreshBalance error:', err?.message);
+    });
   };
 
   const handleSelectLanguage = async (code: string) => {
@@ -181,15 +172,12 @@ export const Profile: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
-  // Keep the loading spinner while:
-  //   a) we are genuinely loading, OR
-  //   b) loading finished but profile is still null and SDK hasn't given up yet
-  //      (initData may arrive any moment — don't flash an error prematurely).
-  if (loading) {
+  // Show loading while App-level auth has not yet completed
+  if (!authSyncDone) {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
 
-  // Error state: SDK gave up and no profile could be loaded — show friendly message with retry
+  // Error state: auth is done but no profile could be loaded — show friendly message with retry
   if (!profile) {
     return (
       <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
@@ -197,7 +185,7 @@ export const Profile: React.FC = () => {
           {t('profile_load_failed')}
         </div>
         <button
-              onClick={() => { setLoading(true); doRefreshBalance().finally(() => setLoading(false)); }}
+              onClick={doRefreshBalance}
               style={{
                 backgroundColor: '#F0B90B', color: '#000', border: 'none',
                 borderRadius: '8px', padding: '10px 24px', fontSize: '14px',
