@@ -686,6 +686,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getTradingOrders(params?: any) {
+    const response = await this.client.get('/trading-admin/orders', { params });
+    return response.data;
+  }
+
   async settleSession(id: string, data: any) {
     const response = await this.client.post(`/admin/trading/sessions/${id}/settle`, data);
     return response.data;

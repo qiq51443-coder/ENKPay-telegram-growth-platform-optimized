@@ -47,9 +47,9 @@ interface Order {
 }
 
 const DURATION_OPTIONS = [
-  { label: '1分钟', seconds: 60, periodsPerDay: 1440 },
-  { label: '5分钟', seconds: 300, periodsPerDay: 288 },
-  { label: '10分钟', seconds: 600, periodsPerDay: 144 },
+  { labelKey: 'duration_1min', seconds: 60, periodsPerDay: 1440 },
+  { labelKey: 'duration_5min', seconds: 300, periodsPerDay: 288 },
+  { labelKey: 'duration_10min', seconds: 600, periodsPerDay: 144 },
 ];
 
 /** 根据选定的周期秒数，计算当前期号和距下一期开始的倒计时（秒） */
@@ -160,6 +160,10 @@ export const Trading: React.FC = () => {
   const candleSeriesRef = useRef<any>(null);
   const lastKlineTimeRef = useRef<number>(0);
   const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
+  const entryPriceLineRef = useRef<any>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number } | null>(null);
+  const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync availableBalance from UserContext whenever context user changes
   useEffect(() => {
@@ -184,6 +188,7 @@ export const Trading: React.FC = () => {
       if (chartTickRef.current) clearTimeout(chartTickRef.current);
       if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
       if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
+      if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
     };
   }, []);
 
@@ -372,10 +377,43 @@ export const Trading: React.FC = () => {
 
     fetchKline();
 
-    // Poll every 2 seconds for real-time chart updates
+    // Poll every 5 seconds for real-time chart updates (use update-only to avoid clearing chart)
     const klinePoll = setInterval(() => {
-      fetchKline().catch(() => {});
-    }, 2000);
+      (async () => {
+        try {
+          const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
+          const raw: any[] = res.data?.data || [];
+          if (raw.length === 0) return; // Keep existing data if API returns empty
+          const candleData = raw.map((k: any) => ({
+            time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
+            open: Number(k.open),
+            high: Number(k.high),
+            low: Number(k.low),
+            close: Number(k.close),
+          })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
+          if (candleData.length === 0) return;
+          const newLast = candleData[candleData.length - 1];
+          if (!candleSeries) return;
+          if (newLast.time > lastKlineTimeRef.current) {
+            // New candle — append it
+            try { candleSeries.update(newLast); } catch {}
+            lastKlineTimeRef.current = newLast.time;
+            lastCandleRef.current = { open: newLast.open, high: newLast.high, low: newLast.low, close: newLast.close };
+          } else if (newLast.time === lastKlineTimeRef.current) {
+            // Same candle — just update close
+            const updatedCandle = {
+              time: newLast.time,
+              open: lastCandleRef.current?.open ?? newLast.open,
+              high: Math.max(lastCandleRef.current?.high ?? newLast.high, newLast.close),
+              low: Math.min(lastCandleRef.current?.low ?? newLast.low, newLast.close),
+              close: newLast.close,
+            };
+            try { candleSeries.update(updatedCandle); } catch {}
+            lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: updatedCandle.close };
+          }
+        } catch {}
+      })();
+    }, 5000);
 
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
@@ -544,14 +582,9 @@ export const Trading: React.FC = () => {
     setSubmitting(true);
     setConfirmOpen(false);
 
-    // Auth is handled at the App level — if authSyncDone is false we still proceed
-    // but show a friendlier error if the backend rejects with "User not found"
-    if (!authSyncDone) {
-      setSubmitting(false);
-      setOrderError('Please wait, initializing your account...');
-      orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
-      return;
-    }
+    // If authSyncDone is false but tgUser.id is present, proceed anyway —
+    // auth may still be in progress but the session token from jt-auth is likely valid.
+    // Only block if we have no telegram user identity at all (handled above).
 
     try {
       const res = await api.post('/trading/quick-session', {
@@ -563,6 +596,25 @@ export const Trading: React.FC = () => {
       const sessionEnd = res.data?.data?.session?.end_time
         ? new Date(res.data.data.session.end_time).getTime()
         : Date.now() + selectedDuration * 1000;
+      const entryPrice: number | undefined = res.data?.data?.entry_price || res.data?.data?.order?.entry_price;
+
+      // Mark entry price on the chart
+      if (entryPrice && candleSeriesRef.current) {
+        try {
+          // Remove previous entry line if any
+          if (entryPriceLineRef.current) {
+            candleSeriesRef.current.removePriceLine(entryPriceLineRef.current);
+          }
+          entryPriceLineRef.current = candleSeriesRef.current.createPriceLine({
+            price: entryPrice,
+            color: confirmDirection === 'up' ? '#26a69a' : '#ef5350',
+            lineWidth: 1,
+            lineStyle: 2, // Dashed
+            axisLabelVisible: true,
+            title: `${confirmDirection === 'up' ? '▲' : '▼'} ${amount} USDT`,
+          });
+        } catch { /* ignore chart errors */ }
+      }
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
       // Show brief success feedback
@@ -612,6 +664,34 @@ export const Trading: React.FC = () => {
           const win = order.result === 'win';
           const profit = win ? parseFloat(order.amount) * (parseFloat(order.odds) - 1) : -parseFloat(order.amount);
           setResultMsg({ win, profit });
+
+          // Add close price line to chart
+          if (order.close_price && candleSeriesRef.current) {
+            try {
+              const closePrice = parseFloat(order.close_price);
+              candleSeriesRef.current.createPriceLine({
+                price: closePrice,
+                color: win ? '#26a69a' : '#ef5350',
+                lineWidth: 2,
+                lineStyle: 0, // Solid
+                axisLabelVisible: true,
+                title: win ? `✅ ${closePrice.toFixed(4)}` : `❌ ${closePrice.toFixed(4)}`,
+              });
+            } catch { /* ignore chart errors */ }
+          }
+
+          // Confetti on win
+          if (win) {
+            setShowConfetti(true);
+            setWinMessage({ win: true, profit });
+            if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+            confettiTimerRef.current = setTimeout(() => { setShowConfetti(false); setWinMessage(null); }, 3000);
+          } else {
+            setWinMessage({ win: false, profit });
+            if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+            confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
+          }
+
           break; // Order found and settled — stop retrying
         }
       } catch {}
@@ -647,28 +727,69 @@ export const Trading: React.FC = () => {
 
     return (
       <div style={{ padding: '16px', paddingBottom: '32px' }}>
+        {/* Confetti overlay */}
+        {showConfetti && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none', overflow: 'hidden' }}>
+            {Array.from({ length: 30 }).map((_, i) => (
+              <div key={i} style={{
+                position: 'absolute',
+                width: `${6 + Math.random() * 8}px`,
+                height: `${6 + Math.random() * 8}px`,
+                backgroundColor: ['#f0b90b', '#26a69a', '#ef5350', '#fff', '#7b61ff'][i % 5],
+                left: `${Math.random() * 100}%`,
+                top: `-10px`,
+                borderRadius: '2px',
+                animation: `confettiFall ${1.5 + Math.random()}s ease-in ${Math.random() * 0.8}s forwards`,
+              }} />
+            ))}
+            <style>{`@keyframes confettiFall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }`}</style>
+          </div>
+        )}
+
+        {/* Win/Lose floating message */}
+        {winMessage && (
+          <div style={{
+            position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)',
+            zIndex: 10000, textAlign: 'center', pointerEvents: 'none',
+            animation: 'fadeOut 2.5s forwards',
+          }}>
+            <style>{`@keyframes fadeOut { 0%{opacity:1;transform:translateX(-50%) scale(1)} 70%{opacity:1} 100%{opacity:0;transform:translateX(-50%) scale(1.1)} }`}</style>
+            <div style={{ fontSize: '28px', fontWeight: 800, color: winMessage.win ? '#26a69a' : '#ef5350',
+              backgroundColor: 'rgba(0,0,0,0.85)', padding: '16px 28px', borderRadius: '16px',
+              border: `2px solid ${winMessage.win ? '#26a69a' : '#ef5350'}` }}>
+              {winMessage.win
+                ? `🎉 恭喜获胜！ +${safeFixed(winMessage.profit)} USDT`
+                : `💔 很遗憾，下次加油！`}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
           <button
             onClick={() => { setSelectedPair(null); selectedPairRef.current = null; setResultMsg(null); setCountdown(null); }}
             style={{ background: 'none', border: 'none', color: theme.text, fontSize: '20px', cursor: 'pointer', padding: 0 }}
           >←</button>
           <h2 style={{ margin: 0, color: theme.text, fontSize: '18px' }}>{selectedPair.display_name}</h2>
-          {availableBalance !== null && (
-            <div style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textSecondary }}>
-              {t('available_balance') || '可用余额(含红包)'}: <span style={{ color: '#f0b90b', fontWeight: '600' }}>${safeFixed(availableBalance)}</span>
-            </div>
-          )}
         </div>
 
-        {/* Price + 24h change */}
-        <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
-          <div style={{ fontSize: '28px', fontWeight: '700', color: theme.text }}>
+        {/* Available balance — top center, prominent */}
+        {availableBalance !== null && (
+          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+            <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{t('available_balance')}: </span>
+            <span style={{ color: '#f0b90b', fontSize: '28px', fontWeight: 700 }}>{safeFixed(availableBalance)}</span>
+            <span style={{ color: '#f0b90b', fontSize: '14px', fontWeight: 600 }}> USDT</span>
+          </div>
+        )}
+
+        {/* Price + 24h change — compact */}
+        <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '8px 12px', marginBottom: '10px', border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: theme.text }}>
             {priceInfo.price === 0 && selectedPair.pair_type === 'custom'
               ? t('loading') || '加载中...'
               : `$${priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
           </div>
-          <div style={{ fontSize: '14px', color: priceColor(priceInfo.change24h), marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: priceColor(priceInfo.change24h) }}>
             {priceInfo.change24h >= 0 ? '▲' : '▼'} {safeFixed(Math.abs(Number(priceInfo.change24h)))}% 24h
           </div>
         </div>
@@ -702,7 +823,7 @@ export const Trading: React.FC = () => {
             height: klineError ? '0px' : '200px',
             borderRadius: '12px',
             overflow: 'hidden',
-            marginBottom: klineError ? '0' : '12px',
+            marginBottom: klineError ? '0' : '4px',
             backgroundColor: theme.bgCard,
             border: klineError ? 'none' : `1px solid ${theme.border}`,
           }}
@@ -712,7 +833,7 @@ export const Trading: React.FC = () => {
             width: '100%',
             height: '60px',
             borderRadius: '12px',
-            marginBottom: '12px',
+            marginBottom: '4px',
             backgroundColor: theme.bgCard,
             border: `1px solid ${theme.border}`,
             display: 'flex',
@@ -722,6 +843,13 @@ export const Trading: React.FC = () => {
             fontSize: '13px',
           }}>
             📊 暂时无法显示K线图
+          </div>
+        )}
+
+        {/* Period info — directly below chart */}
+        {periodInfo && (
+          <div style={{ textAlign: 'center', marginBottom: '8px', color: theme.textSecondary, fontSize: '11px' }}>
+            期号：{periodInfo.nextPeriodLabel}
           </div>
         )}
 
@@ -777,72 +905,13 @@ export const Trading: React.FC = () => {
                   fontSize: '13px',
                 }}
               >
-                {d.label}
+                {t(d.labelKey)}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Period info card */}
-        {periodInfo && (
-          <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '10px 14px', marginBottom: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_current') || '当前期'}</div>
-              <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>{periodInfo.currentPeriodLabel}</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_buying') || '即将购买'}</div>
-              <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '14px' }}>{periodInfo.nextPeriodLabel}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('period_next_in') || '距下一期'}</div>
-              <div style={{ color: '#ef5350', fontWeight: '600', fontSize: '14px' }}>
-                {String(Math.floor(periodInfo.secondsUntilNext / 60)).padStart(2, '0')}:{String(periodInfo.secondsUntilNext % 60).padStart(2, '0')}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Amount input */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>{t('bet_amount')}</div>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-            {QUICK_AMOUNTS.map((v) => (
-              <button
-                key={v}
-                onClick={() => handleQuickAmount(v)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: `1px solid ${Number(amount) === v ? '#f0b90b' : theme.border}`,
-                  backgroundColor: Number(amount) === v ? '#f0b90b22' : theme.bgCard,
-                  color: Number(amount) === v ? '#f0b90b' : theme.text,
-                  cursor: 'pointer', fontSize: '13px',
-                }}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-          <input
-            type="number"
-            value={amount}
-            onChange={handleAmountChange}
-            placeholder={t('custom_amount')}
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: '8px',
-              border: `1px solid ${theme.border}`, backgroundColor: theme.bgCard,
-              color: theme.text, fontSize: '16px', boxSizing: 'border-box',
-            }}
-          />
-          {amountNum > 0 && (
-            <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '6px' }}>
-              {t('expected_profit')}: +{safeFixed(expectedProfit)} USDT
-            </div>
-          )}
-        </div>
-
-        {/* UP/DOWN buttons */}
+        {/* Amount + UP/DOWN side by side */}
         {activeOrder && countdown !== null ? (
           <div style={{ textAlign: 'center', color: theme.textSecondary, padding: '12px 0', marginBottom: '16px', backgroundColor: theme.bgCard, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
             <div style={{ marginBottom: 6 }}>当前持仓：
@@ -853,29 +922,76 @@ export const Trading: React.FC = () => {
             <div style={{ fontSize: '13px' }}>金额：{activeOrder.amount} USDT · 等待结算...</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-            <button
-              onClick={() => openConfirm('up')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
-              style={{
-                flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-                backgroundColor: '#26a69a', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
-              }}
-            >
-              {t('btn_up')}
-            </button>
-            <button
-              onClick={() => openConfirm('down')}
-              disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
-              style={{
-                flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-                backgroundColor: '#ef5350', color: '#fff', fontSize: '18px', fontWeight: '700',
-                cursor: 'pointer', opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
-              }}
-            >
-              {t('btn_down')}
-            </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '16px' }}>
+            {/* Left: amount area */}
+            <div style={{ flex: 1 }}>
+              <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>{t('bet_amount')}</div>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                {QUICK_AMOUNTS.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => handleQuickAmount(v)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${Number(amount) === v ? '#f0b90b' : theme.border}`,
+                      backgroundColor: Number(amount) === v ? '#f0b90b22' : theme.bgCard,
+                      color: Number(amount) === v ? '#f0b90b' : theme.text,
+                      cursor: 'pointer', fontSize: '12px',
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                value={amount}
+                onChange={handleAmountChange}
+                placeholder={t('custom_amount')}
+                style={{
+                  width: '100%', padding: '8px 10px', borderRadius: '8px',
+                  border: `1px solid ${theme.border}`, backgroundColor: theme.bgCard,
+                  color: theme.text, fontSize: '15px', boxSizing: 'border-box',
+                }}
+              />
+              {amountNum > 0 && (
+                <div style={{ color: theme.textSecondary, fontSize: '11px', marginTop: '4px' }}>
+                  {t('expected_profit')}: +{safeFixed(expectedProfit)} USDT
+                </div>
+              )}
+            </div>
+            {/* Right: UP/DOWN buttons stacked vertically */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '100px' }}>
+              <button
+                onClick={() => openConfirm('up')}
+                disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+                style={{
+                  backgroundColor: '#26a69a', color: '#fff',
+                  borderRadius: '12px', padding: '12px 16px',
+                  fontSize: '15px', fontWeight: 700, border: 'none',
+                  cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
+                  opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                ▲ {t('order_up')}
+              </button>
+              <button
+                onClick={() => openConfirm('down')}
+                disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+                style={{
+                  backgroundColor: '#ef5350', color: '#fff',
+                  borderRadius: '12px', padding: '12px 16px',
+                  fontSize: '15px', fontWeight: 700, border: 'none',
+                  cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
+                  opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                ▼ {t('order_down')}
+              </button>
+            </div>
           </div>
         )}
 

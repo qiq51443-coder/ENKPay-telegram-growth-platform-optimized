@@ -185,6 +185,9 @@ const zh: Translations = {
   tx_filter_other: '其他',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1分钟',
+  duration_5min: '5分钟',
+  duration_10min: '10分钟',
 };
 
 const en: Translations = {
@@ -360,6 +363,9 @@ const en: Translations = {
   tx_filter_other: 'Other',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1 Min',
+  duration_5min: '5 Min',
+  duration_10min: '10 Min',
 };
 
 const fr: Translations = {
@@ -519,6 +525,9 @@ const fr: Translations = {
   tx_filter_other: 'Autre',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1 Min',
+  duration_5min: '5 Min',
+  duration_10min: '10 Min',
 };
 
 const de: Translations = {
@@ -678,6 +687,9 @@ const de: Translations = {
   tx_filter_other: 'Sonstige',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1 Min',
+  duration_5min: '5 Min',
+  duration_10min: '10 Min',
 };
 
 const es: Translations = {
@@ -837,6 +849,9 @@ const es: Translations = {
   tx_filter_other: 'Otro',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1 Min',
+  duration_5min: '5 Min',
+  duration_10min: '10 Min',
 };
 
 const ar: Translations = {
@@ -996,6 +1011,9 @@ const ar: Translations = {
   tx_filter_other: 'أخرى',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '١ دقيقة',
+  duration_5min: '٥ دقائق',
+  duration_10min: '١٠ دقائق',
 };
 
 const ja: Translations = {
@@ -1155,6 +1173,9 @@ const ja: Translations = {
   tx_filter_other: 'その他',
   tx_trade_win_direction: '🟢 UP / DOWN WIN',
   tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
+  duration_1min: '1分',
+  duration_5min: '5分',
+  duration_10min: '10分',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };

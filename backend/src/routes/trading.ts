@@ -595,6 +595,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     const { pair_id, duration, direction, amount } = req.body;
     const telegramId = req.telegramUser?.id;
 
+    console.log('[quick-session] request body:', { pair_id, duration, direction, amount });
+    console.log('[quick-session] telegramId:', telegramId);
+
     if (!telegramId) {
       return res.status(401).json({ error: 'Unauthorized: no Telegram user' });
     }
@@ -609,6 +612,8 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
     const orderAmount = parseFloat(amount);
     const durationSeconds = parseInt(duration, 10);
+    // Ensure pair_id is always passed as an integer to avoid type mismatch in WHERE id = $1
+    const pairIdInt = parseInt(pair_id, 10);
 
     if (isNaN(orderAmount) || orderAmount <= 0) {
       return res.status(400).json({ error: 'Invalid amount' });
@@ -616,6 +621,10 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
     if (isNaN(durationSeconds) || durationSeconds <= 0) {
       return res.status(400).json({ error: 'Invalid duration' });
+    }
+
+    if (isNaN(pairIdInt) || pairIdInt <= 0) {
+      return res.status(400).json({ error: 'Invalid pair_id' });
     }
 
     // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
@@ -631,22 +640,24 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     const user_id = userLookup.rows[0].id;
 
     const result = await transaction(async (client) => {
-      // Get trading pair
+      // Get trading pair (use integer pairIdInt to avoid string/int type mismatch)
       const pairResult = await client.query(
         'SELECT id, symbol, display_name, is_active FROM trading_pairs WHERE id = $1',
-        [pair_id]
+        [pairIdInt]
       );
       if (pairResult.rows.length === 0 || !pairResult.rows[0].is_active) {
         throw new Error('Trading pair not found or inactive');
       }
 
-      // Get applicable rule
+      // Get applicable rule: pair-specific rules take precedence (ORDER BY pair_id DESC NULLS LAST),
+      // then fall back to global rules (pair_id IS NULL). If neither exists, defaults (1.95/1/10000) are used.
       const ruleResult = await client.query(
         `SELECT id, odds, min_bet, max_bet
          FROM trading_rules
-         WHERE pair_id = $1 AND duration_seconds = $2 AND is_active = true
+         WHERE (pair_id = $1 OR pair_id IS NULL) AND duration_seconds = $2 AND is_active = true
+         ORDER BY pair_id DESC NULLS LAST
          LIMIT 1`,
-        [pair_id, durationSeconds]
+        [pairIdInt, durationSeconds]
       );
 
       let ruleId: number | null = null;
@@ -661,6 +672,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         minBet = parseFloat(rule.min_bet);
         maxBet = parseFloat(rule.max_bet);
       }
+      // If no rule found, use defaults (odds=1.95, min_bet=1, max_bet=10000) — already set above
 
       if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
       if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
@@ -670,7 +682,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         `SELECT id FROM trading_orders 
          WHERE user_id = $1 AND pair_id = $2 AND status IN ('active', 'pending')
          LIMIT 1`,
-        [user_id, pair_id]
+        [user_id, pairIdInt]
       );
       if (existingOrderResult.rows.length > 0) {
         throw new Error('You already have an active order for this trading pair. Please wait for settlement before placing a new order.');
@@ -695,14 +707,14 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time)
          VALUES ($1, $2, 'active', $3, $4)
          RETURNING *`,
-        [pair_id, ruleId, now, endTime]
+        [pairIdInt, ruleId, now, endTime]
       );
       const session = sessionResult.rows[0];
 
       // Get current price: try price_points cache first, then fall back to live price
       const priceResult = await client.query(
         `SELECT price FROM price_points WHERE pair_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-        [pair_id]
+        [pairIdInt]
       );
       let entryPrice: number;
       if (priceResult.rows.length > 0) {
@@ -710,12 +722,12 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       } else {
         // No cached price available – fetch live price from price service
         try {
-          const livePrice = await getPairPrice(Number(pair_id));
+          const livePrice = await getPairPrice(pairIdInt);
           entryPrice = livePrice.price;
           // Cache it in price_points for future use (best-effort, don't fail if this fails)
           void client.query(
             `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
-            [pair_id, entryPrice]
+            [pairIdInt, entryPrice]
           ).catch((err: any) => console.error('[trading] Failed to cache live price:', err));
         } catch (priceErr: any) {
           throw new Error(`Price data not available and live fetch failed: ${priceErr.message}`);
@@ -744,13 +756,26 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
          (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
          RETURNING *`,
-        [session.id, user_id, pair_id, direction, orderAmount, entryPrice, ruleId, odds]
+        [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
       );
 
       return {
-        session,
-        order: orderResult.rows[0],
+        session: {
+          id: session.id,
+          start_time: session.start_time,
+          end_time: session.end_time,
+          status: session.status,
+        },
+        order: {
+          id: orderResult.rows[0].id,
+          direction,
+          amount: orderAmount,
+          entry_price: entryPrice,
+          odds,
+          status: 'active',
+        },
         odds,
+        entry_price: entryPrice,
         expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
       };
     });

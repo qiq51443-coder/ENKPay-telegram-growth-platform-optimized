@@ -1050,4 +1050,72 @@ router.post('/pairs/:id/icon/refresh', authenticateAdmin, async (req: AuthReques
   }
 });
 
+/**
+ * GET /api/trading-admin/orders
+ * Admin: query all trading orders with pagination and filters
+ */
+router.get('/orders', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 20, status, pair_id, start_date, end_date } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let queryText = `
+      SELECT
+        o.id,
+        o.user_id,
+        u.username,
+        u.telegram_id,
+        o.pair_id,
+        tp.symbol,
+        COALESCE(tp.display_name, tp.name, tp.symbol) AS display_name,
+        o.direction,
+        o.amount,
+        o.entry_price,
+        o.close_price,
+        o.odds,
+        o.status,
+        o.result,
+        o.profit,
+        o.created_at,
+        o.settled_at
+      FROM trading_orders o
+      LEFT JOIN users u ON u.id = o.user_id
+      LEFT JOIN trading_pairs tp ON tp.id = o.pair_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (status) { params.push(status); queryText += ` AND o.status = $${params.length}`; }
+    if (pair_id) { params.push(Number(pair_id)); queryText += ` AND o.pair_id = $${params.length}`; }
+    if (start_date) { params.push(start_date); queryText += ` AND o.created_at >= $${params.length}`; }
+    if (end_date) { params.push(end_date); queryText += ` AND o.created_at <= $${params.length}`; }
+
+    queryText += ` ORDER BY o.created_at DESC`;
+    params.push(Number(limit));
+    queryText += ` LIMIT $${params.length}`;
+    params.push(offset);
+    queryText += ` OFFSET $${params.length}`;
+
+    const result = await query(queryText, params);
+
+    // Count query
+    let countText = `SELECT COUNT(*) FROM trading_orders o WHERE 1=1`;
+    const countParams: any[] = [];
+    if (status) { countParams.push(status); countText += ` AND o.status = $${countParams.length}`; }
+    if (pair_id) { countParams.push(Number(pair_id)); countText += ` AND o.pair_id = $${countParams.length}`; }
+    if (start_date) { countParams.push(start_date); countText += ` AND o.created_at >= $${countParams.length}`; }
+    if (end_date) { countParams.push(end_date); countText += ` AND o.created_at <= $${countParams.length}`; }
+    const countResult = await query(countText, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: { page: Number(page), limit: Number(limit), total: parseInt(countResult.rows[0].count) },
+    });
+  } catch (error: any) {
+    console.error('Admin get orders error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
