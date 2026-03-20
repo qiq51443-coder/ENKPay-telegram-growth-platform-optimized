@@ -24,13 +24,13 @@ async function autoSettleSessions(): Promise<void> {
          ts.id,
          ts.pair_id,
          ts.rule_id,
-         ts.open_price,
+         COALESCE(ts.open_price, ts.entry_price) as open_price,
          tr.direction as rule_direction
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
-       WHERE ts.end_at < NOW() 
-         AND ts.status IN ('open', 'upcoming')
-       ORDER BY ts.end_at ASC
+       WHERE ts.end_time < NOW() 
+         AND ts.status = 'active'
+       ORDER BY ts.end_time ASC
        LIMIT 50`,
       []
     );
