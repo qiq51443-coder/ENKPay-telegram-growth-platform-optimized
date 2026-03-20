@@ -245,7 +245,8 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     // effectiveSupply is used for both the stock and total_supply columns
-    const effectiveSupply = stock !== undefined ? parseInt(stock) : (total_supply !== undefined ? parseInt(total_supply) : 0);
+    // Use nullish coalescing so that an explicit stock=0 is honoured
+    const effectiveSupply = stock != null ? parseInt(stock) : (total_supply != null ? parseInt(total_supply) : 0);
 
     const result = await query(
       `INSERT INTO nft_products 
@@ -268,7 +269,7 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
         parseFloat(price),
         effectiveSupply,
         effectiveSupply,
-        daily_trade_reward_rate || 0.01,
+        daily_trade_reward_rate != null ? parseFloat(daily_trade_reward_rate) : 0,
         max_trade_reward_days || 30,
         metadata ? JSON.stringify(metadata) : null,
         product_type || 'instant',
