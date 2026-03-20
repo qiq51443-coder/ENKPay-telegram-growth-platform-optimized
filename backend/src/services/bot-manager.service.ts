@@ -9,6 +9,12 @@ import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const JT_TOKEN_TTL = 86400; // 24 hours — jt token validity for Mini App auth
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Interfaces
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -604,7 +610,6 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       const welcomeText = await buildWelcomeText(user, lang, settings);
 
       // ── Generate jt token and store in Redis ──────────────────────────────
-      const JT_TOKEN_TTL = 1800; // 30 minutes
       const JT_STORE_TIMEOUT_MS = 8000;
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
       let finalWebAppUrl = webAppUrl;
@@ -636,22 +641,14 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       }
 
       // ── Send welcome message with reply keyboard (wallet + invite buttons) ─
+      // The "Open App" WebApp button is now in the wallet card inline keyboard,
+      // where it properly injects initData AND includes a fresh ?jt= token.
       await ctx.replyWithHTML(
         welcomeText,
         Markup.keyboard([
           [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
         ]).resize()
       );
-
-      // ── Send inline keyboard with WebApp button (inline button injects initData)
-      if (finalWebAppUrl) {
-        await ctx.reply(
-          '👇',
-          Markup.inlineKeyboard([
-            [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
-          ])
-        );
-      }
     } catch (error) {
       console.error(`[bot ${botId}] Start handler error:`, error);
       try { await ctx.reply('An error occurred. Please try again.'); } catch {}
@@ -928,14 +925,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         const updatedUser = { ...user, language_code: newLang };
         const settings = await getBotSettings(botId);
         const welcomeText = await buildWelcomeText(updatedUser, newLang, settings);
-        const webAppUrl = resolveWebAppUrl(settings);
-        const keyboardRows: any[][] = [
+        await ctx.replyWithHTML(welcomeText, Markup.keyboard([
           [Markup.button.text(t(newLang, 'btn_my_wallet')), Markup.button.text(t(newLang, 'btn_invite'))],
-        ];
-        if (webAppUrl) {
-          keyboardRows.push([Markup.button.webApp(t(newLang, 'btn_open_app'), webAppUrl)]);
-        }
-        await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
+        ]).resize());
         return;
       }
 
@@ -1494,14 +1486,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         try { await ctx.deleteMessage(); } catch {}
         const settings = await getBotSettings(botId);
         const welcomeText = await buildWelcomeText(user, lang, settings);
-        const webAppUrl = resolveWebAppUrl(settings);
-        const keyboardRows: any[][] = [
+        await ctx.replyWithHTML(welcomeText, Markup.keyboard([
           [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-        ];
-        if (webAppUrl) {
-          keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
-        }
-        await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
+        ]).resize());
         return;
       }
 
@@ -1604,24 +1591,53 @@ async function handleWallet(ctx: Context, botId: string, user: User, lang: strin
   try {
     const settings = await getBotSettings(botId);
     const walletText = await buildWalletCardText(user, lang);
+    const baseWebAppUrl = resolveWebAppUrl(settings);
 
     const supportButton = settings.support_telegram
       ? [Markup.button.url(t(lang, 'btn_support'), `https://t.me/${settings.support_telegram}`)]
       : [Markup.button.callback(t(lang, 'btn_support'), 'wallet_support')];
 
-    await ctx.replyWithHTML(
-      walletText,
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
-          Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
-        ],
-        [Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer')],
-        supportButton,
-        [Markup.button.callback('🌐 Language', 'wallet_language')],
-        [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')],
-      ])
-    );
+    const keyboardRows: any[][] = [
+      [
+        Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
+        Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
+      ],
+      [Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer')],
+    ];
+
+    // Add "Open App" webApp button with fresh jt token below Transfer row
+    if (baseWebAppUrl && ctx.from) {
+      try {
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+        const jtToken = crypto.randomBytes(32).toString('hex');
+        await axios.post(
+          `${backendUrl}/api/miniapp/jt-store`,
+          {
+            jt: jtToken,
+            telegram_id: ctx.from.id,
+            bot_id: botId,
+            first_name: ctx.from.first_name || '',
+            username: ctx.from.username || null,
+            language_code: ctx.from.language_code || lang,
+            ttl: JT_TOKEN_TTL,
+          },
+          { headers: { 'X-Bot-Id': botId }, timeout: 5000 }
+        );
+        const separator = baseWebAppUrl.includes('?') ? '&' : '?';
+        const webAppUrlWithJt = `${baseWebAppUrl}${separator}jt=${jtToken}`;
+        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrlWithJt)]);
+      } catch (err: any) {
+        console.warn(`[bot ${botId}] handleWallet: failed to generate jt token for wallet open-app button:`, err?.message);
+        // Graceful degradation: show button without jt token (initData-only auth)
+        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), baseWebAppUrl)]);
+      }
+    }
+
+    keyboardRows.push(supportButton);
+    keyboardRows.push([Markup.button.callback('🌐 Language', 'wallet_language')]);
+    keyboardRows.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')]);
+
+    await ctx.replyWithHTML(walletText, Markup.inlineKeyboard(keyboardRows));
   } catch (error) {
     console.error(`[handleWallet bot=${botId}] Error building wallet card:`, error);
     try { await ctx.reply(t(lang, 'error')); } catch (replyErr) {

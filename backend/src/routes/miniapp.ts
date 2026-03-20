@@ -87,7 +87,7 @@ router.post('/jt-store', async (req, res) => {
       return res.status(400).json({ error: 'telegram_id (number) is required' });
     }
 
-    const tokenTtl = typeof ttl === 'number' && ttl > 0 ? Math.min(ttl, 3600) : 1800;
+    const tokenTtl = typeof ttl === 'number' && ttl > 0 ? Math.min(ttl, 86400) : 86400;
 
     await setCache(
       jtTokenKey(jt),
@@ -118,7 +118,7 @@ router.post('/jt-store', async (req, res) => {
  * to be reopened within that window without requiring the user to go back to
  * the Bot.
  */
-const JT_SLIDING_WINDOW_TTL_SECONDS = 300; // 5 minutes
+const JT_SLIDING_WINDOW_TTL_SECONDS = 86400; // 24 hours
 router.post('/jt-auth', async (req, res) => {
   try {
     const { jt } = req.body as { jt?: string };
