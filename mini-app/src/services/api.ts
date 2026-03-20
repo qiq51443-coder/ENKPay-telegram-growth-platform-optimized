@@ -36,16 +36,40 @@ export function setInitData(initData: string) {
 }
 
 // ─── Session token management ─────────────────────────────────────────────────
+const SESSION_TOKEN_LS_KEY = 'enkpay_session_token';
+
 /**
  * Persist a session token (issued by /api/miniapp/jt-auth or /api/miniapp/auth-sync) so that
  * all subsequent API requests authenticate via X-Session-Token instead of
  * re-validating initData HMAC on every request.
+ * Also writes to localStorage so the token survives page reloads.
  */
 export function setSessionToken(sessionToken: string) {
   if (sessionToken) {
     api.defaults.headers.common['X-Session-Token'] = sessionToken;
     fastApi.defaults.headers.common['X-Session-Token'] = sessionToken;
+    try { localStorage.setItem(SESSION_TOKEN_LS_KEY, sessionToken); } catch { /* non-critical */ }
   }
+}
+
+/** Remove session token from axios headers and localStorage. */
+export function clearSessionToken() {
+  delete api.defaults.headers.common['X-Session-Token'];
+  delete fastApi.defaults.headers.common['X-Session-Token'];
+  try { localStorage.removeItem(SESSION_TOKEN_LS_KEY); } catch { /* non-critical */ }
+}
+
+/** Return the session token stored in localStorage (null if absent or unavailable). */
+export function getStoredSessionToken(): string | null {
+  try { return localStorage.getItem(SESSION_TOKEN_LS_KEY); } catch { return null; }
+}
+
+// Auto-restore session token from localStorage on module load (survives page reloads).
+const _storedToken = getStoredSessionToken();
+if (_storedToken) {
+  // Use direct header assignment (not setSessionToken) to avoid a redundant localStorage write.
+  api.defaults.headers.common['X-Session-Token'] = _storedToken;
+  fastApi.defaults.headers.common['X-Session-Token'] = _storedToken;
 }
 
 // ─── User Profile ─────────────────────────────────────────────────────────────

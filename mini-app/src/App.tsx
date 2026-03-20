@@ -14,6 +14,9 @@ import {
   getAnnouncements,
   setInitData as setApiInitData,
   setSessionToken,
+  clearSessionToken,
+  getStoredSessionToken,
+  getUserProfile,
   authSync,
   jtAuth,
 } from './services/api';
@@ -50,6 +53,7 @@ function AppContent() {
   // Guards against React StrictMode double-invoke
   const jtAttemptedRef = useRef(false);
   const initDataAttemptedRef = useRef(false);
+  const sessionRestoreAttemptedRef = useRef(false);
 
   const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
@@ -102,6 +106,39 @@ function AppContent() {
       }
     }, timeoutMs);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Phase 0: restore session token from localStorage (runs before SDK is needed) ───
+  // If a valid session token is stored locally, skip jt-auth and initData entirely.
+  // api.ts already restores the token into axios headers on module load; here we
+  // verify the token is still accepted by the backend and set the user context.
+  useEffect(() => {
+    const storedToken = getStoredSessionToken();
+    if (!storedToken) return;
+    if (sessionRestoreAttemptedRef.current) return;
+    sessionRestoreAttemptedRef.current = true;
+
+    console.info('[App] Found stored session token — attempting to restore session (Phase 0)');
+
+    getUserProfile()
+      .then(data => {
+        const user = data?.user || data;
+        if (user?.unique_id) {
+          setUser(user);
+          setAuthStatus('ok');
+          setAuthSyncDone(true);
+          console.info('[App] Session token restored successfully (Phase 0)');
+        } else {
+          console.warn('[App] Phase 0: profile response missing user — clearing token');
+          clearSessionToken();
+        }
+      })
+      .catch(err => {
+        console.warn('[App] Stored session token invalid/expired, clearing:', err?.message);
+        clearSessionToken();
+        // authSyncDone stays false — Phase 1 (jt-auth) or Phase 2 (initData) will continue
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -205,7 +242,8 @@ function AppContent() {
     return <LoadingScreen progress={progress} />;
   }
 
-  if (authStatus === 'expired') {
+  if (authStatus === 'expired' || authStatus === 'error') {
+    const isExpired = authStatus === 'expired';
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: theme.bgPrimary,
@@ -215,7 +253,7 @@ function AppContent() {
       }}>
         <div style={{ fontSize: '48px', textAlign: 'center' }}>🔗</div>
         <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center', lineHeight: '1.6' }}>
-          链接已过期<br />
+          {isExpired ? '链接已过期' : '认证失败'}<br />
           <span style={{ fontSize: '13px', opacity: 0.7 }}>
             请返回聊天界面，点击「打开应用」按钮重新进入
           </span>
