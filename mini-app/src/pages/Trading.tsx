@@ -574,25 +574,32 @@ export const Trading: React.FC = () => {
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
     if (!tgUser?.id) {
-      console.warn('Trading: user not available, cannot place order');
+      setOrderError('用户未登录，请重新打开应用');
       setConfirmOpen(false);
       return;
     }
+
     clearOrderError();
     setSubmitting(true);
     setConfirmOpen(false);
 
-    // If authSyncDone is false but tgUser.id is present, proceed anyway —
-    // auth may still be in progress but the session token from jt-auth is likely valid.
-    // Only block if we have no telegram user identity at all (handled above).
+    // Debug: output auth state
+    console.log('[Trading] submitOrder: authSyncDone=', authSyncDone, 'tgUser.id=', tgUser?.id);
+    console.log('[Trading] submitOrder: api headers=', {
+      sessionToken: api.defaults.headers.common['X-Session-Token'] ? 'present' : 'missing',
+      initData: api.defaults.headers.common['X-Telegram-Init-Data'] ? 'present' : 'missing',
+    });
+
+    const payload = {
+      pair_id: Number(selectedPair.id),
+      duration: Number(selectedDuration),
+      direction: confirmDirection,
+      amount: Number(amount),
+    };
+    console.log('[Trading] submitOrder payload:', payload);
 
     try {
-      const res = await api.post('/trading/quick-session', {
-        pair_id: selectedPair.id,
-        duration: selectedDuration,
-        direction: confirmDirection,
-        amount: Number(amount),
-      });
+      const res = await api.post('/trading/quick-session', payload);
       const sessionEnd = res.data?.data?.session?.end_time
         ? new Date(res.data.data.session.end_time).getTime()
         : Date.now() + selectedDuration * 1000;
@@ -625,13 +632,27 @@ export const Trading: React.FC = () => {
       await fetchBalance();
       await fetchOrderHistory();
     } catch (e: any) {
-      const errMsg = e?.response?.data?.error || e?.message || t('order_failed') || 'Order placement failed';
-      console.warn('Trading: order placement failed', errMsg);
-      setOrderError(errMsg);
-      orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 5000);
-    } finally {
+      const status = e?.response?.status;
+      const errMsg = e?.response?.data?.error || e?.response?.data?.hint || e?.message || t('order_failed') || 'Order placement failed';
+      console.error('[Trading] submitOrder error:', status, e?.response?.data);
+
+      let displayMsg = errMsg;
+      if (status === 401) {
+        displayMsg = '认证失败，请关闭后重新打开应用（401）';
+      } else if (status === 400) {
+        displayMsg = `参数错误: ${errMsg}`;
+      } else if (status === 402) {
+        displayMsg = '余额不足';
+      } else if (status === 503) {
+        displayMsg = '交易功能数据库未初始化，请联系管理员';
+      }
+
+      setOrderError(displayMsg);
+      orderErrorTimerRef.current = setTimeout(() => setOrderError(null), 8000);
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
   };
 
   const startCountdown = (endTime: number, orderId?: string) => {
@@ -848,8 +869,35 @@ export const Trading: React.FC = () => {
 
         {/* Period info — directly below chart */}
         {periodInfo && (
-          <div style={{ textAlign: 'center', marginBottom: '8px', color: theme.textSecondary, fontSize: '11px' }}>
-            期号：{periodInfo.nextPeriodLabel}
+          <div style={{
+            backgroundColor: theme.bgCard,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '8px',
+            padding: '6px 12px',
+            marginBottom: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '11px',
+          }}>
+            {/* 当前期号 */}
+            <div style={{ color: theme.textSecondary, textAlign: 'center' }}>
+              <div style={{ color: theme.text, fontWeight: 600 }}>{t('period_current')}</div>
+              <div>{periodInfo.currentPeriodLabel}</div>
+            </div>
+            {/* 倒计时 */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: '#f0b90b', fontSize: '16px', fontWeight: 700 }}>
+                {String(Math.floor(periodInfo.secondsUntilNext / 60)).padStart(2, '0')}:
+                {String(periodInfo.secondsUntilNext % 60).padStart(2, '0')}
+              </div>
+              <div style={{ color: theme.textSecondary, fontSize: '10px' }}>{t('period_countdown')}</div>
+            </div>
+            {/* 下一期号 */}
+            <div style={{ color: theme.textSecondary, textAlign: 'center' }}>
+              <div style={{ color: theme.text, fontWeight: 600 }}>{t('period_next')}</div>
+              <div>{periodInfo.nextPeriodLabel}</div>
+            </div>
           </div>
         )}
 
@@ -962,14 +1010,14 @@ export const Trading: React.FC = () => {
               )}
             </div>
             {/* Right: UP/DOWN buttons stacked vertically */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '100px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '88px' }}>
               <button
                 onClick={() => openConfirm('up')}
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#26a69a', color: '#fff',
-                  borderRadius: '12px', padding: '12px 16px',
-                  fontSize: '15px', fontWeight: 700, border: 'none',
+                  borderRadius: '10px', padding: '9px 12px',
+                  fontSize: '13px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
                   transition: 'opacity 0.2s',
@@ -982,8 +1030,8 @@ export const Trading: React.FC = () => {
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#ef5350', color: '#fff',
-                  borderRadius: '12px', padding: '12px 16px',
-                  fontSize: '15px', fontWeight: 700, border: 'none',
+                  borderRadius: '10px', padding: '9px 12px',
+                  fontSize: '13px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
                   transition: 'opacity 0.2s',
@@ -1024,6 +1072,11 @@ export const Trading: React.FC = () => {
             {orderSuccess}
           </div>
         )}
+
+        {/* Debug auth status */}
+        <div style={{ fontSize: '10px', color: theme.textSecondary, textAlign: 'center', padding: '4px', opacity: 0.5 }}>
+          Auth: {authSyncDone ? 'done' : 'pending'} | User: {tgUser?.id || 'none'} | Token: {api.defaults.headers.common['X-Session-Token'] ? '✓' : '✗'}
+        </div>
 
         {/* Order history toggle */}
         <button
