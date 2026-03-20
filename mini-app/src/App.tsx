@@ -54,6 +54,9 @@ function AppContent() {
   const jtAttemptedRef = useRef(false);
   const initDataAttemptedRef = useRef(false);
   const sessionRestoreAttemptedRef = useRef(false);
+  // True once any auth phase succeeds — prevents the timeout safety net from
+  // overwriting a successful auth status with 'error' after the timeout fires.
+  const authSucceededRef = useRef(false);
   // True once Phase 1 (jt-auth) has settled — either no ?jt= param, or the HTTP
   // request has resolved/rejected. Phase 2 waits for this before showing 'expired',
   // preventing a race where sdkReady turns false before jt-auth finishes.
@@ -97,13 +100,15 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [authSyncDone]);
 
-  // ── Timeout safety net: 5s when jt token present, 8s otherwise ────────────
+  // ── Timeout safety net: 10s when jt token present, 12s otherwise ─────────
+  // JT_AUTH_TIMEOUT_MS must exceed fastApi's axios timeout (8s) so that the
+  // HTTP request can fail/succeed and be reported before this safety net fires.
   useEffect(() => {
-    const JT_AUTH_TIMEOUT_MS = 5000;    // With jt token: fail fast (jt-auth is the auth path)
-    const FALLBACK_AUTH_TIMEOUT_MS = 8000; // Without jt token: allow time for SDK + initData
+    const JT_AUTH_TIMEOUT_MS = 10000;    // > fastApi axios timeout (8s): lets HTTP finish first
+    const FALLBACK_AUTH_TIMEOUT_MS = 12000; // Without jt token: allow time for SDK + initData
     const timeoutMs = getUrlParam('jt') ? JT_AUTH_TIMEOUT_MS : FALLBACK_AUTH_TIMEOUT_MS;
     const timer = setTimeout(() => {
-      if (loading) {
+      if (!authSucceededRef.current) {
         console.warn(`[App] Auth timeout after ${timeoutMs / 1000}s — force-closing loading screen`);
         setAuthStatus('error');
         setAuthSyncDone(true);
@@ -130,6 +135,7 @@ function AppContent() {
         const user = data?.user || data;
         if (user?.unique_id) {
           setUser(user);
+          authSucceededRef.current = true;
           setAuthStatus('ok');
           setAuthSyncDone(true);
           console.info('[App] Session token restored successfully (Phase 0)');
@@ -170,6 +176,7 @@ function AppContent() {
         if (data?.user) setUser(data.user);
         if (data?.session_token) setSessionToken(data.session_token);
         console.info('[App] jt-auth succeeded');
+        authSucceededRef.current = true;
         setAuthStatus('ok');
         setAuthSyncDone(true);
         setJtDone(true);
@@ -239,6 +246,7 @@ function AppContent() {
       .then(data => {
         if (data?.user) setUser(data.user);
         if (data?.session_token) setSessionToken(data.session_token);
+        authSucceededRef.current = true;
         setAuthStatus('ok');
       })
       .catch(err => {
