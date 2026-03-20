@@ -107,7 +107,7 @@ const resolveIconUrl = (url: string | null | undefined): string => {
 };
 
 const DEFAULT_RULES: TradingRule[] = [
-  { id: 'default', duration_seconds: 60, odds: 1.95, min_bet: 1, max_bet: 1000 },
+  { id: 'default', duration_seconds: 60, odds: 1.85, min_bet: 1, max_bet: 1000 },
 ];
 
 // Chart tick timing constants (milliseconds)
@@ -129,7 +129,7 @@ export const Trading: React.FC = () => {
   const [selectedPair, setSelectedPair] = useState<TradingPair | null>(null);
   const [rules, setRules] = useState<TradingRule[]>([]);
   const [selectedDuration, setSelectedDuration] = useState(60);
-  const [selectedOdds, setSelectedOdds] = useState(1.95);
+  const [selectedOdds, setSelectedOdds] = useState(1.85);
   const [amount, setAmount] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDirection, setConfirmDirection] = useState<'up' | 'down'>('up');
@@ -154,6 +154,7 @@ export const Trading: React.FC = () => {
   const selectedPairRef = useRef<TradingPair | null>(null);
   const pricesRef = useRef<Record<string, PriceInfo>>({});
   const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedDurationRef = useRef<number>(selectedDuration);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -210,12 +211,23 @@ export const Trading: React.FC = () => {
 
   // Update period info every second based on selectedDuration
   useEffect(() => {
+    selectedDurationRef.current = selectedDuration;
     const updatePeriod = () => setPeriodInfo(getCurrentPeriodInfo(selectedDuration));
     updatePeriod();
     if (periodTimerRef.current) clearInterval(periodTimerRef.current);
     periodTimerRef.current = setInterval(updatePeriod, 1000);
     return () => { if (periodTimerRef.current) clearInterval(periodTimerRef.current); };
   }, [selectedDuration]);
+
+  // Re-poll rules every 60s so admin-updated odds are reflected in the mini-app
+  useEffect(() => {
+    if (!selectedPair) return;
+    const interval = setInterval(() => {
+      fetchRulesForPair(selectedPair);
+    }, 60000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPair?.id]);
 
   // Keep pricesRef in sync with prices state for use in timeout callbacks
   useEffect(() => {
@@ -501,6 +513,29 @@ export const Trading: React.FC = () => {
     pollRef.current = setInterval(fetchPrices, 2000);
   }, []);
 
+  const fetchRulesForPair = async (pair: TradingPair) => {
+    try {
+      const res = await api.get(`/trading/pairs/${pair.id}/rules`);
+      let ruleList: TradingRule[] = res.data?.data || [];
+      if (ruleList.length === 0) {
+        // try global rules endpoint
+        const globalRes = await api.get('/trading/rules').catch(() => ({ data: null }));
+        ruleList = globalRes.data?.data || globalRes.data?.rules || [];
+      }
+      if (ruleList.length === 0) {
+        ruleList = DEFAULT_RULES;
+      }
+      setRules(ruleList);
+      // Update selectedOdds based on the currently selected duration (use ref to avoid stale closure)
+      const currentDuration = selectedDurationRef.current;
+      const match = ruleList.find((r) => r.duration_seconds === currentDuration);
+      if (match) setSelectedOdds(match.odds);
+    } catch {
+      setRules(DEFAULT_RULES);
+      setSelectedOdds(DEFAULT_RULES[0].odds);
+    }
+  };
+
   const openDetail = async (pair: TradingPair) => {
     setSelectedPair(pair);
     selectedPairRef.current = pair;
@@ -519,28 +554,7 @@ export const Trading: React.FC = () => {
     } catch {
       // non-critical, poll will update soon
     }
-    try {
-      const res = await api.get(`/trading/pairs/${pair.id}/rules`);
-      let ruleList: TradingRule[] = res.data?.data || [];
-      if (ruleList.length === 0) {
-        // try global rules endpoint
-        const globalRes = await api.get('/trading/rules').catch(() => ({ data: null }));
-        ruleList = globalRes.data?.data || globalRes.data?.rules || [];
-      }
-      if (ruleList.length === 0) {
-        ruleList = DEFAULT_RULES;
-      }
-      setRules(ruleList);
-      const firstMatch = ruleList.find((r) => r.duration_seconds === selectedDuration) || ruleList[0];
-      if (firstMatch) {
-        setSelectedDuration(firstMatch.duration_seconds);
-        setSelectedOdds(firstMatch.odds);
-      }
-    } catch {
-      setRules(DEFAULT_RULES);
-      setSelectedDuration(DEFAULT_RULES[0].duration_seconds);
-      setSelectedOdds(DEFAULT_RULES[0].odds);
-    }
+    await fetchRulesForPair(pair);
   };
 
   const handleDurationSelect = (sec: number) => {
@@ -804,7 +818,7 @@ export const Trading: React.FC = () => {
         )}
 
         {/* Price + 24h change — compact */}
-        <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '8px 12px', marginBottom: '10px', border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '6px 16px', marginBottom: '10px', border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ fontSize: '18px', fontWeight: '700', color: theme.text }}>
             {priceInfo.price === 0 && selectedPair.pair_type === 'custom'
               ? t('loading') || '加载中...'
@@ -1010,17 +1024,17 @@ export const Trading: React.FC = () => {
               )}
             </div>
             {/* Right: UP/DOWN buttons stacked vertically */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '88px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '110px' }}>
               <button
                 onClick={() => openConfirm('up')}
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#26a69a', color: '#fff',
-                  borderRadius: '10px', padding: '9px 12px',
-                  fontSize: '13px', fontWeight: 700, border: 'none',
+                  borderRadius: '10px', padding: '14px 8px',
+                  fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
-                  transition: 'opacity 0.2s',
+                  transition: 'opacity 0.2s', width: '100%',
                 }}
               >
                 ▲ {t('order_up')}
@@ -1030,11 +1044,11 @@ export const Trading: React.FC = () => {
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#ef5350', color: '#fff',
-                  borderRadius: '10px', padding: '9px 12px',
-                  fontSize: '13px', fontWeight: 700, border: 'none',
+                  borderRadius: '10px', padding: '14px 8px',
+                  fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
-                  transition: 'opacity 0.2s',
+                  transition: 'opacity 0.2s', width: '100%',
                 }}
               >
                 ▼ {t('order_down')}
