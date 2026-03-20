@@ -5,8 +5,7 @@ export interface UserProfile {
   id?: string;
   unique_id: string;
   telegram_id?: number;
-  balance: number;
-  wallet_balance?: number;
+  wallet_balance: number;
   reward_balance?: number;
   nft_balance?: number;
   red_packet_balance?: number;
@@ -50,7 +49,7 @@ export const useUser = () => useContext(UserContext);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshBalance = useCallback(async () => {

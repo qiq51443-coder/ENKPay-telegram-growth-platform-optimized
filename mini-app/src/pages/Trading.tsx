@@ -168,7 +168,7 @@ export const Trading: React.FC = () => {
       if (tradable !== undefined) {
         setAvailableBalance(parseFloat(String(tradable)));
       } else {
-        const walletBal = parseFloat(String(contextUser.wallet_balance ?? contextUser.balance ?? 0));
+        const walletBal = parseFloat(String(contextUser.wallet_balance ?? 0));
         const redPacketBal = parseFloat(String(contextUser.red_packet_balance ?? contextUser.red_packet_credits ?? 0));
         setAvailableBalance(walletBal + redPacketBal);
       }
