@@ -6,7 +6,7 @@ import { clearUserState } from '../utils/state';
 import axios from 'axios';
 import crypto from 'crypto';
 
-const JT_TOKEN_TTL = 1800; // 30 minutes — matches backend Redis TTL
+const JT_TOKEN_TTL = 86400; // 24 hours — matches backend Redis TTL
 
 export const handleStart = async (ctx: Context) => {
   try {
@@ -110,23 +110,14 @@ export const handleStart = async (ctx: Context) => {
       // Graceful degradation: Mini App falls back to initData auth
     }
 
-    // Send welcome text with reply keyboard (wallet + invite buttons only)
+    // Send welcome text with reply keyboard (wallet + invite buttons only).
+    // The "Open App" WebApp button is now in the wallet card inline keyboard,
+    // where it properly injects initData AND includes a fresh ?jt= token.
     await ctx.replyWithHTML(
       welcomeText,
       Markup.keyboard([
         [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
       ]).resize()
-    );
-
-    // Send inline keyboard with WebApp button separately.
-    // Only inline WebApp buttons inject Telegram initData into the Mini App;
-    // reply-keyboard WebApp buttons do not — so this second message is required
-    // for the Mini App authentication (Phase 2 authSync) to work correctly.
-    await ctx.reply(
-      '👇',
-      Markup.inlineKeyboard([
-        [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
-      ])
     );
   } catch (error) {
     console.error('Start handler error:', error);

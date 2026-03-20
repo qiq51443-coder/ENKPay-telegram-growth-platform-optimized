@@ -3,6 +3,9 @@ import { getOrCreateUser, getUserLanguage, User } from '../services/user';
 import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 import axios from 'axios';
+import crypto from 'crypto';
+
+const JT_TOKEN_TTL = 86400; // 24 hours
 
 export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
   try {
@@ -72,11 +75,13 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       balanceFetchFailed = true;
     }
 
-    // Fetch settings to get support_telegram
+    // Fetch settings to get support_telegram and webapp_url
     let supportUsername = '';
+    let webAppUrl = process.env.WEBAPP_URL || '';
     try {
       const settings = await getSettings(botId);
       supportUsername = settings?.support_telegram || '';
+      webAppUrl = settings?.webapp_url || webAppUrl;
     } catch {}
 
     const displayId = user.unique_id || user.robot_user_id || String(ctx.from.id);
@@ -92,7 +97,8 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       ? Markup.button.url(t(lang, 'btn_contact_support'), `https://t.me/${supportUsername}`)
       : Markup.button.callback(t(lang, 'btn_contact_support'), 'wallet_support');
 
-    await ctx.replyWithHTML(message, Markup.inlineKeyboard([
+    // Build keyboard rows, adding "Open App" webApp button below Transfer if webapp_url is set
+    const keyboardRows: any[][] = [
       [
         Markup.button.callback(t(lang, 'btn_deposit'), 'wallet_deposit'),
         Markup.button.callback(t(lang, 'btn_transfer'), 'wallet_transfer'),
@@ -100,14 +106,37 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
       [
         Markup.button.callback(t(lang, 'btn_withdraw'), 'wallet_withdraw'),
       ],
-      [
-        supportButton,
-        Markup.button.callback('🌐 Language', 'wallet_language'),
-      ],
-      [
-        Markup.button.callback(t(lang, 'btn_back'), 'wallet_back'),
-      ],
-    ]));
+    ];
+
+    if (webAppUrl && ctx.from) {
+      try {
+        const jtToken = crypto.randomBytes(32).toString('hex');
+        await axios.post(
+          `${backendUrl}/api/miniapp/jt-store`,
+          {
+            jt: jtToken,
+            telegram_id: ctx.from.id,
+            bot_id: botId,
+            first_name: ctx.from.first_name || '',
+            username: ctx.from.username || null,
+            language_code: ctx.from.language_code || lang,
+            ttl: JT_TOKEN_TTL,
+          },
+          { headers: { 'X-Bot-Id': botId }, timeout: 5000 }
+        );
+        const separator = webAppUrl.includes('?') ? '&' : '?';
+        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), `${webAppUrl}${separator}jt=${jtToken}`)]);
+      } catch (err: any) {
+        console.warn('[handleWallet] failed to generate jt token for open-app button:', err?.message);
+        // Graceful degradation: show button without jt token
+        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
+      }
+    }
+
+    keyboardRows.push([supportButton, Markup.button.callback('🌐 Language', 'wallet_language')]);
+    keyboardRows.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back')]);
+
+    await ctx.replyWithHTML(message, Markup.inlineKeyboard(keyboardRows));
   } catch (error) {
     console.error('Wallet handler error:', error);
     try {
