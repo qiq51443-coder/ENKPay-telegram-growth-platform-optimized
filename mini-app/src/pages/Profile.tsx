@@ -49,7 +49,7 @@ export const Profile: React.FC = () => {
   const { user: tgUser } = useTelegram();
   const { lang, setLang, t } = useLang();
   const { user: contextUser, refreshBalance } = useUser();
-  const { authSyncDone } = useAuthSync();
+  const { authSyncDone, authStatus } = useAuthSync();
   const [view, setView] = useState<ProfileView>('main');
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -173,11 +173,17 @@ export const Profile: React.FC = () => {
   }, [view]);
 
   // Show loading while App-level auth has not yet completed
-  if (!authSyncDone) {
+  if (!authSyncDone || authStatus === 'pending') {
     return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
 
-  // Error state: auth is done but no profile could be loaded — show friendly message with retry
+  // Auth failed / not a real Telegram session — don't show an error, just render nothing
+  // (App.tsx already shows the "expired" screen when authStatus === 'expired')
+  if (authStatus === 'error' || authStatus === 'expired') {
+    return null;
+  }
+
+  // Auth succeeded but profile is still null — real backend problem, allow retry
   if (!profile) {
     return (
       <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>

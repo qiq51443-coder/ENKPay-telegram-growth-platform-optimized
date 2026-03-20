@@ -248,7 +248,7 @@ function AppContent() {
   };
 
   return (
-    <AuthSyncContext.Provider value={{ authSyncDone }}>
+    <AuthSyncContext.Provider value={{ authSyncDone, authStatus }}>
       <div
         dir={lang === 'ar' ? 'rtl' : 'ltr'}
         style={{ minHeight: '100vh', backgroundColor: theme.bgPrimary, paddingBottom: '60px' }}
