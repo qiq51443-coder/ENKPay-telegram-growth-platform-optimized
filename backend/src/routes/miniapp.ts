@@ -434,7 +434,16 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
       return res.status(404).json({ error: 'User not found after upsert' });
     }
 
-    res.json({ success: true, user: userProfile });
+    // Mint a 24-hour session token (mirrors jt-auth so Phase 0 works on next load)
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    await setCache(
+      sessionTokenKey(sessionToken),
+      // botId is empty for initData-based auth (no single bot context; telegramId is the identity)
+      { telegramId: tgUser.id, botId: '' },
+      86400
+    );
+
+    res.json({ success: true, user: userProfile, session_token: sessionToken });
   } catch (error: any) {
     console.error('Miniapp auth-sync error:', error);
     res.status(500).json({ error: error.message });

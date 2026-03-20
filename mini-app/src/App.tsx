@@ -54,6 +54,10 @@ function AppContent() {
   const jtAttemptedRef = useRef(false);
   const initDataAttemptedRef = useRef(false);
   const sessionRestoreAttemptedRef = useRef(false);
+  // True once Phase 1 (jt-auth) has settled — either no ?jt= param, or the HTTP
+  // request has resolved/rejected. Phase 2 waits for this before showing 'expired',
+  // preventing a race where sdkReady turns false before jt-auth finishes.
+  const [jtDone, setJtDone] = useState(() => !getUrlParam('jt'));
 
   const { tg, initData, sdkReady } = useTelegram();
   const { lang } = useLang();
@@ -168,6 +172,7 @@ function AppContent() {
         console.info('[App] jt-auth succeeded');
         setAuthStatus('ok');
         setAuthSyncDone(true);
+        setJtDone(true);
       })
       .catch(err => {
         const is401 = err?.response?.status === 401;
@@ -176,11 +181,12 @@ function AppContent() {
           // Do NOT immediately set expired — let Phase 2 try initData first.
           // Phase 2 effect will detect authSyncDone=false and try initData when SDK is ready.
           // Only if SDK is also unavailable will we fall through to the expired/error screen.
-          return;
+        } else {
+          // Network / server error — fall through to Phase 2 (initData) as a last resort
+          console.warn('[App] jt-auth failed (network error), falling back to initData:', err?.message);
+          // Do NOT set authStatus/authSyncDone here — let Phase 2 handle it
         }
-        // Network / server error — fall through to Phase 2 (initData) as a last resort
-        console.warn('[App] jt-auth failed (network error), falling back to initData:', err?.message);
-        // Do NOT set authStatus/authSyncDone here — let Phase 2 handle it
+        setJtDone(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -195,7 +201,13 @@ function AppContent() {
 
     // If a jt token was present in the URL but auth failed, show expired screen
     // instead of attempting initData (which won't help if jt is the auth mechanism).
+    // Guard: wait for jt-auth to settle (jtDone) before deciding — avoids a race
+    // where sdkReady turns false while the jt-auth HTTP request is still in-flight.
     if (getUrlParam('jt')) {
+      if (!jtDone) {
+        // jt-auth is still running — wait for it to complete before deciding
+        return;
+      }
       console.warn('[App] jt token present but auth failed — showing expired screen');
       setAuthStatus('expired');
       setAuthSyncDone(true);
@@ -226,6 +238,7 @@ function AppContent() {
     authSync(initData)
       .then(data => {
         if (data?.user) setUser(data.user);
+        if (data?.session_token) setSessionToken(data.session_token);
         setAuthStatus('ok');
       })
       .catch(err => {
@@ -236,7 +249,7 @@ function AppContent() {
         setAuthSyncDone(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdkReady, initData, authSyncDone, setUser]);
+  }, [sdkReady, initData, authSyncDone, jtDone, setUser]);
 
   if (loading) {
     return <LoadingScreen progress={progress} />;
