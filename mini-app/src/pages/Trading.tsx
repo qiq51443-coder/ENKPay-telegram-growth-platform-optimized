@@ -984,7 +984,7 @@ export const Trading: React.FC = () => {
             <div style={{ fontSize: '13px' }}>金额：{activeOrder.amount} USDT · 等待结算...</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
             {/* Left: amount area */}
             <div style={{ flex: 1 }}>
               <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>{t('bet_amount')}</div>
@@ -1031,7 +1031,7 @@ export const Trading: React.FC = () => {
                 style={{
                   backgroundColor: '#26a69a', color: '#fff',
                   borderRadius: '10px', padding: '0 8px',
-                  height: '90px',
+                  height: '45px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
@@ -1046,7 +1046,7 @@ export const Trading: React.FC = () => {
                 style={{
                   backgroundColor: '#ef5350', color: '#fff',
                   borderRadius: '10px', padding: '0 8px',
-                  height: '90px',
+                  height: '45px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
