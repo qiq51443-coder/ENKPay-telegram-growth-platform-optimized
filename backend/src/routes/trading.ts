@@ -367,7 +367,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       // Get trading rule for this session (if exists)
       let ruleId = session.rule_id;
-      let odds = 1.95; // Default odds
+      let odds = 1.85; // Default odds, aligned with frontend
       let minBet = 1.0;
       let maxBet = 10000.0;
 
@@ -663,7 +663,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       }
 
       // Get applicable rule: pair-specific rules take precedence (ORDER BY pair_id DESC NULLS LAST),
-      // then fall back to global rules (pair_id IS NULL). If neither exists, defaults (1.95/1/10000) are used.
+      // then fall back to global rules (pair_id IS NULL). If neither exists, defaults (1.85/1/10000) are used.
       const ruleResult = await client.query(
         `SELECT id, odds, min_bet, max_bet
          FROM trading_rules
@@ -720,10 +720,10 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       const endTime = new Date(now.getTime() + durationSeconds * 1000);
 
       const sessionResult = await client.query(
-        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time)
-         VALUES ($1, $2, 'active', $3, $4)
+        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds)
+         VALUES ($1, $2, 'active', $3, $4, $5)
          RETURNING *`,
-        [pairIdInt, ruleId, now, endTime]
+        [pairIdInt, ruleId, now, endTime, durationSeconds]
       );
       const session = sessionResult.rows[0];
 
