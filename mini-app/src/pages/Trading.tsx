@@ -1024,13 +1024,14 @@ export const Trading: React.FC = () => {
               )}
             </div>
             {/* Right: UP/DOWN buttons stacked vertically */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '110px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '120px', flexShrink: 0 }}>
               <button
                 onClick={() => openConfirm('up')}
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#26a69a', color: '#fff',
-                  borderRadius: '10px', padding: '14px 8px',
+                  borderRadius: '10px', padding: '0 8px',
+                  height: '90px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
@@ -1044,7 +1045,8 @@ export const Trading: React.FC = () => {
                 disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
                 style={{
                   backgroundColor: '#ef5350', color: '#fff',
-                  borderRadius: '10px', padding: '14px 8px',
+                  borderRadius: '10px', padding: '0 8px',
+                  height: '90px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
                   cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
                   opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
