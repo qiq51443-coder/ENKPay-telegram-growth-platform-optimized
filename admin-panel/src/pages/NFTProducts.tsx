@@ -160,6 +160,11 @@ export const NFTProducts: React.FC = () => {
     try {
       const values = await form.validateFields();
 
+      // Ensure title is always set to keep it consistent with name
+      if (!values.title) {
+        values.title = values.name;
+      }
+
       if (values.listing_time) {
         values.listing_time = values.listing_time.toISOString();
       }

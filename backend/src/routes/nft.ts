@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import axios from 'axios';
+import { translateToAllLangs } from '../utils/translate';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
@@ -215,6 +216,7 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
     const {
       category_id,
       name,
+      title,
       description,
       description_i18n,
       image_url,
@@ -250,7 +252,7 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `INSERT INTO nft_products 
-       (category_id, name, description, description_i18n, image_url, price, stock, total_supply,
+       (category_id, name, title, description, description_i18n, image_url, price, stock, total_supply,
         daily_trade_reward_rate, max_trade_reward_days, metadata,
         product_type, status, original_price, duration_days,
         term_days, daily_yield_rate, max_holders, is_purchase_limited,
@@ -258,11 +260,12 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
         settlement_type, settlement_description, display_holders_count)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-               $21, $22, $23, $24, $25)
+               $21, $22, $23, $24, $25, $26)
        RETURNING *`,
       [
         category_id,
         name,
+        title || name,
         description,
         description_i18n ? JSON.stringify(description_i18n) : '{}',
         image_url,
@@ -314,6 +317,7 @@ router.put('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => 
     const allowedFields = [
       'category_id',
       'name',
+      'title',
       'description',
       'description_i18n',
       'image_url',
@@ -737,36 +741,12 @@ router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: Au
  */
 router.post('/translate-description', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { text, source_lang = 'zh' } = req.body;
+    const { text } = req.body;
     if (!text) {
       return res.status(400).json({ error: 'text is required' });
     }
 
-    const targetLangs = ['zh', 'en', 'ja', 'ar', 'fr', 'de', 'es'];
-    const translations: Record<string, string> = {};
-
-    for (const lang of targetLangs) {
-      if (lang === source_lang) {
-        translations[lang] = text;
-        continue;
-      }
-      try {
-        const response = await axios.post(
-          'https://libretranslate.com/translate',
-          {
-            q: text,
-            source: source_lang,
-            target: lang,
-            format: 'text',
-          },
-          { timeout: 10000 }
-        );
-        translations[lang] = response.data?.translatedText || text;
-      } catch {
-        // Fallback: use original text if translation service is unavailable
-        translations[lang] = text;
-      }
-    }
+    const translations = await translateToAllLangs(text);
 
     res.json({ success: true, data: translations });
   } catch (error: any) {
