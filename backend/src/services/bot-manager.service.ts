@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Telegraf, Context, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
 import axios from 'axios';
@@ -601,14 +602,56 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       const webAppUrl = resolveWebAppUrl(settings);
 
       const welcomeText = await buildWelcomeText(user, lang, settings);
-      const keyboardRows: any[][] = [
-        [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-      ];
-      if (webAppUrl) {
-        keyboardRows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
+
+      // ── Generate jt token and store in Redis ──────────────────────────────
+      const JT_TOKEN_TTL = 1800; // 30 minutes
+      const JT_STORE_TIMEOUT_MS = 8000;
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+      let finalWebAppUrl = webAppUrl;
+
+      if (webAppUrl && ctx.from) {
+        const jtToken = crypto.randomBytes(32).toString('hex');
+        try {
+          await axios.post(
+            `${backendUrl}/api/miniapp/jt-store`,
+            {
+              jt: jtToken,
+              telegram_id: ctx.from.id,
+              bot_id: botId,
+              first_name: ctx.from.first_name || '',
+              username: ctx.from.username || null,
+              language_code: ctx.from.language_code || lang,
+              ttl: JT_TOKEN_TTL,
+            },
+            { headers: { 'X-Bot-Id': botId }, timeout: JT_STORE_TIMEOUT_MS }
+          );
+          const separator = webAppUrl.includes('?') ? '&' : '?';
+          finalWebAppUrl = `${webAppUrl}${separator}jt=${jtToken}`;
+          console.log(`[bot ${botId}] jt token stored successfully`);
+        } catch (err: any) {
+          const status = err?.response?.status;
+          console.warn(`[bot ${botId}] Failed to store jt token (status=${status ?? 'network'}):`, err?.message);
+          // Graceful fallback: Mini App will fall back to initData auth
+        }
       }
 
-      await ctx.replyWithHTML(welcomeText, Markup.keyboard(keyboardRows).resize());
+      // ── Send welcome message with reply keyboard (wallet + invite buttons) ─
+      await ctx.replyWithHTML(
+        welcomeText,
+        Markup.keyboard([
+          [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+        ]).resize()
+      );
+
+      // ── Send inline keyboard with WebApp button (inline button injects initData)
+      if (finalWebAppUrl) {
+        await ctx.reply(
+          '👇',
+          Markup.inlineKeyboard([
+            [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
+          ])
+        );
+      }
     } catch (error) {
       console.error(`[bot ${botId}] Start handler error:`, error);
       try { await ctx.reply('An error occurred. Please try again.'); } catch {}
