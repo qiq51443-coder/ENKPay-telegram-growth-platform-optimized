@@ -144,10 +144,9 @@ export async function upsertUserFromTelegramId(
     `INSERT INTO users (
        telegram_id, first_name, username, language_code,
        wallet_balance, reward_balance, frozen_balance,
-       red_packet_credits, unique_id, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6, NOW(), NOW())
+       red_packet_credits, unique_id, created_at
+     ) VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6, NOW())
      ON CONFLICT (telegram_id) DO UPDATE SET
-       updated_at         = NOW(),
        last_active_at     = NOW(),
        first_name         = CASE WHEN EXCLUDED.first_name <> '' THEN EXCLUDED.first_name ELSE users.first_name END,
        username           = COALESCE(EXCLUDED.username, users.username),
