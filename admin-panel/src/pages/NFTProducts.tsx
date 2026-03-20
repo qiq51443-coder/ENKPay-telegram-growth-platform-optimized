@@ -59,6 +59,7 @@ export const NFTProducts: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<NFTProduct | null>(null);
   const [form] = Form.useForm();
+  const dailyYieldRate = Form.useWatch('daily_yield_rate', form);
   const [imageMode, setImageMode] = useState<'upload' | 'url'>('url');
   const [imagePreview, setImagePreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -161,6 +162,11 @@ export const NFTProducts: React.FC = () => {
 
       if (values.listing_time) {
         values.listing_time = values.listing_time.toISOString();
+      }
+
+      // Ensure daily_yield_rate is sent as a number or null (never undefined)
+      if (values.daily_yield_rate === undefined || values.daily_yield_rate === null || values.daily_yield_rate === '') {
+        values.daily_yield_rate = null;
       }
 
       if (imageMode === 'upload' && imagePreview) {
@@ -677,8 +683,21 @@ export const NFTProducts: React.FC = () => {
                   name="daily_yield_rate"
                   label="日收益率"
                   tooltip="小数，如 0.005 = 0.5%/天"
+                  rules={[{ type: 'number', min: 0, max: 1, message: '请输入 0 到 1 之间的数值（如 0.01 表示 1%/天）' }]}
                 >
-                  <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
+                  <InputNumber
+                    min={0}
+                    max={1}
+                    step={0.0001}
+                    precision={4}
+                    style={{ width: '100%' }}
+                    placeholder="0.005"
+                    addonAfter={
+                      dailyYieldRate !== undefined && dailyYieldRate !== null
+                        ? `= ${(dailyYieldRate * 100).toFixed(4)}%/天`
+                        : '%/天'
+                    }
+                  />
                 </Form.Item>
 
                 <Form.Item
@@ -735,8 +754,21 @@ export const NFTProducts: React.FC = () => {
                 <Form.Item
                   name="daily_yield_rate"
                   label="日收益率 (小数，如 0.005 = 0.5%/天)"
+                  rules={[{ type: 'number', min: 0, max: 1, message: '请输入 0 到 1 之间的数值（如 0.01 表示 1%/天）' }]}
                 >
-                  <InputNumber min={0} max={1} step={0.001} precision={6} style={{ width: '100%' }} placeholder="0.005" />
+                  <InputNumber
+                    min={0}
+                    max={1}
+                    step={0.0001}
+                    precision={4}
+                    style={{ width: '100%' }}
+                    placeholder="0.005"
+                    addonAfter={
+                      dailyYieldRate !== undefined && dailyYieldRate !== null
+                        ? `= ${(dailyYieldRate * 100).toFixed(4)}%/天`
+                        : '%/天'
+                    }
+                  />
                 </Form.Item>
 
                 <Form.Item name="max_holders" label="总量上限 (最多可购人数)">

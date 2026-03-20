@@ -18,8 +18,8 @@ async function distributeDailyYield(): Promise<void> {
     );
 
     for (const holding of holdings.rows) {
-      const dailyYield = parseFloat(holding.amount) * parseFloat(holding.daily_yield_rate || '0.005');
-      if (dailyYield <= 0) continue;
+      if (!holding.daily_yield_rate || parseFloat(holding.daily_yield_rate) <= 0) continue;
+      const dailyYield = parseFloat(holding.amount) * parseFloat(holding.daily_yield_rate);
 
       await transaction(async (client) => {
         await client.query(
