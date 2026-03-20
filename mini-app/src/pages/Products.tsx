@@ -38,8 +38,9 @@ function getGradient(price: number): string {
   return 'linear-gradient(135deg, #4a1a5e, #8e44ad)';
 }
 
-function formatAmount(price: number): string {
-  return '$' + price.toLocaleString('en-US');
+function formatAmount(price: string | number): string {
+  const num = parseFloat(String(price)) || 0;
+  return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export const Products: React.FC = () => {
@@ -109,9 +110,10 @@ export const Products: React.FC = () => {
     const holders = selected.current_holders ?? 0;
     const maxHolders = selected.max_holders ?? 100;
     const holdersProgress = maxHolders > 0 ? Math.min((holders / maxHolders) * 100, 100) : 0;
-    const dailyRate = selected.daily_yield_rate ?? 0.005;
-    const termDays = selected.term_days ?? 30;
-    const expectedYield = selected.price * dailyRate * termDays;
+    const dailyRate = parseFloat(String(selected.daily_yield_rate ?? 0.005));
+    const termDays = parseInt(String(selected.term_days ?? 30));
+    const price = parseFloat(String(selected.price)) || 0;
+    const expectedYield = price * dailyRate * termDays;
 
     return (
       <div style={{ paddingBottom: '80px' }}>
@@ -129,7 +131,7 @@ export const Products: React.FC = () => {
         <div style={{ width: '100%', height: '220px', backgroundColor: theme.bgCardHover, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {selected.image_url
             ? <img src={selected.image_url} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <div style={{ background: getGradient(selected.price), width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💰</div>
+            : <div style={{ background: getGradient(price), width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💰</div>
           }
         </div>
 
@@ -158,7 +160,7 @@ export const Products: React.FC = () => {
             {[
               [t('product_term'), `${termDays} ${t('product_term_days')}`],
               [t('product_daily_rate'), `${(dailyRate * 100).toFixed(2)}%`],
-              [t('product_min_purchase'), formatAmount(selected.price)],
+              [t('product_min_purchase'), formatAmount(price)],
               [t('product_expected_yield'), `$${expectedYield.toFixed(2)}`],
             ].map(([label, val]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
@@ -202,7 +204,7 @@ export const Products: React.FC = () => {
               <h3 style={{ color: theme.text, margin: '0 0 16px' }}>{t('product_confirm_purchase')}</h3>
               {[
                 [t('product_label'), selected.name],
-                [t('product_amount'), formatAmount(selected.price)],
+                [t('product_amount'), formatAmount(price)],
                 [t('product_term'), `${termDays} ${t('product_term_days')}`],
                 [t('product_expected_yield'), `$${expectedYield.toFixed(2)}`],
               ].map(([label, val]) => (
@@ -283,7 +285,7 @@ export const Products: React.FC = () => {
             const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
             const elapsedDays = Math.max(0, Math.round((Date.now() - startMs) / 86400000));
             const progress = Math.min(100, (elapsedDays / totalDays) * 100);
-            const estimatedYield = h.amount * (h.daily_yield_rate ?? 0) * totalDays;
+            const estimatedYield = parseFloat(String(h.amount)) * parseFloat(String(h.daily_yield_rate ?? 0)) * totalDays;
             return (
               <div key={h.id} style={{ background: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -300,7 +302,7 @@ export const Products: React.FC = () => {
                   <div style={{ height: '100%', width: `${progress}%`, background: '#F0B90B', borderRadius: '2px', transition: 'width 0.3s' }} />
                 </div>
                 <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
-                  {elapsedDays} / {totalDays} {t('holdings_days') || '天'} · {t('holdings_daily_rate') || '日收益率'} {((h.daily_yield_rate ?? 0) * 100).toFixed(2)}%
+                  {elapsedDays} / {totalDays} {t('holdings_days') || '天'} · {t('holdings_daily_rate') || '日收益率'} {(parseFloat(String(h.daily_yield_rate ?? 0)) * 100).toFixed(2)}%
                 </div>
               </div>
             );
@@ -324,7 +326,7 @@ export const Products: React.FC = () => {
                 key={product.id}
                 onClick={() => setSelectedId(product.id)}
                 style={{
-                  background: getGradient(product.price),
+                  background: getGradient(parseFloat(String(product.price))),
                   borderRadius: '10px',
                   aspectRatio: '1',
                   display: 'flex',
