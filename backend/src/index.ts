@@ -156,8 +156,8 @@ app.use('/api/admin/trading', tradingAdminRoutes);
 app.use('/api/charity', charityRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/admin/wallet', walletAdminRoutes);
-app.use('/api/miniapp', miniappRoutes);
 app.use('/api/miniapp/bot-token', miniappBotTokenRoutes);
+app.use('/api/miniapp', miniappRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
 
