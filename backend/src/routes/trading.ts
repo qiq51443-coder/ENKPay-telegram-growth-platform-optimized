@@ -38,6 +38,15 @@ function isMissingTableError(err: any): boolean {
 }
 
 /**
+ * Check whether the PostgreSQL error is an "undefined column" error (42703),
+ * which means a required database migration has not been run.
+ */
+function isMissingColumnError(err: any): boolean {
+  // PostgreSQL error code 42703 = "undefined_column"
+  return err?.code === '42703' || /column .* does not exist/i.test(err?.message ?? '');
+}
+
+/**
  * GET /api/trading/health
  * Check trading feature readiness (tables present, at least one active pair).
  * Returns 200 when ready, 503 when migrations are missing, 500 on other errors.
@@ -665,7 +674,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       );
 
       let ruleId: number | null = null;
-      let odds = 1.95;
+      let odds = 1.85;
       let minBet = 1.0;
       let maxBet = 10000.0;
 
@@ -676,7 +685,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         minBet = parseFloat(rule.min_bet);
         maxBet = parseFloat(rule.max_bet);
       }
-      // If no rule found, use defaults (odds=1.95, min_bet=1, max_bet=10000) — already set above
+      // If no rule found, use defaults (odds=1.85, min_bet=1, max_bet=10000) — already set above
 
       if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
       if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
@@ -802,11 +811,13 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     });
   } catch (error: any) {
     console.error('Quick session error:', error);
-    if (isMissingTableError(error)) {
+    if (isMissingTableError(error) || isMissingColumnError(error)) {
       return res.status(503).json({
         error: 'Trading feature is not ready',
-        hint: 'Required database migrations have not been applied. ' +
-              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+        hint: isMissingColumnError(error)
+          ? 'A required column is missing. Run: backend/db/migrations/1001_fix_trading_sessions_status.sql'
+          : 'Required database migrations have not been applied. ' +
+            'Run: backend/db/migrations/200_trading_rules_and_settlement.sql and backend/db/migrations/1001_fix_trading_sessions_status.sql',
       });
     }
     const statusCode = error.statusCode || 500;
