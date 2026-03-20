@@ -132,12 +132,10 @@ function AppContent() {
       .catch(err => {
         const is401 = err?.response?.status === 401;
         if (is401) {
-          // Token expired or definitively invalid. Keyboard-button WebApps don't
-          // inject initData either, so Phase 2 would also fail — skip it and show
-          // a targeted "link expired" message instead of the generic error screen.
-          console.warn('[App] jt-auth 401: token expired — showing expired-link screen');
-          setAuthStatus('expired');
-          setAuthSyncDone(true);
+          console.warn('[App] jt-auth 401: token expired — will check initData before showing expired screen');
+          // Do NOT immediately set expired — let Phase 2 try initData first.
+          // Phase 2 effect will detect authSyncDone=false and try initData when SDK is ready.
+          // Only if SDK is also unavailable will we fall through to the expired/error screen.
           return;
         }
         // Network / server error — fall through to Phase 2 (initData) as a last resort
@@ -151,14 +149,15 @@ function AppContent() {
   // Only runs if Phase 1 did not already set authSyncDone.
   useEffect(() => {
     if (authSyncDone) return;           // Phase 1 already succeeded — skip
-    if (initDataAttemptedRef.current) return;
     if (sdkReady === null) return;      // Still polling Telegram SDK — wait
+    if (initDataAttemptedRef.current) return;
 
-    initDataAttemptedRef.current = true;
+    initDataAttemptedRef.current = true;  // Only set after sdkReady is determined
 
     if (sdkReady === false) {
-      console.warn('[App] Telegram SDK unavailable and no jt token — cannot authenticate');
-      setAuthStatus('error');
+      const hasJtToken = !!getUrlParam('jt');
+      console.warn('[App] Telegram SDK unavailable' + (hasJtToken ? ' and jt expired' : ' and no jt token') + ' — cannot authenticate');
+      setAuthStatus(hasJtToken ? 'expired' : 'error');
       setAuthSyncDone(true);
       return;
     }
