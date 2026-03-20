@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { useTelegram } from '../hooks/useTelegram';
 import { getTransactions, getAnnouncements, api } from '../services/api';
@@ -25,6 +25,22 @@ interface Announcement {
   created_at: string;
 }
 
+interface TradingOrder {
+  id: string;
+  direction: 'up' | 'down';
+  amount: number;
+  entry_price?: number;
+  close_price?: number;
+  odds: number;
+  status: string;
+  result?: 'win' | 'lose';
+  profit?: number;
+  created_at: string;
+  settled_at?: string;
+  symbol?: string;
+  display_name?: string;
+}
+
 const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   reward: { labelKey: 'tx_reward', icon: '🎁' },
   red_packet: { labelKey: 'tx_red_packet', icon: '🧧' },
@@ -43,7 +59,7 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   product_refund: { labelKey: 'tx_product_refund', icon: '✅' },
 };
 
-type ProfileView = 'main' | 'orders' | 'agreement' | 'announcements' | 'language';
+type ProfileView = 'main' | 'orders' | 'trading_orders' | 'agreement' | 'announcements' | 'language';
 
 const TX_FILTER_TABS = [
   { key: 'all',        labelKey: 'tx_filter_all' },
@@ -70,6 +86,11 @@ export const Profile: React.FC = () => {
   const [annLoading, setAnnLoading] = useState(false);
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
+  const [tradingOrders, setTradingOrders] = useState<TradingOrder[]>([]);
+  const [tradingOrdersLoading, setTradingOrdersLoading] = useState(false);
+  const [tradingOrdersPage, setTradingOrdersPage] = useState(1);
+  const [tradingOrdersHasMore, setTradingOrdersHasMore] = useState(false);
+  const tradingOrdersPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Use contextUser (set by App-level auth flow) as the single source of truth
   const profile = contextUser;
@@ -138,6 +159,28 @@ export const Profile: React.FC = () => {
     fetchTransactions();
   };
 
+  const fetchTradingOrders = async (page = 1, append = false) => {
+    setTradingOrdersLoading(true);
+    try {
+      const res = await api.get('/trading/orders/my', { params: { limit: 20, offset: (page - 1) * 20 } });
+      const list: TradingOrder[] = res.data?.data || [];
+      setTradingOrders(prev => append ? [...prev, ...list] : list);
+      setTradingOrdersHasMore(list.length === 20);
+      setTradingOrdersPage(page);
+    } catch {
+      if (!append) setTradingOrders([]);
+    } finally {
+      setTradingOrdersLoading(false);
+    }
+  };
+
+  const openTradingOrders = () => {
+    setView('trading_orders');
+    setTradingOrders([]);
+    setTradingOrdersPage(1);
+    fetchTradingOrders(1);
+  };
+
   const openAgreement = async () => {
     setView('agreement');
     if (!agreementText) {
@@ -183,6 +226,21 @@ export const Profile: React.FC = () => {
     return () => clearInterval(txInterval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  // Poll trading orders every 5 seconds while in trading_orders view (for active orders)
+  useEffect(() => {
+    if (view !== 'trading_orders') {
+      if (tradingOrdersPollRef.current) { clearInterval(tradingOrdersPollRef.current); tradingOrdersPollRef.current = null; }
+      return;
+    }
+    tradingOrdersPollRef.current = setInterval(() => {
+      const hasActive = tradingOrders.some(o => o.status === 'active' || o.status === 'pending');
+      // Only auto-refresh page 1 when there are active orders to avoid disrupting manual pagination
+      if (hasActive && tradingOrdersPage === 1) fetchTradingOrders(1);
+    }, 5000);
+    return () => { if (tradingOrdersPollRef.current) clearInterval(tradingOrdersPollRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, tradingOrders]);
 
   // Show loading while App-level auth has not yet completed
   if (!authSyncDone || authStatus === 'pending') {
@@ -329,6 +387,95 @@ export const Profile: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Trading Orders sub-page
+  if (view === 'trading_orders') {
+    const safeFixed = (v: any, d = 2) => { const n = Number(v); return isNaN(n) ? '0.00' : n.toFixed(d); };
+    return (
+      <div style={{ paddingBottom: '80px' }}>
+        <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
+          <button
+            onClick={() => setView('main')}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+          >
+            {t('back')}
+          </button>
+          <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>📈 交易订单</h2>
+        </div>
+        <div style={{ padding: '16px' }}>
+          {tradingOrdersLoading && tradingOrders.length === 0 ? (
+            <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
+          ) : tradingOrders.length === 0 ? (
+            <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_history') || '暂无交易订单'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {tradingOrders.map(order => {
+                const isActive = order.status === 'active' || order.status === 'pending';
+                const isWin = order.result === 'win';
+                const isLose = order.result === 'lose';
+                const dateStr = new Date(order.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
+                  + ' ' + new Date(order.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={order.id} style={{
+                    backgroundColor: theme.bgCard,
+                    borderRadius: '12px', padding: '14px',
+                    border: `1px solid ${isActive ? '#f0b90b' : isWin ? '#26a69a' : isLose ? '#ef5350' : theme.border}`,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 700, fontSize: '15px' }}>
+                          {order.direction === 'up' ? '▲ 买涨' : '▼ 买跌'}
+                        </span>
+                        {order.display_name && (
+                          <span style={{ color: theme.textSecondary, fontSize: '12px' }}>{order.display_name}</span>
+                        )}
+                      </div>
+                      <span style={{
+                        fontSize: '12px', fontWeight: 600,
+                        color: isActive ? '#f0b90b' : isWin ? '#26a69a' : isLose ? '#ef5350' : theme.textSecondary,
+                      }}>
+                        {isActive ? '进行中 🕐' : isWin ? '赢 ✅' : isLose ? '输 ❌' : order.status}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '12px', color: theme.textSecondary }}>
+                      <div>金额: <span style={{ color: theme.text }}>{safeFixed(order.amount)} USDT</span></div>
+                      <div>赔率: <span style={{ color: theme.text }}>{safeFixed(order.odds)}x</span></div>
+                      {order.entry_price != null && (
+                        <div>入场价: <span style={{ color: theme.text }}>{safeFixed(order.entry_price, 4)}</span></div>
+                      )}
+                      {order.close_price != null && (
+                        <div>结算价: <span style={{ color: theme.text }}>{safeFixed(order.close_price, 4)}</span></div>
+                      )}
+                      {(isWin || isLose) && order.profit != null && (
+                        <div>盈亏: <span style={{ color: isWin ? '#26a69a' : '#ef5350', fontWeight: 600 }}>
+                          {Number(order.profit) >= 0 ? '+' : ''}{safeFixed(order.profit)} USDT
+                        </span></div>
+                      )}
+                      <div style={{ gridColumn: '1 / -1' }}>下单时间: {dateStr}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {tradingOrdersHasMore && (
+                <button
+                  onClick={() => fetchTradingOrders(tradingOrdersPage + 1, true)}
+                  disabled={tradingOrdersLoading}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '8px',
+                    border: `1px solid ${theme.border}`, backgroundColor: theme.bgCard,
+                    color: theme.text, cursor: 'pointer', fontSize: '13px',
+                    opacity: tradingOrdersLoading ? 0.5 : 1,
+                  }}
+                >
+                  {tradingOrdersLoading ? t('loading') : '加载更多'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -566,6 +713,7 @@ export const Profile: React.FC = () => {
       {/* Menu items */}
       {[
         { label: t('menu_orders'), onClick: openOrders },
+        { label: '📈 交易订单', onClick: openTradingOrders },
         { label: t('menu_announcements'), onClick: openAnnouncements },
         { label: t('menu_agreement'), onClick: openAgreement },
       ].map(item => (
