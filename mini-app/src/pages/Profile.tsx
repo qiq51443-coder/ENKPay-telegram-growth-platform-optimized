@@ -43,7 +43,18 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   product_refund: { labelKey: 'tx_product_refund', icon: '✅' },
 };
 
-type ProfileView = 'main' | 'orders' | 'agreement' | 'language';
+type ProfileView = 'main' | 'orders' | 'agreement' | 'announcements' | 'language';
+
+const TX_FILTER_TABS = [
+  { key: 'all',        labelKey: 'tx_filter_all' },
+  { key: 'deposit',    labelKey: 'tx_deposit' },
+  { key: 'withdrawal', labelKey: 'tx_withdrawal' },
+  { key: 'transfer',   labelKey: 'tx_filter_transfer' },
+  { key: 'trade',      labelKey: 'tx_filter_trade' },
+  { key: 'other',      labelKey: 'tx_filter_other' },
+];
+
+const TX_DESC_TRUNCATE_LEN = 8;
 
 export const Profile: React.FC = () => {
   const { user: tgUser } = useTelegram();
@@ -51,7 +62,7 @@ export const Profile: React.FC = () => {
   const { user: contextUser, refreshBalance } = useUser();
   const { authSyncDone, authStatus } = useAuthSync();
   const [view, setView] = useState<ProfileView>('main');
-  const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [txFilter, setTxFilter] = useState<string>('all');
   const [idCopied, setIdCopied] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -94,10 +105,9 @@ export const Profile: React.FC = () => {
     setLang(code as LangCode);
   };
 
-  const handleToggleAnnouncements = async () => {
-    const next = !showAnnouncements;
-    setShowAnnouncements(next);
-    if (next && announcements.length === 0) {
+  const openAnnouncements = async () => {
+    setView('announcements');
+    if (announcements.length === 0) {
       setAnnLoading(true);
       try {
         const data = await getAnnouncements();
@@ -124,6 +134,7 @@ export const Profile: React.FC = () => {
 
   const openOrders = async () => {
     setView('orders');
+    setTxFilter('all');
     fetchTransactions();
   };
 
@@ -207,6 +218,14 @@ export const Profile: React.FC = () => {
 
   // Orders sub-page
   if (view === 'orders') {
+    const filteredTransactions = transactions.filter(tx => {
+      if (txFilter === 'all') return true;
+      if (txFilter === 'deposit') return tx.type === 'deposit';
+      if (txFilter === 'withdrawal') return tx.type === 'withdrawal';
+      if (txFilter === 'transfer') return tx.type === 'transfer_in' || tx.type === 'transfer_out';
+      if (txFilter === 'trade') return tx.type === 'trade_win' || tx.type === 'trade_loss' || tx.type === 'trade';
+      return !['deposit', 'withdrawal', 'transfer_in', 'transfer_out', 'trade_win', 'trade_loss', 'trade'].includes(tx.type);
+    });
     return (
       <div style={{ paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
@@ -218,14 +237,45 @@ export const Profile: React.FC = () => {
           </button>
           <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>{t('orders_title')}</h2>
         </div>
+        {/* Filter Tabs */}
+        <div style={{
+          display: 'flex',
+          overflowX: 'auto',
+          gap: '0',
+          borderBottom: `1px solid ${theme.border}`,
+          backgroundColor: theme.bgCard,
+          scrollbarWidth: 'none',
+        }}>
+          {TX_FILTER_TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setTxFilter(tab.key)}
+              style={{
+                flexShrink: 0,
+                padding: '10px 16px',
+                background: 'none',
+                border: 'none',
+                borderBottom: txFilter === tab.key ? `2px solid ${theme.accent}` : '2px solid transparent',
+                color: txFilter === tab.key ? theme.accent : theme.textSecondary,
+                fontSize: '13px',
+                fontWeight: txFilter === tab.key ? '700' : '400',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t(tab.labelKey)}
+            </button>
+          ))}
+        </div>
         <div style={{ padding: '16px' }}>
           {txLoading ? (
             <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
-          ) : transactions.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_transactions')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {transactions.map(tx => {
+              {filteredTransactions.map(tx => {
                 const typeInfo = TX_TYPE_LABEL_KEYS[tx.type] || { labelKey: tx.type, icon: '📋' };
                 const dateStr = new Date(tx.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
                   + ' ' + new Date(tx.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -237,9 +287,33 @@ export const Profile: React.FC = () => {
                         <div style={{ color: theme.text, fontSize: '13px', fontWeight: '500' }}>{t(typeInfo.labelKey)}</div>
                         <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{dateStr}</div>
                         {tx.status && <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{tx.status}</div>}
+                        {tx.type === 'deposit' && tx.description && (
+                          <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
+                            {tx.description.length > TX_DESC_TRUNCATE_LEN ? tx.description.slice(0, TX_DESC_TRUNCATE_LEN) + '...' : tx.description}
+                          </div>
+                        )}
+                        {tx.type === 'withdrawal' && (
+                          <>
+                            {tx.description && (
+                              <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
+                                {tx.description.length > TX_DESC_TRUNCATE_LEN ? tx.description.slice(0, TX_DESC_TRUNCATE_LEN) + '...' : tx.description}
+                              </div>
+                            )}
+                            {tx.order_id && (
+                              <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
+                                {tx.order_id}
+                              </div>
+                            )}
+                          </>
+                        )}
                         {(tx.type === 'transfer_in' || tx.type === 'transfer_out') && tx.order_id && (
                           <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
                             {tx.order_id}
+                          </div>
+                        )}
+                        {(tx.type === 'trade_win' || tx.type === 'trade_loss') && (
+                          <div style={{ color: tx.type === 'trade_win' ? theme.success : '#ef4444', fontSize: '10px', fontWeight: '600', marginTop: '2px' }}>
+                            {tx.type === 'trade_win' ? t('tx_trade_win_direction') : t('tx_trade_loss_direction')}
                           </div>
                         )}
                       </div>
@@ -281,6 +355,46 @@ export const Profile: React.FC = () => {
           ) : (
             <div style={{ color: theme.textSecondary, fontSize: '14px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
               {agreementText}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Announcements sub-page
+  if (view === 'announcements') {
+    return (
+      <div style={{ paddingBottom: '80px' }}>
+        <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
+          <button
+            onClick={() => setView('main')}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+          >
+            {t('back')}
+          </button>
+          <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>{t('menu_announcements')}</h2>
+        </div>
+        <div style={{ padding: '16px' }}>
+          {annLoading ? (
+            <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
+          ) : announcements.length === 0 ? (
+            <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_announcements')}</div>
+          ) : (
+            <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
+              {announcements.map((ann, idx) => (
+                <div
+                  key={ann.id}
+                  style={{
+                    padding: '14px 16px',
+                    borderBottom: idx < announcements.length - 1 ? `1px solid ${theme.border}` : 'none',
+                  }}
+                >
+                  <div style={{ color: theme.text, fontSize: '14px', fontWeight: '600', marginBottom: '6px' }}>{ann.title}</div>
+                  <div style={{ color: theme.textSecondary, fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{ann.content}</div>
+                  <div style={{ color: theme.textSecondary, fontSize: '11px', marginTop: '6px' }}>{new Date(ann.created_at).toLocaleString()}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -452,7 +566,7 @@ export const Profile: React.FC = () => {
       {/* Menu items */}
       {[
         { label: t('menu_orders'), onClick: openOrders },
-        { label: t('menu_announcements'), onClick: handleToggleAnnouncements },
+        { label: t('menu_announcements'), onClick: openAnnouncements },
         { label: t('menu_agreement'), onClick: openAgreement },
       ].map(item => (
         <div
@@ -469,24 +583,6 @@ export const Profile: React.FC = () => {
           <span style={{ color: theme.textSecondary }}>›</span>
         </div>
       ))}
-
-      {/* Announcements inline */}
-      {showAnnouncements && (
-        <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '10px', border: `1px solid ${theme.border}` }}>
-          {annLoading
-            ? <div style={{ color: theme.textSecondary, fontSize: '13px', textAlign: 'center', padding: '10px' }}>{t('loading')}</div>
-            : announcements.length === 0
-              ? <div style={{ color: theme.textSecondary, fontSize: '13px', textAlign: 'center', padding: '10px' }}>{t('no_announcements')}</div>
-              : announcements.map(ann => (
-                <div key={ann.id} style={{ padding: '8px 0', borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ color: theme.text, fontSize: '13px', fontWeight: '600', marginBottom: '2px' }}>{ann.title}</div>
-                  <div style={{ color: theme.textSecondary, fontSize: '12px', lineHeight: '1.5' }}>{ann.content}</div>
-                  <div style={{ color: theme.textSecondary, fontSize: '11px', marginTop: '4px' }}>{new Date(ann.created_at).toLocaleString('zh-CN')}</div>
-                </div>
-              ))
-          }
-        </div>
-      )}
 
       {/* Language setting - navigate to list */}
       <div

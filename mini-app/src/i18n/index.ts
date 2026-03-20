@@ -179,6 +179,12 @@ const zh: Translations = {
   account_frozen: '已冻结',
   available_balance: '可用余额',
   copied: '已复制',
+  tx_filter_all: '全部',
+  tx_filter_transfer: '转账',
+  tx_filter_trade: '交易',
+  tx_filter_other: '其他',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const en: Translations = {
@@ -348,6 +354,12 @@ const en: Translations = {
   account_frozen: 'Frozen',
   available_balance: 'Available Balance',
   copied: 'Copied',
+  tx_filter_all: 'All',
+  tx_filter_transfer: 'Transfer',
+  tx_filter_trade: 'Trade',
+  tx_filter_other: 'Other',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const fr: Translations = {
@@ -501,6 +513,12 @@ const fr: Translations = {
   account_frozen: 'Gelé',
   available_balance: 'Solde disponible',
   copied: 'Copié',
+  tx_filter_all: 'Tous',
+  tx_filter_transfer: 'Virement',
+  tx_filter_trade: 'Trade',
+  tx_filter_other: 'Autre',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const de: Translations = {
@@ -654,6 +672,12 @@ const de: Translations = {
   account_frozen: 'Eingefroren',
   available_balance: 'Verfügbares Guthaben',
   copied: 'Kopiert',
+  tx_filter_all: 'Alle',
+  tx_filter_transfer: 'Transfer',
+  tx_filter_trade: 'Trade',
+  tx_filter_other: 'Sonstige',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const es: Translations = {
@@ -807,6 +831,12 @@ const es: Translations = {
   account_frozen: 'Congelado',
   available_balance: 'Saldo disponible',
   copied: 'Copiado',
+  tx_filter_all: 'Todos',
+  tx_filter_transfer: 'Transferencia',
+  tx_filter_trade: 'Comercio',
+  tx_filter_other: 'Otro',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const ar: Translations = {
@@ -960,6 +990,12 @@ const ar: Translations = {
   account_frozen: 'مجمد',
   available_balance: 'الرصيد المتاح',
   copied: 'تم النسخ',
+  tx_filter_all: 'الكل',
+  tx_filter_transfer: 'تحويل',
+  tx_filter_trade: 'تداول',
+  tx_filter_other: 'أخرى',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const ja: Translations = {
@@ -1113,6 +1149,12 @@ const ja: Translations = {
   account_frozen: '凍結中',
   available_balance: '利用可能残高',
   copied: 'コピー済み',
+  tx_filter_all: 'すべて',
+  tx_filter_transfer: '送金',
+  tx_filter_trade: '取引',
+  tx_filter_other: 'その他',
+  tx_trade_win_direction: '🟢 UP / DOWN WIN',
+  tx_trade_loss_direction: '🔴 UP / DOWN LOSS',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };
