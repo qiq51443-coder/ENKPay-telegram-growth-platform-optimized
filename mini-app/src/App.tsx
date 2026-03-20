@@ -66,9 +66,9 @@ function AppContent() {
           clearInterval(interval);
           return 90;
         }
-        return prev + 10;
+        return prev + 15;
       });
-    }, 80);
+    }, 50);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -89,15 +89,18 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [authSyncDone]);
 
-  // ── 16s timeout safety net (covers 15s SDK polling + network time) ─────────
+  // ── Timeout safety net: 5s when jt token present, 8s otherwise ────────────
   useEffect(() => {
+    const JT_AUTH_TIMEOUT_MS = 5000;    // With jt token: fail fast (jt-auth is the auth path)
+    const FALLBACK_AUTH_TIMEOUT_MS = 8000; // Without jt token: allow time for SDK + initData
+    const timeoutMs = getUrlParam('jt') ? JT_AUTH_TIMEOUT_MS : FALLBACK_AUTH_TIMEOUT_MS;
     const timer = setTimeout(() => {
       if (loading) {
-        console.warn('[App] Auth timeout after 16s — force-closing loading screen');
+        console.warn(`[App] Auth timeout after ${timeoutMs / 1000}s — force-closing loading screen`);
         setAuthStatus('error');
         setAuthSyncDone(true);
       }
-    }, 16000);
+    }, timeoutMs);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -146,11 +149,21 @@ function AppContent() {
   }, []);
 
   // ── Phase 2: initData fallback (runs once SDK is ready) ───────────────────
-  // Only runs if Phase 1 did not already set authSyncDone.
+  // Only runs if Phase 1 did not already set authSyncDone AND there is no jt token
+  // (jt expired or network error falls back to initData only when no jt param exists).
   useEffect(() => {
     if (authSyncDone) return;           // Phase 1 already succeeded — skip
     if (sdkReady === null) return;      // Still polling Telegram SDK — wait
     if (initDataAttemptedRef.current) return;
+
+    // If a jt token was present in the URL but auth failed, show expired screen
+    // instead of attempting initData (which won't help if jt is the auth mechanism).
+    if (getUrlParam('jt')) {
+      console.warn('[App] jt token present but auth failed — showing expired screen');
+      setAuthStatus('expired');
+      setAuthSyncDone(true);
+      return;
+    }
 
     initDataAttemptedRef.current = true;  // Only set after sdkReady is determined
 

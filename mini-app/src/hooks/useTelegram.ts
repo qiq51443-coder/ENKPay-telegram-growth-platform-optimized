@@ -39,7 +39,7 @@ declare global {
 }
 
 const POLL_INTERVAL_MS = 100;
-const MAX_POLL_ATTEMPTS = 150; // 15 seconds total
+const MAX_POLL_ATTEMPTS = 30; // 3 seconds total — fail fast so auth can surface errors quickly
 
 export function useTelegram() {
   const [tg, setTg] = useState<Window['Telegram']['WebApp'] | null>(null);
@@ -88,7 +88,7 @@ export function useTelegram() {
         // Log diagnostic info to aid debugging
         const webApp = window.Telegram?.WebApp;
         if (webApp && webApp.initData === '') {
-          console.warn('[useTelegram] Telegram SDK present but no initData after 15s. Not opened from Telegram?');
+          console.warn('[useTelegram] Telegram SDK present but no initData after 3s. Not opened from Telegram?');
         }
         setSdkReady(false); // Definitively not available
       }

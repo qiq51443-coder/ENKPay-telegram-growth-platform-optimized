@@ -59,7 +59,7 @@ export const Profile: React.FC = () => {
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
 
-  // Sync local profile state from UserContext
+  // Sync local profile state from UserContext; fetch from backend if not yet available
   useEffect(() => {
     if (contextUser) {
       setProfile(contextUser);
@@ -71,17 +71,9 @@ export const Profile: React.FC = () => {
         }
       }
       setLoading(false);
-    }
-  }, [contextUser, setLang]);
-
-  // Fetch profile once on mount if context doesn't have user yet
-  useEffect(() => {
-    if (contextUser) {
-      // Already have user from App-level auth — just stop loading
-      setLoading(false);
       return;
     }
-    // Lightweight GET profile (no auth-sync)
+    // Lightweight GET profile (no auth-sync) — only needed when App-level auth hasn't run yet
     getUserProfile()
       .then((data) => {
         const profileData = data.user || data;
@@ -95,7 +87,7 @@ export const Profile: React.FC = () => {
         setLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [contextUser]);
 
   // Lightweight balance refresh — calls GET /miniapp/profile only (no auth-sync)
   const doRefreshBalance = async () => {
@@ -346,7 +338,7 @@ export const Profile: React.FC = () => {
             </button>
           </div>
           <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '24px' }}>
-            ${parseFloat(String(profile?.wallet_balance ?? profile?.balance ?? 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
+            ${parseFloat(String(profile?.wallet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
           </div>
         </div>
 
