@@ -10,6 +10,10 @@ import {
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
+function toNum(v: any): number {
+  return parseFloat(v) || 0;
+}
+
 interface NFTProduct {
   id: string;
   category_id: string;
@@ -266,12 +270,12 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'price',
       key: 'price',
       width: 100,
-      render: (price: number, record: NFTProduct) => (
+      render: (price: string | number, record: NFTProduct) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{price.toFixed(2)} USDT</div>
-          {record.original_price && record.original_price > price && (
+          <div style={{ fontWeight: 'bold' }}>{toNum(price).toFixed(2)} USDT</div>
+          {record.original_price && toNum(record.original_price) > toNum(price) && (
             <div style={{ fontSize: '12px', color: '#999', textDecoration: 'line-through' }}>
-              {record.original_price.toFixed(2)} USDT
+              {toNum(record.original_price).toFixed(2)} USDT
             </div>
           )}
         </div>
@@ -303,7 +307,7 @@ export const NFTProducts: React.FC = () => {
           {record.term_days && <div>{record.term_days}天</div>}
           {record.daily_yield_rate && (
             <div style={{ color: '#52c41a', fontSize: '12px' }}>
-              {(record.daily_yield_rate * 100).toFixed(2)}%/天
+              {(toNum(record.daily_yield_rate) * 100).toFixed(2)}%/天
             </div>
           )}
         </div>
@@ -394,7 +398,7 @@ export const NFTProducts: React.FC = () => {
       title: '购买金额',
       dataIndex: 'purchase_price',
       key: 'purchase_price',
-      render: (v: number) => `${v.toFixed(2)} USDT`,
+      render: (v: string | number) => `${toNum(v).toFixed(2)} USDT`,
     },
     {
       title: '购买时间',
@@ -419,7 +423,7 @@ export const NFTProducts: React.FC = () => {
       title: '累计收益',
       dataIndex: 'total_income',
       key: 'total_income',
-      render: (v: number) => `${v.toFixed(4)} USDT`,
+      render: (v: string | number) => `${toNum(v).toFixed(4)} USDT`,
     },
     {
       title: '状态',
@@ -699,7 +703,7 @@ export const NFTProducts: React.FC = () => {
                     placeholder="0.005"
                     addonAfter={
                       dailyYieldRate !== undefined && dailyYieldRate !== null
-                        ? `= ${(dailyYieldRate * 100).toFixed(4)}%/天`
+                        ? `= ${(toNum(dailyYieldRate) * 100).toFixed(4)}%/天`
                         : '%/天'
                     }
                   />
@@ -770,7 +774,7 @@ export const NFTProducts: React.FC = () => {
                     placeholder="0.005"
                     addonAfter={
                       dailyYieldRate !== undefined && dailyYieldRate !== null
-                        ? `= ${(dailyYieldRate * 100).toFixed(4)}%/天`
+                        ? `= ${(toNum(dailyYieldRate) * 100).toFixed(4)}%/天`
                         : '%/天'
                     }
                   />
