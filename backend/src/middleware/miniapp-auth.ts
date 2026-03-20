@@ -53,23 +53,34 @@ interface TokenCacheEntry {
   tokens: string[];
   fetchedAt: number;
 }
-let tokenCache: TokenCacheEntry | null = null;
+
+// Encapsulated cache to prevent test state leakage between test suites.
+const _tokenCache = (() => {
+  let cache: TokenCacheEntry | null = null;
+  return {
+    get: () => cache,
+    set: (entry: TokenCacheEntry | null) => { cache = entry; },
+    clear: () => { cache = null; },
+  };
+})();
+
 const TOKEN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function getActiveBotTokens(): Promise<string[]> {
   const now = Date.now();
-  if (tokenCache && now - tokenCache.fetchedAt < TOKEN_CACHE_TTL_MS) {
-    return tokenCache.tokens;
+  const cached = _tokenCache.get();
+  if (cached && now - cached.fetchedAt < TOKEN_CACHE_TTL_MS) {
+    return cached.tokens;
   }
   try {
     const result = await query('SELECT token FROM bots WHERE is_active = true');
     const tokens = result.rows.map((r: any) => r.token as string).filter(Boolean);
-    tokenCache = { tokens, fetchedAt: now };
+    _tokenCache.set({ tokens, fetchedAt: now });
     return tokens;
   } catch (err: any) {
     // If DB is unavailable fall back to cached tokens or env var only
     console.error('[miniapp-auth] Failed to load bot tokens from DB:', err?.message, err);
-    return tokenCache?.tokens ?? [];
+    return _tokenCache.get()?.tokens ?? [];
   }
 }
 
@@ -146,7 +157,8 @@ export function authenticateMiniApp(
       // Track whether tokens will actually be served from the in-memory cache
       // (as opposed to freshly loaded from DB) so we can bust it and retry
       // when verification fails — this handles newly-added bots within the TTL window.
-      const usingCachedTokens = tokenCache !== null && (Date.now() - tokenCache.fetchedAt < TOKEN_CACHE_TTL_MS);
+      const cached = _tokenCache.get();
+      const usingCachedTokens = cached !== null && (Date.now() - cached.fetchedAt < TOKEN_CACHE_TTL_MS);
       const candidateSet = new Set<string>();
       if (process.env.BOT_TOKEN) candidateSet.add(process.env.BOT_TOKEN);
       const dbTokens = await getActiveBotTokens();
@@ -177,7 +189,7 @@ export function authenticateMiniApp(
         console.info('[miniapp-auth] HMAC mismatch with cached tokens; busting cache and retrying with fresh DB tokens', {
           path: req.path,
         });
-        tokenCache = null;
+        _tokenCache.clear();
         const freshDbTokens = await getActiveBotTokens();
         const freshSet = new Set<string>();
         if (process.env.BOT_TOKEN) freshSet.add(process.env.BOT_TOKEN);

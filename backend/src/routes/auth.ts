@@ -5,6 +5,10 @@ import { query } from '../db';
 
 const router = express.Router();
 
+// NOTE: These endpoints are for the Admin Panel only.
+// Telegram Mini App authentication is handled via /api/miniapp/jt-auth and /api/miniapp/auth-sync.
+// Do NOT use these routes for Mini App user registration or login.
+
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;

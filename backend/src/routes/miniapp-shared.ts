@@ -23,15 +23,14 @@ export interface TelegramUserInfo {
  */
 export async function buildCanonicalProfile(telegramId: number) {
   const result = await query(
-    `SELECT id, unique_id, robot_user_id, username, first_name, last_name, language_code,
-            balance, telegram_id, wallet_balance, nft_balance,
+    `SELECT id, unique_id, username, first_name, last_name, language_code,
+            telegram_id, wallet_balance, nft_balance,
             COALESCE(red_packet_balance, red_packet_credits, 0) AS red_packet_balance,
             reward_balance, reward_unlock_traded, frozen_balance,
             total_recharged, total_withdrawn,
             invite_code, invited_by,
             account_status
-     FROM users WHERE telegram_id = $1
-     ORDER BY created_at ASC LIMIT 1`,
+     FROM users WHERE telegram_id = $1 LIMIT 1`,
     [telegramId]
   );
   if (result.rows.length === 0) return null;
@@ -90,7 +89,7 @@ export async function buildCanonicalProfile(telegramId: number) {
 
   return {
     id: user.id,
-    unique_id: user.unique_id || user.robot_user_id || String(user.telegram_id),
+    unique_id: user.unique_id || String(user.telegram_id), // unique_id is backfilled on upsert; fallback to telegram_id only for legacy rows created before migration
     telegram_id: user.telegram_id,
     first_name: user.first_name,
     last_name: user.last_name,
@@ -99,7 +98,6 @@ export async function buildCanonicalProfile(telegramId: number) {
     invite_code: user.invite_code || user.unique_id,
     invited_by: invitedByUniqueId,
     invite_count: inviteCount,
-    balance: walletBalance,
     wallet_balance: walletBalance,
     reward_balance: rewardBal,
     nft_balance: parseFloat(String(user.nft_balance ?? 0)),

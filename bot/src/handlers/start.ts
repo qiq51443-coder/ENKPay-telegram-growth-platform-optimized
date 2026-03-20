@@ -59,9 +59,13 @@ export const handleStart = async (ctx: Context) => {
 
     const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
-    // ── Step 1: Pre-register / refresh user info (fire-and-forget) ────────────
-    try {
-      await axios.post(
+    // ── Steps 1 & 2: Pre-register user + generate one-time jt token (parallel) ─
+    // Running both requests concurrently reduces Bot response latency.
+    // Generate the jt token upfront so we can build the WebApp URL after the call.
+    const jtToken = crypto.randomBytes(32).toString('hex');
+    const [preregResult, jtStoreResult] = await Promise.allSettled([
+      // Step 1: Pre-register / refresh user info (fire-and-forget)
+      axios.post(
         `${backendUrl}/api/miniapp/preregister`,
         {
           telegram_id: ctx.from.id,
@@ -70,19 +74,11 @@ export const handleStart = async (ctx: Context) => {
           language_code: ctx.from.language_code || lang,
         },
         { headers: { 'X-Bot-Id': botId }, timeout: 8000 }
-      );
-    } catch (err: any) {
-      console.warn(`[bot ${botId}] Failed to preregister user:`, err?.message);
-      // Graceful degradation: Mini App will still work via authSync
-    }
-
-    // ── Step 2: Generate a one-time jt token and store in backend Redis ────────
-    // This bypasses Telegram initData HMAC entirely — the Mini App reads ?jt=
-    // from the URL on mount (no SDK needed) and exchanges it for a session.
-    let finalWebAppUrl = webAppUrl;
-    try {
-      const jtToken = crypto.randomBytes(32).toString('hex');
-      await axios.post(
+      ),
+      // Step 2: Store jt token in backend Redis so Mini App can exchange it for a session.
+      // This bypasses Telegram initData HMAC entirely — the Mini App reads ?jt=
+      // from the URL on mount (no SDK needed) and exchanges it for a session.
+      axios.post(
         `${backendUrl}/api/miniapp/jt-store`,
         {
           jt: jtToken,
@@ -94,15 +90,24 @@ export const handleStart = async (ctx: Context) => {
           ttl: JT_TOKEN_TTL,
         },
         { headers: { 'X-Bot-Id': botId }, timeout: 8000 }
-      );
+      ),
+    ]);
+
+    if (preregResult.status === 'rejected') {
+      const preregErr = (preregResult as PromiseRejectedResult).reason;
+      console.warn(`[bot ${botId}] Failed to preregister user:`, preregErr?.message || String(preregErr));
+    }
+
+    let finalWebAppUrl = webAppUrl;
+    if (jtStoreResult.status === 'fulfilled') {
       // Append ?jt= to WebApp URL so Mini App can read it on mount
       const separator = webAppUrl.includes('?') ? '&' : '?';
       finalWebAppUrl = `${webAppUrl}${separator}jt=${jtToken}`;
-    } catch (err: any) {
+    } else {
+      const err = (jtStoreResult as PromiseRejectedResult).reason;
       const status = err?.response?.status;
       console.warn(`[bot ${botId}] Failed to store jt token (status=${status ?? 'network'}):`, err?.message);
       // Graceful degradation: Mini App falls back to initData auth
-      finalWebAppUrl = webAppUrl;
     }
 
     // Send welcome text with reply keyboard (wallet + invite buttons only)

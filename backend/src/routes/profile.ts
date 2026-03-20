@@ -5,6 +5,10 @@ import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-a
 const router = express.Router();
 
 /**
+ * LEGACY: This route duplicates the language-update functionality available at
+ * POST /api/miniapp/language. Retained for backwards compatibility with older clients.
+ * New code should use /api/miniapp/language instead.
+ *
  * POST /api/profile/language
  * Update user's preferred language (mini-app global language sync)
  */
