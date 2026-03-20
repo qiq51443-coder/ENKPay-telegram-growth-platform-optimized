@@ -69,7 +69,7 @@ export const handleStart = async (ctx: Context) => {
           username: ctx.from.username || null,
           language_code: ctx.from.language_code || lang,
         },
-        { headers: { 'X-Bot-Id': botId }, timeout: 3000 }
+        { headers: { 'X-Bot-Id': botId }, timeout: 8000 }
       );
     } catch (err: any) {
       console.warn(`[bot ${botId}] Failed to preregister user:`, err?.message);
@@ -93,13 +93,14 @@ export const handleStart = async (ctx: Context) => {
           language_code: ctx.from.language_code || lang,
           ttl: JT_TOKEN_TTL,
         },
-        { headers: { 'X-Bot-Id': botId }, timeout: 3000 }
+        { headers: { 'X-Bot-Id': botId }, timeout: 8000 }
       );
       // Append ?jt= to WebApp URL so Mini App can read it on mount
       const separator = webAppUrl.includes('?') ? '&' : '?';
       finalWebAppUrl = `${webAppUrl}${separator}jt=${jtToken}`;
     } catch (err: any) {
-      console.warn(`[bot ${botId}] Failed to store jt token:`, err?.message);
+      const status = err?.response?.status;
+      console.warn(`[bot ${botId}] Failed to store jt token (status=${status ?? 'network'}):`, err?.message);
       // Graceful degradation: Mini App falls back to initData auth
       finalWebAppUrl = webAppUrl;
     }
