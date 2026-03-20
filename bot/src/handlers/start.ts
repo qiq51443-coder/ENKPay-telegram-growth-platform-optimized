@@ -105,10 +105,24 @@ export const handleStart = async (ctx: Context) => {
       finalWebAppUrl = webAppUrl;
     }
 
-    await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-      [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-      [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
-    ]).resize());
+    // Send welcome text with reply keyboard (wallet + invite buttons only)
+    await ctx.replyWithHTML(
+      welcomeText,
+      Markup.keyboard([
+        [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+      ]).resize()
+    );
+
+    // Send inline keyboard with WebApp button separately.
+    // Only inline WebApp buttons inject Telegram initData into the Mini App;
+    // reply-keyboard WebApp buttons do not — so this second message is required
+    // for the Mini App authentication (Phase 2 authSync) to work correctly.
+    await ctx.reply(
+      '👇',
+      Markup.inlineKeyboard([
+        [Markup.button.webApp(t(lang, 'btn_open_app'), finalWebAppUrl)],
+      ])
+    );
   } catch (error) {
     console.error('Start handler error:', error);
     await ctx.reply(t('en', 'error'));

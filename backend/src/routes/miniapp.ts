@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import express from 'express';
 import { query } from '../db';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
-import { generateUniqueIdCandidate, generateUniqueUserId } from '../utils/uniqueId';
 import { buildCanonicalProfile, upsertUserFromTelegramId } from './miniapp-shared';
 import { getCache, setCache } from '../utils/cache';
 import { sessionTokenKey, jtTokenKey } from '../utils/cache-keys';
@@ -414,87 +413,23 @@ router.post('/sync-user', authenticateMiniApp, async (req: MiniAppAuthRequest, r
 
 /**
  * POST /api/miniapp/auth-sync
- * One-shot: validate Telegram initData, upsert the user record, and return the canonical profile.
- * Uses a two-step check+insert/update pattern for compatibility with databases where the
- * UNIQUE (telegram_id) constraint from migration 020 may not yet be applied.
+ * One-shot: validate Telegram initData, atomically upsert the user record, and
+ * return the canonical profile.
+ * Delegates to upsertUserFromTelegramId which uses INSERT … ON CONFLICT (telegram_id)
+ * DO UPDATE — race-free and consistent with the UNIQUE constraint from migration 020/021.
  */
 router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
     const tgUser = req.telegramUser;
     if (!tgUser?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const telegramId = tgUser.id;
-    const firstName = tgUser.first_name || '';
-    const username = tgUser.username || null;
-    const languageCode = tgUser.language_code || 'zh';
+    await upsertUserFromTelegramId(tgUser.id, {
+      firstName: tgUser.first_name || '',
+      username: tgUser.username || undefined,
+      languageCode: tgUser.language_code || 'zh',
+    });
 
-    // Step 1: check whether a canonical record already exists
-    const existing = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
-      [telegramId]
-    );
-
-    if (existing.rows.length > 0) {
-      // Step 2a: update the existing canonical record
-      await query(
-        `UPDATE users
-         SET first_name         = $2,
-             username           = COALESCE($3, username),
-             language_code      = $4,
-             updated_at         = NOW(),
-             last_active_at     = NOW(),
-             unique_id          = CASE WHEN (unique_id IS NULL OR unique_id = '')
-                                    THEN 'U' || LPAD(CAST($5 AS TEXT), 8, '0')
-                                    ELSE unique_id END,
-             wallet_balance     = CASE WHEN wallet_balance IS NULL
-                                    THEN COALESCE(balance, 0)
-                                    ELSE wallet_balance END,
-             red_packet_balance = CASE WHEN red_packet_balance IS NULL
-                                    THEN COALESCE(red_packet_credits, 0)
-                                    ELSE red_packet_balance END,
-             red_packet_credits = CASE WHEN red_packet_credits IS NULL
-                                    THEN 0
-                                    ELSE red_packet_credits END,
-             nft_balance        = CASE WHEN nft_balance IS NULL
-                                    THEN 0
-                                    ELSE nft_balance END
-         WHERE id = $1`,
-        [existing.rows[0].id, firstName, username, languageCode, telegramId]
-      );
-    } else {
-      // Step 2b: create a brand-new user record with all required fields
-      let newUniqueId: string;
-      try {
-        newUniqueId = await generateUniqueUserId();
-      } catch {
-        newUniqueId = generateUniqueIdCandidate();
-      }
-
-      // Collision guard: retry up to 10 times if the generated id already exists
-      let uniqueIdReady = false;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const conflict = await query(
-          `SELECT id FROM users WHERE unique_id = $1 LIMIT 1`,
-          [newUniqueId]
-        );
-        if (conflict.rows.length === 0) { uniqueIdReady = true; break; }
-        newUniqueId = generateUniqueIdCandidate();
-      }
-      if (!uniqueIdReady) {
-        throw new Error('Failed to generate a unique user ID after 10 attempts');
-      }
-
-      await query(
-        `INSERT INTO users (telegram_id, first_name, username, language_code,
-                            wallet_balance, reward_balance, frozen_balance,
-                            red_packet_credits, unique_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 0, 0, 0, 3, $5, NOW(), NOW())
-         ON CONFLICT DO NOTHING`,
-        [telegramId, firstName, username, languageCode, newUniqueId]
-      );
-    }
-
-    const userProfile = await buildCanonicalProfile(telegramId);
+    const userProfile = await buildCanonicalProfile(tgUser.id);
     if (!userProfile) {
       return res.status(404).json({ error: 'User not found after upsert' });
     }
