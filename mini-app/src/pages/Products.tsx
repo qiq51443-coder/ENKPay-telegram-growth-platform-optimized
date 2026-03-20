@@ -121,7 +121,7 @@ export const Products: React.FC = () => {
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => setSelectedId(null)}
-            style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
           >
             {t('back')}
           </button>

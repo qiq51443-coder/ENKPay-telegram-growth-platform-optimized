@@ -43,7 +43,7 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   product_refund: { labelKey: 'tx_product_refund', icon: '✅' },
 };
 
-type ProfileView = 'main' | 'orders' | 'agreement';
+type ProfileView = 'main' | 'orders' | 'agreement' | 'language';
 
 export const Profile: React.FC = () => {
   const { user: tgUser } = useTelegram();
@@ -52,6 +52,7 @@ export const Profile: React.FC = () => {
   const { authSyncDone, authStatus } = useAuthSync();
   const [view, setView] = useState<ProfileView>('main');
   const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -211,7 +212,7 @@ export const Profile: React.FC = () => {
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
-            style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0 }}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
           >
             {t('back')}
           </button>
@@ -248,7 +249,7 @@ export const Profile: React.FC = () => {
                         {tx.amount >= 0 ? '+' : ''}{parseFloat(String(tx.amount)).toFixed(2)}
                       </div>
                       <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
-                        {tx.balance_after != null ? `${t('balance_label')}: $${parseFloat(String(tx.balance_after)).toFixed(2)}` : ''}
+                        {tx.balance_after != null ? `${t('balance_label')}: ${parseFloat(String(tx.balance_after)).toFixed(2)} USDT` : ''}
                       </div>
                     </div>
                   </div>
@@ -268,7 +269,7 @@ export const Profile: React.FC = () => {
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
-            style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '16px', cursor: 'pointer', padding: 0 }}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
           >
             {t('back')}
           </button>
@@ -282,6 +283,47 @@ export const Profile: React.FC = () => {
               {agreementText}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Language sub-page
+  if (view === 'language') {
+    return (
+      <div style={{ paddingBottom: '80px' }}>
+        <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
+          <button
+            onClick={() => setView('main')}
+            style={{ background: 'none', border: 'none', color: theme.accent, fontSize: '16px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+          >
+            {t('back')}
+          </button>
+          <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>{t('language_settings')}</h2>
+        </div>
+        <div style={{ padding: '16px' }}>
+          {SUPPORTED_LANGUAGES.map(l => (
+            <div
+              key={l.code}
+              onClick={() => { handleSelectLanguage(l.code); setView('main'); }}
+              style={{
+                backgroundColor: theme.bgCard,
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '10px',
+                border: `1px solid ${lang === l.code ? theme.accent : theme.border}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ color: theme.text, fontSize: '15px' }}>{l.label}</span>
+              {lang === l.code && (
+                <span style={{ color: theme.accent, fontSize: '18px', fontWeight: '700' }}>✓</span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -316,7 +358,30 @@ export const Profile: React.FC = () => {
             {tgUser?.username && (
               <div style={{ color: theme.textSecondary, fontSize: '13px' }}>@{tgUser.username}</div>
             )}
-            <div style={{ color: theme.textSecondary, fontSize: '12px' }}>ID: #{profile?.unique_id || (tgUser?.id ? String(tgUser.id) : 'N/A')}</div>
+            <div
+              onClick={() => {
+                const id = profile?.unique_id || (tgUser?.id ? String(tgUser.id) : '');
+                if (id) {
+                  navigator.clipboard.writeText(id).then(() => {
+                    setIdCopied(true);
+                    setTimeout(() => setIdCopied(false), 1500);
+                  }).catch(() => {
+                    setIdCopied(true);
+                    setTimeout(() => setIdCopied(false), 1500);
+                  });
+                }
+              }}
+              style={{
+                color: idCopied ? theme.accent : theme.textSecondary,
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                userSelect: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              ID: {profile?.unique_id || (tgUser?.id ? String(tgUser.id) : 'N/A')}
+              {idCopied && <span style={{ marginLeft: '6px', color: theme.accent, fontSize: '11px' }}>✓ {t('copied')}</span>}
+            </div>
           </div>
         </div>
 
@@ -332,7 +397,7 @@ export const Profile: React.FC = () => {
             </button>
           </div>
           <div style={{ color: '#F0B90B', fontWeight: '700', fontSize: '24px' }}>
-            ${parseFloat(String(profile?.wallet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
+            {parseFloat(String(profile?.wallet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '14px' }}>USDT</span>
           </div>
         </div>
 
@@ -341,13 +406,13 @@ export const Profile: React.FC = () => {
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>💎 NFT</div>
             <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
-              ${parseFloat(String(profile?.nft_balance || 0)).toFixed(2)}
+              {parseFloat(String(profile?.nft_balance || 0)).toFixed(2)} <span style={{ fontSize: '10px' }}>USDT</span>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '2px' }}>🧧 {t('red_packet_balance') || '红包余额 (USDT)'}</div>
             <div style={{ color: theme.text, fontWeight: '600', fontSize: '14px' }}>
-              ${parseFloat(String(profile?.red_packet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '10px' }}>USDT</span>
+              {parseFloat(String(profile?.red_packet_balance ?? 0)).toFixed(2)} <span style={{ fontSize: '10px' }}>USDT</span>
             </div>
           </div>
         </div>
@@ -358,7 +423,7 @@ export const Profile: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <span style={{ color: theme.textSecondary, fontSize: '11px' }}>🎁 {t('reward_balance') || '奖励余额'}（打码解锁）</span>
               <span style={{ color: '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
-                ${parseFloat(String(profile.reward_balance)).toFixed(2)} USDT
+                {parseFloat(String(profile.reward_balance)).toFixed(2)} USDT
               </span>
             </div>
             <div style={{ height: '4px', backgroundColor: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
@@ -423,25 +488,22 @@ export const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Language setting - inline select */}
-      <div style={{
-        backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px',
-        marginBottom: '10px', border: `1px solid ${theme.border}`,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: theme.text }}>{t('language_settings')}</span>
-          <select
-            value={lang}
-            onChange={e => handleSelectLanguage(e.target.value)}
-            style={{
-              padding: '4px 8px', borderRadius: '6px', border: `1px solid ${theme.border}`,
-              backgroundColor: theme.bgCardHover, color: theme.text, fontSize: '13px', cursor: 'pointer',
-            }}
-          >
-            {SUPPORTED_LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.label}</option>
-            ))}
-          </select>
+      {/* Language setting - navigate to list */}
+      <div
+        onClick={() => setView('language')}
+        style={{
+          backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px',
+          marginBottom: '10px', border: `1px solid ${theme.border}`,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ color: theme.text }}>{t('language_settings')}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: theme.textSecondary, fontSize: '13px' }}>
+            {SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || lang}
+          </span>
+          <span style={{ color: theme.textSecondary }}>›</span>
         </div>
       </div>
     </div>
