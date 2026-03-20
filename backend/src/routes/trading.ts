@@ -645,8 +645,12 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         'SELECT id, symbol, display_name, is_active FROM trading_pairs WHERE id = $1',
         [pairIdInt]
       );
-      if (pairResult.rows.length === 0 || !pairResult.rows[0].is_active) {
-        throw new Error('Trading pair not found or inactive');
+      console.log(`[quick-session] pair lookup: pairIdInt=${pairIdInt}, found=${pairResult.rows.length}`);
+      if (pairResult.rows.length === 0) {
+        throw Object.assign(new Error(`Trading pair not found: id=${pairIdInt}`), { statusCode: 404 });
+      }
+      if (!pairResult.rows[0].is_active) {
+        throw Object.assign(new Error(`Trading pair is inactive: id=${pairIdInt}`), { statusCode: 400 });
       }
 
       // Get applicable rule: pair-specific rules take precedence (ORDER BY pair_id DESC NULLS LAST),
@@ -697,7 +701,10 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
       const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
       const totalAvailable = walletBal + redPacketBal;
-      if (totalAvailable < orderAmount) throw new Error('Insufficient balance');
+      console.log(`[quick-session] user_id=${user_id}, walletBal=${walletBal}, redPacketBal=${redPacketBal}, totalAvailable=${totalAvailable}, orderAmount=${orderAmount}`);
+      if (totalAvailable < orderAmount) {
+        throw Object.assign(new Error('Insufficient balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+      }
 
       // Create a new session
       const now = new Date();
@@ -802,7 +809,11 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
               'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
       });
     }
-    res.status(500).json({ error: error.message });
+    const statusCode = error.statusCode || 500;
+    const body: Record<string, any> = { error: error.message };
+    if (error.current_balance !== undefined) body.current_balance = error.current_balance;
+    if (error.required !== undefined) body.required = error.required;
+    res.status(statusCode).json(body);
   }
 });
 

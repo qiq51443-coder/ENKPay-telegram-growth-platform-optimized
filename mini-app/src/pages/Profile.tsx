@@ -713,7 +713,6 @@ export const Profile: React.FC = () => {
       {/* Menu items */}
       {[
         { label: t('menu_orders'), onClick: openOrders },
-        { label: '📈 交易订单', onClick: openTradingOrders },
         { label: t('menu_announcements'), onClick: openAnnouncements },
         { label: t('menu_agreement'), onClick: openAgreement },
       ].map(item => (
