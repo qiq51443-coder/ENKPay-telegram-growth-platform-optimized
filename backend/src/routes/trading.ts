@@ -862,9 +862,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         try {
           sessionInsertResult = await client.query(
             `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, period_label, start_at, end_at)
-             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $3, $4)
+             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9)
              RETURNING *`,
-            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, resolvedPeriodLabel]
+            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, resolvedPeriodLabel, sessionStartTime, sessionEndTime]
           );
         } catch (insertErr: any) {
           // Fallback: period_label column might not exist yet (migration not applied)
@@ -872,9 +872,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
             sessionInsertResult = await client.query(
               `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, start_at, end_at)
-               VALUES ($1, $2, 'active', $3, $4, $5, $6, $3, $4)
+               VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
                RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice]
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, sessionStartTime, sessionEndTime]
             );
           } else {
             throw insertErr;
