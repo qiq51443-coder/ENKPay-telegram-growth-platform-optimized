@@ -534,10 +534,12 @@ router.post('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // start_at/end_at mirror start_time/end_time for backward compatibility with
+    // databases where migration 1008 has not yet been applied (start_at/end_at NOT NULL).
     const result = await query(
       `INSERT INTO trading_sessions 
-       (pair_id, start_time, end_time, settlement_time, status)
-       VALUES ($1, $2, $3, $4, 'pending')
+       (pair_id, start_time, end_time, settlement_time, status, start_at, end_at)
+       VALUES ($1, $2, $3, $4, 'pending', $2, $3)
        RETURNING *`,
       [pair_id, start_time, end_time, settlement_time]
     );

@@ -344,7 +344,7 @@ router.get('/sessions', async (req, res) => {
       queryText += ` AND s.pair_id = $${params.length}`;
     }
 
-    queryText += ` ORDER BY s.start_time`;
+    queryText += ` ORDER BY COALESCE(s.start_time, s.start_at)`;
 
     const result = await query(queryText, params);
 
@@ -855,11 +855,14 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
       if (!session) {
         // Create a new session with fixed period boundaries and open_price
+        // start_at/end_at are written alongside start_time/end_time for backward compatibility
+        // with databases where migration 1008 has not yet been applied (start_at/end_at NOT NULL).
+        // Once all deployments have run migration 1008, start_at/end_at can be removed.
         let sessionInsertResult;
         try {
           sessionInsertResult = await client.query(
-            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, period_label)
-             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
+            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, period_label, start_at, end_at)
+             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $3, $4)
              RETURNING *`,
             [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, resolvedPeriodLabel]
           );
@@ -868,8 +871,8 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           // PostgreSQL error code 42703 = undefined_column
           if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
             sessionInsertResult = await client.query(
-              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price)
-               VALUES ($1, $2, 'active', $3, $4, $5, $6)
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, start_at, end_at)
+               VALUES ($1, $2, 'active', $3, $4, $5, $6, $3, $4)
                RETURNING *`,
               [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice]
             );
