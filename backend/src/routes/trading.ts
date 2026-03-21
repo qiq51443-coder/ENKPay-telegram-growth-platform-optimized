@@ -5,6 +5,7 @@ import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-a
 import { getPairPrice, getKlineData, cacheKlineData } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
+import { getCurrentPeriod, getNextPeriod, resolvePeriodFromClient, resolvePeriodFromLabel, PeriodInfo } from '../services/period.service';
 
 const router = express.Router();
 
@@ -93,6 +94,46 @@ router.get('/health', async (_req, res) => {
       : 'Trading health check failed',
     checks,
   });
+});
+
+
+/**
+ * GET /api/trading/current-period
+ * Returns server-authoritative current and next period info for a given duration.
+ * Mini-app uses this to sync its countdown clock with the server.
+ */
+router.get('/current-period', async (req, res) => {
+  try {
+    const { duration = '60' } = req.query;
+    const durationSeconds = parseInt(String(duration), 10);
+    if (isNaN(durationSeconds) || durationSeconds <= 0) {
+      return res.status(400).json({ error: 'Invalid duration' });
+    }
+    const nowMs = Date.now();
+    const current = getCurrentPeriod(durationSeconds, nowMs);
+    const next = getNextPeriod(durationSeconds, nowMs);
+    res.json({
+      success: true,
+      data: {
+        server_time: nowMs,
+        duration_seconds: durationSeconds,
+        current: {
+          period_label: current.periodLabel,
+          period_start: current.periodStartMs,
+          period_end: current.periodEndMs,
+          remaining_ms: current.remainingMs,
+        },
+        next: {
+          period_label: next.periodLabel,
+          period_start: next.periodStartMs,
+          period_end: next.periodEndMs,
+          remaining_ms: next.remainingMs,
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 
@@ -639,30 +680,44 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       return res.status(400).json({ error: 'Invalid pair_id' });
     }
 
-    // Validate period_start if provided: it must be within ±2 periods of now
-    let periodStartMs: number | null = null;
-    let resolvedPeriodLabel: string | null = period_label || null;
-    if (period_start != null) {
-      periodStartMs = Number(period_start);
-      if (isNaN(periodStartMs)) {
-        return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
+    // ── Period Resolution (server-authoritative) ─────────────────────────────────
+    // Always resolve the period on the server side. Client hints are accepted but
+    // validated and snapped to the nearest valid period boundary.
+    const nowMs = Date.now();
+    let resolvedPeriod: PeriodInfo;
+
+    try {
+      if (period_start != null) {
+        const clientMs = Number(period_start);
+        if (isNaN(clientMs)) {
+          return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
+        }
+        // Try to resolve from client period_start (snaps to nearest boundary)
+        resolvedPeriod = resolvePeriodFromClient(clientMs, durationSeconds, nowMs);
+      } else if (period_label) {
+        // Try to resolve from label (e.g. frontend sent nextPeriodLabel without period_start)
+        const fromLabel = resolvePeriodFromLabel(period_label, durationSeconds, nowMs);
+        if (fromLabel) {
+          resolvedPeriod = fromLabel;
+        } else {
+          // Label out of range — fall back to next period
+          resolvedPeriod = getNextPeriod(durationSeconds, nowMs);
+        }
+      } else {
+        // No hints from client — use next period (users always bet on the NEXT period)
+        resolvedPeriod = getNextPeriod(durationSeconds, nowMs);
       }
-      const nowMs = Date.now();
-      // Allow a small tolerance in the past (clock skew) and up to 3 full periods in the future
-      // so users can pre-order for the next period regardless of how much time remains in the current period.
-      const toleranceMs = 30000; // 30 seconds for clock skew
-      const maxFutureMs = durationSeconds * 3 * 1000 + toleranceMs;
-      if (periodStartMs < nowMs - toleranceMs || periodStartMs > nowMs + maxFutureMs) {
-        console.warn('[quick-session] period_start out of range', {
-          periodStartMs,
-          nowMs,
-          diffMs: periodStartMs - nowMs,
-          maxFutureMs,
-          durationSeconds,
-        });
-        return res.status(400).json({ error: 'period_start is out of acceptable range. You may only order for the next period.' });
+    } catch (periodErr: any) {
+      if (periodErr.code === 'PERIOD_OUT_OF_RANGE') {
+        return res.status(400).json({ error: periodErr.message });
       }
+      throw periodErr;
     }
+
+    const periodStartMs = resolvedPeriod.periodStartMs;
+    const resolvedPeriodLabel = resolvedPeriod.periodLabel;
+    const sessionStartTime = new Date(periodStartMs);
+    const sessionEndTime = new Date(resolvedPeriod.periodEndMs);
 
     // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
     const userLookup = await query(
@@ -764,19 +819,6 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         } catch (priceErr: any) {
           throw new Error(`Price data not available and live fetch failed: ${priceErr.message}`);
         }
-      }
-
-      // Determine session time boundaries: use fixed period boundaries when period_start is provided,
-      // otherwise fall back to current time (legacy behaviour)
-      let sessionStartTime: Date;
-      let sessionEndTime: Date;
-      if (periodStartMs != null) {
-        sessionStartTime = new Date(periodStartMs);
-        sessionEndTime = new Date(periodStartMs + durationSeconds * 1000);
-      } else {
-        const now = new Date();
-        sessionStartTime = now;
-        sessionEndTime = new Date(now.getTime() + durationSeconds * 1000);
       }
 
       // Try to reuse an existing active/pending session for the same period
