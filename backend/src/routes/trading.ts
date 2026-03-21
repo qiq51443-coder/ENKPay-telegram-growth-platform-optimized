@@ -601,10 +601,10 @@ router.get('/pairs/:id/rules', async (req, res) => {
  */
 router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
-    const { pair_id, duration, direction, amount } = req.body;
+    const { pair_id, duration, direction, amount, period_label, period_start } = req.body;
     const telegramId = req.telegramUser?.id;
 
-    console.log('[quick-session] request body:', { pair_id, duration, direction, amount });
+    console.log('[quick-session] request body:', { pair_id, duration, direction, amount, period_label, period_start });
     console.log('[quick-session] telegramId:', telegramId);
 
     if (!telegramId) {
@@ -634,6 +634,22 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
     if (isNaN(pairIdInt) || pairIdInt <= 0) {
       return res.status(400).json({ error: 'Invalid pair_id' });
+    }
+
+    // Validate period_start if provided: it must be within ±2 periods of now
+    let periodStartMs: number | null = null;
+    let resolvedPeriodLabel: string | null = period_label || null;
+    if (period_start != null) {
+      periodStartMs = Number(period_start);
+      if (isNaN(periodStartMs)) {
+        return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
+      }
+      const nowMs = Date.now();
+      // Allow ±2 periods tolerance in the past (to handle clock skew) and up to +2 periods in the future
+      const toleranceMs = durationSeconds * 2 * 1000;
+      if (periodStartMs < nowMs - toleranceMs || periodStartMs > nowMs + toleranceMs) {
+        return res.status(400).json({ error: 'period_start is out of acceptable range. You may only order for the next period.' });
+      }
     }
 
     // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
@@ -738,17 +754,78 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         }
       }
 
-      // Create a new session (include open_price so NOT NULL constraint is satisfied)
-      const now = new Date();
-      const endTime = new Date(now.getTime() + durationSeconds * 1000);
+      // Determine session time boundaries: use fixed period boundaries when period_start is provided,
+      // otherwise fall back to current time (legacy behaviour)
+      let sessionStartTime: Date;
+      let sessionEndTime: Date;
+      if (periodStartMs != null) {
+        sessionStartTime = new Date(periodStartMs);
+        sessionEndTime = new Date(periodStartMs + durationSeconds * 1000);
+      } else {
+        const now = new Date();
+        sessionStartTime = now;
+        sessionEndTime = new Date(now.getTime() + durationSeconds * 1000);
+      }
 
-      const sessionResult = await client.query(
-        `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price)
-         VALUES ($1, $2, 'active', $3, $4, $5, $6)
-         RETURNING *`,
-        [pairIdInt, ruleId, now, endTime, durationSeconds, entryPrice]
-      );
-      const session = sessionResult.rows[0];
+      // Try to reuse an existing active/pending session for the same period
+      // Lookup by period_label when available, otherwise by start_time alignment
+      let session: any;
+      if (resolvedPeriodLabel) {
+        const existingSession = await client.query(
+          `SELECT * FROM trading_sessions
+           WHERE pair_id = $1 AND duration_seconds = $2 AND period_label = $3
+             AND status IN ('active', 'pending')
+           ORDER BY created_at ASC LIMIT 1`,
+          [pairIdInt, durationSeconds, resolvedPeriodLabel]
+        );
+        if (existingSession.rows.length > 0) {
+          session = existingSession.rows[0];
+          console.log(`[quick-session] reusing existing session id=${session.id} for period_label=${resolvedPeriodLabel}`);
+        }
+      }
+
+      if (!session) {
+        // Also check by start_time in case period_label column doesn't exist yet
+        const byStartTime = await client.query(
+          `SELECT * FROM trading_sessions
+           WHERE pair_id = $1 AND duration_seconds = $2
+             AND start_time = $3 AND status IN ('active', 'pending')
+           ORDER BY created_at ASC LIMIT 1`,
+          [pairIdInt, durationSeconds, sessionStartTime]
+        );
+        if (byStartTime.rows.length > 0) {
+          session = byStartTime.rows[0];
+          console.log(`[quick-session] reusing session by start_time id=${session.id}`);
+        }
+      }
+
+      if (!session) {
+        // Create a new session with fixed period boundaries and open_price
+        let sessionInsertResult;
+        try {
+          sessionInsertResult = await client.query(
+            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, period_label)
+             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, resolvedPeriodLabel]
+          );
+        } catch (insertErr: any) {
+          // Fallback: period_label column might not exist yet (migration not applied)
+          // PostgreSQL error code 42703 = undefined_column
+          if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
+            sessionInsertResult = await client.query(
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price)
+               VALUES ($1, $2, 'active', $3, $4, $5, $6)
+               RETURNING *`,
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice]
+            );
+          } else {
+            throw insertErr;
+          }
+        }
+        session = sessionInsertResult.rows[0];
+        console.log(`[quick-session] created new session id=${session.id} period_label=${resolvedPeriodLabel}`);
+      }
 
       // Deduct from red_packet_balance first, then wallet_balance
       const fromRedPacket = Math.min(redPacketBal, orderAmount);

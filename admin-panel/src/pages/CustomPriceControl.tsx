@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker } from 'antd';
-import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty } from 'antd';
+import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
+import dayjs from 'dayjs';
 
 interface TradingPair {
   id: string;
@@ -22,6 +23,72 @@ interface PricePreset {
   created_at: string;
 }
 
+interface TodayResult {
+  id: string;
+  period_label: string;
+  start_time: string;
+  end_time: string;
+  duration_seconds: number;
+  open_price: string;
+  settlement_price: string;
+  result_direction: 'up' | 'down' | null;
+  up_count: string;
+  down_count: string;
+}
+
+const DURATION_LABELS: Record<number, string> = {
+  60: '1 Min',
+  300: '5 Min',
+  600: '10 Min',
+};
+
+const DURATIONS = [60, 300, 600];
+
+const ResultColumn: React.FC<{ sessions: TodayResult[]; duration: number }> = ({ sessions, duration }) => {
+  const filtered = sessions.filter((s) => Number(s.duration_seconds) === duration);
+  return (
+    <div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, borderBottom: '1px solid #f0f0f0', paddingBottom: 4 }}>
+        {DURATION_LABELS[duration] || `${duration}s`}
+      </div>
+      {filtered.length === 0 ? (
+        <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        filtered.map((s) => (
+          <Card
+            key={s.id}
+            size="small"
+            style={{ marginBottom: 8 }}
+            bodyStyle={{ padding: '8px 12px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555' }}>
+                {s.period_label || dayjs(s.start_time).format('HH:mm')}
+              </span>
+              {s.result_direction ? (
+                <Tag color={s.result_direction === 'up' ? 'green' : 'red'} style={{ margin: 0 }}>
+                  {s.result_direction === 'up' ? '▲ 涨' : '▼ 跌'}
+                </Tag>
+              ) : (
+                <Tag color="default" style={{ margin: 0 }}>未结算</Tag>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+              <span>开: {s.open_price ? `$${parseFloat(s.open_price).toFixed(4)}` : '-'}</span>
+              <span style={{ margin: '0 8px' }}>→</span>
+              <span>收: {s.settlement_price ? `$${parseFloat(s.settlement_price).toFixed(4)}` : '-'}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+              <Tag color="green" style={{ fontSize: 10 }}>买涨 {s.up_count || 0}人</Tag>
+              <Tag color="red" style={{ fontSize: 10 }}>买跌 {s.down_count || 0}人</Tag>
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+};
+
 export const CustomPriceControl: React.FC = () => {
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [selectedPairId, setSelectedPairId] = useState<string>('');
@@ -29,6 +96,8 @@ export const CustomPriceControl: React.FC = () => {
   const [presets, setPresets] = useState<PricePreset[]>([]);
   const [addPointForm] = Form.useForm();
   const [presetForm] = Form.useForm();
+  const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
+  const [todayResultsLoading, setTodayResultsLoading] = useState(false);
 
   useEffect(() => {
     fetchPairs();
@@ -38,8 +107,21 @@ export const CustomPriceControl: React.FC = () => {
     if (selectedPairId) {
       fetchCurrentPrice();
       fetchPresets();
+      fetchTodayResults(selectedPairId);
     }
   }, [selectedPairId]);
+
+  const fetchTodayResults = async (pairId: string) => {
+    setTodayResultsLoading(true);
+    try {
+      const response = await apiClient.getTodayResults(pairId);
+      setTodayResults(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to fetch today results:', error);
+    } finally {
+      setTodayResultsLoading(false);
+    }
+  };
 
   const fetchPairs = async () => {
     try {
@@ -336,6 +418,31 @@ export const CustomPriceControl: React.FC = () => {
               />
             </Card>
           )}
+
+          {/* Today's settlement results for the selected custom pair */}
+          <Card
+            title="当天开奖结果"
+            style={{ marginTop: 16 }}
+            extra={
+              <Button
+                icon={<ReloadOutlined />}
+                size="small"
+                onClick={() => selectedPairId && fetchTodayResults(selectedPairId)}
+              >
+                刷新
+              </Button>
+            }
+          >
+            <Spin spinning={todayResultsLoading}>
+              <Row gutter={12}>
+                {DURATIONS.map((dur) => (
+                  <Col key={dur} xs={24} sm={8} style={{ marginBottom: 8 }}>
+                    <ResultColumn sessions={todayResults} duration={dur} />
+                  </Col>
+                ))}
+              </Row>
+            </Spin>
+          </Card>
         </>
       )}
     </div>
