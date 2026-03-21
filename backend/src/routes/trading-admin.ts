@@ -1072,15 +1072,20 @@ router.get('/orders', authenticateAdmin, async (req: AuthRequest, res) => {
         o.amount,
         o.entry_price,
         o.close_price,
+        o.settlement_price,
         o.odds,
         o.status,
         o.result,
         o.profit,
         o.created_at,
-        o.settled_at
+        o.settled_at,
+        o.session_id,
+        s.period_label,
+        s.duration_seconds as session_duration_seconds
       FROM trading_orders o
       LEFT JOIN users u ON u.id = o.user_id
       LEFT JOIN trading_pairs tp ON tp.id = o.pair_id
+      LEFT JOIN trading_sessions s ON s.id = o.session_id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -1114,6 +1119,50 @@ router.get('/orders', authenticateAdmin, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('Admin get orders error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading-admin/sessions/today-results
+ * Admin: get today's settled sessions for a pair with up/down order counts
+ */
+router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { pair_id } = req.query;
+
+    if (!pair_id) {
+      return res.status(400).json({ error: 'pair_id is required' });
+    }
+
+    const result = await query(
+      `SELECT
+         ts.id,
+         ts.period_label,
+         ts.start_time,
+         ts.end_time,
+         ts.duration_seconds,
+         ts.open_price,
+         ts.settlement_price,
+         ts.result_direction,
+         COUNT(CASE WHEN "to".direction = 'up' THEN 1 END) AS up_count,
+         COUNT(CASE WHEN "to".direction = 'down' THEN 1 END) AS down_count
+       FROM trading_sessions ts
+       LEFT JOIN trading_orders "to" ON "to".session_id = ts.id
+       WHERE ts.pair_id = $1
+         AND ts.status = 'settled'
+         AND ts.start_time >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
+       GROUP BY ts.id
+       ORDER BY ts.start_time DESC`,
+      [Number(pair_id)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get today results error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -10,12 +10,91 @@ import {
   Tag,
   Space,
   Descriptions,
+  Card,
+  Row,
+  Col,
+  Spin,
+  Empty,
 } from 'antd';
-import { ThunderboltOutlined, EyeOutlined } from '@ant-design/icons';
+import { ThunderboltOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
+
+const DURATION_LABELS: Record<number, string> = {
+  60: '1 Min',
+  300: '5 Min',
+  600: '10 Min',
+};
+
+const DURATIONS = [60, 300, 600];
+
+interface TodayResult {
+  id: string;
+  period_label: string;
+  start_time: string;
+  end_time: string;
+  duration_seconds: number;
+  open_price: string;
+  settlement_price: string;
+  result_direction: 'up' | 'down' | null;
+  up_count: string;
+  down_count: string;
+}
+
+interface TradingPair {
+  id: string;
+  symbol: string;
+  name?: string;
+  display_name?: string;
+  pair_type: string;
+}
+
+const ResultColumn: React.FC<{ sessions: TodayResult[]; duration: number }> = ({ sessions, duration }) => {
+  const filtered = sessions.filter((s) => Number(s.duration_seconds) === duration);
+  return (
+    <div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, borderBottom: '1px solid #f0f0f0', paddingBottom: 4 }}>
+        {DURATION_LABELS[duration] || `${duration}s`}
+      </div>
+      {filtered.length === 0 ? (
+        <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        filtered.map((s) => (
+          <Card
+            key={s.id}
+            size="small"
+            style={{ marginBottom: 8 }}
+            bodyStyle={{ padding: '8px 12px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555' }}>
+                {s.period_label || dayjs(s.start_time).format('HH:mm')}
+              </span>
+              {s.result_direction ? (
+                <Tag color={s.result_direction === 'up' ? 'green' : 'red'} style={{ margin: 0 }}>
+                  {s.result_direction === 'up' ? '▲ 涨' : '▼ 跌'}
+                </Tag>
+              ) : (
+                <Tag color="default" style={{ margin: 0 }}>未结算</Tag>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+              <span>开: {s.open_price ? `$${parseFloat(s.open_price).toFixed(4)}` : '-'}</span>
+              <span style={{ margin: '0 8px' }}>→</span>
+              <span>收: {s.settlement_price ? `$${parseFloat(s.settlement_price).toFixed(4)}` : '-'}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+              <Tag color="green" style={{ fontSize: 10 }}>买涨 {s.up_count || 0}人</Tag>
+              <Tag color="red" style={{ fontSize: 10 }}>买跌 {s.down_count || 0}人</Tag>
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+};
 
 export const TradingSessions: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -25,9 +104,52 @@ export const TradingSessions: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [form] = Form.useForm();
 
+  // Coin list + today's results
+  const [pairs, setPairs] = useState<TradingPair[]>([]);
+  const [pairsLoading, setPairsLoading] = useState(false);
+  const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
+  const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
+  const [todayResultsLoading, setTodayResultsLoading] = useState(false);
+
   useEffect(() => {
     fetchSessions();
+    fetchPairs();
   }, []);
+
+  useEffect(() => {
+    if (selectedPairId) {
+      fetchTodayResults(selectedPairId);
+    }
+  }, [selectedPairId]);
+
+  const fetchPairs = async () => {
+    setPairsLoading(true);
+    try {
+      const response = await api.getTradingPairs();
+      const allPairs: TradingPair[] = response.data || [];
+      const nonCustom = allPairs.filter((p) => p.pair_type !== 'custom');
+      setPairs(nonCustom);
+      if (nonCustom.length > 0 && !selectedPairId) {
+        setSelectedPairId(nonCustom[0].id);
+      }
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '获取币种列表失败');
+    } finally {
+      setPairsLoading(false);
+    }
+  };
+
+  const fetchTodayResults = async (pairId: string) => {
+    setTodayResultsLoading(true);
+    try {
+      const response = await api.getTodayResults(pairId);
+      setTodayResults(response.data || []);
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '获取开奖结果失败');
+    } finally {
+      setTodayResultsLoading(false);
+    }
+  };
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -59,9 +181,8 @@ export const TradingSessions: React.FC = () => {
       const response = await api.settleSession(selectedSession.id, values);
       message.success('结算成功');
       setSettleModalVisible(false);
-      
-      // Show settlement result
-      const result = response.data.data;
+
+      const result = response.data;
       Modal.info({
         title: '结算结果',
         content: (
@@ -69,18 +190,19 @@ export const TradingSessions: React.FC = () => {
             <Descriptions.Item label="总订单数">{result.total_orders}</Descriptions.Item>
             <Descriptions.Item label="盈利订单">{result.winning_orders}</Descriptions.Item>
             <Descriptions.Item label="亏损订单">{result.losing_orders}</Descriptions.Item>
-            <Descriptions.Item label="总下注金额">${result.total_bet_amount.toFixed(2)}</Descriptions.Item>
-            <Descriptions.Item label="总派奖金额">${result.total_payout.toFixed(2)}</Descriptions.Item>
+            <Descriptions.Item label="总下注金额">${(result.total_bet_amount ?? 0).toFixed(2)}</Descriptions.Item>
+            <Descriptions.Item label="总派奖金额">${(result.total_payout ?? 0).toFixed(2)}</Descriptions.Item>
             <Descriptions.Item label="平台利润">
-              <span style={{ color: result.platform_profit >= 0 ? 'green' : 'red' }}>
-                ${result.platform_profit.toFixed(2)}
+              <span style={{ color: (result.platform_profit ?? 0) >= 0 ? 'green' : 'red' }}>
+                ${(result.platform_profit ?? 0).toFixed(2)}
               </span>
             </Descriptions.Item>
           </Descriptions>
         ),
       });
-      
+
       fetchSessions();
+      if (selectedPairId) fetchTodayResults(selectedPairId);
     } catch (error: any) {
       message.error(error.response?.data?.error || '结算失败');
     } finally {
@@ -105,6 +227,12 @@ export const TradingSessions: React.FC = () => {
       dataIndex: 'pair_display_name',
       key: 'pair_display_name',
       render: (text: string, record: any) => text || record.pair_symbol,
+    },
+    {
+      title: '期号',
+      dataIndex: 'period_label',
+      key: 'period_label',
+      render: (v: string) => v || '-',
     },
     {
       title: '开始时间',
@@ -200,12 +328,77 @@ export const TradingSessions: React.FC = () => {
     },
   ];
 
+  const selectedPairName = pairs.find((p) => p.id === selectedPairId);
+
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
         <h2>交易结算管理 (Trading Sessions)</h2>
       </div>
 
+      {/* Today's results section */}
+      <Card
+        title="当天开奖结果"
+        style={{ marginBottom: 24 }}
+        extra={
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={() => selectedPairId && fetchTodayResults(selectedPairId)}
+          >
+            刷新
+          </Button>
+        }
+      >
+        <Row gutter={16}>
+          {/* Left: pair list */}
+          <Col xs={24} sm={6} md={5} lg={4}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>选择币种</div>
+            <Spin spinning={pairsLoading}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {pairs.map((pair) => (
+                  <Button
+                    key={pair.id}
+                    type={selectedPairId === pair.id ? 'primary' : 'default'}
+                    size="small"
+                    style={{ textAlign: 'left', width: '100%' }}
+                    onClick={() => setSelectedPairId(pair.id)}
+                  >
+                    {pair.display_name || pair.symbol}
+                  </Button>
+                ))}
+                {pairs.length === 0 && !pairsLoading && (
+                  <span style={{ color: '#999', fontSize: 12 }}>暂无非自定义币种</span>
+                )}
+              </div>
+            </Spin>
+          </Col>
+
+          {/* Right: 3-column results */}
+          <Col xs={24} sm={18} md={19} lg={20}>
+            {selectedPairId ? (
+              <>
+                <div style={{ marginBottom: 8, color: '#666' }}>
+                  {selectedPairName?.display_name || selectedPairName?.symbol} — 今日 UTC 0点至今
+                </div>
+                <Spin spinning={todayResultsLoading}>
+                  <Row gutter={12}>
+                    {DURATIONS.map((dur) => (
+                      <Col key={dur} xs={24} sm={8} style={{ marginBottom: 8 }}>
+                        <ResultColumn sessions={todayResults} duration={dur} />
+                      </Col>
+                    ))}
+                  </Row>
+                </Spin>
+              </>
+            ) : (
+              <Empty description="请选择币种查看开奖结果" />
+            )}
+          </Col>
+        </Row>
+      </Card>
+
+      {/* Sessions table */}
       <Table
         loading={loading}
         dataSource={sessions}
@@ -299,12 +492,17 @@ export const TradingSessions: React.FC = () => {
             <Descriptions.Item label="交易对" span={2}>
               {selectedSession.pair_display_name || selectedSession.pair_symbol}
             </Descriptions.Item>
+            {selectedSession.period_label && (
+              <Descriptions.Item label="期号" span={2}>
+                {selectedSession.period_label}
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="开仓价格">
               ${parseFloat(selectedSession.entry_price || 0).toFixed(8)}
             </Descriptions.Item>
             <Descriptions.Item label="结算价格">
-              {selectedSession.settlement_price 
-                ? `$${parseFloat(selectedSession.settlement_price).toFixed(8)}` 
+              {selectedSession.settlement_price
+                ? `$${parseFloat(selectedSession.settlement_price).toFixed(8)}`
                 : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="开始时间" span={2}>
@@ -347,10 +545,10 @@ export const TradingSessions: React.FC = () => {
                   ${parseFloat(selectedSession.total_payout || 0).toFixed(2)}
                 </Descriptions.Item>
                 <Descriptions.Item label="平台利润" span={2}>
-                  <span style={{ 
-                    color: (parseFloat(selectedSession.total_bet_amount) - parseFloat(selectedSession.total_payout || 0)) >= 0 
-                      ? 'green' 
-                      : 'red' 
+                  <span style={{
+                    color: (parseFloat(selectedSession.total_bet_amount) - parseFloat(selectedSession.total_payout || 0)) >= 0
+                      ? 'green'
+                      : 'red'
                   }}>
                     ${(parseFloat(selectedSession.total_bet_amount) - parseFloat(selectedSession.total_payout || 0)).toFixed(2)}
                   </span>

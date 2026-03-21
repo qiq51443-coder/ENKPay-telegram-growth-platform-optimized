@@ -686,6 +686,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getTodayResults(pairId: string | number) {
+    const response = await this.client.get('/trading-admin/sessions/today-results', { params: { pair_id: pairId } });
+    return response.data;
+  }
+
   async getTradingOrders(params?: any) {
     const response = await this.client.get('/trading-admin/orders', { params });
     return response.data;

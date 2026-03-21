@@ -208,6 +208,12 @@ export const TradingOrders: React.FC = () => {
       render: (v: string) => (v ? dayjs(v).format('MM-DD HH:mm:ss') : '-'),
     },
     {
+      title: '期号',
+      dataIndex: 'period_label',
+      key: 'period_label',
+      render: (v: string) => v || '-',
+    },
+    {
       title: '结算时间',
       dataIndex: 'settled_at',
       key: 'settled_at',

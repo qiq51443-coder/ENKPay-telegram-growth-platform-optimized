@@ -541,6 +541,11 @@ export const Trading: React.FC = () => {
     selectedPairRef.current = pair;
     setResultMsg(null);
     clearOrderError();
+    // Clear existing entry price line when switching pairs
+    if (entryPriceLineRef.current && candleSeriesRef.current) {
+      try { candleSeriesRef.current.removePriceLine(entryPriceLineRef.current); } catch {}
+      entryPriceLineRef.current = null;
+    }
     // Immediately fetch the price for this pair so the detail view shows up-to-date data
     try {
       const priceRes = await api.get(`/trading/pairs/${pair.id}/price`);
@@ -561,6 +566,11 @@ export const Trading: React.FC = () => {
     setSelectedDuration(sec);
     const rule = rules.find((r) => r.duration_seconds === sec);
     if (rule) setSelectedOdds(rule.odds);
+    // Clear existing entry price line when switching duration
+    if (entryPriceLineRef.current && candleSeriesRef.current) {
+      try { candleSeriesRef.current.removePriceLine(entryPriceLineRef.current); } catch {}
+      entryPriceLineRef.current = null;
+    }
   };
 
   const clearOrderError = () => {
@@ -604,12 +614,21 @@ export const Trading: React.FC = () => {
       initData: api.defaults.headers.common['X-Telegram-Init-Data'] ? 'present' : 'missing',
     });
 
-    const payload = {
+    const payload: any = {
       pair_id: Number(selectedPair.id),
       duration: Number(selectedDuration),
       direction: confirmDirection,
       amount: Number(amount),
     };
+
+    // Attach next-period boundaries so the backend can use fixed time boundaries
+    if (periodInfo) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const dayStartSec = Math.floor(nowSec / 86400) * 86400;
+      const periodStartMs = (dayStartSec + periodInfo.nextPeriod * selectedDuration) * 1000;
+      payload.period_label = periodInfo.nextPeriodLabel;
+      payload.period_start = periodStartMs;
+    }
     console.log('[Trading] submitOrder payload:', payload);
 
     try {
@@ -677,6 +696,11 @@ export const Trading: React.FC = () => {
       if (remaining <= 0) {
         clearInterval(countdownRef.current!);
         setCountdown(null);
+        // Remove entry price line when the period ends
+        if (entryPriceLineRef.current && candleSeriesRef.current) {
+          try { candleSeriesRef.current.removePriceLine(entryPriceLineRef.current); } catch {}
+          entryPriceLineRef.current = null;
+        }
         if (orderId) fetchResult(orderId);
       }
     };
