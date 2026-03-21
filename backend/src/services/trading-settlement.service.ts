@@ -7,6 +7,8 @@ interface SettlementResult {
   platform_profit: number;
   winning_orders: number;
   losing_orders: number;
+  draw_orders: number;
+  result_direction: string;
 }
 
 /**
@@ -34,7 +36,7 @@ export async function settleSession(
 
     // Get session details
     const sessionResult = await client.query(
-      `SELECT id, status, rule_id FROM trading_sessions WHERE id = $1`,
+      `SELECT id, status, rule_id, duration_seconds FROM trading_sessions WHERE id = $1`,
       [sessionId]
     );
 
@@ -49,10 +51,22 @@ export async function settleSession(
     }
 
     // Get trading rule for this session (if exists)
-    let ruleOdds = 1.95; // Default odds
+    let ruleOdds = 1.85; // Default odds
     let ruleId = session.rule_id;
 
-    if (ruleId) {
+    if (!ruleId) {
+      // Try to find a global default rule for this duration
+      const globalRuleResult = await client.query(
+        `SELECT id, odds FROM trading_rules
+         WHERE pair_id IS NULL AND duration_seconds = $1 AND is_active = true
+         ORDER BY id ASC LIMIT 1`,
+        [session.duration_seconds]
+      );
+      if (globalRuleResult.rows.length > 0) {
+        ruleId = globalRuleResult.rows[0].id;
+        ruleOdds = parseFloat(globalRuleResult.rows[0].odds);
+      }
+    } else {
       const ruleResult = await client.query(
         `SELECT id, odds FROM trading_rules WHERE id = $1`,
         [ruleId]
@@ -79,9 +93,12 @@ export async function settleSession(
         `UPDATE trading_sessions
          SET status = 'settled',
              result_direction = $1,
+             result = $1,
              settlement_price = $2,
+             close_price = $2,
              total_bet_amount = 0,
              total_payout = 0,
+             order_count = 0,
              settled_at = NOW()
          WHERE id = $3`,
         [resultDirection, settlementPrice, sessionId]
@@ -94,6 +111,8 @@ export async function settleSession(
         platform_profit: 0,
         winning_orders: 0,
         losing_orders: 0,
+        draw_orders: 0,
+        result_direction: resultDirection,
       };
     }
 
@@ -148,6 +167,7 @@ export async function settleSession(
          SET result = $1,
              profit = $2,
              settlement_price = $3,
+             close_price = $3,
              settled_at = NOW(),
              status = 'settled'
          WHERE id = $4`,
@@ -162,12 +182,15 @@ export async function settleSession(
       `UPDATE trading_sessions
        SET status = 'settled',
            result_direction = $1,
+           result = $1,
            settlement_price = $2,
+           close_price = $2,
            total_bet_amount = $3,
            total_payout = $4,
+           order_count = $6,
            settled_at = NOW()
        WHERE id = $5`,
-      [resultDirection, settlementPrice, totalBetAmount, totalPayout, sessionId]
+      [resultDirection, settlementPrice, totalBetAmount, totalPayout, sessionId, orders.length]
     );
 
     // Log settlement
@@ -201,6 +224,8 @@ export async function settleSession(
       platform_profit: platformProfit,
       winning_orders: winningOrders,
       losing_orders: losingOrders,
+      draw_orders: 0,
+      result_direction: resultDirection,
     };
   });
 }
