@@ -361,8 +361,11 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
       }
 
       const now = new Date();
-      if (now < new Date(session.start_time) || now > new Date(session.end_time)) {
-        throw new Error('Trading session is not in valid time range');
+      const sessionEnd = new Date(session.end_time);
+      // Allow pre-ordering when start_time is in the future (next-period orders).
+      // Only reject if the session has already ended.
+      if (now > sessionEnd) {
+        throw new Error('Trading session has already ended');
       }
 
       // Get trading rule for this session (if exists)
@@ -645,9 +648,11 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
       }
       const nowMs = Date.now();
-      // Allow ±2 periods tolerance in the past (to handle clock skew) and up to +2 periods in the future
-      const toleranceMs = durationSeconds * 2 * 1000;
-      if (periodStartMs < nowMs - toleranceMs || periodStartMs > nowMs + toleranceMs) {
+      // Allow a small tolerance in the past (clock skew) and up to 2 full periods in the future
+      // so users can pre-order for the next period regardless of how much time remains in the current period.
+      const toleranceMs = 30000; // 30 seconds for clock skew
+      const maxFutureMs = durationSeconds * 2 * 1000 + toleranceMs;
+      if (periodStartMs < nowMs - toleranceMs || periodStartMs > nowMs + maxFutureMs) {
         return res.status(400).json({ error: 'period_start is out of acceptable range. You may only order for the next period.' });
       }
     }

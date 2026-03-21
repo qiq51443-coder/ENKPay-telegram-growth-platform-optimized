@@ -623,9 +623,11 @@ export const Trading: React.FC = () => {
 
     // Attach next-period boundaries so the backend can use fixed time boundaries
     if (periodInfo) {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const dayStartSec = Math.floor(nowSec / 86400) * 86400;
-      const periodStartMs = (dayStartSec + periodInfo.nextPeriod * selectedDuration) * 1000;
+      // currentPeriod is 1-indexed (period 1 starts at dayStartSec, period 2 at dayStartSec + duration, …).
+      // Therefore dayStartSec + currentPeriod * durationSeconds equals the start of the NEXT (upcoming) period,
+      // which is exactly what users are ordering into.
+      const dayStartSec = Math.floor(Date.now() / 1000 / 86400) * 86400;
+      const periodStartMs = (dayStartSec + periodInfo.currentPeriod * selectedDuration) * 1000;
       payload.period_label = periodInfo.nextPeriodLabel;
       payload.period_start = periodStartMs;
     }
@@ -638,7 +640,7 @@ export const Trading: React.FC = () => {
         : Date.now() + selectedDuration * 1000;
       const entryPrice: number | undefined = res.data?.data?.entry_price || res.data?.data?.order?.entry_price;
 
-      // Mark entry price on the chart
+      // Mark entry price on the chart with a yellow dashed line
       if (entryPrice && candleSeriesRef.current) {
         try {
           // Remove previous entry line if any
@@ -647,11 +649,11 @@ export const Trading: React.FC = () => {
           }
           entryPriceLineRef.current = candleSeriesRef.current.createPriceLine({
             price: entryPrice,
-            color: confirmDirection === 'up' ? '#26a69a' : '#ef5350',
+            color: '#F0B90B',
             lineWidth: 1,
-            lineStyle: 2, // Dashed
+            lineStyle: 2, // LineStyle.Dashed
             axisLabelVisible: true,
-            title: `${confirmDirection === 'up' ? '▲' : '▼'} ${amount} USDT`,
+            title: `开仓价 $${safeFixed(entryPrice, 4)}`,
           });
         } catch { /* ignore chart errors */ }
       }

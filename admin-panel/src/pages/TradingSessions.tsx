@@ -15,6 +15,7 @@ import {
   Col,
   Spin,
   Empty,
+  Avatar,
 } from 'antd';
 import { ThunderboltOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
@@ -49,6 +50,26 @@ interface TradingPair {
   name?: string;
   display_name?: string;
   pair_type: string;
+  icon_url?: string;
+}
+
+interface TradingOrder {
+  id: string;
+  telegram_id?: string;
+  username?: string;
+  first_name?: string;
+  symbol: string;
+  display_name: string;
+  direction: 'up' | 'down';
+  amount: string;
+  odds: string;
+  entry_price: string;
+  settlement_price?: string;
+  status: string;
+  result?: string;
+  profit?: string;
+  period_label?: string;
+  created_at: string;
 }
 
 const ResultColumn: React.FC<{ sessions: TodayResult[]; duration: number }> = ({ sessions, duration }) => {
@@ -111,9 +132,14 @@ export const TradingSessions: React.FC = () => {
   const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
   const [todayResultsLoading, setTodayResultsLoading] = useState(false);
 
+  // Recent trading orders
+  const [orders, setOrders] = useState<TradingOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
   useEffect(() => {
     fetchSessions();
     fetchPairs();
+    fetchOrders();
   }, []);
 
   useEffect(() => {
@@ -160,6 +186,18 @@ export const TradingSessions: React.FC = () => {
       message.error(error.response?.data?.error || '获取交易时段失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const response = await api.getTradingOrders({ limit: 100 });
+      setOrders(response.data || []);
+    } catch (error: any) {
+      console.error('获取交易订单失败', error);
+    } finally {
+      setOrdersLoading(false);
     }
   };
 
@@ -351,22 +389,44 @@ export const TradingSessions: React.FC = () => {
         }
       >
         <Row gutter={16}>
-          {/* Left: pair list */}
+          {/* Left: pair list as card items */}
           <Col xs={24} sm={6} md={5} lg={4}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>选择币种</div>
             <Spin spinning={pairsLoading}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {pairs.map((pair) => (
-                  <Button
-                    key={pair.id}
-                    type={selectedPairId === pair.id ? 'primary' : 'default'}
-                    size="small"
-                    style={{ textAlign: 'left', width: '100%' }}
-                    onClick={() => setSelectedPairId(pair.id)}
-                  >
-                    {pair.display_name || pair.symbol}
-                  </Button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {pairs.map((pair) => {
+                  const label = pair.display_name || pair.symbol;
+                  const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
+                  const isSelected = selectedPairId === pair.id;
+                  return (
+                    <div
+                      key={pair.id}
+                      onClick={() => setSelectedPairId(pair.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: isSelected ? '2px solid #1677ff' : '2px solid #f0f0f0',
+                        background: isSelected ? '#e6f4ff' : '#fff',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {pair.icon_url ? (
+                        <Avatar src={pair.icon_url} size={32} />
+                      ) : (
+                        <Avatar size={32} style={{ backgroundColor: '#1677ff', fontSize: 12 }}>
+                          {initials}
+                        </Avatar>
+                      )}
+                      <span style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
                 {pairs.length === 0 && !pairsLoading && (
                   <span style={{ color: '#999', fontSize: 12 }}>暂无非自定义币种</span>
                 )}
@@ -406,6 +466,105 @@ export const TradingSessions: React.FC = () => {
         rowKey="id"
         pagination={{ pageSize: 20 }}
       />
+
+      {/* Recent trading orders */}
+      <Card
+        title="近期交易订单"
+        style={{ marginTop: 24 }}
+        extra={
+          <Button icon={<ReloadOutlined />} size="small" onClick={fetchOrders}>
+            刷新
+          </Button>
+        }
+      >
+        <Table
+          loading={ordersLoading}
+          dataSource={orders}
+          rowKey="id"
+          pagination={{ pageSize: 20 }}
+          scroll={{ x: 1200 }}
+          columns={[
+            { title: '订单ID', dataIndex: 'id', key: 'id', width: 80 },
+            {
+              title: '用户',
+              key: 'user',
+              width: 120,
+              render: (_: any, record: TradingOrder) =>
+                record.username ? `@${record.username}` : record.first_name || record.telegram_id || '-',
+            },
+            {
+              title: '交易对',
+              key: 'pair',
+              width: 100,
+              render: (_: any, record: TradingOrder) => record.display_name || record.symbol,
+            },
+            {
+              title: '方向',
+              dataIndex: 'direction',
+              key: 'direction',
+              width: 70,
+              render: (d: string) => (
+                <Tag color={d === 'up' ? 'green' : 'red'}>{d === 'up' ? '▲ 涨' : '▼ 跌'}</Tag>
+              ),
+            },
+            {
+              title: '金额',
+              dataIndex: 'amount',
+              key: 'amount',
+              width: 90,
+              render: (v: any) => `$${parseFloat(String(v ?? 0)).toFixed(2)}`,
+            },
+            {
+              title: '赔率',
+              dataIndex: 'odds',
+              key: 'odds',
+              width: 70,
+              render: (v: any) => parseFloat(String(v ?? 0)).toFixed(2),
+            },
+            {
+              title: '入场价',
+              dataIndex: 'entry_price',
+              key: 'entry_price',
+              width: 110,
+              render: (v: any) => v ? `$${parseFloat(String(v)).toFixed(4)}` : '-',
+            },
+            {
+              title: '结算价',
+              dataIndex: 'settlement_price',
+              key: 'settlement_price',
+              width: 110,
+              render: (v: any) => v ? `$${parseFloat(String(v)).toFixed(4)}` : '-',
+            },
+            {
+              title: '结果',
+              dataIndex: 'result',
+              key: 'result',
+              width: 80,
+              render: (r: string, record: TradingOrder) => {
+                if (record.status === 'active' || record.status === 'pending') {
+                  return <Tag color="blue">进行中</Tag>;
+                }
+                if (!r) return <Tag color="default">{record.status}</Tag>;
+                return <Tag color={r === 'win' ? 'green' : 'red'}>{r === 'win' ? '赢' : '输'}</Tag>;
+              },
+            },
+            {
+              title: '期号',
+              dataIndex: 'period_label',
+              key: 'period_label',
+              width: 120,
+              render: (v: string) => v || '-',
+            },
+            {
+              title: '下单时间',
+              dataIndex: 'created_at',
+              key: 'created_at',
+              width: 160,
+              render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss'),
+            },
+          ]}
+        />
+      </Card>
 
       <Modal
         title="结算交易时段"

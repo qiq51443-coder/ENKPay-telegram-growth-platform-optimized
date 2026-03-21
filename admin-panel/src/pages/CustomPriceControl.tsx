@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty } from 'antd';
+import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty, Avatar } from 'antd';
 import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -10,6 +10,7 @@ interface TradingPair {
   name: string;
   pair_type: string;
   current_price?: number;
+  icon_url?: string;
 }
 
 interface PricePreset {
@@ -278,41 +279,70 @@ export const CustomPriceControl: React.FC = () => {
         <p style={{ color: '#666', marginTop: 4 }}>管理自定义币种的价格走势</p>
       </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <div>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-              选择交易对
-            </label>
-            <Select
-              style={{ width: 300 }}
-              value={selectedPairId}
-              onChange={setSelectedPairId}
-              placeholder="选择自定义交易对"
-            >
-              {pairs.map(pair => (
-                <Select.Option key={pair.id} value={pair.id}>
-                  {pair.symbol} - {pair.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-
-          {selectedPairId && currentPrice !== null && (
-            <div>
-              <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-                当前价格
-              </label>
-              <div style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
-                ${typeof currentPrice === 'number' ? currentPrice.toFixed(4) : parseFloat(String(currentPrice ?? 0)).toFixed(4)}
+      <Row gutter={16}>
+        {/* Left: custom pair card list */}
+        <Col xs={24} sm={5}>
+          <Card bodyStyle={{ padding: '12px 8px' }}>
+            <div style={{ fontWeight: 600, marginBottom: 8, paddingLeft: 4 }}>选择交易对</div>
+            {pairs.length === 0 ? (
+              <Empty description="暂无自定义币种" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {pairs.map((pair) => {
+                  const label = pair.symbol || pair.name;
+                  const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
+                  const isSelected = selectedPairId === pair.id;
+                  return (
+                    <div
+                      key={pair.id}
+                      onClick={() => setSelectedPairId(pair.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: isSelected ? '2px solid #1677ff' : '2px solid #f0f0f0',
+                        background: isSelected ? '#e6f4ff' : '#fff',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {pair.icon_url ? (
+                        <Avatar src={pair.icon_url} size={32} />
+                      ) : (
+                        <Avatar size={32} style={{ backgroundColor: '#1677ff', fontSize: 12 }}>
+                          {initials}
+                        </Avatar>
+                      )}
+                      <span style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
-        </Space>
-      </Card>
+            )}
+          </Card>
+        </Col>
 
-      {selectedPairId && (
-        <>
+        {/* Right: control panel */}
+        <Col xs={24} sm={19}>
+          {!selectedPairId ? (
+            <Empty description="请点击左侧币种进行管理" style={{ marginTop: 80 }} />
+          ) : (
+            <>
+              {currentPrice !== null && (
+                <Card style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+                    当前价格
+                  </label>
+                  <div style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
+                    ${typeof currentPrice === 'number' ? currentPrice.toFixed(4) : parseFloat(String(currentPrice ?? 0)).toFixed(4)}
+                  </div>
+                </Card>
+              )}
+
           <Card title="手动添加价格点" style={{ marginBottom: 16 }}>
             <Form
               form={addPointForm}
@@ -443,8 +473,10 @@ export const CustomPriceControl: React.FC = () => {
               </Row>
             </Spin>
           </Card>
-        </>
-      )}
+            </>
+          )}
+        </Col>
+      </Row>
     </div>
   );
 };
