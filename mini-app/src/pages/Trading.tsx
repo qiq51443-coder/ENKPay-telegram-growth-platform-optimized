@@ -156,6 +156,7 @@ export const Trading: React.FC = () => {
   const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedDurationRef = useRef<number>(selectedDuration);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
+  const periodInfoRef = useRef<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
@@ -212,7 +213,11 @@ export const Trading: React.FC = () => {
   // Update period info every second based on selectedDuration
   useEffect(() => {
     selectedDurationRef.current = selectedDuration;
-    const updatePeriod = () => setPeriodInfo(getCurrentPeriodInfo(selectedDuration));
+    const updatePeriod = () => {
+      const info = getCurrentPeriodInfo(selectedDuration);
+      setPeriodInfo(info);
+      periodInfoRef.current = info;
+    };
     updatePeriod();
     if (periodTimerRef.current) clearInterval(periodTimerRef.current);
     periodTimerRef.current = setInterval(updatePeriod, 1000);
@@ -622,13 +627,21 @@ export const Trading: React.FC = () => {
     };
 
     // Attach next-period boundaries so the backend can use fixed time boundaries
-    if (periodInfo) {
+    // Always read the latest period info from the ref to avoid stale closure issues.
+    // If we're within 2 seconds of a period boundary, wait briefly to avoid race conditions.
+    let currentPeriodInfo = periodInfoRef.current ?? getCurrentPeriodInfo(selectedDurationRef.current);
+    if (currentPeriodInfo.secondsUntilNext < 2) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      currentPeriodInfo = getCurrentPeriodInfo(selectedDurationRef.current);
+      periodInfoRef.current = currentPeriodInfo;
+    }
+    if (currentPeriodInfo) {
       // currentPeriod is 1-indexed (period 1 starts at dayStartSec, period 2 at dayStartSec + duration, …).
       // Therefore dayStartSec + currentPeriod * durationSeconds equals the start of the NEXT (upcoming) period,
       // which is exactly what users are ordering into.
       const dayStartSec = Math.floor(Date.now() / 1000 / 86400) * 86400;
-      const periodStartMs = (dayStartSec + periodInfo.currentPeriod * selectedDuration) * 1000;
-      payload.period_label = periodInfo.nextPeriodLabel;
+      const periodStartMs = (dayStartSec + currentPeriodInfo.currentPeriod * selectedDurationRef.current) * 1000;
+      payload.period_label = currentPeriodInfo.nextPeriodLabel;
       payload.period_start = periodStartMs;
     }
     console.log('[Trading] submitOrder payload:', payload);
@@ -672,14 +685,20 @@ export const Trading: React.FC = () => {
       console.error('[Trading] submitOrder error:', status, e?.response?.data);
 
       let displayMsg = errMsg;
-      if (status === 401) {
-        displayMsg = '认证失败，请关闭后重新打开应用（401）';
+      if (status === 401 || /Invalid init data|Authentication/i.test(errMsg)) {
+        displayMsg = '登录状态已过期，请重新打开 App';
+      } else if (status === 402 || /Insufficient balance|余额不足/i.test(errMsg)) {
+        displayMsg = '余额不足，请充值后再试';
+      } else if (status === 503 || /missing_migration|Trading feature is not ready/i.test(errMsg)) {
+        displayMsg = '交易功能暂不可用，请联系管理员';
+      } else if (/period_start is out of acceptable range/i.test(errMsg)) {
+        displayMsg = '下单时机不佳，请稍后重试';
+      } else if (/Invalid amount/i.test(errMsg)) {
+        displayMsg = '请输入有效金额';
+      } else if (/No active trading rule/i.test(errMsg)) {
+        displayMsg = '当前交易对暂无可用规则，请稍后再试';
       } else if (status === 400) {
         displayMsg = `参数错误: ${errMsg}`;
-      } else if (status === 402) {
-        displayMsg = '余额不足';
-      } else if (status === 503) {
-        displayMsg = '交易功能数据库未初始化，请联系管理员';
       }
 
       setOrderError(displayMsg);

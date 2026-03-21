@@ -648,11 +648,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
       }
       const nowMs = Date.now();
-      // Allow a small tolerance in the past (clock skew) and up to 2 full periods in the future
+      // Allow a small tolerance in the past (clock skew) and up to 3 full periods in the future
       // so users can pre-order for the next period regardless of how much time remains in the current period.
       const toleranceMs = 30000; // 30 seconds for clock skew
-      const maxFutureMs = durationSeconds * 2 * 1000 + toleranceMs;
+      const maxFutureMs = durationSeconds * 3 * 1000 + toleranceMs;
       if (periodStartMs < nowMs - toleranceMs || periodStartMs > nowMs + maxFutureMs) {
+        console.warn('[quick-session] period_start out of range', {
+          periodStartMs,
+          nowMs,
+          diffMs: periodStartMs - nowMs,
+          maxFutureMs,
+          durationSeconds,
+        });
         return res.status(400).json({ error: 'period_start is out of acceptable range. You may only order for the next period.' });
       }
     }
