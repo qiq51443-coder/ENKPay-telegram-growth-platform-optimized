@@ -47,22 +47,33 @@ async function autoSettleSessions(): Promise<void> {
       try {
         let closePrice: number;
 
-        // 1. Get close price from price_points at or before end_time
+        // 1. Get close price from price_points within a time window around end_time.
+        //    The window extends further backward (-10s) than forward (+5s) because
+        //    real-price-snapshot writes occur up to 3s apart and the settle job may
+        //    run slightly after end_time, so we need more historical coverage than future.
         const ppResult = await query(
           `SELECT price FROM price_points
-           WHERE pair_id = $1 AND timestamp <= $2
-           ORDER BY timestamp DESC LIMIT 1`,
+           WHERE pair_id = $1
+             AND timestamp BETWEEN ($2::timestamptz - INTERVAL '10 seconds')
+                               AND ($2::timestamptz + INTERVAL '5 seconds')
+           ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
+           LIMIT 1`,
           [session.pair_id, session.end_time]
         );
 
         if (ppResult.rows.length > 0) {
           closePrice = parseFloat(ppResult.rows[0].price);
         } else {
-          // 2. Fallback to live price
+          // 2. Fallback to live price; persist snapshot so the record exists for auditing
           try {
             const priceData = await getPairPrice(session.pair_id);
             closePrice = priceData.price;
-            console.warn(`[auto-settle] session ${session.id}: no price_points data, used live price ${closePrice}`);
+            console.warn(`[auto-settle] [ALERT] session ${session.id}: no price_points data, used live price ${closePrice}`);
+            // Persist the fallback price as a snapshot for audit trail
+            await query(
+              `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
+              [session.pair_id, closePrice]
+            ).catch((e: any) => console.warn(`[auto-settle] failed to persist fallback snapshot for session ${session.id} pair ${session.pair_id}:`, e.message));
           } catch (priceErr) {
             console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
             continue;
