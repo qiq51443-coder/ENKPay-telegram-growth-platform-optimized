@@ -22,21 +22,28 @@ async function runPeriodSnapshot(): Promise<void> {
 
     for (const session of pendingResult.rows) {
       try {
-        // Get opening price: latest price_points entry at or before start_time
+        // Get opening price: latest price_points entry at or before NOW()
+        // (NOT start_time — real pairs may not have entries at future timestamps)
         let openPrice: number | null = null;
         const ppResult = await query(
           `SELECT price FROM price_points
-           WHERE pair_id = $1 AND timestamp <= $2
+           WHERE pair_id = $1 AND timestamp <= NOW()
            ORDER BY timestamp DESC LIMIT 1`,
-          [session.pair_id, session.start_time]
+          [session.pair_id]
         );
         if (ppResult.rows.length > 0) {
           openPrice = parseFloat(ppResult.rows[0].price);
         } else {
-          // Fallback: current live price
+          // Fallback: fetch live price and immediately persist it as a price_points snapshot
+          // so that auto-settle can later find this exact price by timestamp.
           try {
             const priceData = await getPairPrice(session.pair_id);
             openPrice = priceData.price;
+            // Persist snapshot so auto-settle has a reference price_point
+            await query(
+              `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
+              [session.pair_id, openPrice]
+            ).catch((e: any) => console.warn(`[period-snapshot] failed to persist price snapshot for pair ${session.pair_id}:`, e.message));
           } catch {
             console.warn(`[period-snapshot] [WARN] session ${session.id}: no price data, skipping`);
             continue;
