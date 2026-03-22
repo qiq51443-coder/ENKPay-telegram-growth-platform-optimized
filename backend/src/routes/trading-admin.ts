@@ -1147,12 +1147,13 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
          ts.open_price,
          ts.settlement_price,
          ts.result_direction,
+         ts.status,
          COUNT(CASE WHEN "to".direction = 'up' THEN 1 END) AS up_count,
          COUNT(CASE WHEN "to".direction = 'down' THEN 1 END) AS down_count
        FROM trading_sessions ts
        LEFT JOIN trading_orders "to" ON "to".session_id = ts.id
        WHERE ts.pair_id = $1
-         AND ts.status = 'settled'
+         AND ts.status IN ('settled', 'active')
          AND ts.start_time >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
        GROUP BY ts.id
        ORDER BY ts.start_time DESC`,
@@ -1191,10 +1192,10 @@ router.get('/pairs-with-open-price', adminLimiter, authenticateAdmin, async (req
          ts.duration_seconds
        FROM trading_pairs tp
        LEFT JOIN LATERAL (
-         SELECT id, open_price, start_time, end_time, duration_seconds
+         SELECT id, open_price, start_time, end_time, duration_seconds, status
          FROM trading_sessions
          WHERE pair_id = tp.id
-           AND status = 'active'
+           AND status IN ('active', 'pending')
          ORDER BY end_time ASC
          LIMIT 1
        ) ts ON true

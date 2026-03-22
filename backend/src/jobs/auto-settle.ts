@@ -50,7 +50,6 @@ async function autoSettleSessions(): Promise<void> {
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
        WHERE ts.end_time <= NOW()
          AND ts.status = 'active'
-         AND ts.open_price IS NOT NULL
        ORDER BY ts.end_time ASC
        LIMIT 50`,
       []
@@ -113,7 +112,22 @@ async function autoSettleSessions(): Promise<void> {
           }
         }
 
-        const openPrice = parseFloat(session.open_price);
+        // Get open_price, falling back to live price if the session's open_price was never set
+        let openPrice: number;
+        if (session.open_price == null) {
+          console.warn(`[auto-settle] [WARN] session ${session.id}: open_price is null, trying live price as fallback`);
+          try {
+            const priceData = await getPairPrice(session.pair_id);
+            openPrice = priceData.price;
+            // Backfill open_price in DB so future runs and audits have a value
+            await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
+          } catch (priceErr: any) {
+            console.error(`[auto-settle] [ALERT] session ${session.id} (pair_id=${session.pair_id}): cannot get open_price, SKIPPING settlement`, priceErr);
+            continue;
+          }
+        } else {
+          openPrice = parseFloat(session.open_price);
+        }
 
         // 3. Determine result direction.
         //    ALWAYS use real price comparison as the primary logic.
