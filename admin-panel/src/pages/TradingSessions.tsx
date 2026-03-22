@@ -41,6 +41,7 @@ interface TodayResult {
   open_price: string;
   settlement_price: string;
   result_direction: 'up' | 'down' | null;
+  status: string;
   up_count: string;
   down_count: string;
 }
@@ -159,6 +160,15 @@ export const TradingSessions: React.FC = () => {
     }
   }, [selectedPairId]);
 
+  // Auto-refresh today's results and open prices every 10 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (selectedPairId) fetchTodayResults(selectedPairId);
+      fetchPairs();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [selectedPairId]);
+
   const fetchPairs = async () => {
     setPairsLoading(true);
     try {
@@ -193,7 +203,7 @@ export const TradingSessions: React.FC = () => {
       const response = await api.getTodayResults(pairId);
       setTodayResults(response.data || []);
     } catch (error: any) {
-      message.error(error.response?.data?.error || '获取开奖结果失败');
+      message.error({ content: error.response?.data?.error || '获取开奖结果失败', key: 'today-results-error', duration: 3 });
     } finally {
       setTodayResultsLoading(false);
     }
