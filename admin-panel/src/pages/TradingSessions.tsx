@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -18,7 +18,7 @@ import {
   Avatar,
   Tabs,
 } from 'antd';
-import { ThunderboltOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ThunderboltOutlined, EyeOutlined, ReloadOutlined, LeftOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
@@ -31,6 +31,9 @@ const DURATION_LABELS: Record<number, string> = {
 };
 
 const DURATIONS = [60, 300, 600];
+
+const POSITIVE_COLOR = '#52c41a';
+const NEGATIVE_COLOR = '#f5222d';
 
 interface TodayResult {
   id: string;
@@ -62,6 +65,7 @@ interface PairWithOpenPrice {
   current_price?: number;
   open_price?: string | null;
   is_active?: boolean;
+  change_24h?: number | null;
 }
 
 interface TradingOrder {
@@ -83,48 +87,273 @@ interface TradingOrder {
   created_at: string;
 }
 
-const ResultColumn: React.FC<{ sessions: TodayResult[]; duration: number }> = ({ sessions, duration }) => {
-  const filtered = sessions.filter((s) => Number(s.duration_seconds) === duration);
+// ─── CoinGridView ─────────────────────────────────────────────────────────────
+
+interface CoinGridViewProps {
+  pairs: TradingPair[];
+  openPriceMap: Record<string, string | null>;
+  pairsWithPrice: PairWithOpenPrice[];
+  pairsLoading: boolean;
+  selectedPairId: string | null;
+  onSelect: (pairId: string) => void;
+  onRefresh: () => void;
+}
+
+const CoinGridView: React.FC<CoinGridViewProps> = ({
+  pairs,
+  openPriceMap,
+  pairsWithPrice,
+  pairsLoading,
+  selectedPairId,
+  onSelect,
+  onRefresh,
+}) => {
+  const priceIndex = useMemo(() => {
+    const index: Record<string, PairWithOpenPrice> = {};
+    pairsWithPrice.forEach((p) => { index[p.id] = p; });
+    return index;
+  }, [pairsWithPrice]);
+
   return (
-    <div>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, borderBottom: '1px solid #f0f0f0', paddingBottom: 4 }}>
-        {DURATION_LABELS[duration] || `${duration}s`}
+    <Card
+      title="选择币种查看开奖结果"
+      style={{ marginBottom: 24 }}
+      extra={
+        <Button icon={<ReloadOutlined />} size="small" onClick={onRefresh}>
+          刷新
+        </Button>
+      }
+    >
+      <Spin spinning={pairsLoading}>
+        {pairs.length === 0 && !pairsLoading ? (
+          <Empty description="暂无非自定义币种" />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {pairs.map((pair) => {
+              const label = pair.display_name || pair.symbol;
+              const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
+              const isSelected = selectedPairId === pair.id;
+              const priceInfo = priceIndex[pair.id];
+              const currentPrice = priceInfo?.current_price;
+              const openPrice = openPriceMap[pair.id];
+              const change24h = priceInfo?.change_24h;
+              const changeColor = change24h == null ? '#888' : change24h >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR;
+              const changePrefix = change24h != null && change24h >= 0 ? '+' : '';
+
+              return (
+                <Col key={pair.id} xs={12} sm={8} md={6} lg={4}>
+                  <Card
+                    hoverable
+                    onClick={() => onSelect(pair.id)}
+                    bodyStyle={{ padding: '12px 10px', textAlign: 'center' }}
+                    style={{
+                      border: isSelected ? '2px solid #1677ff' : '2px solid #f0f0f0',
+                      background: isSelected ? '#e6f4ff' : '#fff',
+                      transition: 'all 0.15s',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ marginBottom: 6 }}>
+                      {pair.icon_url ? (
+                        <Avatar src={pair.icon_url} size={40} />
+                      ) : (
+                        <Avatar size={40} style={{ backgroundColor: '#1677ff', fontSize: 14 }}>
+                          {initials}
+                        </Avatar>
+                      )}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3, marginBottom: 4 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#1677ff', marginBottom: 2, fontWeight: 600 }}>
+                      {currentPrice != null
+                        ? `$${currentPrice.toFixed(4)}`
+                        : openPrice != null
+                          ? `$${parseFloat(openPrice).toFixed(4)}`
+                          : '-'}
+                    </div>
+                    <div style={{ fontSize: 12, color: changeColor }}>
+                      {change24h == null
+                        ? '-'
+                        : `${changePrefix}${change24h.toFixed(2)}%`}
+                    </div>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
+      </Spin>
+    </Card>
+  );
+};
+
+// ─── CoinDetailView ───────────────────────────────────────────────────────────
+
+interface CoinDetailViewProps {
+  pair: TradingPair;
+  openPrice: string | null | undefined;
+  currentPrice: number | undefined;
+  todayResults: TodayResult[];
+  loading: boolean;
+  onBack: () => void;
+}
+
+const CoinDetailView: React.FC<CoinDetailViewProps> = ({
+  pair,
+  openPrice,
+  currentPrice,
+  todayResults,
+  loading,
+  onBack,
+}) => {
+  const label = pair.display_name || pair.symbol;
+  const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
+
+  const tableColumns = [
+    {
+      title: '期号/时间',
+      key: 'label',
+      width: 110,
+      render: (_value: unknown, s: TodayResult) =>
+        s.period_label || dayjs(s.start_time).format('HH:mm'),
+    },
+    {
+      title: '开始时间',
+      dataIndex: 'start_time',
+      key: 'start_time',
+      width: 160,
+      render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: '结束时间',
+      dataIndex: 'end_time',
+      key: 'end_time',
+      width: 160,
+      render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: '开盘价',
+      dataIndex: 'open_price',
+      key: 'open_price',
+      width: 130,
+      render: (v: string) => (v ? `$${parseFloat(v).toFixed(4)}` : '-'),
+    },
+    {
+      title: '结算价',
+      dataIndex: 'settlement_price',
+      key: 'settlement_price',
+      width: 130,
+      render: (v: string) => (v ? `$${parseFloat(v).toFixed(4)}` : '-'),
+    },
+    {
+      title: '结果',
+      dataIndex: 'result_direction',
+      key: 'result_direction',
+      width: 90,
+      render: (d: string | null) =>
+        d ? (
+          <Tag color={d === 'up' ? POSITIVE_COLOR : NEGATIVE_COLOR} style={{ color: '#fff' }}>
+            {d === 'up' ? '▲ 涨' : '▼ 跌'}
+          </Tag>
+        ) : (
+          <Tag color="default">未结算</Tag>
+        ),
+    },
+    {
+      title: '买涨人数',
+      dataIndex: 'up_count',
+      key: 'up_count',
+      width: 90,
+      render: (v: string) => <Tag color="green">{v || 0} 人</Tag>,
+    },
+    {
+      title: '买跌人数',
+      dataIndex: 'down_count',
+      key: 'down_count',
+      width: 90,
+      render: (v: string) => <Tag color="red">{v || 0} 人</Tag>,
+    },
+  ];
+
+  const tabItems = DURATIONS.map((dur) => {
+    const filtered = todayResults.filter((s) => Number(s.duration_seconds) === dur);
+    return {
+      key: String(dur),
+      label: DURATION_LABELS[dur] || `${dur}s`,
+      children: (
+        <Table
+          dataSource={filtered}
+          columns={tableColumns}
+          rowKey="id"
+          size="small"
+          scroll={{ x: 800 }}
+          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          locale={{ emptyText: <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+        />
+      ),
+    };
+  });
+
+  return (
+    <Card
+      style={{ marginBottom: 24 }}
+      bodyStyle={{ paddingTop: 12 }}
+    >
+      {/* Back button */}
+      <div style={{ marginBottom: 12 }}>
+        <Button type="link" icon={<LeftOutlined />} onClick={onBack} style={{ paddingLeft: 0 }}>
+          返回币种列表
+        </Button>
       </div>
-      {filtered.length === 0 ? (
-        <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      ) : (
-        filtered.map((s) => (
-          <Card
-            key={s.id}
-            size="small"
-            style={{ marginBottom: 8 }}
-            bodyStyle={{ padding: '8px 12px' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555' }}>
-                {s.period_label || dayjs(s.start_time).format('HH:mm')}
-              </span>
-              {s.result_direction ? (
-                <Tag color={s.result_direction === 'up' ? 'green' : 'red'} style={{ margin: 0 }}>
-                  {s.result_direction === 'up' ? '▲ 涨' : '▼ 跌'}
-                </Tag>
-              ) : (
-                <Tag color="default" style={{ margin: 0 }}>未结算</Tag>
-              )}
+
+      {/* Coin header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottom: '1px solid #f0f0f0',
+        }}
+      >
+        <Space size={12} align="center">
+          {pair.icon_url ? (
+            <Avatar src={pair.icon_url} size={48} />
+          ) : (
+            <Avatar size={48} style={{ backgroundColor: '#1677ff', fontSize: 18 }}>
+              {initials}
+            </Avatar>
+          )}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>{label}</div>
+            <div style={{ fontSize: 13, color: '#888' }}>{pair.symbol}</div>
+          </div>
+        </Space>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: POSITIVE_COLOR, lineHeight: 1.2 }}>
+            {currentPrice != null
+              ? `$${currentPrice.toFixed(4)}`
+              : openPrice != null
+                ? `$${parseFloat(openPrice).toFixed(4)}`
+                : '-'}
+          </div>
+          {openPrice != null && (
+            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+              今日 UTC 0 点开盘价: ${parseFloat(openPrice).toFixed(4)}
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-              <span>开: {s.open_price ? `$${parseFloat(s.open_price).toFixed(4)}` : '-'}</span>
-              <span style={{ margin: '0 8px' }}>→</span>
-              <span>收: {s.settlement_price ? `$${parseFloat(s.settlement_price).toFixed(4)}` : '-'}</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-              <Tag color="green" style={{ fontSize: 10 }}>买涨 {s.up_count || 0}人</Tag>
-              <Tag color="red" style={{ fontSize: 10 }}>买跌 {s.down_count || 0}人</Tag>
-            </div>
-          </Card>
-        ))
-      )}
-    </div>
+          )}
+        </div>
+      </div>
+
+      {/* Duration tabs */}
+      <Spin spinning={loading}>
+        <Tabs items={tabItems} defaultActiveKey="60" />
+      </Spin>
+    </Card>
   );
 };
 
@@ -136,9 +365,13 @@ export const TradingSessions: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [form] = Form.useForm();
 
+  // Two-level view state
+  const [view, setView] = useState<'grid' | 'detail'>('grid');
+
   // Coin list + today's results
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [pairsLoading, setPairsLoading] = useState(false);
+  const [pairsWithPrice, setPairsWithPrice] = useState<PairWithOpenPrice[]>([]);
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
   const [todayResultsLoading, setTodayResultsLoading] = useState(false);
@@ -189,6 +422,7 @@ export const TradingSessions: React.FC = () => {
         const map: Record<string, string | null> = {};
         opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
         setOpenPriceMap(map);
+        setPairsWithPrice(opData);
       }
     } catch (error: any) {
       message.error(error.response?.data?.error || '获取币种列表失败');
@@ -283,6 +517,16 @@ export const TradingSessions: React.FC = () => {
   const handleViewDetails = (record: any) => {
     setSelectedSession(record);
     setDetailModalVisible(true);
+  };
+
+  const handleSelectPair = (pairId: string) => {
+    setSelectedPairId(pairId);
+    setView('detail');
+    fetchTodayResults(pairId);
+  };
+
+  const handleBackToGrid = () => {
+    setView('grid');
   };
 
   const columns = [
@@ -398,77 +642,8 @@ export const TradingSessions: React.FC = () => {
     },
   ];
 
-  const selectedPairName = pairs.find((p) => p.id === selectedPairId);
-
-  const tabItems = [60, 300, 600].map((dur) => {
-    const filtered = todayResults.filter((s) => Number(s.duration_seconds) === dur);
-    const durLabel = DURATION_LABELS[dur] || `${dur}s`;
-    const tableColumns = [
-      {
-        title: '期号/时间',
-        key: 'label',
-        width: 100,
-        render: (_: any, s: TodayResult) =>
-          s.period_label || dayjs(s.start_time).format('HH:mm'),
-      },
-      {
-        title: '开始价格',
-        dataIndex: 'open_price',
-        key: 'open_price',
-        width: 130,
-        render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
-      },
-      {
-        title: '结算价格',
-        dataIndex: 'settlement_price',
-        key: 'settlement_price',
-        width: 130,
-        render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
-      },
-      {
-        title: '结果',
-        dataIndex: 'result_direction',
-        key: 'result_direction',
-        width: 80,
-        render: (d: string | null) =>
-          d ? (
-            <Tag color={d === 'up' ? '#52c41a' : '#ff4d4f'} style={{ color: '#fff' }}>
-              {d === 'up' ? '▲ 涨' : '▼ 跌'}
-            </Tag>
-          ) : (
-            <Tag color="default">未结算</Tag>
-          ),
-      },
-      {
-        title: '买涨人数',
-        dataIndex: 'up_count',
-        key: 'up_count',
-        width: 90,
-        render: (v: any) => <Tag color="green">{v || 0} 人</Tag>,
-      },
-      {
-        title: '买跌人数',
-        dataIndex: 'down_count',
-        key: 'down_count',
-        width: 90,
-        render: (v: any) => <Tag color="red">{v || 0} 人</Tag>,
-      },
-    ];
-    return {
-      key: String(dur),
-      label: durLabel,
-      children: (
-        <Table
-          dataSource={filtered}
-          columns={tableColumns}
-          rowKey="id"
-          size="small"
-          pagination={{ pageSize: 20, hideOnSinglePage: true }}
-          locale={{ emptyText: <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-        />
-      ),
-    };
-  });
+  const selectedPair = pairs.find((p) => p.id === selectedPairId);
+  const selectedPairPrice = pairsWithPrice.find((p) => p.id === selectedPairId);
 
   return (
     <div>
@@ -476,107 +651,27 @@ export const TradingSessions: React.FC = () => {
         <h2>交易结算管理 (Trading Sessions)</h2>
       </div>
 
-      {/* Today's results section */}
-      <Card
-        title="当天开奖结果"
-        style={{ marginBottom: 24 }}
-        extra={
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => {
-              if (selectedPairId) fetchTodayResults(selectedPairId);
-              api.getPairsWithOpenPrice().then((res: any) => {
-                const opData: PairWithOpenPrice[] = res.data || res || [];
-                const map: Record<string, string | null> = {};
-                opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
-                setOpenPriceMap(map);
-              }).catch(() => {/* ignore */});
-            }}
-          >
-            刷新
-          </Button>
-        }
-      >
-        <Row gutter={16}>
-          {/* Left: pair list as card items */}
-          <Col xs={24} sm={6} md={5} lg={4}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>选择币种</div>
-            <Spin spinning={pairsLoading}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {pairs.map((pair) => {
-                  const label = pair.display_name || pair.symbol;
-                  const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
-                  const isSelected = selectedPairId === pair.id;
-                  const openPrice = openPriceMap[pair.id];
-                  return (
-                    <div
-                      key={pair.id}
-                      onClick={() => setSelectedPairId(pair.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        border: isSelected ? '2px solid #1677ff' : '2px solid #f0f0f0',
-                        background: isSelected ? '#e6f4ff' : '#fff',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {pair.icon_url ? (
-                        <Avatar src={pair.icon_url} size={32} />
-                      ) : (
-                        <Avatar size={32} style={{ backgroundColor: '#1677ff', fontSize: 12 }}>
-                          {initials}
-                        </Avatar>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
-                          {label}
-                        </div>
-                        {openPrice != null && (
-                          <div style={{ fontSize: 11, color: '#1677ff', marginTop: 2 }}>
-                            开: ${parseFloat(openPrice).toFixed(4)}
-                          </div>
-                        )}
-                        {openPrice == null && (
-                          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>开: -</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {pairs.length === 0 && !pairsLoading && (
-                  <span style={{ color: '#999', fontSize: 12 }}>暂无非自定义币种</span>
-                )}
-              </div>
-            </Spin>
-          </Col>
-
-          {/* Right: Tabs (1分钟 / 5分钟 / 10分钟) */}
-          <Col xs={24} sm={18} md={19} lg={20}>
-            {selectedPairId ? (
-              <>
-                <div style={{ marginBottom: 8, color: '#666' }}>
-                  {selectedPairName?.display_name || selectedPairName?.symbol} — 今日 UTC 0点至今
-                  {openPriceMap[selectedPairId] != null && (
-                    <Tag color="blue" style={{ marginLeft: 8 }}>
-                      当前期开始价: ${parseFloat(openPriceMap[selectedPairId]!).toFixed(4)}
-                    </Tag>
-                  )}
-                </div>
-                <Spin spinning={todayResultsLoading}>
-                  <Tabs items={tabItems} defaultActiveKey="60" />
-                </Spin>
-              </>
-            ) : (
-              <Empty description="请选择币种查看开奖结果" />
-            )}
-          </Col>
-        </Row>
-      </Card>
+      {/* Two-level coin selector / today's results */}
+      {view === 'grid' ? (
+        <CoinGridView
+          pairs={pairs}
+          openPriceMap={openPriceMap}
+          pairsWithPrice={pairsWithPrice}
+          pairsLoading={pairsLoading}
+          selectedPairId={selectedPairId}
+          onSelect={handleSelectPair}
+          onRefresh={fetchPairs}
+        />
+      ) : selectedPair ? (
+        <CoinDetailView
+          pair={selectedPair}
+          openPrice={openPriceMap[selectedPair.id]}
+          currentPrice={selectedPairPrice?.current_price}
+          todayResults={todayResults}
+          loading={todayResultsLoading}
+          onBack={handleBackToGrid}
+        />
+      ) : null}
 
       {/* Sessions table */}
       <Table
