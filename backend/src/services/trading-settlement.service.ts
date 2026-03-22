@@ -30,8 +30,8 @@ export async function settleSession(
 ): Promise<SettlementResult> {
   return await transaction(async (client) => {
     // Validate result direction
-    if (!['up', 'down'].includes(resultDirection)) {
-      throw new Error('Invalid result direction. Must be "up" or "down"');
+    if (!['up', 'down', 'draw'].includes(resultDirection)) {
+      throw new Error('Invalid result direction. Must be "up", "down", or "draw"');
     }
 
     // Get session details
@@ -121,6 +121,7 @@ export async function settleSession(
     let totalPayout = 0;
     let winningOrders = 0;
     let losingOrders = 0;
+    let drawOrders = 0;
 
     for (const order of orders) {
       const amount = parseFloat(order.amount);
@@ -131,11 +132,26 @@ export async function settleSession(
 
       let profit = 0;
       let payout = 0;
+      let orderResult: string;
 
-      if (isWin) {
+      if (resultDirection === 'draw') {
+        // Draw: refund original amount
+        payout = amount;
+        profit = 0;
+        orderResult = 'draw';
+        drawOrders++;
+        totalPayout += payout;
+        await client.query(
+          `UPDATE users
+           SET wallet_balance = wallet_balance + $1
+           WHERE id = $2`,
+          [payout, order.user_id]
+        );
+      } else if (isWin) {
         // User wins: receives back (amount × odds) into wallet_balance
         payout = amount * orderOdds;
         profit = payout - amount; // Net profit
+        orderResult = 'win';
         winningOrders++;
         totalPayout += payout;
 
@@ -149,6 +165,7 @@ export async function settleSession(
       } else {
         // User loses: gets nothing (amount was already deducted when placing order)
         profit = -amount; // Net loss
+        orderResult = 'lose';
         losingOrders++;
       }
 
@@ -171,7 +188,7 @@ export async function settleSession(
              settled_at = NOW(),
              status = 'settled'
          WHERE id = $4`,
-        [isWin ? 'win' : 'lose', profit, settlementPrice, order.id]
+        [orderResult, profit, settlementPrice, order.id]
       );
     }
 
@@ -213,7 +230,7 @@ export async function settleSession(
 
     console.log(
       `✓ Settled session ${sessionId}: ${orders.length} orders, ` +
-      `${winningOrders} wins, ${losingOrders} losses, ` +
+      `${winningOrders} wins, ${losingOrders} losses, ${drawOrders} draws, ` +
       `platform profit: $${platformProfit.toFixed(2)}`
     );
 
@@ -224,7 +241,7 @@ export async function settleSession(
       platform_profit: platformProfit,
       winning_orders: winningOrders,
       losing_orders: losingOrders,
-      draw_orders: 0,
+      draw_orders: drawOrders,
       result_direction: resultDirection,
     };
   });

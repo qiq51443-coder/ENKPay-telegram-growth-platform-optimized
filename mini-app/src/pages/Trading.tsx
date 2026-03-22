@@ -39,8 +39,9 @@ interface Order {
   entry_price: number;
   odds: number;
   status: string;
-  result?: 'win' | 'lose';
+  result?: 'win' | 'lose' | 'draw';
   profit?: number;
+  close_price?: string;
   created_at: string;
   symbol?: string;
   display_name?: string;
@@ -134,7 +135,7 @@ export const Trading: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDirection, setConfirmDirection] = useState<'up' | 'down'>('up');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [resultMsg, setResultMsg] = useState<{ win: boolean; profit: number } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -164,7 +165,7 @@ export const Trading: React.FC = () => {
   const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
   const entryPriceLineRef = useRef<any>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number } | null>(null);
+  const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync availableBalance from UserContext whenever context user changes
@@ -651,24 +652,48 @@ export const Trading: React.FC = () => {
       const sessionEnd = res.data?.data?.session?.end_time
         ? new Date(res.data.data.session.end_time).getTime()
         : Date.now() + selectedDuration * 1000;
-      const entryPrice: number | undefined = res.data?.data?.entry_price || res.data?.data?.order?.entry_price;
+      const sessionId = res.data?.data?.session?.id;
+      const sessionStartTime = res.data?.data?.session?.start_time
+        ? new Date(res.data.data.session.start_time).getTime()
+        : null;
 
-      // Mark entry price on the chart with a yellow dashed line
-      if (entryPrice && candleSeriesRef.current) {
-        try {
-          // Remove previous entry line if any
-          if (entryPriceLineRef.current) {
-            candleSeriesRef.current.removePriceLine(entryPriceLineRef.current);
+      // Schedule drawing the entry price dashed line once the session becomes active
+      // (period-snapshot job activates it at start_time with the correct open_price)
+      if (sessionId) {
+        const drawLineWhenActive = async () => {
+          const POLL_INTERVAL_MS = 2000;
+          const MAX_ACTIVATION_WAIT_MS = 30000;
+          const start = Date.now();
+          while (Date.now() - start < MAX_ACTIVATION_WAIT_MS) {
+            try {
+              const sessionRes = await api.get(`/trading/sessions/${sessionId}`);
+              const sess = sessionRes.data?.data;
+              if (sess && sess.status === 'active' && sess.open_price) {
+                const openPrice = parseFloat(sess.open_price);
+                if (candleSeriesRef.current) {
+                  try {
+                    if (entryPriceLineRef.current) {
+                      candleSeriesRef.current.removePriceLine(entryPriceLineRef.current);
+                    }
+                    entryPriceLineRef.current = candleSeriesRef.current.createPriceLine({
+                      price: openPrice,
+                      color: '#F0B90B',
+                      lineWidth: 1,
+                      lineStyle: 2, // Dashed
+                      axisLabelVisible: true,
+                      title: '',
+                    });
+                  } catch { /* ignore chart errors */ }
+                }
+                return;
+              }
+            } catch { /* ignore polling errors */ }
+            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
           }
-          entryPriceLineRef.current = candleSeriesRef.current.createPriceLine({
-            price: entryPrice,
-            color: '#F0B90B',
-            lineWidth: 1,
-            lineStyle: 2, // LineStyle.Dashed
-            axisLabelVisible: true,
-            title: `开仓价 $${safeFixed(entryPrice, 4)}`,
-          });
-        } catch { /* ignore chart errors */ }
+        };
+
+        const delay = sessionStartTime ? Math.max(0, sessionStartTime - Date.now()) : 0;
+        setTimeout(drawLineWhenActive, delay);
       }
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
@@ -741,21 +766,28 @@ export const Trading: React.FC = () => {
         });
         const order = res.data?.data?.find((o: any) => o.id === orderId);
         if (order) {
+          const isDraw = order.result === 'draw';
           const win = order.result === 'win';
-          const profit = win ? parseFloat(order.amount) * (parseFloat(order.odds) - 1) : -parseFloat(order.amount);
-          setResultMsg({ win, profit });
+          const profit = isDraw
+            ? 0
+            : win
+            ? parseFloat(order.amount) * (parseFloat(order.odds) - 1)
+            : -parseFloat(order.amount);
+          setResultMsg({ win: isDraw ? false : win, profit, draw: isDraw });
 
           // Add close price line to chart
           if (order.close_price && candleSeriesRef.current) {
             try {
               const closePrice = parseFloat(order.close_price);
+              const lineColor = isDraw ? '#F0B90B' : win ? '#26a69a' : '#ef5350';
+              const lineTitle = isDraw ? `➖ ${closePrice.toFixed(4)}` : win ? `✅ ${closePrice.toFixed(4)}` : `❌ ${closePrice.toFixed(4)}`;
               candleSeriesRef.current.createPriceLine({
                 price: closePrice,
-                color: win ? '#26a69a' : '#ef5350',
+                color: lineColor,
                 lineWidth: 2,
                 lineStyle: 0, // Solid
                 axisLabelVisible: true,
-                title: win ? `✅ ${closePrice.toFixed(4)}` : `❌ ${closePrice.toFixed(4)}`,
+                title: lineTitle,
               });
             } catch { /* ignore chart errors */ }
           }
@@ -766,6 +798,10 @@ export const Trading: React.FC = () => {
             setWinMessage({ win: true, profit });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
             confettiTimerRef.current = setTimeout(() => { setShowConfetti(false); setWinMessage(null); }, 3000);
+          } else if (isDraw) {
+            setWinMessage({ win: false, profit: 0, draw: true });
+            if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+            confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
           } else {
             setWinMessage({ win: false, profit });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
@@ -834,11 +870,13 @@ export const Trading: React.FC = () => {
             animation: 'fadeOut 2.5s forwards',
           }}>
             <style>{`@keyframes fadeOut { 0%{opacity:1;transform:translateX(-50%) scale(1)} 70%{opacity:1} 100%{opacity:0;transform:translateX(-50%) scale(1.1)} }`}</style>
-            <div style={{ fontSize: '28px', fontWeight: 800, color: winMessage.win ? '#26a69a' : '#ef5350',
+            <div style={{ fontSize: '28px', fontWeight: 800, color: winMessage.win ? '#26a69a' : winMessage.draw ? '#F0B90B' : '#ef5350',
               backgroundColor: 'rgba(0,0,0,0.85)', padding: '16px 28px', borderRadius: '16px',
-              border: `2px solid ${winMessage.win ? '#26a69a' : '#ef5350'}` }}>
+              border: `2px solid ${winMessage.win ? '#26a69a' : winMessage.draw ? '#F0B90B' : '#ef5350'}` }}>
               {winMessage.win
                 ? `🎉 恭喜获胜！ +${safeFixed(winMessage.profit)} USDT`
+                : winMessage.draw
+                ? `➖ 平局，退还金额`
                 : `💔 很遗憾，下次加油！`}
             </div>
           </div>
@@ -963,14 +1001,18 @@ export const Trading: React.FC = () => {
         {/* Result banner */}
         {resultMsg && (
           <div style={{
-            backgroundColor: resultMsg.win ? '#1b5e20' : '#b71c1c',
+            backgroundColor: resultMsg.draw ? '#4a3800' : resultMsg.win ? '#1b5e20' : '#b71c1c',
             borderRadius: '12px', padding: '16px', marginBottom: '12px', textAlign: 'center'
           }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#fff' }}>
-              {resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
+              {resultMsg.draw ? '➖ 平局' : resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
             </div>
             <div style={{ color: '#fff', fontSize: '16px', marginTop: '4px' }}>
-              {resultMsg.win ? `+${safeFixed(resultMsg.profit)} USDT` : `${safeFixed(resultMsg.profit)} USDT`}
+              {resultMsg.draw
+                ? '退还金额'
+                : resultMsg.win
+                ? `+${safeFixed(resultMsg.profit)} USDT`
+                : `${safeFixed(resultMsg.profit)} USDT`}
             </div>
           </div>
         )}

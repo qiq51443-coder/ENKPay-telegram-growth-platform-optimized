@@ -359,6 +359,30 @@ router.get('/sessions', async (req, res) => {
 });
 
 /**
+ * GET /api/trading/sessions/:id
+ * Get a single trading session by ID (used by the mini-app to poll for open_price)
+ */
+router.get('/sessions/:id', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name
+       FROM trading_sessions s
+       JOIN trading_pairs p ON s.pair_id = p.id
+       WHERE s.id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Get session error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/trading/sessions/:id/order
  * Place trading order for session
  */
@@ -861,20 +885,20 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         let sessionInsertResult;
         try {
           sessionInsertResult = await client.query(
-            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, period_label, start_at, end_at)
-             VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8, $9)
+            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at)
+             VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
              RETURNING *`,
-            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, resolvedPeriodLabel, sessionStartTime, sessionEndTime]
+            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime]
           );
         } catch (insertErr: any) {
           // Fallback: period_label column might not exist yet (migration not applied)
           // PostgreSQL error code 42703 = undefined_column
           if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
             sessionInsertResult = await client.query(
-              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, open_price, start_at, end_at)
-               VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at)
+               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7)
                RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, entryPrice, sessionStartTime, sessionEndTime]
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime]
             );
           } else {
             throw insertErr;
@@ -904,9 +928,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       const orderResult = await client.query(
         `INSERT INTO trading_orders
          (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+         VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, 'pending')
          RETURNING *`,
-        [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
+        [session.id, user_id, pairIdInt, direction, orderAmount, ruleId, odds]
       );
 
       return {
@@ -920,12 +944,12 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           id: orderResult.rows[0].id,
           direction,
           amount: orderAmount,
-          entry_price: entryPrice,
+          entry_price: null,
           odds,
-          status: 'active',
+          status: 'pending',
         },
         odds,
-        entry_price: entryPrice,
+        entry_price: null,
         expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
       };
     });
