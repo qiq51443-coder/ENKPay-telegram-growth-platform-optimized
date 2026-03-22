@@ -221,6 +221,8 @@ const startServer = async () => {
     // Start auto-settle job AFTER (active → settled, every 10 seconds)
     startAutoSettle();
 
+    console.log('✓ Trading lifecycle jobs registered: real-price-snapshot(3s) → period-snapshot(5s) → auto-settle(10s)');
+
     // Start cleanup job
     startCleanupJob();
 
