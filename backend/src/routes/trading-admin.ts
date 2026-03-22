@@ -1169,4 +1169,45 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
   }
 });
 
+/**
+ * GET /api/admin/trading/pairs-with-open-price
+ * Return all active trading pairs together with the open_price of their current active session.
+ * Used by the admin panel to display live pair status without multiple round-trips.
+ */
+router.get('/pairs-with-open-price', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT
+         tp.id,
+         tp.symbol,
+         tp.name,
+         tp.pair_type,
+         tp.is_active,
+         tp.sort_order,
+         ts.id            AS session_id,
+         ts.open_price,
+         ts.start_time    AS session_start_time,
+         ts.end_time      AS session_end_time,
+         ts.duration_seconds
+       FROM trading_pairs tp
+       LEFT JOIN LATERAL (
+         SELECT id, open_price, start_time, end_time, duration_seconds
+         FROM trading_sessions
+         WHERE pair_id = tp.id
+           AND status = 'active'
+         ORDER BY end_time ASC
+         LIMIT 1
+       ) ts ON true
+       WHERE tp.is_active = true
+       ORDER BY tp.sort_order ASC, tp.id ASC`,
+      []
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get pairs with open price error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
