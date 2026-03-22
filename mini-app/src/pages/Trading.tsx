@@ -119,6 +119,10 @@ const CHART_TICK_VARIANCE_MS = 1000;
 const CUSTOM_TICK_MIN_PCT = 0.001;
 const CUSTOM_TICK_RANGE_PCT = 0.002;
 
+// Grace period (ms) added to selectedDuration when detecting stale/stuck orders from past periods
+// Must match the backend's 30-second threshold for auto-cancelling stuck orders
+const STALE_ORDER_GRACE_MS = 30000;
+
 export const Trading: React.FC = () => {
   const { t } = useLang();
   const { user: tgUser, tg } = useTelegram();
@@ -206,10 +210,19 @@ export const Trading: React.FC = () => {
   }, [authSyncDone]);
 
   // Track active order from order history
+  // Only consider orders within the current period window to avoid stuck orders from past periods blocking the UI
   useEffect(() => {
-    const active = orders.find(o => o.status === 'active' || o.status === 'pending');
+    const nowMs = Date.now();
+    // Orders created more than (selectedDuration + grace period) ago are likely stuck from a previous period
+    const staleCutoffMs = nowMs - (selectedDuration * 1000 + STALE_ORDER_GRACE_MS);
+    const active = orders.find(o => {
+      if (o.status !== 'active' && o.status !== 'pending') return false;
+      const createdAt = new Date(o.created_at).getTime();
+      // Only treat as blocking if the order was created within current period window
+      return createdAt >= staleCutoffMs;
+    });
     setActiveOrder(active || null);
-  }, [orders]);
+  }, [orders, selectedDuration]);
 
   // Update period info every second based on selectedDuration
   useEffect(() => {
