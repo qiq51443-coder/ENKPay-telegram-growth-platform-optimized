@@ -1,7 +1,9 @@
 import cron from 'node-cron';
-import { query } from '../db';
-import { settleSession } from '../services/trading-settlement.service';
+import { query, transaction } from '../db';
 import { getPairPrice } from '../services/price.service';
+
+/** Relative price difference below which a session result is considered a draw (0.001%). */
+const DRAW_THRESHOLD_PERCENTAGE = 0.00001;
 
 let cronJob: cron.ScheduledTask | null = null;
 let isRunning = false;
@@ -14,21 +16,21 @@ async function autoSettleSessions(): Promise<void> {
     console.log('Auto-settle already running, skipping...');
     return;
   }
-
   isRunning = true;
 
   try {
-    // Find sessions that have ended but not yet settled
+    // Only settle sessions that are 'active' AND have ended
     const expiredSessionsResult = await query(
-      `SELECT 
+      `SELECT
          ts.id,
          ts.pair_id,
          ts.rule_id,
+         ts.end_time,
          COALESCE(ts.open_price, ts.entry_price) as open_price,
          tr.direction as rule_direction
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
-       WHERE ts.end_time < NOW() 
+       WHERE ts.end_time <= NOW()
          AND ts.status = 'active'
        ORDER BY ts.end_time ASC
        LIMIT 50`,
@@ -36,57 +38,181 @@ async function autoSettleSessions(): Promise<void> {
     );
 
     const sessions = expiredSessionsResult.rows;
+    if (sessions.length === 0) return;
 
-    if (sessions.length === 0) {
-      return;
-    }
-
-    console.log(`Found ${sessions.length} expired sessions to settle`);
+    console.log(`Found ${sessions.length} expired active sessions to settle`);
 
     for (const session of sessions) {
       try {
-        let resultDirection: string;
-        let settlementPrice: number;
+        let closePrice: number;
 
-        // If session has a rule with predetermined direction, use that
-        if (session.rule_id && session.rule_direction) {
-          resultDirection = session.rule_direction;
-          
-          // Get current price for settlement price
-          try {
-            const priceData = await getPairPrice(session.pair_id);
-            settlementPrice = priceData.price;
-          } catch (error) {
-            console.error(`Failed to get price for pair ${session.pair_id}, using entry price`);
-            settlementPrice = parseFloat(session.open_price);
-          }
+        // 1. Get close price from price_points at or before end_time
+        const ppResult = await query(
+          `SELECT price FROM price_points
+           WHERE pair_id = $1 AND timestamp <= $2
+           ORDER BY timestamp DESC LIMIT 1`,
+          [session.pair_id, session.end_time]
+        );
+
+        if (ppResult.rows.length > 0) {
+          closePrice = parseFloat(ppResult.rows[0].price);
         } else {
-          // No predetermined direction - compare current price to entry price
+          // 2. Fallback to live price
           try {
             const priceData = await getPairPrice(session.pair_id);
-            settlementPrice = priceData.price;
-            const entryPrice = parseFloat(session.open_price);
-            
-            resultDirection = settlementPrice >= entryPrice ? 'up' : 'down';
-          } catch (error) {
-            console.error(`Failed to get price for session ${session.id}, skipping`);
+            closePrice = priceData.price;
+            console.warn(`[auto-settle] session ${session.id}: no price_points data, used live price ${closePrice}`);
+          } catch (priceErr) {
+            console.error(`[auto-settle] session ${session.id}: cannot get price, skipping`, priceErr);
             continue;
           }
         }
 
-        // Settle the session
-        const result = await settleSession(session.id, resultDirection, settlementPrice);
-        
-        console.log(
-          `Auto-settled session ${session.id}: ${result.total_orders} orders, ` +
-          `direction=${resultDirection}, price=${settlementPrice}`
-        );
-      } catch (error: any) {
-        console.error(`Error settling session ${session.id}:`, error.message);
+        const openPrice = parseFloat(session.open_price);
+
+        // 3. Determine result direction with draw detection
+        let resultDirection: string;
+        if (session.rule_id && session.rule_direction) {
+          resultDirection = session.rule_direction;
+        } else {
+          // Draw check: |close - open| / open < DRAW_THRESHOLD_PERCENTAGE
+          if (openPrice > 0 && Math.abs(closePrice - openPrice) / openPrice < DRAW_THRESHOLD_PERCENTAGE) {
+            resultDirection = 'draw';
+          } else {
+            resultDirection = closePrice >= openPrice ? 'up' : 'down';
+          }
+        }
+
+        // 4. Settle session + orders in a transaction
+        await transaction(async (client) => {
+          // Guard against double-settle
+          const checkResult = await client.query(
+            `SELECT status FROM trading_sessions WHERE id = $1`,
+            [session.id]
+          );
+          if (!checkResult.rows.length || checkResult.rows[0].status === 'settled') return;
+
+          // Get all active orders for this session
+          const ordersResult = await client.query(
+            `SELECT id, user_id, direction, amount, odds
+             FROM trading_orders
+             WHERE session_id = $1 AND status = 'active'`,
+            [session.id]
+          );
+          const orders = ordersResult.rows;
+
+          let totalBetAmount = 0;
+          let totalPayout = 0;
+          let winningOrders = 0;
+          let losingOrders = 0;
+          let drawOrders = 0;
+
+          // Get default odds
+          let ruleOdds = 1.85;
+          if (session.rule_id) {
+            const ruleRes = await client.query(`SELECT odds FROM trading_rules WHERE id = $1`, [session.rule_id]);
+            if (ruleRes.rows.length > 0) ruleOdds = parseFloat(ruleRes.rows[0].odds);
+          } else {
+            const globalRule = await client.query(
+              `SELECT odds FROM trading_rules WHERE pair_id IS NULL AND is_active = true ORDER BY id ASC LIMIT 1`,
+              []
+            );
+            if (globalRule.rows.length > 0) ruleOdds = parseFloat(globalRule.rows[0].odds);
+          }
+
+          for (const order of orders) {
+            const amount = parseFloat(order.amount);
+            const orderOdds = order.odds ? parseFloat(order.odds) : ruleOdds;
+            totalBetAmount += amount;
+
+            let orderResult: string;
+            let profit: number;
+            let payout: number;
+
+            if (resultDirection === 'draw') {
+              // Draw: refund original amount
+              orderResult = 'draw';
+              profit = 0;
+              payout = amount;
+              drawOrders++;
+              await client.query(
+                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+                [payout, order.user_id]
+              );
+              totalPayout += payout;
+            } else if (order.direction === resultDirection) {
+              // Win
+              orderResult = 'win';
+              payout = amount * orderOdds;
+              profit = payout - amount;
+              winningOrders++;
+              totalPayout += payout;
+              await client.query(
+                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+                [payout, order.user_id]
+              );
+            } else {
+              // Lose
+              orderResult = 'lose';
+              payout = 0;
+              profit = -amount;
+              losingOrders++;
+            }
+
+            // Track trading volume for reward unlock
+            await client.query(
+              `UPDATE users SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + $1 WHERE id = $2`,
+              [amount, order.user_id]
+            );
+
+            await client.query(
+              `UPDATE trading_orders
+               SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled'
+               WHERE id = $4`,
+              [orderResult, profit, closePrice, order.id]
+            );
+          }
+
+          const platformProfit = totalBetAmount - totalPayout;
+
+          // Update session
+          await client.query(
+            `UPDATE trading_sessions
+             SET status = 'settled',
+                 result_direction = $1,
+                 result = $1,
+                 settlement_price = $2,
+                 close_price = $2,
+                 total_bet_amount = $3,
+                 total_payout = $4,
+                 order_count = $5,
+                 settled_at = NOW()
+             WHERE id = $6`,
+            [resultDirection, closePrice, totalBetAmount, totalPayout, orders.length, session.id]
+          );
+
+          // Log settlement
+          try {
+            await client.query(
+              `INSERT INTO trading_settlement_log
+               (session_id, rule_id, result_direction, settlement_price, total_orders, total_bet_amount, total_payout, platform_profit)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [session.id, session.rule_id, resultDirection, closePrice, orders.length, totalBetAmount, totalPayout, platformProfit]
+            );
+          } catch { /* log table may not exist yet */ }
+
+          console.log(
+            `[auto-settle] session ${session.id} settled: direction=${resultDirection}, ` +
+            `open=${openPrice}, close=${closePrice}, orders=${orders.length} ` +
+            `(win=${winningOrders}, lose=${losingOrders}, draw=${drawOrders})`
+          );
+        });
+      } catch (err: any) {
+        console.error(`[auto-settle] Error settling session ${session.id}:`, err.message);
       }
     }
-  } catch (error: any) {
-    console.error('Error in auto-settle:', error.message);
+  } catch (err: any) {
+    console.error('[auto-settle] Error:', err.message);
   } finally {
     isRunning = false;
   }

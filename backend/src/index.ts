@@ -7,6 +7,7 @@ import { startDepositChecker } from './jobs/deposit-checker';
 import { startSweepScheduler } from './jobs/sweep-scheduler';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startAutoSettle } from './jobs/auto-settle';
+import { startPeriodSnapshot } from './jobs/period-snapshot';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
@@ -212,6 +213,9 @@ const startServer = async () => {
 
     // Start auto-settle job
     startAutoSettle();
+
+    // Start period snapshot job (activates pending sessions at period start, every 5 seconds)
+    startPeriodSnapshot();
 
     // Start cleanup job
     startCleanupJob();
