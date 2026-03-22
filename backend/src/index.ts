@@ -211,11 +211,11 @@ const startServer = async () => {
     // Start sweep scheduler (fund consolidation, runs every hour)
     startSweepScheduler();
 
-    // Start auto-settle job
-    startAutoSettle();
-
-    // Start period snapshot job (activates pending sessions at period start, every 5 seconds)
+    // Start period snapshot job FIRST (pending → active, every 5 seconds)
     startPeriodSnapshot();
+
+    // Start auto-settle job AFTER (active → settled, every 10 seconds)
+    startAutoSettle();
 
     // Start cleanup job
     startCleanupJob();
