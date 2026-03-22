@@ -797,15 +797,45 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
       if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
 
-      // Check for existing active order on this pair
-      const existingOrderResult = await client.query(
-        `SELECT id FROM trading_orders 
-         WHERE user_id = $1 AND pair_id = $2 AND status IN ('active', 'pending')
-         LIMIT 1`,
-        [user_id, pairIdInt]
-      );
-      if (existingOrderResult.rows.length > 0) {
-        throw new Error('You already have an active order for this trading pair. Please wait for settlement before placing a new order.');
+      // Auto-cancel stuck orders: orders for sessions that ended but open_price is NULL
+      // (period-snapshot never activated them, auto-settle skipped them)
+      // These orders should be refunded and cancelled to unblock the user.
+      try {
+        const stuckOrdersResult = await client.query(
+          `SELECT o.id, o.user_id, o.amount, o.status, o.session_id,
+                  s.end_time, s.open_price, s.status as session_status
+           FROM trading_orders o
+           JOIN trading_sessions s ON s.id = o.session_id
+           WHERE o.user_id = $1
+             AND o.pair_id = $2
+             AND o.status IN ('active', 'pending')
+             AND s.end_time < NOW() - INTERVAL '30 seconds'
+             AND (s.open_price IS NULL OR s.status = 'pending')
+           LIMIT 10`,
+          [user_id, pairIdInt]
+        );
+
+        for (const stuckOrder of stuckOrdersResult.rows) {
+          // Refund the stuck order amount
+          await client.query(
+            `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+            [parseFloat(stuckOrder.amount), stuckOrder.user_id]
+          );
+          // Cancel the stuck order
+          await client.query(
+            `UPDATE trading_orders SET status = 'cancelled', result = NULL WHERE id = $1`,
+            [stuckOrder.id]
+          );
+          // Also mark the stuck session as settled to prevent further processing
+          await client.query(
+            `UPDATE trading_sessions SET status = 'settled', result = 'draw'
+             WHERE id = $1 AND status IN ('active', 'pending')`,
+            [stuckOrder.session_id]
+          );
+          console.warn(`[quick-session] auto-cancelled stuck order ${stuckOrder.id} for user ${stuckOrder.user_id}, refunded ${stuckOrder.amount}`);
+        }
+      } catch (cleanupErr: any) {
+        console.error('[quick-session] stuck order cleanup failed (non-fatal):', cleanupErr.message);
       }
 
       // Check user balance
@@ -906,6 +936,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         }
         session = sessionInsertResult.rows[0];
         console.log(`[quick-session] created new session id=${session.id} period_label=${resolvedPeriodLabel}`);
+      }
+
+      // Only block if user already has an order in THIS SPECIFIC session (same period)
+      // Do NOT block orders for different periods even if old ones are stuck
+      const existingOrderResult = await client.query(
+        `SELECT id FROM trading_orders 
+         WHERE user_id = $1 AND session_id = $2 AND status IN ('active', 'pending')
+         LIMIT 1`,
+        [user_id, session.id]
+      );
+      if (existingOrderResult.rows.length > 0) {
+        throw new Error('You already have an order for this trading period. Please wait for the next period.');
       }
 
       // Deduct from red_packet_balance first, then wallet_balance
