@@ -16,6 +16,7 @@ import {
   Spin,
   Empty,
   Avatar,
+  Tabs,
 } from 'antd';
 import { ThunderboltOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
@@ -51,6 +52,15 @@ interface TradingPair {
   display_name?: string;
   pair_type: string;
   icon_url?: string;
+}
+
+interface PairWithOpenPrice {
+  id: string;
+  symbol: string;
+  display_name?: string;
+  current_price?: number;
+  open_price?: string | null;
+  is_active?: boolean;
 }
 
 interface TradingOrder {
@@ -131,6 +141,7 @@ export const TradingSessions: React.FC = () => {
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
   const [todayResultsLoading, setTodayResultsLoading] = useState(false);
+  const [openPriceMap, setOpenPriceMap] = useState<Record<string, string | null>>({});
 
   // Recent trading orders
   const [orders, setOrders] = useState<TradingOrder[]>([]);
@@ -151,12 +162,23 @@ export const TradingSessions: React.FC = () => {
   const fetchPairs = async () => {
     setPairsLoading(true);
     try {
-      const response = await api.getTradingPairs();
-      const allPairs: TradingPair[] = response.data || [];
+      const [pairsRes, openPriceRes] = await Promise.allSettled([
+        api.getTradingPairs(),
+        api.getPairsWithOpenPrice(),
+      ]);
+
+      const allPairs: TradingPair[] = pairsRes.status === 'fulfilled' ? (pairsRes.value.data || []) : [];
       const nonCustom = allPairs.filter((p) => p.pair_type !== 'custom');
       setPairs(nonCustom);
       if (nonCustom.length > 0 && !selectedPairId) {
         setSelectedPairId(nonCustom[0].id);
+      }
+
+      if (openPriceRes.status === 'fulfilled') {
+        const opData: PairWithOpenPrice[] = openPriceRes.value.data || openPriceRes.value || [];
+        const map: Record<string, string | null> = {};
+        opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
+        setOpenPriceMap(map);
       }
     } catch (error: any) {
       message.error(error.response?.data?.error || '获取币种列表失败');
@@ -368,6 +390,76 @@ export const TradingSessions: React.FC = () => {
 
   const selectedPairName = pairs.find((p) => p.id === selectedPairId);
 
+  const tabItems = [60, 300, 600].map((dur) => {
+    const filtered = todayResults.filter((s) => Number(s.duration_seconds) === dur);
+    const durLabel = DURATION_LABELS[dur] || `${dur}s`;
+    const tableColumns = [
+      {
+        title: '期号/时间',
+        key: 'label',
+        width: 100,
+        render: (_: any, s: TodayResult) =>
+          s.period_label || dayjs(s.start_time).format('HH:mm'),
+      },
+      {
+        title: '开始价格',
+        dataIndex: 'open_price',
+        key: 'open_price',
+        width: 130,
+        render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
+      },
+      {
+        title: '结算价格',
+        dataIndex: 'settlement_price',
+        key: 'settlement_price',
+        width: 130,
+        render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
+      },
+      {
+        title: '结果',
+        dataIndex: 'result_direction',
+        key: 'result_direction',
+        width: 80,
+        render: (d: string | null) =>
+          d ? (
+            <Tag color={d === 'up' ? '#52c41a' : '#ff4d4f'} style={{ color: '#fff' }}>
+              {d === 'up' ? '▲ 涨' : '▼ 跌'}
+            </Tag>
+          ) : (
+            <Tag color="default">未结算</Tag>
+          ),
+      },
+      {
+        title: '买涨人数',
+        dataIndex: 'up_count',
+        key: 'up_count',
+        width: 90,
+        render: (v: any) => <Tag color="green">{v || 0} 人</Tag>,
+      },
+      {
+        title: '买跌人数',
+        dataIndex: 'down_count',
+        key: 'down_count',
+        width: 90,
+        render: (v: any) => <Tag color="red">{v || 0} 人</Tag>,
+      },
+    ];
+    return {
+      key: String(dur),
+      label: durLabel,
+      children: (
+        <Table
+          dataSource={filtered}
+          columns={tableColumns}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          locale={{ emptyText: <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+        />
+      ),
+    };
+  });
+
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
@@ -382,7 +474,15 @@ export const TradingSessions: React.FC = () => {
           <Button
             icon={<ReloadOutlined />}
             size="small"
-            onClick={() => selectedPairId && fetchTodayResults(selectedPairId)}
+            onClick={() => {
+              if (selectedPairId) fetchTodayResults(selectedPairId);
+              api.getPairsWithOpenPrice().then((res: any) => {
+                const opData: PairWithOpenPrice[] = res.data || res || [];
+                const map: Record<string, string | null> = {};
+                opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
+                setOpenPriceMap(map);
+              }).catch(() => {/* ignore */});
+            }}
           >
             刷新
           </Button>
@@ -398,6 +498,7 @@ export const TradingSessions: React.FC = () => {
                   const label = pair.display_name || pair.symbol;
                   const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
                   const isSelected = selectedPairId === pair.id;
+                  const openPrice = openPriceMap[pair.id];
                   return (
                     <div
                       key={pair.id}
@@ -421,9 +522,19 @@ export const TradingSessions: React.FC = () => {
                           {initials}
                         </Avatar>
                       )}
-                      <span style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
-                        {label}
-                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
+                          {label}
+                        </div>
+                        {openPrice != null && (
+                          <div style={{ fontSize: 11, color: '#1677ff', marginTop: 2 }}>
+                            开: ${parseFloat(openPrice).toFixed(4)}
+                          </div>
+                        )}
+                        {openPrice == null && (
+                          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>开: -</div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -434,21 +545,20 @@ export const TradingSessions: React.FC = () => {
             </Spin>
           </Col>
 
-          {/* Right: 3-column results */}
+          {/* Right: Tabs (1分钟 / 5分钟 / 10分钟) */}
           <Col xs={24} sm={18} md={19} lg={20}>
             {selectedPairId ? (
               <>
                 <div style={{ marginBottom: 8, color: '#666' }}>
                   {selectedPairName?.display_name || selectedPairName?.symbol} — 今日 UTC 0点至今
+                  {openPriceMap[selectedPairId] != null && (
+                    <Tag color="blue" style={{ marginLeft: 8 }}>
+                      当前期开始价: ${parseFloat(openPriceMap[selectedPairId]!).toFixed(4)}
+                    </Tag>
+                  )}
                 </div>
                 <Spin spinning={todayResultsLoading}>
-                  <Row gutter={12}>
-                    {DURATIONS.map((dur) => (
-                      <Col key={dur} xs={24} sm={8} style={{ marginBottom: 8 }}>
-                        <ResultColumn sessions={todayResults} duration={dur} />
-                      </Col>
-                    ))}
-                  </Row>
+                  <Tabs items={tabItems} defaultActiveKey="60" />
                 </Spin>
               </>
             ) : (
