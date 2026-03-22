@@ -687,7 +687,7 @@ class ApiClient {
   }
 
   async getTodayResults(pairId: string | number) {
-    const response = await this.client.get('/trading-admin/sessions/today-results', { params: { pair_id: pairId } });
+    const response = await this.client.get('/admin/trading/sessions/today-results', { params: { pair_id: pairId } });
     return response.data;
   }
 
@@ -697,7 +697,7 @@ class ApiClient {
   }
 
   async getTradingOrders(params?: any) {
-    const response = await this.client.get('/trading-admin/orders', { params });
+    const response = await this.client.get('/admin/trading/orders', { params });
     return response.data;
   }
 
