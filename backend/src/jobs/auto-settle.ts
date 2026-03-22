@@ -32,6 +32,7 @@ async function autoSettleSessions(): Promise<void> {
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
        WHERE ts.end_time <= NOW()
          AND ts.status = 'active'
+         AND ts.open_price IS NOT NULL
        ORDER BY ts.end_time ASC
        LIMIT 50`,
       []
@@ -63,7 +64,7 @@ async function autoSettleSessions(): Promise<void> {
             closePrice = priceData.price;
             console.warn(`[auto-settle] session ${session.id}: no price_points data, used live price ${closePrice}`);
           } catch (priceErr) {
-            console.error(`[auto-settle] session ${session.id}: cannot get price, skipping`, priceErr);
+            console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
             continue;
           }
         }
@@ -130,7 +131,7 @@ async function autoSettleSessions(): Promise<void> {
             let payout: number;
 
             if (resultDirection === 'draw') {
-              // Draw: refund original amount
+              // draw: full refund, profit = 0
               orderResult = 'draw';
               profit = 0;
               payout = amount;
