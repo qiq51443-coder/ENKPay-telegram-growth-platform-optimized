@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty, Avatar } from 'antd';
+import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty, Avatar, Tabs } from 'antd';
 import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -45,55 +45,11 @@ const DURATION_LABELS: Record<number, string> = {
 
 const DURATIONS = [60, 300, 600];
 
-const ResultColumn: React.FC<{ sessions: TodayResult[]; duration: number }> = ({ sessions, duration }) => {
-  const filtered = sessions.filter((s) => Number(s.duration_seconds) === duration);
-  return (
-    <div>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, borderBottom: '1px solid #f0f0f0', paddingBottom: 4 }}>
-        {DURATION_LABELS[duration] || `${duration}s`}
-      </div>
-      {filtered.length === 0 ? (
-        <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      ) : (
-        filtered.map((s) => (
-          <Card
-            key={s.id}
-            size="small"
-            style={{ marginBottom: 8 }}
-            bodyStyle={{ padding: '8px 12px' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555' }}>
-                {s.period_label || dayjs(s.start_time).format('HH:mm')}
-              </span>
-              {s.result_direction ? (
-                <Tag color={s.result_direction === 'up' ? 'green' : 'red'} style={{ margin: 0 }}>
-                  {s.result_direction === 'up' ? '▲ 涨' : '▼ 跌'}
-                </Tag>
-              ) : (
-                <Tag color="default" style={{ margin: 0 }}>未结算</Tag>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-              <span>开: {s.open_price ? `$${parseFloat(s.open_price).toFixed(4)}` : '-'}</span>
-              <span style={{ margin: '0 8px' }}>→</span>
-              <span>收: {s.settlement_price ? `$${parseFloat(s.settlement_price).toFixed(4)}` : '-'}</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-              <Tag color="green" style={{ fontSize: 10 }}>买涨 {s.up_count || 0}人</Tag>
-              <Tag color="red" style={{ fontSize: 10 }}>买跌 {s.down_count || 0}人</Tag>
-            </div>
-          </Card>
-        ))
-      )}
-    </div>
-  );
-};
-
 export const CustomPriceControl: React.FC = () => {
   const [pairs, setPairs] = useState<TradingPair[]>([]);
   const [selectedPairId, setSelectedPairId] = useState<string>('');
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [openPriceMap, setOpenPriceMap] = useState<Record<string, string | null>>({});
   const [presets, setPresets] = useState<PricePreset[]>([]);
   const [addPointForm] = Form.useForm();
   const [presetForm] = Form.useForm();
@@ -126,12 +82,25 @@ export const CustomPriceControl: React.FC = () => {
 
   const fetchPairs = async () => {
     try {
-      const response = await apiClient.getTradingPairs();
-      const customPairs = (response.data || []).filter((p: TradingPair) => p.pair_type === 'custom');
+      const [pairsRes, openPriceRes] = await Promise.allSettled([
+        apiClient.getTradingPairs(),
+        apiClient.getPairsWithOpenPrice(),
+      ]);
+
+      const customPairs = pairsRes.status === 'fulfilled'
+        ? (pairsRes.value.data || []).filter((p: TradingPair) => p.pair_type === 'custom')
+        : [];
       setPairs(customPairs);
-      
+
       if (customPairs.length > 0 && !selectedPairId) {
         setSelectedPairId(customPairs[0].id);
+      }
+
+      if (openPriceRes.status === 'fulfilled') {
+        const opData = openPriceRes.value.data || openPriceRes.value || [];
+        const map: Record<string, string | null> = {};
+        opData.forEach((p: any) => { map[p.id] = p.open_price ?? null; });
+        setOpenPriceMap(map);
       }
     } catch (error) {
       console.error('Failed to fetch pairs:', error);
@@ -315,9 +284,14 @@ export const CustomPriceControl: React.FC = () => {
                           {initials}
                         </Avatar>
                       )}
-                      <span style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
-                        {label}
-                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: isSelected ? 600 : 400, fontSize: 13, lineHeight: 1.2 }}>
+                          {label}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#1677ff', marginTop: 2 }}>
+                          开: {openPriceMap[pair.id] != null ? `$${parseFloat(openPriceMap[pair.id]!).toFixed(4)}` : '-'}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -334,12 +308,24 @@ export const CustomPriceControl: React.FC = () => {
             <>
               {currentPrice !== null && (
                 <Card style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-                    当前价格
-                  </label>
-                  <div style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
-                    ${typeof currentPrice === 'number' ? currentPrice.toFixed(4) : parseFloat(String(currentPrice ?? 0)).toFixed(4)}
-                  </div>
+                  <Space size="large">
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
+                        当前价格
+                      </label>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
+                        ${typeof currentPrice === 'number' ? currentPrice.toFixed(4) : parseFloat(String(currentPrice ?? 0)).toFixed(4)}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
+                        当前期开始价
+                      </label>
+                      <div style={{ fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace', color: '#1677ff' }}>
+                        {openPriceMap[selectedPairId] != null ? `$${parseFloat(openPriceMap[selectedPairId]!).toFixed(4)}` : '-'}
+                      </div>
+                    </div>
+                  </Space>
                 </Card>
               )}
 
@@ -449,7 +435,7 @@ export const CustomPriceControl: React.FC = () => {
             </Card>
           )}
 
-          {/* Today's settlement results for the selected custom pair */}
+          {/* Today's settlement results — Tabs by duration */}
           <Card
             title="当天开奖结果"
             style={{ marginTop: 16 }}
@@ -464,13 +450,78 @@ export const CustomPriceControl: React.FC = () => {
             }
           >
             <Spin spinning={todayResultsLoading}>
-              <Row gutter={12}>
-                {DURATIONS.map((dur) => (
-                  <Col key={dur} xs={24} sm={8} style={{ marginBottom: 8 }}>
-                    <ResultColumn sessions={todayResults} duration={dur} />
-                  </Col>
-                ))}
-              </Row>
+              <Tabs
+                defaultActiveKey="60"
+                items={DURATIONS.map((dur) => {
+                  const filtered = todayResults.filter((s) => Number(s.duration_seconds) === dur);
+                  const durLabel = DURATION_LABELS[dur] || `${dur}s`;
+                  const tableColumns = [
+                    {
+                      title: '期号/时间',
+                      key: 'label',
+                      width: 100,
+                      render: (_: any, s: TodayResult) =>
+                        s.period_label || dayjs(s.start_time).format('HH:mm'),
+                    },
+                    {
+                      title: '开始价格',
+                      dataIndex: 'open_price',
+                      key: 'open_price',
+                      width: 130,
+                      render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
+                    },
+                    {
+                      title: '结算价格',
+                      dataIndex: 'settlement_price',
+                      key: 'settlement_price',
+                      width: 130,
+                      render: (v: string) => v ? `$${parseFloat(v).toFixed(4)}` : '-',
+                    },
+                    {
+                      title: '结果',
+                      dataIndex: 'result_direction',
+                      key: 'result_direction',
+                      width: 80,
+                      render: (d: string | null) =>
+                        d ? (
+                          <Tag color={d === 'up' ? '#52c41a' : '#ff4d4f'} style={{ color: '#fff' }}>
+                            {d === 'up' ? '▲ 涨' : '▼ 跌'}
+                          </Tag>
+                        ) : (
+                          <Tag color="default">未结算</Tag>
+                        ),
+                    },
+                    {
+                      title: '买涨人数',
+                      dataIndex: 'up_count',
+                      key: 'up_count',
+                      width: 90,
+                      render: (v: any) => <Tag color="green">{v || 0} 人</Tag>,
+                    },
+                    {
+                      title: '买跌人数',
+                      dataIndex: 'down_count',
+                      key: 'down_count',
+                      width: 90,
+                      render: (v: any) => <Tag color="red">{v || 0} 人</Tag>,
+                    },
+                  ];
+                  return {
+                    key: String(dur),
+                    label: durLabel,
+                    children: (
+                      <Table
+                        dataSource={filtered}
+                        columns={tableColumns}
+                        rowKey="id"
+                        size="small"
+                        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+                        locale={{ emptyText: <Empty description="暂无结算数据" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                      />
+                    ),
+                  };
+                })}
+              />
             </Spin>
           </Card>
             </>

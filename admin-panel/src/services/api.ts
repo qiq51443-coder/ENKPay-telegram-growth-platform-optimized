@@ -691,6 +691,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getPairsWithOpenPrice() {
+    const response = await this.client.get('/admin/trading/pairs-with-open-price');
+    return response.data;
+  }
+
   async getTradingOrders(params?: any) {
     const response = await this.client.get('/trading-admin/orders', { params });
     return response.data;
