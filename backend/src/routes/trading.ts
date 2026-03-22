@@ -954,6 +954,13 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
             'Run: backend/db/migrations/200_trading_rules_and_settlement.sql and backend/db/migrations/1001_fix_trading_sessions_status.sql',
       });
     }
+    // PostgreSQL error code 23514 = check_violation
+    if (error.code === '23514' && error.message?.includes('trading_sessions_status_check')) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'The trading_sessions status constraint is outdated. Run: backend/db/migrations/1009_fix_trading_sessions_status_constraint.sql',
+      });
+    }
     const statusCode = error.statusCode || 500;
     const body: Record<string, any> = { error: error.message };
     if (error.current_balance !== undefined) body.current_balance = error.current_balance;
