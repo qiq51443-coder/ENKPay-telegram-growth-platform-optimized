@@ -20,34 +20,68 @@ async function runPeriodSnapshot(): Promise<void> {
       []
     );
 
+    if (pendingResult.rows.length === 0) return;
+    console.log(`[period-snapshot] Found ${pendingResult.rows.length} pending sessions to activate`);
+
     for (const session of pendingResult.rows) {
       try {
-        // Get opening price: latest price_points entry at or before NOW()
-        // (NOT start_time — real pairs may not have entries at future timestamps)
         let openPrice: number | null = null;
-        const ppResult = await query(
+
+        // Step 1: price near start_time (-30s/+5s window).
+        //   Looks 30s backward to cover real-price-snapshot lag and only 5s forward
+        //   because start_time is in the past when this job runs.
+        const ppNearResult = await query(
           `SELECT price FROM price_points
-           WHERE pair_id = $1 AND timestamp <= NOW()
-           ORDER BY timestamp DESC LIMIT 1`,
-          [session.pair_id]
+           WHERE pair_id = $1
+             AND timestamp BETWEEN ($2::timestamptz - INTERVAL '30 seconds')
+                               AND ($2::timestamptz + INTERVAL '5 seconds')
+           ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
+           LIMIT 1`,
+          [session.pair_id, session.start_time]
         );
-        if (ppResult.rows.length > 0) {
-          openPrice = parseFloat(ppResult.rows[0].price);
-        } else {
-          // Fallback: fetch live price and immediately persist it as a price_points snapshot
-          // so that auto-settle can later find this exact price by timestamp.
+        if (ppNearResult.rows.length > 0) {
+          openPrice = parseFloat(ppNearResult.rows[0].price);
+          console.log(`[period-snapshot] session ${session.id}: price_points near start_time → open_price=${openPrice}`);
+        }
+
+        // Step 2: any recent price_points (fallback)
+        if (openPrice === null) {
+          const ppLatestResult = await query(
+            `SELECT price FROM price_points
+             WHERE pair_id = $1 AND timestamp <= NOW()
+             ORDER BY timestamp DESC LIMIT 1`,
+            [session.pair_id]
+          );
+          if (ppLatestResult.rows.length > 0) {
+            openPrice = parseFloat(ppLatestResult.rows[0].price);
+            console.log(`[period-snapshot] session ${session.id}: latest price_points fallback → open_price=${openPrice}`);
+          }
+        }
+
+        // Step 3: live price via getPairPrice()
+        if (openPrice === null) {
           try {
             const priceData = await getPairPrice(session.pair_id);
-            openPrice = priceData.price;
-            // Persist snapshot so auto-settle has a reference price_point
-            await query(
-              `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
-              [session.pair_id, openPrice]
-            ).catch((e: any) => console.warn(`[period-snapshot] failed to persist price snapshot for pair ${session.pair_id}:`, e.message));
-          } catch {
-            console.warn(`[period-snapshot] [WARN] session ${session.id}: no price data, skipping`);
-            continue;
+            if (priceData && priceData.price > 0) {
+              openPrice = priceData.price;
+              // Persist snapshot so auto-settle has a reference price_point
+              await query(
+                `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
+                [session.pair_id, openPrice]
+              ).catch((e: any) => console.warn(`[period-snapshot] failed to persist price snapshot for pair ${session.pair_id}:`, e.message));
+              console.log(`[period-snapshot] session ${session.id}: live price fallback → open_price=${openPrice}`);
+            }
+          } catch (priceErr: any) {
+            console.error(`[period-snapshot] session ${session.id}: all price sources failed:`, priceErr.message);
           }
+        }
+
+        if (openPrice === null || openPrice <= 0) {
+          console.warn(
+            `[period-snapshot] [WARN] session ${session.id} (pair_id=${session.pair_id}, start_time=${session.start_time}): ` +
+            `cannot get open price — skipping. Ensure real-price-snapshot or price-generator is running.`
+          );
+          continue;
         }
 
         // Activate session and orders atomically, with double-activation guard

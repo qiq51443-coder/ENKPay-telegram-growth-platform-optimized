@@ -57,23 +57,38 @@ async function autoSettleSessions(): Promise<void> {
     );
 
     const sessions = expiredSessionsResult.rows;
-    if (sessions.length === 0) return;
+    if (sessions.length === 0) {
+      // Diagnostic: log sessions that are active/expired but have no open_price (cannot be settled)
+      try {
+        const skipped = await query(
+          `SELECT id FROM trading_sessions
+           WHERE status = 'active' AND end_time <= NOW() AND open_price IS NULL
+           LIMIT 10`,
+          []
+        );
+        if (skipped.rows.length > 0) {
+          console.warn(
+            `[auto-settle] ${skipped.rows.length} active session(s) skipped (open_price IS NULL): ` +
+            `ids=${skipped.rows.map((r: any) => r.id).join(', ')}`
+          );
+        }
+      } catch { /* ignore diagnostic query errors */ }
+      return;
+    }
 
-    console.log(`Found ${sessions.length} expired active sessions to settle`);
+    console.log(`[auto-settle] Found ${sessions.length} expired active sessions to settle`);
 
     for (const session of sessions) {
       try {
         let closePrice: number;
 
         // 1. Get close price from price_points within a time window around end_time.
-        //    The window extends further backward (-10s) than forward (+5s) because
-        //    real-price-snapshot writes occur up to 3s apart and the settle job may
-        //    run slightly after end_time, so we need more historical coverage than future.
+        //    Window extended to -120s/+30s to cover custom pairs with sparse tick data (5s interval).
         const ppResult = await query(
           `SELECT price FROM price_points
            WHERE pair_id = $1
-             AND timestamp BETWEEN ($2::timestamptz - INTERVAL '10 seconds')
-                               AND ($2::timestamptz + INTERVAL '5 seconds')
+             AND timestamp BETWEEN ($2::timestamptz - INTERVAL '120 seconds')
+                               AND ($2::timestamptz + INTERVAL '30 seconds')
            ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
            LIMIT 1`,
           [session.pair_id, session.end_time]
@@ -235,9 +250,8 @@ async function autoSettleSessions(): Promise<void> {
           } catch { /* log table may not exist yet */ }
 
           console.log(
-            `[auto-settle] session ${session.id} settled: direction=${resultDirection}, ` +
-            `open=${openPrice}, close=${closePrice}, orders=${orders.length} ` +
-            `(win=${winningOrders}, lose=${losingOrders}, draw=${drawOrders})`
+            `[auto-settle] session ${session.id} settled, result=${resultDirection}, close_price=${closePrice} ` +
+            `(open=${openPrice}, orders=${orders.length}: win=${winningOrders}, lose=${losingOrders}, draw=${drawOrders})`
           );
         });
       } catch (err: any) {
