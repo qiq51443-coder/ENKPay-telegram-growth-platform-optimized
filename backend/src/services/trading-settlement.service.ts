@@ -13,13 +13,20 @@ interface SettlementResult {
 
 /**
  * Settle a trading session
- * 
+ *
+ * This service is used by the admin manual-settlement API.
+ * The caller (admin route) is responsible for computing `resultDirection`
+ * based on the actual close price vs. open price before calling this function.
+ * Do NOT pass a direction derived from a trading_rule's direction field unless
+ * that rule explicitly has force_result = true.
+ *
  * Settlement logic:
  * - WIN: order.direction === resultDirection → user receives amount × odds
  * - LOSE: order.direction !== resultDirection → user gets nothing (already paid when placing order)
- * 
+ * - DRAW: full refund of the bet amount
+ *
  * @param sessionId - The trading session to settle
- * @param resultDirection - The actual result: 'up' or 'down'
+ * @param resultDirection - The actual result: 'up', 'down', or 'draw' (must be based on real price comparison)
  * @param settlementPrice - The final price used for settlement
  * @returns Settlement summary
  */

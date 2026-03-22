@@ -2,11 +2,28 @@ import cron from 'node-cron';
 import { query, transaction } from '../db';
 import { getPairPrice } from '../services/price.service';
 
-/** Relative price difference below which a session result is considered a draw (0.001%). */
-const DRAW_THRESHOLD_PERCENTAGE = 0.00001;
+/**
+ * Relative price difference below which a session result is considered a draw (0.01%).
+ * Raised 10x from 0.00001 (0.001%) to 0.0001 (0.01%) to avoid micro-fluctuations being mis-classified as draws.
+ */
+const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
 
 let cronJob: cron.ScheduledTask | null = null;
 let isRunning = false;
+
+/**
+ * Determine the result direction from open and close prices.
+ * Returns 'up', 'down', or 'draw'.
+ * If openPrice is not a positive number the draw threshold cannot be computed reliably,
+ * so we fall through directly to the up/down comparison.
+ */
+function determineDirection(openPrice: number, closePrice: number): string {
+  if (openPrice > 0) {
+    const priceDiff = Math.abs(closePrice - openPrice) / openPrice;
+    if (priceDiff < DRAW_THRESHOLD_PERCENTAGE) return 'draw';
+  }
+  return closePrice >= openPrice ? 'up' : 'down';
+}
 
 /**
  * Auto-settle expired trading sessions
@@ -27,7 +44,8 @@ async function autoSettleSessions(): Promise<void> {
          ts.rule_id,
          ts.end_time,
          COALESCE(ts.open_price, ts.entry_price) as open_price,
-         tr.direction as rule_direction
+         tr.direction as rule_direction,
+         tr.force_result as rule_force_result
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
        WHERE ts.end_time <= NOW()
@@ -82,17 +100,20 @@ async function autoSettleSessions(): Promise<void> {
 
         const openPrice = parseFloat(session.open_price);
 
-        // 3. Determine result direction with draw detection
+        // 3. Determine result direction.
+        //    ALWAYS use real price comparison as the primary logic.
+        //    rule_direction is ONLY applied when the rule explicitly marks force_result = true,
+        //    which indicates the admin has intentionally overridden the result for this rule.
+        //    If force_result column doesn't exist (older DB schema), we safely fall back to price comparison.
         let resultDirection: string;
-        if (session.rule_id && session.rule_direction) {
+        const adminForceResult = session.rule_force_result === true || session.rule_force_result === 't';
+        if (session.rule_id && session.rule_direction && adminForceResult) {
+          // Admin explicitly forced a result direction for this rule
           resultDirection = session.rule_direction;
+          console.log(`[auto-settle] session ${session.id}: using admin-forced direction=${resultDirection} (rule_id=${session.rule_id})`);
         } else {
-          // Draw check: |close - open| / open < DRAW_THRESHOLD_PERCENTAGE
-          if (openPrice > 0 && Math.abs(closePrice - openPrice) / openPrice < DRAW_THRESHOLD_PERCENTAGE) {
-            resultDirection = 'draw';
-          } else {
-            resultDirection = closePrice >= openPrice ? 'up' : 'down';
-          }
+          // Normal price-based settlement (correct behaviour)
+          resultDirection = determineDirection(openPrice, closePrice);
         }
 
         // 4. Settle session + orders in a transaction
