@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
@@ -58,6 +58,7 @@ export const Products: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPurchase, setShowPurchase] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const isPurchasingRef = useRef(false);
   const [purchaseMsg, setPurchaseMsg] = useState('');
   const [activeView, setActiveView] = useState<'list' | 'mine'>('list');
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -97,13 +98,15 @@ export const Products: React.FC = () => {
   };
 
   const handlePurchase = async () => {
-    if (!selected) return;
+    if (!selected || isPurchasingRef.current) return;
+    isPurchasingRef.current = true;
     setPurchasing(true);
     setPurchaseMsg('');
     // Validate that the product ID is a positive integer (nft_products.id is SERIAL)
     const productId = parseInt(String(selected.id), 10);
     if (isNaN(productId) || productId <= 0) {
       setPurchaseMsg('❌ Invalid product ID');
+      isPurchasingRef.current = false;
       setPurchasing(false);
       return;
     }
@@ -117,6 +120,7 @@ export const Products: React.FC = () => {
     } catch (e: any) {
       setPurchaseMsg(`❌ ${e?.response?.data?.error || t('product_purchase_failed')}`);
     } finally {
+      isPurchasingRef.current = false;
       setPurchasing(false);
     }
   };
