@@ -121,6 +121,41 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 /**
+ * GET /api/admin/auction-results
+ * View all winning records
+ */
+router.get('/results/all', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const result = await query(
+      `SELECT lar.*, u.username, u.first_name
+       FROM lucky_auction_results lar
+       JOIN users u ON lar.winner_id = u.id
+       ORDER BY lar.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [Number(limit), offset]
+    );
+
+    const countResult = await query(`SELECT COUNT(*) FROM lucky_auction_results`, []);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get auction results error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/admin/auctions/:id
  * Auction detail with participant list
  */
@@ -294,41 +329,6 @@ router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.error('Manual draw error:', error);
     res.status(400).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/admin/auction-results
- * View all winning records
- */
-router.get('/results/all', authenticateAdmin, async (req: AuthRequest, res) => {
-  try {
-    const { page = 1, limit = 20 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
-
-    const result = await query(
-      `SELECT lar.*, u.username, u.first_name
-       FROM lucky_auction_results lar
-       JOIN users u ON lar.winner_id = u.id
-       ORDER BY lar.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [Number(limit), offset]
-    );
-
-    const countResult = await query(`SELECT COUNT(*) FROM lucky_auction_results`, []);
-
-    res.json({
-      success: true,
-      data: result.rows,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total: parseInt(countResult.rows[0].count),
-      },
-    });
-  } catch (error: any) {
-    console.error('Get auction results error:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 

@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Radio, Upload } from 'antd';
-import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
-import type { UploadFile, UploadProps } from 'antd';
+import {
+  Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker,
+  Upload, Tabs, Popconfirm,
+} from 'antd';
+import type { FormInstance } from 'antd';
+import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined, EditOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons';
+import type { UploadFile } from 'antd';
+import dayjs from 'dayjs';
 import { apiClient } from '../services/api';
 
 interface Auction {
@@ -30,16 +35,19 @@ interface Participant {
 export const Auctions: React.FC = () => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [participantsModalOpen, setParticipantsModalOpen] = useState(false);
   const [drawModalOpen, setDrawModalOpen] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null);
-  const [drawMethod, setDrawMethod] = useState<'random' | 'manual'>('random');
-  const [manualWinnerId, setManualWinnerId] = useState('');
   const [drawing, setDrawing] = useState(false);
   const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
+  const [editImageFileList, setEditImageFileList] = useState<UploadFile[]>([]);
+  const [pricePreview, setPricePreview] = useState<string | null>(null);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchAuctions();
@@ -48,11 +56,8 @@ export const Auctions: React.FC = () => {
   const fetchAuctions = async () => {
     setLoading(true);
     try {
-      const [active, completed] = await Promise.all([
-        apiClient.get('/auctions?status=active&limit=50'),
-        apiClient.get('/auctions?status=completed&limit=50'),
-      ]);
-      setAuctions([...(active.data?.data || []), ...(completed.data?.data || [])]);
+      const result = await apiClient.getLuckyAuctions({ limit: 100 });
+      setAuctions(result.data || []);
     } catch (error) {
       console.error('Failed to fetch auctions:', error);
       message.error('获取夺宝列表失败');
@@ -64,6 +69,7 @@ export const Auctions: React.FC = () => {
   const handleOpenModal = () => {
     form.resetFields();
     setImageFileList([]);
+    setPricePreview(null);
     setModalOpen(true);
   };
 
@@ -73,19 +79,18 @@ export const Auctions: React.FC = () => {
       if (values.expires_at) {
         values.expires_at = values.expires_at.toISOString();
       }
-      // Calculate per_person_cost from product_value and participant_count
       if (values.product_value && values.participant_count) {
         values.per_person_cost = parseFloat((values.product_value / values.participant_count).toFixed(2));
       }
-      // Set platform fee and winner payout
       values.platform_fee_percent = 30;
       values.winner_payout = parseFloat((values.product_value * 0.7).toFixed(2));
 
-      await apiClient.post('/auctions', values);
+      await apiClient.createLuckyAuction(values);
       message.success('夺宝创建成功');
       setModalOpen(false);
       form.resetFields();
       setImageFileList([]);
+      setPricePreview(null);
       fetchAuctions();
     } catch (error: any) {
       console.error('Failed to create auction:', error);
@@ -93,10 +98,60 @@ export const Auctions: React.FC = () => {
     }
   };
 
+  const handleOpenEdit = (auction: Auction) => {
+    setSelectedAuction(auction);
+    editForm.setFieldsValue({
+      title: auction.title,
+      description: auction.description,
+      image_url: auction.image_url,
+      max_purchases_per_user: auction.max_purchases_per_user,
+      expires_at: auction.expires_at ? dayjs(auction.expires_at) : undefined,
+    });
+    setEditImageFileList([]);
+    setEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedAuction) return;
+    try {
+      const values = await editForm.validateFields();
+      if (values.expires_at) {
+        values.expires_at = values.expires_at.toISOString();
+      }
+      await apiClient.updateLuckyAuction(selectedAuction.id, values);
+      message.success('编辑成功');
+      setEditModalOpen(false);
+      editForm.resetFields();
+      setEditImageFileList([]);
+      fetchAuctions();
+    } catch (error: any) {
+      console.error('Failed to edit auction:', error);
+      message.error(error.response?.data?.error || '编辑失败');
+    }
+  };
+
+  const handleDelete = async (auction: Auction) => {
+    try {
+      await apiClient.deleteLuckyAuction(auction.id);
+      message.success('删除成功');
+      fetchAuctions();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '删除失败');
+    }
+  };
+
+  const handleCancel = async (auction: Auction) => {
+    try {
+      await apiClient.cancelLuckyAuction(auction.id);
+      message.success('已取消并退款给所有参与者');
+      fetchAuctions();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '取消失败');
+    }
+  };
+
   const handleOpenDraw = (auction: Auction) => {
     setSelectedAuction(auction);
-    setDrawMethod('random');
-    setManualWinnerId('');
     setDrawModalOpen(true);
   };
 
@@ -104,9 +159,7 @@ export const Auctions: React.FC = () => {
     if (!selectedAuction) return;
     setDrawing(true);
     try {
-      const body: any = { method: drawMethod };
-      if (drawMethod === 'manual') body.winner_unique_id = manualWinnerId;
-      await apiClient.post(`/auctions/${selectedAuction.id}/draw`, body);
+      await apiClient.drawLuckyAuction(selectedAuction.id);
       message.success('开奖成功');
       setDrawModalOpen(false);
       fetchAuctions();
@@ -121,13 +174,40 @@ export const Auctions: React.FC = () => {
   const handleViewParticipants = async (auction: Auction) => {
     setSelectedAuction(auction);
     try {
-      const response = await apiClient.get(`/auctions/${auction.id}/participants?limit=100`);
-      setParticipants(response.data?.data || []);
+      const response = await apiClient.getLuckyAuction(auction.id);
+      setParticipants(response.data?.participants || []);
       setParticipantsModalOpen(true);
     } catch (error: any) {
       message.error('获取参与者失败');
     }
   };
+
+  const handlePriceChange = () => {
+    const productValue = form.getFieldValue('product_value');
+    const participantCount = form.getFieldValue('participant_count');
+    if (productValue && participantCount && participantCount > 0) {
+      const price = (productValue / participantCount).toFixed(2);
+      setPricePreview(price);
+    } else {
+      setPricePreview(null);
+    }
+  };
+
+  const disabledDate = (current: dayjs.Dayjs) => current && current.isBefore(dayjs(), 'day');
+
+  const disabledTime = (current: dayjs.Dayjs | null) => {
+    if (!current || !current.isSame(dayjs(), 'day')) return {};
+    const now = dayjs();
+    return {
+      disabledHours: () => Array.from({ length: now.hour() }, (_, i) => i),
+      disabledMinutes: (hour: number) =>
+        hour === now.hour() ? Array.from({ length: now.minute() + 1 }, (_, i) => i) : [],
+    };
+  };
+
+  const filteredAuctions = activeTab === 'all'
+    ? auctions
+    : auctions.filter(a => a.status === activeTab);
 
   const columns = [
     {
@@ -197,9 +277,9 @@ export const Auctions: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 220,
+      width: 280,
       render: (_: any, record: Auction) => (
-        <Space>
+        <Space wrap>
           <Button
             type="link"
             size="small"
@@ -209,6 +289,40 @@ export const Auctions: React.FC = () => {
             查看参与者
           </Button>
           {record.status === 'active' && (
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            >
+              编辑
+            </Button>
+          )}
+          {record.status === 'active' && record.current_participants === 0 && (
+            <Popconfirm
+              title="确认删除该夺宝活动？"
+              onConfirm={() => handleDelete(record)}
+              okText="确认"
+              cancelText="取消"
+            >
+              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
+          {record.status === 'active' && (
+            <Popconfirm
+              title="取消后将退款给所有参与者，确认取消？"
+              onConfirm={() => handleCancel(record)}
+              okText="确认"
+              cancelText="取消"
+            >
+              <Button type="link" size="small" danger icon={<StopOutlined />}>
+                取消
+              </Button>
+            </Popconfirm>
+          )}
+          {(record.status === 'active' || record.status === 'completed') && !record.winner_unique_id && (
             <Button
               type="primary"
               size="small"
@@ -229,6 +343,37 @@ export const Auctions: React.FC = () => {
     { title: '参与时间', dataIndex: 'created_at', key: 'created_at', render: (d: string) => new Date(d).toLocaleString('zh-CN') },
   ];
 
+  const tabItems = [
+    { key: 'all', label: '全部' },
+    { key: 'active', label: '进行中' },
+    { key: 'completed', label: '已完成' },
+    { key: 'expired', label: '已过期' },
+    { key: 'cancelled', label: '已取消' },
+  ];
+
+  const imageUploadProps = (fileList: UploadFile[], setFileList: (fl: UploadFile[]) => void, fieldName: string, targetForm: FormInstance) => ({
+    name: 'file',
+    action: '/api/admin/upload',
+    headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+    listType: 'picture' as const,
+    fileList,
+    maxCount: 1,
+    onChange: ({ fileList: fl, file }: any) => {
+      setFileList(fl);
+      if (file.status === 'done' && file.response?.url) {
+        targetForm.setFieldValue(fieldName, file.response.url);
+        message.success('图片上传成功');
+      } else if (file.status === 'error') {
+        message.error('图片上传失败');
+      }
+    },
+    beforeUpload: (file: File) => {
+      if (!file.type.startsWith('image/')) { message.error('只能上传图片文件'); return false; }
+      if (file.size / 1024 / 1024 > 10) { message.error('图片大小不能超过10MB'); return false; }
+      return true;
+    },
+  });
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -241,13 +386,15 @@ export const Auctions: React.FC = () => {
         </Button>
       </div>
 
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} style={{ marginBottom: 8 }} />
+
       <Table
         columns={columns}
-        dataSource={auctions}
+        dataSource={filteredAuctions}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1300 }}
       />
 
       {/* Create Auction Modal */}
@@ -255,7 +402,7 @@ export const Auctions: React.FC = () => {
         title="创建夺宝"
         open={modalOpen}
         onOk={handleSubmit}
-        onCancel={() => { setModalOpen(false); form.resetFields(); }}
+        onCancel={() => { setModalOpen(false); form.resetFields(); setPricePreview(null); }}
         okText="创建"
         cancelText="取消"
         width={600}
@@ -264,51 +411,75 @@ export const Auctions: React.FC = () => {
           <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
             <Input placeholder="例如：限量藏品 No.001" />
           </Form.Item>
-          <Form.Item name="image_url" label="藏品图片">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Upload
-                name="file"
-                action="/api/admin/upload"
-                headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
-                listType="picture"
-                fileList={imageFileList}
-                maxCount={1}
-                onChange={({ fileList, file }) => {
-                  setImageFileList(fileList);
-                  if (file.status === 'done' && file.response?.url) {
-                    form.setFieldValue('image_url', file.response.url);
-                    message.success('图片上传成功');
-                  } else if (file.status === 'error') {
-                    message.error('图片上传失败');
-                  }
-                }}
-                beforeUpload={(file) => {
-                  const isImage = file.type.startsWith('image/');
-                  if (!isImage) { message.error('只能上传图片文件'); return false; }
-                  const isLt10M = file.size / 1024 / 1024 < 10;
-                  if (!isLt10M) { message.error('图片大小不能超过10MB'); return false; }
-                  return true;
-                }}
-              >
-                <Button icon={<UploadOutlined />}>点击上传图片</Button>
-              </Upload>
-              <Input placeholder="或直接输入图片URL：https://example.com/image.jpg" />
-            </Space>
+          <Form.Item label="藏品图片（上传）">
+            <Upload {...imageUploadProps(imageFileList, setImageFileList, 'image_url', form)}>
+              <Button icon={<UploadOutlined />}>点击上传图片</Button>
+            </Upload>
           </Form.Item>
-          <Form.Item name="product_value" label="藏品总价值 (USDT)" rules={[{ required: true, message: '请输入总价值' }]}>
-            <InputNumber min={1} step={1} style={{ width: '100%' }} placeholder="1000" />
+          <Form.Item name="image_url" label="藏品图片 URL（或直接填写）">
+            <Input placeholder="https://example.com/image.jpg" />
           </Form.Item>
-          <Form.Item name="participant_count" label="总份数" rules={[{ required: true, message: '请输入总份数' }]} extra="系统将自动计算每份价格 = 总价值 / 总份数">
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="100" />
+          <Form.Item
+            name="product_value"
+            label="藏品总价值 (USDT)"
+            rules={[{ required: true, message: '请输入总价值' }]}
+          >
+            <InputNumber min={1} step={1} style={{ width: '100%' }} placeholder="1000" onChange={handlePriceChange} />
+          </Form.Item>
+          <Form.Item
+            name="participant_count"
+            label="总份数"
+            rules={[{ required: true, message: '请输入总份数' }]}
+            extra={
+              pricePreview
+                ? <span style={{ color: '#1677ff' }}>每份价格预览：<strong>${pricePreview} USDT</strong></span>
+                : '填写总价值和总份数后自动预览每份价格'
+            }
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="100" onChange={handlePriceChange} />
           </Form.Item>
           <Form.Item name="max_purchases_per_user" label="每人限购份数" initialValue={5}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="expires_at" label="开奖时间" rules={[{ required: true, message: '请选择开奖时间' }]}>
-            <DatePicker showTime style={{ width: '100%' }} />
+            <DatePicker showTime style={{ width: '100%' }} disabledDate={disabledDate} disabledTime={disabledTime} />
           </Form.Item>
           <Form.Item name="description" label="描述（可选）">
             <Input.TextArea rows={3} placeholder="藏品说明..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit Auction Modal */}
+      <Modal
+        title={`编辑夺宝 - ${selectedAuction?.title}`}
+        open={editModalOpen}
+        onOk={handleEditSubmit}
+        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); }}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="藏品图片（上传）">
+            <Upload {...imageUploadProps(editImageFileList, setEditImageFileList, 'image_url', editForm)}>
+              <Button icon={<UploadOutlined />}>点击上传图片</Button>
+            </Upload>
+          </Form.Item>
+          <Form.Item name="image_url" label="藏品图片 URL">
+            <Input placeholder="https://example.com/image.jpg" />
+          </Form.Item>
+          <Form.Item name="max_purchases_per_user" label="每人限购份数">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="expires_at" label="开奖时间" rules={[{ required: true, message: '请选择开奖时间' }]}>
+            <DatePicker showTime style={{ width: '100%' }} disabledDate={disabledDate} disabledTime={disabledTime} />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>
@@ -323,23 +494,7 @@ export const Auctions: React.FC = () => {
         cancelText="取消"
         confirmLoading={drawing}
       >
-        <Form layout="vertical">
-          <Form.Item label="开奖方式">
-            <Radio.Group value={drawMethod} onChange={e => setDrawMethod(e.target.value)}>
-              <Radio value="random">系统随机抽取</Radio>
-              <Radio value="manual">指定获奖成员</Radio>
-            </Radio.Group>
-          </Form.Item>
-          {drawMethod === 'manual' && (
-            <Form.Item label="获奖者唯一ID">
-              <Input
-                value={manualWinnerId}
-                onChange={e => setManualWinnerId(e.target.value)}
-                placeholder="请输入用户唯一ID"
-              />
-            </Form.Item>
-          )}
-        </Form>
+        <p>确认对「{selectedAuction?.title}」进行系统随机开奖？</p>
       </Modal>
 
       {/* Participants Modal */}
