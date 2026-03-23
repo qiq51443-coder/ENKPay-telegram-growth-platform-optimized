@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { getPairPrice } from '../services/price.service';
+import { getPairPrice, binanceFetch } from '../services/price.service';
 
 /**
  * Relative price difference below which a session result is considered a draw (0.01%).
@@ -79,9 +79,12 @@ async function autoSettleSessions(): Promise<void> {
          ts.status,
          COALESCE(ts.open_price, ts.entry_price) as open_price,
          tr.direction as rule_direction,
-         tr.force_result as rule_force_result
+         tr.force_result as rule_force_result,
+         tp.pair_type,
+         tp.binance_symbol
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
+       LEFT JOIN trading_pairs tp ON ts.pair_id = tp.id
        WHERE ts.end_time <= NOW()
          AND ts.status IN ('active', 'pending')
        ORDER BY ts.end_time ASC
@@ -115,45 +118,95 @@ async function autoSettleSessions(): Promise<void> {
       try {
         let closePrice: number;
 
-        // 1. Get close price from price_points within a time window around end_time.
-        //    Window extended to -120s/+30s to cover custom pairs with sparse tick data (5s interval).
-        const ppResult = await query(
-          `SELECT price FROM price_points
-           WHERE pair_id = $1
-             AND timestamp BETWEEN ($2::timestamptz - INTERVAL '120 seconds')
-                               AND ($2::timestamptz + INTERVAL '30 seconds')
-           ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
-           LIMIT 1`,
-          [session.pair_id, session.end_time]
-        );
-
-        if (ppResult.rows.length > 0) {
-          closePrice = parseFloat(ppResult.rows[0].price);
-        } else {
-          // 2. Fallback to live price; persist snapshot so the record exists for auditing
+        // 1. For real (Binance) pairs, fetch the 1-minute kline that covers the session end_time.
+        //    This gives the accurate close price at session end, independent of price_points.
+        if (session.pair_type === 'real' && session.binance_symbol) {
+          const ONE_MINUTE_MS = 60000;
+          const KLINE_END_BUFFER_MS = 5000;
           try {
-            const priceData = await getPairPrice(session.pair_id);
-            closePrice = priceData.price;
-            console.warn(`[auto-settle] [ALERT] session ${session.id}: no price_points data, used live price ${closePrice}`);
-            // Persist the fallback price as a snapshot for audit trail
-            await query(
-              `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
-              [session.pair_id, closePrice]
-            ).catch((e: any) => console.warn(`[auto-settle] failed to persist fallback snapshot for session ${session.id} pair ${session.pair_id}:`, e.message));
-          } catch (priceErr) {
-            // Cannot get close price — if session has been expired for more than 5 minutes, cancel and refund
-            const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
-            if (expiredMinsAgo > 5) {
-              console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
-              try {
-                await cancelSessionAndRefund(session.id);
-              } catch (cancelErr: any) {
-                console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
+            const endTimeMs = new Date(session.end_time).getTime();
+            const klineData = await binanceFetch('/api/v3/klines', {
+              symbol: session.binance_symbol,
+              interval: '1m',
+              startTime: endTimeMs - ONE_MINUTE_MS,
+              endTime: endTimeMs + KLINE_END_BUFFER_MS,
+              limit: 2,
+            });
+            if (Array.isArray(klineData) && klineData.length > 0) {
+              // Pick the kline whose open time is closest to (and before) end_time
+              let bestKline = klineData[0];
+              for (const kline of klineData) {
+                if (kline[0] <= endTimeMs && kline[0] > bestKline[0]) {
+                  bestKline = kline;
+                }
               }
+              closePrice = parseFloat(bestKline[4]); // close price
+              console.log(`[auto-settle] session ${session.id}: real pair close price from Binance kline=${closePrice} (end_time=${session.end_time})`);
             } else {
-              console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
+              throw new Error('No kline data returned');
             }
-            continue;
+          } catch (klineErr: any) {
+            console.warn(`[auto-settle] session ${session.id}: Binance kline fetch failed (${klineErr.message}), falling back to live price`);
+            try {
+              const priceData = await getPairPrice(session.pair_id);
+              closePrice = priceData.price;
+              console.warn(`[auto-settle] [ALERT] session ${session.id}: used live price fallback ${closePrice}`);
+            } catch (priceErr) {
+              const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
+              if (expiredMinsAgo > 5) {
+                console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
+                try {
+                  await cancelSessionAndRefund(session.id);
+                } catch (cancelErr: any) {
+                  console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
+                }
+              } else {
+                console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
+              }
+              continue;
+            }
+          }
+        } else {
+          // 2. For custom pairs, get close price from price_points within a time window around end_time.
+          //    Window extended to -120s/+30s to cover custom pairs with sparse tick data (5s interval).
+          const ppResult = await query(
+            `SELECT price FROM price_points
+             WHERE pair_id = $1
+               AND timestamp BETWEEN ($2::timestamptz - INTERVAL '120 seconds')
+                                 AND ($2::timestamptz + INTERVAL '30 seconds')
+             ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
+             LIMIT 1`,
+            [session.pair_id, session.end_time]
+          );
+
+          if (ppResult.rows.length > 0) {
+            closePrice = parseFloat(ppResult.rows[0].price);
+          } else {
+            // 3. Fallback to live price; persist snapshot so the record exists for auditing
+            try {
+              const priceData = await getPairPrice(session.pair_id);
+              closePrice = priceData.price;
+              console.warn(`[auto-settle] [ALERT] session ${session.id}: no price_points data, used live price ${closePrice}`);
+              // Persist the fallback price as a snapshot for audit trail
+              await query(
+                `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
+                [session.pair_id, closePrice]
+              ).catch((e: any) => console.warn(`[auto-settle] failed to persist fallback snapshot for session ${session.id} pair ${session.pair_id}:`, e.message));
+            } catch (priceErr) {
+              // Cannot get close price — if session has been expired for more than 5 minutes, cancel and refund
+              const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
+              if (expiredMinsAgo > 5) {
+                console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
+                try {
+                  await cancelSessionAndRefund(session.id);
+                } catch (cancelErr: any) {
+                  console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
+                }
+              } else {
+                console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
+              }
+              continue;
+            }
           }
         }
 
