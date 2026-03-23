@@ -48,7 +48,7 @@ const KLINE_TTL_MAP: Record<string, number> = {
 /**
  * Try multiple Binance API URLs, returning the first successful response
  */
-async function binanceFetch(path: string, params?: Record<string, any>): Promise<any> {
+export async function binanceFetch(path: string, params?: Record<string, any>): Promise<any> {
   const urls = process.env.BINANCE_API_URL
     ? [process.env.BINANCE_API_URL, ...BINANCE_FALLBACK_URLS.filter(u => u !== process.env.BINANCE_API_URL)]
     : BINANCE_FALLBACK_URLS;
@@ -135,6 +135,31 @@ export async function get24hChange(symbol: string): Promise<number> {
     console.error(`Error fetching 24h change for ${binanceSymbol}:`, error.message);
     return 0;
   }
+}
+
+/**
+ * Get the UTC day open price from Binance daily Kline, cached for 60 seconds.
+ * @param symbol Full Binance trading symbol (e.g. "BTCUSDT") or base symbol (e.g. "BTC")
+ */
+export async function getDayOpenPrice(symbol: string): Promise<number> {
+  const binanceSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
+  const cacheKey = `dayopen:${binanceSymbol}`;
+
+  const cached = await getCache<number>(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const data = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval: '1d', limit: 1 });
+  if (!Array.isArray(data) || data.length === 0 || !Array.isArray(data[0]) || data[0].length < 2) {
+    throw new Error(`Unexpected Binance kline response for ${binanceSymbol}`);
+  }
+  const openPrice = parseFloat(data[0][1]);
+  if (isNaN(openPrice)) {
+    throw new Error(`Invalid open price in Binance kline response for ${binanceSymbol}`);
+  }
+  await setCache(cacheKey, openPrice, 60);
+  return openPrice;
 }
 
 /**

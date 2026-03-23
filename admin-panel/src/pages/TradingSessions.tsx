@@ -58,6 +58,7 @@ interface PairWithOpenPrice {
   current_price?: number;
   price_change_24h?: number | null;
   open_price?: string | null;
+  day_open_price?: string | null;
   is_active?: boolean;
   change_24h?: number | null;
 }
@@ -168,6 +169,7 @@ const CoinGridView: React.FC<CoinGridViewProps> = ({
 interface CoinDetailViewProps {
   pair: TradingPair;
   openPrice: string | null | undefined;
+  dayOpenPrice: string | null | undefined;
   currentPrice: number | undefined;
   todayResults: TodayResult[];
   loading: boolean;
@@ -177,6 +179,7 @@ interface CoinDetailViewProps {
 const CoinDetailView: React.FC<CoinDetailViewProps> = ({
   pair,
   openPrice,
+  dayOpenPrice,
   currentPrice,
   todayResults,
   loading,
@@ -325,18 +328,26 @@ const CoinDetailView: React.FC<CoinDetailViewProps> = ({
           </div>
         </Space>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: POSITIVE_COLOR, lineHeight: 1.2 }}>
-            {currentPrice != null
-              ? `$${currentPrice.toFixed(4)}`
-              : openPrice != null
-                ? `$${parseFloat(openPrice).toFixed(4)}`
-                : '-'}
-          </div>
-          {openPrice != null && (
-            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-              今日 UTC 0 点开盘价: ${parseFloat(openPrice).toFixed(4)}
-            </div>
-          )}
+          {(() => {
+            const displayPrice = dayOpenPrice ?? openPrice ?? null;
+            const displayValue = displayPrice != null ? parseFloat(displayPrice) : null;
+            return (
+              <>
+                <div style={{ fontSize: 22, fontWeight: 700, color: POSITIVE_COLOR, lineHeight: 1.2 }}>
+                  {currentPrice != null
+                    ? `$${currentPrice.toFixed(4)}`
+                    : displayValue != null
+                      ? `$${displayValue.toFixed(4)}`
+                      : '-'}
+                </div>
+                {displayValue != null && (
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                    今日 UTC 0 点开盘价: ${displayValue.toFixed(4)}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -402,9 +413,10 @@ export const TradingSessions: React.FC = () => {
           current_price: p.current_price != null ? Number(p.current_price) : undefined,
           price_change_24h: p.price_change_24h != null ? Number(p.price_change_24h) : null,
           change_24h: p.price_change_24h != null ? Number(p.price_change_24h) : null,
+          day_open_price: p.day_open_price ?? null,
         }));
         const map: Record<string, string | null> = {};
-        opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
+        opData.forEach((p) => { map[p.id] = p.day_open_price ?? p.open_price ?? null; });
         setOpenPriceMap(map);
         setPairsWithPrice(opData);
       }
@@ -460,7 +472,8 @@ export const TradingSessions: React.FC = () => {
       ) : selectedPair ? (
         <CoinDetailView
           pair={selectedPair}
-          openPrice={openPriceMap[selectedPair.id]}
+          openPrice={selectedPairPrice?.open_price}
+          dayOpenPrice={selectedPairPrice?.day_open_price}
           currentPrice={selectedPairPrice?.current_price}
           todayResults={todayResults}
           loading={todayResultsLoading}

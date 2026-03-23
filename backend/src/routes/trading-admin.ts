@@ -7,6 +7,7 @@ import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
+import { getDayOpenPrice } from '../services/price.service';
 
 // Multer storage for coin icon uploads
 const iconUploadDir = path.join(__dirname, '../../uploads/coin-icons');
@@ -1153,7 +1154,7 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
        FROM trading_sessions ts
        LEFT JOIN trading_orders "to" ON "to".session_id = ts.id
        WHERE ts.pair_id = $1
-         AND ts.status IN ('settled', 'active')
+         AND ts.status IN ('settled', 'active', 'pending', 'cancelled')
          AND ts.start_time >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
        GROUP BY ts.id
        ORDER BY ts.start_time DESC`,
@@ -1216,6 +1217,7 @@ router.get('/pairs-with-open-price', adminLimiter, authenticateAdmin, async (req
          tp.name,
          COALESCE(tp.display_name, tp.name, tp.symbol) AS display_name,
          tp.pair_type,
+         tp.binance_symbol,
          tp.is_active,
          tp.sort_order,
          tp.current_price,
@@ -1239,7 +1241,28 @@ router.get('/pairs-with-open-price', adminLimiter, authenticateAdmin, async (req
       []
     );
 
-    res.json({ success: true, data: result.rows });
+    const rows = result.rows;
+
+    // For real pairs with a binance_symbol, fetch today's UTC day open price in parallel
+    const dayOpenPriceResults = await Promise.allSettled(
+      rows.map((row: any) => {
+        if (row.pair_type === 'real' && row.binance_symbol) {
+          return getDayOpenPrice(row.binance_symbol);
+        }
+        return Promise.resolve(null);
+      })
+    );
+
+    const data = rows.map((row: any, idx: number) => {
+      const dayOpenResult = dayOpenPriceResults[idx];
+      const day_open_price =
+        dayOpenResult.status === 'fulfilled' && dayOpenResult.value != null
+          ? String(dayOpenResult.value)
+          : null;
+      return { ...row, day_open_price };
+    });
+
+    res.json({ success: true, data });
   } catch (error: any) {
     console.error('Get pairs with open price error:', error);
     res.status(500).json({ error: error.message });
