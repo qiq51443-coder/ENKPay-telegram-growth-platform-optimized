@@ -26,6 +26,39 @@ function determineDirection(openPrice: number, closePrice: number): string {
 }
 
 /**
+ * Cancel a session and refund all active orders.
+ * Used as a last-resort fallback when pricing data is unavailable for an expired session.
+ */
+async function cancelSessionAndRefund(sessionId: string): Promise<void> {
+  await transaction(async (client) => {
+    const checkResult = await client.query(
+      `SELECT status FROM trading_sessions WHERE id = $1`,
+      [sessionId]
+    );
+    if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
+
+    const ordersResult = await client.query(
+      `SELECT id, user_id, amount FROM trading_orders WHERE session_id = $1 AND status = 'active'`,
+      [sessionId]
+    );
+    for (const order of ordersResult.rows) {
+      await client.query(
+        `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+        [parseFloat(order.amount), order.user_id]
+      );
+      await client.query(
+        `UPDATE trading_orders SET status = 'cancelled', result = 'draw', profit = 0 WHERE id = $1`,
+        [order.id]
+      );
+    }
+    await client.query(
+      `UPDATE trading_sessions SET status = 'cancelled' WHERE id = $1`,
+      [sessionId]
+    );
+  });
+}
+
+/**
  * Auto-settle expired trading sessions
  */
 async function autoSettleSessions(): Promise<void> {
@@ -36,20 +69,21 @@ async function autoSettleSessions(): Promise<void> {
   isRunning = true;
 
   try {
-    // Only settle sessions that are 'active' AND have ended
+    // Settle sessions that are 'active' OR 'pending' (stuck never activated) AND have ended
     const expiredSessionsResult = await query(
       `SELECT
          ts.id,
          ts.pair_id,
          ts.rule_id,
          ts.end_time,
+         ts.status,
          COALESCE(ts.open_price, ts.entry_price) as open_price,
          tr.direction as rule_direction,
          tr.force_result as rule_force_result
        FROM trading_sessions ts
        LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
        WHERE ts.end_time <= NOW()
-         AND ts.status = 'active'
+         AND ts.status IN ('active', 'pending')
        ORDER BY ts.end_time ASC
        LIMIT 50`,
       []
@@ -57,17 +91,17 @@ async function autoSettleSessions(): Promise<void> {
 
     const sessions = expiredSessionsResult.rows;
     if (sessions.length === 0) {
-      // Diagnostic: log sessions that are active/expired but have no open_price (cannot be settled)
+      // Diagnostic: log sessions that are active/pending/expired but have no open_price (cannot be settled)
       try {
         const skipped = await query(
           `SELECT id FROM trading_sessions
-           WHERE status = 'active' AND end_time <= NOW() AND open_price IS NULL
+           WHERE status IN ('active', 'pending') AND end_time <= NOW() AND open_price IS NULL
            LIMIT 10`,
           []
         );
         if (skipped.rows.length > 0) {
           console.warn(
-            `[auto-settle] ${skipped.rows.length} active session(s) skipped (open_price IS NULL): ` +
+            `[auto-settle] ${skipped.rows.length} session(s) skipped (open_price IS NULL): ` +
             `ids=${skipped.rows.map((r: any) => r.id).join(', ')}`
           );
         }
@@ -107,7 +141,18 @@ async function autoSettleSessions(): Promise<void> {
               [session.pair_id, closePrice]
             ).catch((e: any) => console.warn(`[auto-settle] failed to persist fallback snapshot for session ${session.id} pair ${session.pair_id}:`, e.message));
           } catch (priceErr) {
-            console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
+            // Cannot get close price — if session has been expired for more than 5 minutes, cancel and refund
+            const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
+            if (expiredMinsAgo > 5) {
+              console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
+              try {
+                await cancelSessionAndRefund(session.id);
+              } catch (cancelErr: any) {
+                console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
+              }
+            } else {
+              console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get any price, SKIPPING settlement`, priceErr);
+            }
             continue;
           }
         }
@@ -122,7 +167,18 @@ async function autoSettleSessions(): Promise<void> {
             // Backfill open_price in DB so future runs and audits have a value
             await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
           } catch (priceErr: any) {
-            console.error(`[auto-settle] [ALERT] session ${session.id} (pair_id=${session.pair_id}): cannot get open_price, SKIPPING settlement`, priceErr);
+            // Cannot get open_price either — if session expired 5+ min ago, cancel and refund
+            const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
+            if (expiredMinsAgo > 5) {
+              console.warn(`[auto-settle] [CANCEL] session ${session.id}: no open_price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
+              try {
+                await cancelSessionAndRefund(session.id);
+              } catch (cancelErr: any) {
+                console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
+              }
+            } else {
+              console.error(`[auto-settle] [ALERT] session ${session.id} (pair_id=${session.pair_id}): cannot get open_price, SKIPPING settlement`, priceErr);
+            }
             continue;
           }
         } else {
@@ -152,7 +208,7 @@ async function autoSettleSessions(): Promise<void> {
             `SELECT status FROM trading_sessions WHERE id = $1`,
             [session.id]
           );
-          if (!checkResult.rows.length || checkResult.rows[0].status === 'settled') return;
+          if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
 
           // Get all active orders for this session
           const ordersResult = await client.query(
