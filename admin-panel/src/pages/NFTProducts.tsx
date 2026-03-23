@@ -14,27 +14,35 @@ function toNum(v: any): number {
   return parseFloat(v) || 0;
 }
 
+function resolveImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // Relative URL — prepend the API base URL (strip trailing /api)
+  const base = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+  return `${base}${url}`;
+}
+
 interface NFTProduct {
-  id: string;
-  category_id: string;
+  id: number | string;
+  category_id: string | null | undefined;
   name: string;
-  description?: string;
-  description_i18n?: Record<string, string>;
-  image_url?: string;
+  description?: string | null;
+  description_i18n?: Record<string, string> | null;
+  image_url?: string | null;
   price: number;
-  original_price?: number;
+  original_price?: number | null;
   stock: number;
-  product_type: string;
-  status: string;
-  duration_days?: number;
-  term_days?: number;
-  daily_yield_rate?: number;
-  rarity?: string;
-  listing_time?: string;
-  created_at: string;
-  display_holders_count?: number;
-  total_holders_count?: number;
-  current_holders?: number;
+  product_type: string | null;
+  status: string | null;
+  duration_days?: number | null;
+  term_days?: number | null;
+  daily_yield_rate?: number | null;
+  rarity?: string | null;
+  listing_time?: string | null;
+  created_at: string | null;
+  display_holders_count?: number | null;
+  total_holders_count?: number | null;
+  current_holders?: number | null;
   category?: { name: string };
 }
 
@@ -187,7 +195,7 @@ export const NFTProducts: React.FC = () => {
       }
 
       if (editingProduct) {
-        await apiClient.updateNFTProduct(editingProduct.id, values);
+        await apiClient.updateNFTProduct(String(editingProduct.id), values);
         message.success('产品更新成功');
       } else {
         await apiClient.createNFTProduct(values);
@@ -205,9 +213,9 @@ export const NFTProducts: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | number) => {
     try {
-      await apiClient.deleteNFTProduct(id);
+      await apiClient.deleteNFTProduct(String(id));
       message.success('产品删除成功');
       fetchProducts();
     } catch (error: any) {
@@ -221,7 +229,7 @@ export const NFTProducts: React.FC = () => {
     setHoldersModalOpen(true);
     setHoldersLoading(true);
     try {
-      const response = await apiClient.getNFTProductHolders(product.id);
+      const response = await apiClient.getNFTProductHolders(String(product.id));
       setHolders(response.holders || []);
       setHoldersTotal(response.total || 0);
     } catch (error) {
@@ -249,8 +257,8 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'image_url',
       key: 'image_url',
       width: 80,
-      render: (url: string) => url ? (
-        <img src={url} alt="cover" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
+      render: (url: string | null | undefined) => url ? (
+        <img src={resolveImageUrl(url)} alt="cover" style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
       ) : '-',
     },
     {
@@ -318,13 +326,13 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'product_type',
       key: 'product_type',
       width: 100,
-      render: (type: string) => {
+      render: (type: string | null | undefined) => {
         const typeMap: Record<string, { text: string; color: string }> = {
           fixed_term: { text: '定期', color: 'blue' },
           instant: { text: '即时', color: 'green' },
           limited: { text: '限量', color: 'orange' },
         };
-        const typeInfo = typeMap[type] || { text: type, color: 'default' };
+        const typeInfo = (type && typeMap[type]) || { text: type || '-', color: 'default' };
         return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
       },
     },
@@ -333,13 +341,13 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 80,
-      render: (status: string) => {
+      render: (status: string | null | undefined) => {
         const statusMap: Record<string, { text: string; color: string }> = {
           active: { text: '上架', color: 'green' },
           inactive: { text: '下架', color: 'red' },
           sold_out: { text: '售罄', color: 'default' },
         };
-        const statusInfo = statusMap[status] || { text: status, color: 'default' };
+        const statusInfo = (status && statusMap[status]) || { text: status || '-', color: 'default' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
     },
@@ -348,7 +356,7 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+      render: (date: string | null | undefined) => date ? new Date(date).toLocaleString('zh-CN') : '-',
     },
     {
       title: '操作',
@@ -576,7 +584,7 @@ export const NFTProducts: React.FC = () => {
                 {imagePreview && (
                   <div style={{ marginTop: 8 }}>
                     <img
-                      src={imagePreview}
+                      src={resolveImageUrl(imagePreview)}
                       alt="预览"
                       style={{ maxWidth: 200, maxHeight: 200, objectFit: 'cover', borderRadius: 4 }}
                     />
@@ -598,7 +606,7 @@ export const NFTProducts: React.FC = () => {
             {imageMode === 'url' && imagePreview && (
               <div style={{ marginTop: 8 }}>
                 <img
-                  src={imagePreview}
+                  src={resolveImageUrl(imagePreview)}
                   alt="预览"
                   style={{ maxWidth: 200, maxHeight: 200, objectFit: 'cover', borderRadius: 4 }}
                   onError={() => setImagePreview('')}
