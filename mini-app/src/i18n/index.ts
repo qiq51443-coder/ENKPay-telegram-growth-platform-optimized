@@ -124,9 +124,9 @@ const zh: Translations = {
   product_purchase_limit_times: '次',
   product_purchase_btn: '立即购入',
   product_confirm_purchase: '确认购入',
-  product_purchase_success: '✅ 购买成功，次日起收益自动到账',
+  product_purchase_success: '✅ 购买成功，次日起每天 10:00 收益自动到账',
   product_purchase_failed: '购买失败',
-  product_auto_yield_msg: '购买成功，次日起收益自动到账',
+  product_auto_yield_msg: '购买成功，次日起每天 10:00 收益自动到账',
   product_label: '产品',
   product_amount: '金额',
 

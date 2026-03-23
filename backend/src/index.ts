@@ -235,7 +235,7 @@ const startServer = async () => {
     // Start price generator for custom trading pairs
     startPriceGenerator();
 
-    // Start NFT daily settlement job (00:05 every day)
+    // Start NFT daily settlement job (10:00 UTC+8 / 02:00 UTC every day)
     startNFTDailySettle();
 
     app.listen(PORT, () => {

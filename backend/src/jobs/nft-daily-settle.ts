@@ -68,6 +68,9 @@ async function settleDailyIncome(): Promise<void> {
 
   console.log(`NFT daily settle: processing ${holdingsResult.rows.length} holdings`);
 
+  let successCount = 0;
+  let errorCount = 0;
+
   for (const holding of holdingsResult.rows) {
     try {
       const dailyIncome = parseFloat(holding.purchase_price) * parseFloat(holding.daily_yield_rate);
@@ -117,10 +120,14 @@ async function settleDailyIncome(): Promise<void> {
       }
 
       console.log(`NFT daily settle: holding ${holding.id} credited ${amountStr} USDT`);
+      successCount++;
     } catch (err: any) {
       console.error(`NFT daily settle error for holding ${holding.id}:`, err.message);
+      errorCount++;
     }
   }
+
+  console.log(`NFT daily settle: completed. Success: ${successCount}, Failed: ${errorCount} out of ${holdingsResult.rows.length} holdings`);
 }
 
 /**
@@ -149,6 +156,9 @@ async function releaseMatureHoldings(): Promise<void> {
   if (matureResult.rows.length === 0) return;
 
   console.log(`NFT mature release: processing ${matureResult.rows.length} expired holdings`);
+
+  let successCount = 0;
+  let errorCount = 0;
 
   for (const holding of matureResult.rows) {
     try {
@@ -189,10 +199,14 @@ async function releaseMatureHoldings(): Promise<void> {
       }
 
       console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned`);
+      successCount++;
     } catch (err: any) {
       console.error(`NFT mature release error for holding ${holding.id}:`, err.message);
+      errorCount++;
     }
   }
+
+  console.log(`NFT mature release: completed. Success: ${successCount}, Failed: ${errorCount} out of ${matureResult.rows.length} holdings`);
 }
 
 /**
@@ -217,7 +231,8 @@ async function runNFTDailySettle(): Promise<void> {
 }
 
 /**
- * Start the NFT daily settlement cron job (runs at 00:05 every day)
+ * Start the NFT daily settlement cron job
+ * Runs at 10:00 UTC+8 (02:00 UTC) every day
  */
 export function startNFTDailySettle(): void {
   if (cronJob) {
@@ -225,12 +240,12 @@ export function startNFTDailySettle(): void {
     return;
   }
 
-  // Runs at 00:05 server local time every day
-  cronJob = cron.schedule('5 0 * * *', async () => {
+  // Runs at 10:00 UTC+8 (02:00 UTC) every day
+  cronJob = cron.schedule('0 2 * * *', async () => {
     await runNFTDailySettle();
   });
 
-  console.log('✓ NFT daily settle job started (runs at 00:05 daily)');
+  console.log('✓ NFT daily settle job started (runs at 10:00 UTC+8 / 02:00 UTC daily)');
 }
 
 /**
