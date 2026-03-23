@@ -1171,6 +1171,38 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
 });
 
 /**
+ * GET /api/admin/trading/sessions/stuck
+ * Return sessions in 'active' or 'pending' state that have passed their end_time — useful for monitoring.
+ */
+router.get('/sessions/stuck', adminLimiter, authenticateAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT
+         ts.id,
+         ts.pair_id,
+         tp.symbol,
+         ts.status,
+         ts.start_time,
+         ts.end_time,
+         ts.open_price,
+         ts.settlement_price,
+         EXTRACT(EPOCH FROM (NOW() - ts.end_time)) / 60 AS expired_minutes_ago
+       FROM trading_sessions ts
+       LEFT JOIN trading_pairs tp ON ts.pair_id = tp.id
+       WHERE ts.end_time <= NOW()
+         AND ts.status IN ('active', 'pending')
+       ORDER BY ts.end_time ASC
+       LIMIT 100`,
+      []
+    );
+    res.json({ success: true, count: result.rows.length, data: result.rows });
+  } catch (error: any) {
+    console.error('Get stuck sessions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/admin/trading/pairs-with-open-price
  * Return all active trading pairs together with the open_price of their current active session.
  * Used by the admin panel to display live pair status without multiple round-trips.

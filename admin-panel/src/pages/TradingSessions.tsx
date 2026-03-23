@@ -109,9 +109,9 @@ const CoinGridView: React.FC<CoinGridViewProps> = ({
               const initials = (pair.symbol || '?').slice(0, 2).toUpperCase();
               const isSelected = selectedPairId === pair.id;
               const priceInfo = priceIndex[pair.id];
-              const currentPrice = priceInfo?.current_price;
+              const currentPrice = priceInfo?.current_price != null ? Number(priceInfo.current_price) : null;
               const openPrice = openPriceMap[pair.id];
-              const change24h = priceInfo?.change_24h;
+              const change24h = priceInfo?.change_24h != null ? Number(priceInfo.change_24h) : null;
               const changeColor = change24h == null ? '#888' : change24h >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR;
               const changePrefix = change24h != null && change24h >= 0 ? '+' : '';
 
@@ -399,7 +399,9 @@ export const TradingSessions: React.FC = () => {
         const rawData: PairWithOpenPrice[] = openPriceRes.value.data || openPriceRes.value || [];
         const opData: PairWithOpenPrice[] = rawData.map((p) => ({
           ...p,
-          change_24h: p.price_change_24h ?? null,
+          current_price: p.current_price != null ? Number(p.current_price) : undefined,
+          price_change_24h: p.price_change_24h != null ? Number(p.price_change_24h) : null,
+          change_24h: p.price_change_24h != null ? Number(p.price_change_24h) : null,
         }));
         const map: Record<string, string | null> = {};
         opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
