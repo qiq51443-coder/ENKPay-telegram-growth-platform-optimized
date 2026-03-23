@@ -763,13 +763,39 @@ router.post('/translate-description', authenticateAdmin, async (req: AuthRequest
 
 /**
  * GET /api/nft/products/:id/holders
- * Get users holding a specific product (admin)
+ * Get users holding a specific product (admin).
+ * Queries both product_holdings (Mini-App purchases) and nft_holdings (Bot
+ * purchases) and returns a merged, time-sorted list.
  */
 router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
-    const holdersResult = await query(
+    // ── Mini-App purchases (product_holdings) ────────────────────────────────
+    const phResult = await query(
+      `SELECT
+         ph.id AS holding_id,
+         ph.user_id,
+         u.username,
+         u.first_name,
+         u.telegram_id,
+         ph.amount AS purchase_price,
+         ph.created_at AS purchase_date,
+         ph.end_date::TIMESTAMPTZ AS expires_at,
+         ph.status,
+         0 AS total_income,
+         p.term_days,
+         EXTRACT(EPOCH FROM (NOW() - ph.created_at)) / 86400 /* seconds per day */ AS days_elapsed
+       FROM product_holdings ph
+       JOIN users u ON ph.user_id = u.id
+       JOIN nft_products p ON ph.product_id = p.id
+       WHERE ph.product_id = $1
+       ORDER BY ph.created_at DESC`,
+      [id]
+    );
+
+    // ── Bot purchases (nft_holdings) ──────────────────────────────────────────
+    const nhResult = await query(
       `SELECT
          h.id AS holding_id,
          h.user_id,
@@ -782,7 +808,7 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
          h.status,
          h.total_income,
          p.term_days,
-         EXTRACT(EPOCH FROM (NOW() - h.created_at)) / 86400 AS days_elapsed
+         EXTRACT(EPOCH FROM (NOW() - h.created_at)) / 86400 /* seconds per day */ AS days_elapsed
        FROM nft_holdings h
        JOIN users u ON h.user_id = u.id
        JOIN nft_products p ON h.product_id = p.id
@@ -791,27 +817,29 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
       [id]
     );
 
-    const countResult = await query(
-      `SELECT COUNT(*) FROM nft_holdings WHERE product_id = $1 AND status = 'active'`,
-      [id]
-    );
-
-    const holders = holdersResult.rows.map((row: any) => ({
+    const mapRow = (row: any) => ({
       holding_id: row.holding_id,
       user_id: row.user_id,
       username: row.username || row.first_name || `User ${row.telegram_id}`,
       purchase_price: parseFloat(row.purchase_price),
       purchase_date: row.purchase_date,
+      purchase_date_ms: new Date(row.purchase_date).getTime(),
       term_days: row.term_days,
       days_elapsed: Math.floor(parseFloat(row.days_elapsed || 0)),
       status: row.status,
       expires_at: row.expires_at,
       total_income: parseFloat(row.total_income || 0),
-    }));
+    });
+
+    const holders = [
+      ...phResult.rows.map(mapRow),
+      ...nhResult.rows.map(mapRow),
+    ].sort((a, b) => b.purchase_date_ms - a.purchase_date_ms)
+     .map(({ purchase_date_ms: _unused, ...rest }) => rest);
 
     res.json({
       success: true,
-      total: parseInt(countResult.rows[0].count),
+      total: holders.filter(h => h.status === 'active').length,
       holders,
     });
   } catch (error: any) {
