@@ -16,10 +16,13 @@ function toNum(v: any): number {
 
 function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  // Relative URL — prepend the API base URL (strip trailing /api)
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-  return `${base}${url}`;
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  // Relative URL: try VITE_API_URL base first, fall back to window.location.origin
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined);
+  if (apiBase) {
+    return `${apiBase.replace(/\/api$/, '')}${url}`;
+  }
+  return `${window.location.origin}${url}`;
 }
 
 interface NFTProduct {
@@ -124,7 +127,14 @@ export const NFTProducts: React.FC = () => {
       };
       form.setFieldsValue(formValues);
       setImagePreview(product.image_url || '');
-      setImageMode('url');
+      // Intelligently infer imageMode: if the URL is a relative path it was uploaded, otherwise use URL mode
+      const isAbsolute = product.image_url && (
+        product.image_url.startsWith('http://') ||
+        product.image_url.startsWith('https://') ||
+        product.image_url.startsWith('//') ||
+        product.image_url.startsWith('data:')
+      );
+      setImageMode(isAbsolute ? 'url' : 'upload');
     } else {
       setEditingProduct(null);
       form.resetFields();
@@ -186,7 +196,7 @@ export const NFTProducts: React.FC = () => {
         values.daily_yield_rate = null;
       }
 
-      if (imageMode === 'upload' && imagePreview) {
+      if (imagePreview) {
         values.image_url = imagePreview;
       }
 
