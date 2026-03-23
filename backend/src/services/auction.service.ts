@@ -1,6 +1,36 @@
 import crypto from 'crypto';
 import { query, transaction } from '../db';
 
+// Notification messages for the 7 supported languages
+const DRAW_NOTIFICATION: Record<string, (title: string, winnerId: string) => string> = {
+  zh: (title, winnerId) => `🎉 竞拍 <b>${title}</b> 已开奖！获奖者ID：<b>${winnerId}</b>`,
+  en: (title, winnerId) => `🎉 Auction <b>${title}</b> has drawn! Winner ID: <b>${winnerId}</b>`,
+  ja: (title, winnerId) => `🎉 オークション <b>${title}</b> の抽選が完了しました！当選者ID：<b>${winnerId}</b>`,
+  de: (title, winnerId) => `🎉 Auktion <b>${title}</b> hat gezogen! Gewinner-ID: <b>${winnerId}</b>`,
+  fr: (title, winnerId) => `🎉 L'enchère <b>${title}</b> a tiré au sort ! ID du gagnant : <b>${winnerId}</b>`,
+  es: (title, winnerId) => `🎉 La subasta <b>${title}</b> ha sorteado! ID del ganador: <b>${winnerId}</b>`,
+  ar: (title, winnerId) => `🎉 انتهى مزاد <b>${title}</b>! معرف الفائز: <b>${winnerId}</b>`,
+};
+
+const WIN_NOTIFICATION: Record<string, (title: string, payout: string) => string> = {
+  zh: (title, payout) => `🏆 恭喜！您赢得了 <b>${title}</b>，可兑换为 <b>${payout} USDT</b>`,
+  en: (title, payout) => `🏆 Congratulations! You won <b>${title}</b>, redeemable for <b>${payout} USDT</b>`,
+  ja: (title, payout) => `🏆 おめでとうございます！<b>${title}</b> を獲得しました。<b>${payout} USDT</b> に交換できます`,
+  de: (title, payout) => `🏆 Glückwunsch! Sie haben <b>${title}</b> gewonnen, einlösbar für <b>${payout} USDT</b>`,
+  fr: (title, payout) => `🏆 Félicitations ! Vous avez gagné <b>${title}</b>, échangeable contre <b>${payout} USDT</b>`,
+  es: (title, payout) => `🏆 ¡Felicidades! Ganaste <b>${title}</b>, canjeable por <b>${payout} USDT</b>`,
+  ar: (title, payout) => `🏆 تهانينا! لقد فزت بـ <b>${title}</b>، قابل للاسترداد بـ <b>${payout} USDT</b>`,
+};
+
+function getLangMsg<T extends (...args: any[]) => string>(
+  map: Record<string, T>,
+  lang: string | null | undefined,
+  ...args: Parameters<T>
+): string {
+  const key = lang && map[lang] ? lang : 'zh';
+  return map[key](...args);
+}
+
 /**
  * Draw a winner for an auction using cryptographically secure random selection.
  * Each participant's entries are weighted by quantity purchased.
@@ -43,9 +73,24 @@ export async function drawWinner(auctionId: string): Promise<void> {  await tran
       }
     }
 
-    // 3. Cryptographically secure random selection
-    const winnerIndex = crypto.randomInt(0, pool.length);
-    const winner = pool[winnerIndex];
+    // 3. Determine winner: use preset_winner_unique_id if set and valid, otherwise random
+    let winner: { user_id: string; unique_id: string; telegram_id: number };
+
+    const presetUniqueId: string | null = auction.preset_winner_unique_id || null;
+    if (presetUniqueId) {
+      const presetEntry = pool.find(e => e.unique_id === presetUniqueId);
+      if (presetEntry) {
+        winner = presetEntry;
+      } else {
+        // Preset user is not a participant — fall back to random
+        const winnerIndex = crypto.randomInt(0, pool.length);
+        winner = pool[winnerIndex];
+      }
+    } else {
+      // 3a. Cryptographically secure random selection
+      const winnerIndex = crypto.randomInt(0, pool.length);
+      winner = pool[winnerIndex];
+    }
 
     const now = new Date();
     const charityAmount = parseFloat(auction.product_value) * parseFloat(auction.platform_fee_percent) / 100;
@@ -111,26 +156,29 @@ async function notifyParticipants(
   const TelegramAPI = (await import('../utils/telegram')).default;
   const tg = new TelegramAPI(token);
 
-  // Get all participants' telegram IDs
+  // Get all participants' telegram IDs and language preferences
+  // Language fallback: language (user-set) → language_code (registration) → 'zh'
   const participantsResult = await client.query(
-    `SELECT u.telegram_id, lap.user_id
+    `SELECT u.telegram_id, lap.user_id, COALESCE(u.language, u.language_code, 'zh') AS lang
      FROM lucky_auction_participants lap
      JOIN users u ON lap.user_id = u.id
      WHERE lap.auction_id = $1`,
     [auction.id]
   );
 
+  const payout = parseFloat(auction.winner_payout).toFixed(2);
+
   for (const p of participantsResult.rows) {
     try {
       if (p.user_id === winner.user_id) {
         await tg.sendMessage(
           p.telegram_id,
-          `🏆 恭喜！您赢得了 <b>${auction.title}</b>，可兑换为 <b>${parseFloat(auction.winner_payout).toFixed(2)} USDT</b>`
+          getLangMsg(WIN_NOTIFICATION, p.lang, auction.title, payout)
         );
       } else {
         await tg.sendMessage(
           p.telegram_id,
-          `🎉 竞拍 <b>${auction.title}</b> 已开奖！获奖者：<b>${winner.unique_id}</b>`
+          getLangMsg(DRAW_NOTIFICATION, p.lang, auction.title, winner.unique_id)
         );
       }
     } catch {

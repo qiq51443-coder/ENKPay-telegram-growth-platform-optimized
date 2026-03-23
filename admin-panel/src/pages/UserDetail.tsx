@@ -156,6 +156,9 @@ export const UserDetail: React.FC = () => {
           admin_debit:    { text: '管理员扣减', color: 'red' },
           admin_adjustment: { text: '管理员调整', color: 'default' },
           auction_buy:    { text: '夺宝参与',   color: 'purple' },
+          auction_join:   { text: '夺宝参与',   color: 'purple' },
+          auction_redeem: { text: '夺宝兑奖',   color: 'gold' },
+          auction_refund: { text: '夺宝退款',   color: 'blue' },
           nft_purchase:   { text: 'NFT购买',    color: 'blue' },
           nft_settle:     { text: 'NFT结算收益', color: 'green' },
         };

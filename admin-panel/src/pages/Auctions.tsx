@@ -22,6 +22,8 @@ interface Auction {
   status: string;
   expires_at: string;
   winner_unique_id?: string;
+  drawn_at?: string;
+  preset_winner_unique_id?: string;
   created_at: string;
 }
 
@@ -29,6 +31,7 @@ interface Participant {
   id: string;
   unique_id: string;
   quantity: number;
+  is_winner?: boolean;
   created_at: string;
 }
 
@@ -106,6 +109,7 @@ export const Auctions: React.FC = () => {
       image_url: auction.image_url,
       max_purchases_per_user: auction.max_purchases_per_user,
       expires_at: auction.expires_at ? dayjs(auction.expires_at) : undefined,
+      preset_winner_unique_id: auction.preset_winner_unique_id || '',
     });
     setEditImageFileList([]);
     setEditModalOpen(true);
@@ -254,8 +258,8 @@ export const Auctions: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
-      render: (status: string) => {
+      width: 120,
+      render: (status: string, record: Auction) => {
         const map: Record<string, { text: string; color: string }> = {
           active: { text: '进行中', color: 'green' },
           completed: { text: '已完成', color: 'purple' },
@@ -263,7 +267,16 @@ export const Auctions: React.FC = () => {
           cancelled: { text: '已取消', color: 'red' },
         };
         const info = map[status] || { text: status, color: 'default' };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        return (
+          <div>
+            <Tag color={info.color}>{info.text}</Tag>
+            {status === 'completed' && record.winner_unique_id && (
+              <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
+                🏆 {record.winner_unique_id}
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -288,7 +301,7 @@ export const Auctions: React.FC = () => {
           >
             查看参与者
           </Button>
-          {record.status === 'active' && (
+          {(record.status === 'active' || record.status === 'completed') && (
             <Button
               type="link"
               size="small"
@@ -340,6 +353,12 @@ export const Auctions: React.FC = () => {
   const participantColumns = [
     { title: '用户ID', dataIndex: 'unique_id', key: 'unique_id' },
     { title: '购买份数', dataIndex: 'quantity', key: 'quantity' },
+    {
+      title: '获奖',
+      dataIndex: 'is_winner',
+      key: 'is_winner',
+      render: (isWinner: boolean) => isWinner ? <Tag color="gold">🏆 获奖</Tag> : '-',
+    },
     { title: '参与时间', dataIndex: 'created_at', key: 'created_at', render: (d: string) => new Date(d).toLocaleString('zh-CN') },
   ];
 
@@ -447,6 +466,13 @@ export const Auctions: React.FC = () => {
           <Form.Item name="description" label="描述（可选）">
             <Input.TextArea rows={3} placeholder="藏品说明..." />
           </Form.Item>
+          <Form.Item
+            name="preset_winner_unique_id"
+            label="预定中奖者 unique_id（可选）"
+            extra="可选，留空则开奖时随机抽取"
+          >
+            <Input placeholder="例如：ABC1234" />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -472,12 +498,23 @@ export const Auctions: React.FC = () => {
           <Form.Item name="image_url" label="藏品图片 URL">
             <Input placeholder="https://example.com/image.jpg" />
           </Form.Item>
-          <Form.Item name="max_purchases_per_user" label="每人限购份数">
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="expires_at" label="开奖时间" rules={[{ required: true, message: '请选择开奖时间' }]}>
-            <DatePicker showTime style={{ width: '100%' }} disabledDate={disabledDate} disabledTime={disabledTime} />
-          </Form.Item>
+          {selectedAuction?.status !== 'completed' && (
+            <>
+              <Form.Item name="max_purchases_per_user" label="每人限购份数">
+                <InputNumber min={1} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item name="expires_at" label="开奖时间" rules={[{ required: true, message: '请选择开奖时间' }]}>
+                <DatePicker showTime style={{ width: '100%' }} disabledDate={disabledDate} disabledTime={disabledTime} />
+              </Form.Item>
+              <Form.Item
+                name="preset_winner_unique_id"
+                label="预定中奖者 unique_id（可选）"
+                extra="可选，留空则开奖时随机抽取"
+              >
+                <Input placeholder="例如：ABC1234" />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} />
           </Form.Item>
@@ -494,7 +531,13 @@ export const Auctions: React.FC = () => {
         cancelText="取消"
         confirmLoading={drawing}
       >
-        <p>确认对「{selectedAuction?.title}」进行系统随机开奖？</p>
+        {selectedAuction?.preset_winner_unique_id ? (
+          <p>确认对「{selectedAuction?.title}」进行开奖？<br />
+            <strong>预定中奖者：{selectedAuction.preset_winner_unique_id}</strong>（该用户须为参与者，否则自动随机抽取）
+          </p>
+        ) : (
+          <p>确认对「{selectedAuction?.title}」进行系统随机开奖？</p>
+        )}
       </Modal>
 
       {/* Participants Modal */}
