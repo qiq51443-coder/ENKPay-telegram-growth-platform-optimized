@@ -56,6 +56,7 @@ interface PairWithOpenPrice {
   symbol: string;
   display_name?: string;
   current_price?: number;
+  price_change_24h?: number | null;
   open_price?: string | null;
   is_active?: boolean;
   change_24h?: number | null;
@@ -395,7 +396,11 @@ export const TradingSessions: React.FC = () => {
       }
 
       if (openPriceRes.status === 'fulfilled') {
-        const opData: PairWithOpenPrice[] = openPriceRes.value.data || openPriceRes.value || [];
+        const rawData: PairWithOpenPrice[] = openPriceRes.value.data || openPriceRes.value || [];
+        const opData: PairWithOpenPrice[] = rawData.map((p) => ({
+          ...p,
+          change_24h: p.price_change_24h ?? null,
+        }));
         const map: Record<string, string | null> = {};
         opData.forEach((p) => { map[p.id] = p.open_price ?? null; });
         setOpenPriceMap(map);
