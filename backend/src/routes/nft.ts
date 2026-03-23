@@ -105,9 +105,10 @@ router.get('/products', async (req, res) => {
       SELECT 
         p.*,
         c.name as category_name,
-        COALESCE(p.display_holders_count, 0) + COALESCE(
-          (SELECT COUNT(*) FROM nft_holdings h WHERE h.product_id = p.id AND h.status = 'active'), 0
-        ) AS total_holders_count
+        COALESCE(p.display_holders_count, 0)
+        + COALESCE((SELECT COUNT(*) FROM nft_holdings h WHERE h.product_id = p.id AND h.status = 'active'), 0)
+        + COALESCE((SELECT COUNT(*) FROM product_holdings ph WHERE ph.product_id = p.id AND ph.status = 'active'), 0)
+        AS total_holders_count
       FROM nft_products p
       LEFT JOIN nft_categories c ON p.category_id = c.id
       WHERE 1=1
@@ -630,8 +631,9 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
     await transaction(async (client) => {
+      // ✅ Fix: use wallet_balance instead of balance
       const userResult = await client.query(
-        `SELECT id, balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        `SELECT id, wallet_balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
         [telegramId]
       );
       if (userResult.rows.length === 0) throw new Error('User not found');
@@ -650,27 +652,44 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
 
       if (product.is_purchase_limited) {
         const purchaseCount = await client.query(
-          `SELECT COUNT(*) FROM product_holdings WHERE user_id = $1 AND product_id = $2`,
+          `SELECT (
+             SELECT COUNT(*) FROM nft_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'
+           ) + (
+             SELECT COUNT(*) FROM product_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'
+           ) AS total_count`,
           [user.id, productId]
         );
-        if (parseInt(purchaseCount.rows[0].count) >= (product.max_purchases_per_user ?? 1)) {
+        if (parseInt(purchaseCount.rows[0].total_count) >= (product.max_purchases_per_user ?? 1)) {
           throw new Error('Purchase limit reached');
         }
       }
 
       const amount = parseFloat(product.price);
-      if (parseFloat(user.balance) < amount) throw new Error('Insufficient balance');
+      // ✅ Fix: check wallet_balance (treat NULL as 0)
+      if (parseFloat(user.wallet_balance ?? 0) < amount) throw new Error('Insufficient balance');
 
-      await client.query(`UPDATE users SET balance = balance - $1 WHERE id = $2`, [amount, user.id]);
+      // ✅ Fix: deduct from wallet_balance and lock principal in nft_balance
+      await client.query(
+        `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) - $1, nft_balance = COALESCE(nft_balance, 0) + $1 WHERE id = $2`,
+        [amount, user.id]
+      );
 
       const startDate = new Date();
       const termDays = product.term_days ?? 30;
       const endDate = new Date(startDate.getTime() + termDays * 86400000);
 
+      // Write to product_holdings (for nft-yield.service.ts compatibility)
       await client.query(
         `INSERT INTO product_holdings (user_id, product_id, amount, start_date, end_date, status)
          VALUES ($1, $2, $3, $4, $5, 'active')`,
         [user.id, productId, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
+      );
+
+      // ✅ NEW: Also write to nft_holdings so nft-daily-settle.ts and admin holders query work correctly
+      await client.query(
+        `INSERT INTO nft_holdings (user_id, product_id, purchase_price, status, expires_at)
+         VALUES ($1, $2, $3, 'active', $4)`,
+        [user.id, productId, amount, endDate.toISOString()]
       );
 
       await client.query(
@@ -678,9 +697,10 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
         [productId]
       );
 
+      // ✅ Fix: use wallet_balance in balance_after subquery
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-         SELECT $1, 'product_purchase', $2, balance, $3, $4 FROM users WHERE id = $1`,
+         SELECT $1, 'product_purchase', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
         [user.id, -amount, `购买定期产品: ${product.name}`, String(productId)]
       );
     });
