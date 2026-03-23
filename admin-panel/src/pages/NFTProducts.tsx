@@ -242,7 +242,7 @@ export const NFTProducts: React.FC = () => {
       dataIndex: 'id',
       key: 'id',
       width: 80,
-      render: (id: string) => id.substring(0, 8),
+      render: (id: string) => String(id ?? '').substring(0, 8),
     },
     {
       title: '封面',

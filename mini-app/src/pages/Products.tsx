@@ -67,7 +67,7 @@ export const Products: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const data = await api.get('/nft/products?limit=9');
+      const data = await api.get('/nft/products?limit=6');
       setProducts(data.data?.data || data.data?.products || []);
     } catch {
       setProducts([]);
@@ -318,7 +318,7 @@ export const Products: React.FC = () => {
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
+            gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '10px',
           }}>
             {products.map(product => (

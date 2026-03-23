@@ -12,6 +12,9 @@ import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 
 const router = express.Router();
 
+// UUID format validation regex (compiled once at module level)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ─── Image upload setup ───────────────────────────────────────────────────────
 const uploadDir = path.join(__dirname, '../../uploads/nft');
 if (!fs.existsSync(uploadDir)) {
@@ -616,6 +619,12 @@ router.get('/my-holdings/:id', authenticateBot, async (req: AuthRequest, res) =>
 router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
     const { id } = req.params;
+
+    // Validate UUID format to prevent database type errors
+    if (!UUID_REGEX.test(id)) {
+      return res.status(400).json({ error: 'Invalid product ID format' });
+    }
+
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -723,11 +732,9 @@ router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: Au
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '');
-    // Return a relative path if BACKEND_URL is not set so it still works when served by the same origin
-    const fileUrl = backendUrl
-      ? `${backendUrl}/uploads/nft/${req.file.filename}`
-      : `/uploads/nft/${req.file.filename}`;
+    const envUrl = (process.env.BASE_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
+    const baseUrl = envUrl || `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${baseUrl}/uploads/nft/${req.file.filename}`;
     res.json({ success: true, url: fileUrl });
   } catch (error: any) {
     console.error('Image upload error:', error);
