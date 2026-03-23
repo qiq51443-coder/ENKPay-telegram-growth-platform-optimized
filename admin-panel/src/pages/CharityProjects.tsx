@@ -547,7 +547,7 @@ export const CharityProjects: React.FC = () => {
           <div style={{ marginBottom: 8 }}>
             <Upload
               name="file"
-              action="/api/admin/upload"
+              action="/api/charity/upload"
               headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
               listType="picture"
               fileList={bannerFileList}
