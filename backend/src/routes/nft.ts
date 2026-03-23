@@ -620,9 +620,10 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
   try {
     const { id } = req.params;
 
-    // Validate UUID format to prevent database type errors
-    if (!UUID_REGEX.test(id)) {
-      return res.status(400).json({ error: 'Invalid product ID format' });
+    // nft_products.id is SERIAL (integer) — validate as positive integer
+    const productId = parseInt(id, 10);
+    if (isNaN(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Invalid product ID — expected a positive integer' });
     }
 
     const telegramId = req.telegramUser?.id;
@@ -638,7 +639,7 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
 
       const productResult = await client.query(
         `SELECT * FROM nft_products WHERE id = $1 AND status = 'active' FOR UPDATE`,
-        [id]
+        [productId]
       );
       if (productResult.rows.length === 0) throw new Error('Product not found or inactive');
       const product = productResult.rows[0];
@@ -650,7 +651,7 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       if (product.is_purchase_limited) {
         const purchaseCount = await client.query(
           `SELECT COUNT(*) FROM product_holdings WHERE user_id = $1 AND product_id = $2`,
-          [user.id, id]
+          [user.id, productId]
         );
         if (parseInt(purchaseCount.rows[0].count) >= (product.max_purchases_per_user ?? 1)) {
           throw new Error('Purchase limit reached');
@@ -669,18 +670,18 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       await client.query(
         `INSERT INTO product_holdings (user_id, product_id, amount, start_date, end_date, status)
          VALUES ($1, $2, $3, $4, $5, 'active')`,
-        [user.id, id, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
+        [user.id, productId, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
       );
 
       await client.query(
         `UPDATE nft_products SET current_holders = COALESCE(current_holders, 0) + 1 WHERE id = $1`,
-        [id]
+        [productId]
       );
 
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
          SELECT $1, 'product_purchase', $2, balance, $3, $4 FROM users WHERE id = $1`,
-        [user.id, -amount, `购买定期产品: ${product.name}`, id]
+        [user.id, -amount, `购买定期产品: ${product.name}`, String(productId)]
       );
     });
 
@@ -732,10 +733,8 @@ router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: Au
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const envUrl = (process.env.BASE_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
-    const baseUrl = envUrl || `${req.protocol}://${req.get('host')}`;
-    const fileUrl = `${baseUrl}/uploads/nft/${req.file.filename}`;
-    res.json({ success: true, url: fileUrl });
+    const relativeUrl = `/uploads/nft/${req.file.filename}`;
+    res.json({ success: true, url: relativeUrl });
   } catch (error: any) {
     console.error('Image upload error:', error);
     res.status(500).json({ error: error.message });

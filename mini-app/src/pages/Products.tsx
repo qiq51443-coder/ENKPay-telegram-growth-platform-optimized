@@ -38,6 +38,14 @@ function getGradient(price: number): string {
   return 'linear-gradient(135deg, #4a1a5e, #8e44ad)';
 }
 
+function resolveImgUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // Relative URL — prepend API base (strip trailing /api)
+  const base = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+  return `${base}${url}`;
+}
+
 function formatAmount(price: string | number): string {
   const num = parseFloat(String(price)) || 0;
   return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -92,8 +100,15 @@ export const Products: React.FC = () => {
     if (!selected) return;
     setPurchasing(true);
     setPurchaseMsg('');
+    // Validate that the product ID is a positive integer (nft_products.id is SERIAL)
+    const productId = parseInt(String(selected.id), 10);
+    if (isNaN(productId) || productId <= 0) {
+      setPurchaseMsg('❌ Invalid product ID');
+      setPurchasing(false);
+      return;
+    }
     try {
-      await api.post(`/nft/products/${selected.id}/purchase`, {});
+      await api.post(`/nft/products/${productId}/purchase`, {});
       setPurchaseMsg('✅ ' + t('product_purchase_success'));
       setTimeout(() => {
         setShowPurchase(false);
@@ -130,7 +145,7 @@ export const Products: React.FC = () => {
         {/* Product image */}
         <div style={{ width: '100%', height: '220px', backgroundColor: theme.bgCardHover, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {selected.image_url
-            ? <img src={selected.image_url} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={resolveImgUrl(selected.image_url)} alt={selected.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <div style={{ background: getGradient(price), width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💰</div>
           }
         </div>
@@ -319,26 +334,51 @@ export const Products: React.FC = () => {
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '10px',
+            gap: '12px',
           }}>
-            {products.map(product => (
+            {products.slice(0, 6).map(product => (
               <div
                 key={product.id}
                 onClick={() => setSelectedId(product.id)}
                 style={{
-                  background: getGradient(parseFloat(String(product.price))),
-                  borderRadius: '10px',
-                  aspectRatio: '1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
                   cursor: 'pointer',
                   border: `1px solid ${theme.border}`,
+                  background: theme.bgCard,
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
-                <span style={{ color: '#fff', fontWeight: '700', fontSize: '16px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                  {formatAmount(product.price)}
-                </span>
+                <div style={{
+                  aspectRatio: '1',
+                  background: product.image_url ? 'transparent' : getGradient(parseFloat(String(product.price))),
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}>
+                  {product.image_url ? (
+                    <img
+                      src={resolveImgUrl(product.image_url)}
+                      alt={product.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: '#fff', fontWeight: '700', fontSize: '16px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                        💰
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '8px', textAlign: 'center' }}>
+                  <div style={{ color: theme.text, fontSize: '12px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {product.name}
+                  </div>
+                  <div style={{ color: '#F0B90B', fontSize: '12px', fontWeight: '700', marginTop: '2px' }}>
+                    {formatAmount(product.price)} USDT
+                  </div>
+                </div>
               </div>
             ))}
           </div>
