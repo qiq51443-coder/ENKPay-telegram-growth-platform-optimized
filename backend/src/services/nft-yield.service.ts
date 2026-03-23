@@ -33,7 +33,7 @@ async function distributeDailyYield(): Promise<void> {
         await client.query(
           `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
            SELECT $1, 'product_yield', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
-          [holding.user_id, dailyYield, `定期产品每日收益: ${holding.product_name}`, holding.product_id]
+          [holding.user_id, dailyYield, `定期产品每日收益: ${holding.product_name}`, String(holding.product_id)]
         );
       });
     }
@@ -62,8 +62,10 @@ async function refundExpiredHoldings(): Promise<void> {
 
     for (const holding of expired.rows) {
       await transaction(async (client) => {
+        // ✅ Fix: deduct from nft_balance (where principal was locked at purchase time)
+        // and return to wallet_balance
         await client.query(
-          `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+          `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1, nft_balance = GREATEST(COALESCE(nft_balance, 0) - $1, 0) WHERE id = $2`,
           [holding.amount, holding.user_id]
         );
         await client.query(
@@ -73,7 +75,7 @@ async function refundExpiredHoldings(): Promise<void> {
         await client.query(
           `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
            SELECT $1, 'product_refund', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
-          [holding.user_id, holding.amount, `定期产品到期退款: ${holding.product_name}`, holding.product_id]
+          [holding.user_id, holding.amount, `定期产品到期退款: ${holding.product_name}`, String(holding.product_id)]
         );
       });
     }
