@@ -57,6 +57,8 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   auction_redeem: { labelKey: 'tx_auction_redeem', icon: '🏆' },
   product_yield: { labelKey: 'tx_product_yield', icon: '💹' },
   product_refund: { labelKey: 'tx_product_refund', icon: '✅' },
+  product_purchase: { labelKey: 'tx_product_purchase', icon: '💎' },
+  nft_purchase: { labelKey: 'tx_product_purchase', icon: '💎' },
 };
 
 type ProfileView = 'main' | 'orders' | 'trading_orders' | 'agreement' | 'announcements' | 'language';

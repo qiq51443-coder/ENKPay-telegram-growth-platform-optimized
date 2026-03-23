@@ -652,11 +652,8 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
 
       if (product.is_purchase_limited) {
         const purchaseCount = await client.query(
-          `SELECT (
-             SELECT COUNT(*) FROM nft_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'
-           ) + (
-             SELECT COUNT(*) FROM product_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'
-           ) AS total_count`,
+          `SELECT COUNT(*) AS total_count FROM product_holdings
+           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
           [user.id, productId]
         );
         if (parseInt(purchaseCount.rows[0].total_count) >= (product.max_purchases_per_user ?? 1)) {
@@ -683,13 +680,6 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
         `INSERT INTO product_holdings (user_id, product_id, amount, start_date, end_date, status)
          VALUES ($1, $2, $3, $4, $5, 'active')`,
         [user.id, productId, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
-      );
-
-      // ✅ NEW: Also write to nft_holdings so nft-daily-settle.ts and admin holders query work correctly
-      await client.query(
-        `INSERT INTO nft_holdings (user_id, product_id, purchase_price, status, expires_at)
-         VALUES ($1, $2, $3, 'active', $4)`,
-        [user.id, productId, amount, endDate.toISOString()]
       );
 
       await client.query(
