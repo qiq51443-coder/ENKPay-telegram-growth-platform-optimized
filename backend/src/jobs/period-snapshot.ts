@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { getPairPrice } from '../services/price.service';
+import { getPairPrice, binanceFetch } from '../services/price.service';
 
 let cronJob: cron.ScheduledTask | null = null;
 let isRunning = false;
@@ -11,8 +11,9 @@ async function runPeriodSnapshot(): Promise<void> {
   try {
     // Query all pending sessions whose start_time has arrived
     const pendingResult = await query(
-      `SELECT ts.id, ts.pair_id, ts.start_time
+      `SELECT ts.id, ts.pair_id, ts.start_time, tp.pair_type, tp.binance_symbol
        FROM trading_sessions ts
+       JOIN trading_pairs tp ON ts.pair_id = tp.id
        WHERE ts.status = 'pending'
          AND ts.start_time <= NOW()
        ORDER BY ts.start_time ASC
@@ -55,6 +56,25 @@ async function runPeriodSnapshot(): Promise<void> {
           if (ppLatestResult.rows.length > 0) {
             openPrice = parseFloat(ppLatestResult.rows[0].price);
             console.log(`[period-snapshot] session ${session.id}: latest price_points fallback → open_price=${openPrice}`);
+          }
+        }
+
+        // Step 2b: for real pairs, fetch historical Binance kline at start_time
+        if (openPrice === null && session.pair_type === 'real' && session.binance_symbol) {
+          try {
+            const startTimeMs = new Date(session.start_time).getTime();
+            const klineData = await binanceFetch('/api/v3/klines', {
+              symbol: session.binance_symbol,
+              interval: '1m',
+              startTime: startTimeMs,
+              limit: 1,
+            });
+            if (Array.isArray(klineData) && klineData.length > 0) {
+              openPrice = parseFloat(klineData[0][1]); // kline[1] = open price of the candle
+              console.log(`[period-snapshot] session ${session.id}: Binance kline open_price=${openPrice} (start_time=${session.start_time})`);
+            }
+          } catch (klineErr: any) {
+            console.warn(`[period-snapshot] session ${session.id}: Binance kline fallback failed: ${klineErr.message}`);
           }
         }
 

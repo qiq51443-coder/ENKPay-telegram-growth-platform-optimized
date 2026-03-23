@@ -7,7 +7,7 @@ import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
-import { getDayOpenPrice } from '../services/price.service';
+import { getDayOpenPrice, binanceFetch } from '../services/price.service';
 
 // Multer storage for coin icon uploads
 const iconUploadDir = path.join(__dirname, '../../uploads/coin-icons');
@@ -1128,7 +1128,10 @@ router.get('/orders', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * GET /api/trading-admin/sessions/today-results
- * Admin: get today's settled sessions for a pair with up/down order counts
+ * Admin: get ALL period slots from UTC midnight to now for a pair.
+ * Slots that have a DB session record return the real data (open_price, settlement_price,
+ * result_direction, up/down order counts).  Slots with no DB record are synthesised from
+ * Binance 1-minute kline data so the admin panel can always see every period of the day.
  */
 router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -1138,7 +1141,20 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
       return res.status(400).json({ error: 'pair_id is required' });
     }
 
-    const result = await query(
+    const pairNumId = Number(pair_id);
+
+    // Fetch pair info for Binance kline lookup
+    const pairResult = await query(
+      `SELECT id, pair_type, binance_symbol FROM trading_pairs WHERE id = $1`,
+      [pairNumId]
+    );
+    if (!pairResult.rows.length) {
+      return res.status(404).json({ error: 'Pair not found' });
+    }
+    const pair = pairResult.rows[0];
+
+    // Query all existing DB sessions for this pair today (any status)
+    const dbSessionsResult = await query(
       `SELECT
          ts.id,
          ts.period_label,
@@ -1154,16 +1170,156 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
        FROM trading_sessions ts
        LEFT JOIN trading_orders "to" ON "to".session_id = ts.id
        WHERE ts.pair_id = $1
-         AND ts.status IN ('settled', 'active', 'pending', 'cancelled')
          AND ts.start_time >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
        GROUP BY ts.id
        ORDER BY ts.start_time DESC`,
-      [Number(pair_id)]
+      [pairNumId]
     );
+
+    // Build a lookup map: slot start time (truncated to second, as epoch ms) → DB row
+    const dbSessionMap = new Map<number, any>();
+    for (const s of dbSessionsResult.rows) {
+      // Truncate to second precision to avoid sub-second mismatch
+      const startMs = Math.round(new Date(s.start_time).getTime() / 1000) * 1000;
+      dbSessionMap.set(startMs, s);
+    }
+
+    // Determine day boundaries
+    const nowMs = Date.now();
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayStartMs = dayStart.getTime();
+
+    // Batch-fetch 1-minute klines from Binance for real pairs (covers open + close of every slot)
+    // We store a map of klineStartMs → { open, close }
+    const klineMap = new Map<number, { open: number; close: number }>();
+
+    if (pair.pair_type === 'real' && pair.binance_symbol) {
+      try {
+        const BATCH_SIZE = 1000;
+        let fetchFrom = dayStartMs;
+        let keepFetching = true;
+
+        while (keepFetching) {
+          const klines = await binanceFetch('/api/v3/klines', {
+            symbol: pair.binance_symbol,
+            interval: '1m',
+            startTime: fetchFrom,
+            limit: BATCH_SIZE,
+          });
+
+          if (!Array.isArray(klines) || klines.length === 0) break;
+
+          for (const k of klines) {
+            klineMap.set(Number(k[0]), { open: parseFloat(k[1]), close: parseFloat(k[4]) });
+          }
+
+          if (klines.length < BATCH_SIZE) {
+            keepFetching = false;
+          } else {
+            // Advance past the last returned candle
+            fetchFrom = Number(klines[klines.length - 1][0]) + 60000;
+            if (fetchFrom > nowMs) keepFetching = false;
+          }
+        }
+      } catch (klineErr: any) {
+        console.warn(`[today-results] Binance kline batch fetch failed for ${pair.binance_symbol}: ${klineErr.message}`);
+        // Proceed with whatever klines were fetched; DB sessions are still returned correctly
+      }
+    }
+
+    // Helper to compute period_label string from a UTC Date
+    function makePeriodLabel(d: Date): string {
+      const yy = d.getUTCFullYear();
+      const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${yy}${mo}${dd}-${hh}${mm}`;
+    }
+
+    // Generate all slots for all three durations, merging with DB data
+    const DURATIONS = [60, 300, 600];
+    const allSlots: any[] = [];
+
+    for (const duration of DURATIONS) {
+      const durationMs = duration * 1000;
+      let slotStart = dayStartMs;
+
+      // Include every slot that has already started (slotStart <= nowMs).
+      // Slots whose end_time is in the future are emitted as status='active' (no settlement data).
+      while (slotStart <= nowMs) {
+        const slotEnd = slotStart + durationMs;
+        // Round to second precision for map lookup
+        const keyMs = Math.round(slotStart / 1000) * 1000;
+        const dbSession = dbSessionMap.get(keyMs);
+
+        if (dbSession) {
+          // DB record exists — use its data as-is
+          allSlots.push(dbSession);
+        } else {
+          // Generate a virtual slot from Binance klines
+          const isPast = slotEnd <= nowMs;
+
+          let openPrice: number | null = null;
+          let closePrice: number | null = null;
+          let resultDirection: string | null = null;
+          let status: string;
+
+          if (pair.pair_type === 'real' && pair.binance_symbol) {
+            // Open price: kline[1] (open) of the 1m candle that starts at slotStart
+            const openKline = klineMap.get(slotStart);
+            if (openKline) openPrice = openKline.open;
+
+            if (isPast) {
+              // Close price: kline[4] (close) of the 1m candle whose close time equals slotEnd.
+              // A Binance 1m kline starting at T covers [T, T+59999ms], so the last candle
+              // before slotEnd starts at slotEnd - 60000.
+              const closeKlineStart = slotEnd - 60000;
+              const closeKline = klineMap.get(closeKlineStart);
+              if (closeKline) closePrice = closeKline.close;
+
+              if (openPrice !== null && closePrice !== null) {
+                if (closePrice > openPrice) resultDirection = 'up';
+                else if (closePrice < openPrice) resultDirection = 'down';
+                else resultDirection = 'draw';
+              }
+              status = 'no_orders';
+            } else {
+              // Currently running period
+              status = 'active';
+            }
+          } else {
+            // Custom pairs: we can't compute prices server-side without price_points
+            status = isPast ? 'no_orders' : 'active';
+          }
+
+          const startDate = new Date(slotStart);
+          allSlots.push({
+            id: null,
+            period_label: makePeriodLabel(startDate),
+            start_time: startDate.toISOString(),
+            end_time: new Date(slotEnd).toISOString(),
+            duration_seconds: duration,
+            open_price: openPrice !== null ? String(openPrice) : null,
+            settlement_price: closePrice !== null ? String(closePrice) : null,
+            result_direction: resultDirection,
+            status,
+            up_count: '0',
+            down_count: '0',
+          });
+        }
+
+        slotStart += durationMs;
+      }
+    }
+
+    // Sort newest first (consistent with original query ordering)
+    allSlots.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
     res.json({
       success: true,
-      data: result.rows,
+      data: allSlots,
     });
   } catch (error: any) {
     console.error('Get today results error:', error);
