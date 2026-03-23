@@ -17,7 +17,12 @@ router.get('/', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await query(
-      `SELECT a.*, p.name as product_name, p.image_url as product_image
+      `SELECT a.id, a.product_id, a.title, a.description, a.image_url, a.product_value,
+              a.participant_count, a.per_person_cost, a.max_purchases_per_user,
+              a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
+              a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
+              a.created_at, a.updated_at,
+              p.name as product_name, p.image_url as product_image
        FROM lucky_auctions a
        LEFT JOIN nft_products p ON a.product_id = p.id
        WHERE a.status = $1
@@ -120,7 +125,12 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
 
     const auctionResult = await query(
-      `SELECT a.*, p.name as product_name, p.image_url as product_image, p.description as product_description
+      `SELECT a.id, a.product_id, a.title, a.description, a.image_url, a.product_value,
+              a.participant_count, a.per_person_cost, a.max_purchases_per_user,
+              a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
+              a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
+              a.created_at, a.updated_at,
+              p.name as product_name, p.image_url as product_image, p.description as product_description
        FROM lucky_auctions a
        LEFT JOIN nft_products p ON a.product_id = p.id
        WHERE a.id = $1`,

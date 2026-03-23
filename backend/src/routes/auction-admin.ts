@@ -26,6 +26,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       platform_fee_percent = 30,
       expires_at,
       notify_channels = true,
+      preset_winner_unique_id,
     } = req.body;
 
     if (!title || !product_value || !participant_count || !expires_at) {
@@ -42,8 +43,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       `INSERT INTO lucky_auctions
          (product_id, title, description, image_url, product_value, participant_count,
           per_person_cost, max_purchases_per_user, platform_fee_percent, winner_payout,
-          expires_at, notify_channels)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          expires_at, notify_channels, preset_winner_unique_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         product_id || null,
@@ -58,6 +59,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         winnerPayout,
         expires_at,
         notify_channels,
+        preset_winner_unique_id || null,
       ]
     );
 
@@ -206,6 +208,7 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
     const {
       title, description, image_url, max_purchases_per_user, expires_at, notify_channels,
+      preset_winner_unique_id,
     } = req.body;
 
     const auctionResult = await query(
@@ -213,23 +216,41 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       [id]
     );
     if (auctionResult.rows.length === 0) return res.status(404).json({ error: 'Auction not found' });
-    if (auctionResult.rows[0].status !== 'active') {
-      return res.status(400).json({ error: 'Only active auctions can be edited' });
+    const status = auctionResult.rows[0].status;
+    if (!['active', 'completed'].includes(status)) {
+      return res.status(400).json({ error: 'Only active or completed auctions can be edited' });
     }
 
-    const result = await query(
-      `UPDATE lucky_auctions
-       SET title = COALESCE($1, title),
-           description = COALESCE($2, description),
-           image_url = COALESCE($3, image_url),
-           max_purchases_per_user = COALESCE($4, max_purchases_per_user),
-           expires_at = COALESCE($5, expires_at),
-           notify_channels = COALESCE($6, notify_channels),
-           updated_at = NOW()
-       WHERE id = $7
-       RETURNING *`,
-      [title, description, image_url, max_purchases_per_user, expires_at, notify_channels, id]
-    );
+    let result;
+    if (status === 'completed') {
+      // Completed auctions: only allow editing display fields
+      result = await query(
+        `UPDATE lucky_auctions
+         SET title = COALESCE($1, title),
+             description = COALESCE($2, description),
+             image_url = COALESCE($3, image_url),
+             updated_at = NOW()
+         WHERE id = $4
+         RETURNING *`,
+        [title, description, image_url, id]
+      );
+    } else {
+      result = await query(
+        `UPDATE lucky_auctions
+         SET title = COALESCE($1, title),
+             description = COALESCE($2, description),
+             image_url = COALESCE($3, image_url),
+             max_purchases_per_user = COALESCE($4, max_purchases_per_user),
+             expires_at = COALESCE($5, expires_at),
+             notify_channels = COALESCE($6, notify_channels),
+             preset_winner_unique_id = CASE WHEN $7 THEN $8 ELSE preset_winner_unique_id END,
+             updated_at = NOW()
+         WHERE id = $9
+         RETURNING *`,
+        [title, description, image_url, max_purchases_per_user, expires_at, notify_channels,
+          'preset_winner_unique_id' in req.body, preset_winner_unique_id || null, id]
+      );
+    }
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error: any) {

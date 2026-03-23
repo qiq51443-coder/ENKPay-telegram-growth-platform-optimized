@@ -236,19 +236,6 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       // Gracefully degrade: return user info without transactions
     }
 
-    // Lucky auction participants (table may not exist yet)
-    try {
-      const auctionRows = await query(
-        `SELECT id::text, 'auction_buy' AS type, (shares * share_price)::numeric AS amount,
-                'completed' AS status, created_at, NULL AS description, NULL AS order_id
-         FROM lucky_auction_participants WHERE user_id = $1`,
-        [id]
-      );
-      transactionRows = [...transactionRows, ...auctionRows.rows];
-    } catch {
-      // Table does not exist yet — ignore
-    }
-
     // NFT orders (table may not exist yet)
     try {
       const nftRows = await query(
