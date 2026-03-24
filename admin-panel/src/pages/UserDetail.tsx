@@ -41,6 +41,7 @@ export const UserDetail: React.FC = () => {
   const [invitees, setInvitees] = useState([]);
   const [linkedBots, setLinkedBots] = useState<any[]>([]);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -133,40 +134,79 @@ export const UserDetail: React.FC = () => {
     }
   };
 
+  const NEGATIVE_TYPES = new Set([
+    'trade_loss', 'product_purchase', 'nft_purchase',
+    'auction_join', 'auction_buy', 'transfer_out',
+    'withdrawal', 'admin_debit',
+  ]);
+
+  const TYPE_TAG_COLOR: Record<string, string> = {
+    withdrawal:           'red',
+    trade_loss:           'red',
+    product_purchase:     'red',
+    nft_purchase:         'red',
+    auction_join:         'red',
+    auction_buy:          'red',
+    transfer_out:         'red',
+    admin_debit:          'red',
+    deposit:              'green',
+    trade_win:            'green',
+    reward:               'green',
+    invite:               'green',
+    invite_reward:        'green',
+    follow_reward:        'green',
+    bind_reward:          'green',
+    admin_credit:         'green',
+    product_yield:        'green',
+    nft_income:           'green',
+    nft_settle:           'green',
+    nft_principal_return: 'green',
+    product_refund:       'green',
+    auction_redeem:       'green',
+    auction_refund:       'green',
+    transfer_in:          'green',
+    red_packet:           'gold',
+    admin_adjustment:     'default',
+  };
+
+  const TX_TYPE_LABEL: Record<string, string> = {
+    deposit:              '充值',
+    withdrawal:           '提现',
+    transfer_in:          '转入',
+    transfer_out:         '转出',
+    trade_win:            '交易盈利',
+    trade_loss:           '交易亏损',
+    reward:               '奖励',
+    red_packet:           '红包',
+    invite:               '邀请奖励',
+    invite_reward:        '邀请奖励',
+    follow_reward:        '关注奖励',
+    bind_reward:          '绑定奖励',
+    admin_credit:         '管理员增加',
+    admin_debit:          '管理员扣减',
+    admin_adjustment:     '管理员调整',
+    auction_buy:          '夺宝参与',
+    auction_join:         '夺宝参与',
+    auction_redeem:       '夺宝兑奖',
+    auction_refund:       '夺宝退款',
+    nft_purchase:         'NFT购买',
+    nft_settle:           'NFT结算收益',
+    product_purchase:     '产品购买',
+    nft_income:           'NFT收益',
+    nft_principal_return: 'NFT本金返还',
+    product_yield:        '产品收益',
+    product_refund:       '产品退款',
+  };
+
   const transactionColumns = [
     {
       title: '类型',
       dataIndex: 'type',
       key: 'type',
       render: (type: string) => {
-        const typeMap: Record<string, { text: string; color: string }> = {
-          deposit:        { text: '充值',       color: 'green' },
-          withdrawal:     { text: '提现',       color: 'red' },
-          transfer_in:    { text: '转入',       color: 'blue' },
-          transfer_out:   { text: '转出',       color: 'orange' },
-          trade_win:      { text: '交易盈利',   color: 'green' },
-          trade_loss:     { text: '交易亏损',   color: 'red' },
-          reward:         { text: '奖励',       color: 'gold' },
-          red_packet:     { text: '红包',       color: 'red' },
-          invite:         { text: '邀请奖励',   color: 'purple' },
-          invite_reward:  { text: '邀请奖励',   color: 'purple' },
-          follow_reward:  { text: '关注奖励',   color: 'green' },
-          bind_reward:    { text: '绑定奖励',   color: 'blue' },
-          admin_credit:   { text: '管理员增加', color: 'green' },
-          admin_debit:    { text: '管理员扣减', color: 'red' },
-          admin_adjustment: { text: '管理员调整', color: 'default' },
-          auction_buy:    { text: '夺宝参与',   color: 'purple' },
-          auction_join:   { text: '夺宝参与',   color: 'purple' },
-          auction_redeem: { text: '夺宝兑奖',   color: 'gold' },
-          auction_refund: { text: '夺宝退款',   color: 'blue' },
-          nft_purchase:         { text: 'NFT购买',    color: 'blue' },
-          nft_settle:           { text: 'NFT结算收益', color: 'green' },
-          product_purchase:     { text: 'NFT购买',    color: 'blue' },
-          nft_income:           { text: 'NFT收益',    color: 'green' },
-          nft_principal_return: { text: 'NFT本金返还', color: 'cyan' },
-        };
-        const info = typeMap[type] || { text: type, color: 'default' };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        const color = TYPE_TAG_COLOR[type] || 'default';
+        const label = TX_TYPE_LABEL[type] || type;
+        return <Tag color={color}>{label}</Tag>;
       },
     },
     {
@@ -175,13 +215,15 @@ export const UserDetail: React.FC = () => {
       key: 'amount',
       render: (amount: any, record: any) => {
         const num = parseFloat(String(amount));
-        const positiveTypes = ['deposit', 'transfer_in', 'reward', 'red_packet', 'invite',
-                               'invite_reward', 'follow_reward', 'bind_reward', 'trade_win',
-                               'admin_credit'];
-        const isPositive = positiveTypes.includes(record.type) || num >= 0;
+        const isNeg = NEGATIVE_TYPES.has(record.type);
+        const color = isNeg ? '#ff4d4f' : '#52c41a';
+        const sign = isNeg ? '-' : '+';
         return (
-          <span style={{ fontFamily: 'monospace', color: isPositive ? '#52c41a' : '#ff4d4f' }}>
-            {isPositive ? '+' : '-'}{Math.abs(num).toFixed(2)}
+          <span
+            style={{ fontFamily: 'monospace', color, cursor: 'pointer' }}
+            onClick={() => setSelectedTx(record)}
+          >
+            {sign}{Math.abs(num).toFixed(2)} USDT
           </span>
         );
       },
@@ -475,6 +517,64 @@ export const UserDetail: React.FC = () => {
             <Input.TextArea rows={3} placeholder="调整原因（可选）" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Transaction Detail Modal */}
+      <Modal
+        title="交易详情"
+        open={!!selectedTx}
+        onCancel={() => setSelectedTx(null)}
+        footer={null}
+      >
+        {selectedTx && (() => {
+          const tx = selectedTx;
+          const isNeg = NEGATIVE_TYPES.has(tx.type);
+          const num = parseFloat(String(tx.amount));
+          const color = isNeg ? '#ff4d4f' : '#52c41a';
+          const amtStr = `${isNeg ? '-' : '+'}${Math.abs(num).toFixed(2)} USDT`;
+          const label = TX_TYPE_LABEL[tx.type] || tx.type;
+          const tagColor = TYPE_TAG_COLOR[tx.type] || 'default';
+          const statusMap: Record<string, string> = {
+            completed: 'success', confirmed: 'success',
+            pending: 'warning', processing: 'processing',
+            failed: 'error', rejected: 'error',
+          };
+          return (
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="类型">
+                <Tag color={tagColor}>{label}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="金额">
+                <span style={{ color, fontFamily: 'monospace', fontWeight: 700 }}>{amtStr}</span>
+              </Descriptions.Item>
+              {tx.status && (
+                <Descriptions.Item label="状态">
+                  <Tag color={statusMap[tx.status] || 'default'}>{tx.status}</Tag>
+                </Descriptions.Item>
+              )}
+              <Descriptions.Item label="时间">
+                {tx.created_at ? new Date(tx.created_at).toLocaleString('zh-CN') : '-'}
+              </Descriptions.Item>
+              {tx.order_id && (
+                <Descriptions.Item label="订单号">
+                  <code style={{ wordBreak: 'break-all' }}>{tx.order_id}</code>
+                </Descriptions.Item>
+              )}
+              {tx.description && (
+                <Descriptions.Item label={tx.type === 'withdrawal' ? '提现地址' : tx.type === 'deposit' ? '交易哈希' : '描述/备注'}>
+                  <span style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '12px' }}>{tx.description}</span>
+                </Descriptions.Item>
+              )}
+              {(tx.type === 'trade_win' || tx.type === 'trade_loss') && (
+                <Descriptions.Item label="交易方向">
+                  <Tag color={tx.type === 'trade_win' ? 'green' : 'red'}>
+                    {tx.type === 'trade_win' ? 'WIN' : 'LOSS'}
+                  </Tag>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          );
+        })()}
       </Modal>
     </div>
   );
