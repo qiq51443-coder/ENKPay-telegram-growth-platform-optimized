@@ -18,6 +18,14 @@ interface Product {
   status?: string;
 }
 
+interface OrderRecord {
+  type: 'purchase' | 'income' | 'principal';
+  amount: number;
+  description: string;
+  income_date?: string;
+  created_at: string;
+}
+
 interface Holding {
   id: string;
   product_id: string;
@@ -30,6 +38,8 @@ interface Holding {
   end_date: string;
   status: string;
   total_yield?: number;
+  total_income?: number;
+  order_records?: OrderRecord[];
 }
 
 function getGradient(price: number): string {
@@ -52,7 +62,7 @@ function formatAmount(price: string | number): string {
 }
 
 export const Products: React.FC = () => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -63,6 +73,7 @@ export const Products: React.FC = () => {
   const [activeView, setActiveView] = useState<'list' | 'mine'>('list');
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [expandedHoldings, setExpandedHoldings] = useState<Set<string>>(new Set());
 
   const selected = products.find(p => p.id === selectedId) || null;
 
@@ -305,6 +316,14 @@ export const Products: React.FC = () => {
             const elapsedDays = Math.max(0, Math.round((Date.now() - startMs) / 86400000));
             const progress = Math.min(100, (elapsedDays / totalDays) * 100);
             const estimatedYield = parseFloat(String(h.amount)) * parseFloat(String(h.daily_yield_rate ?? 0)) * totalDays;
+            const actualIncome = h.total_income != null ? h.total_income : estimatedYield;
+            // actualIncome: uses real settled income from backend when available, otherwise falls back to estimated yield
+            const isExpanded = expandedHoldings.has(h.id);
+            const toggleExpand = () => setExpandedHoldings(prev => {
+              const next = new Set(prev);
+              if (next.has(h.id)) next.delete(h.id); else next.add(h.id);
+              return next;
+            });
             return (
               <div key={h.id} style={{ background: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -315,14 +334,48 @@ export const Products: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ color: theme.textSecondary, fontSize: '12px' }}>{t('holdings_invested') || '投入'}: <b style={{ color: theme.text }}>${parseFloat(String(h.amount)).toFixed(2)}</b></span>
-                  <span style={{ color: '#F0B90B', fontSize: '12px' }}>{t('holdings_est_yield') || '预期收益'}: <b>${estimatedYield.toFixed(2)}</b></span>
+                  <span style={{ color: '#F0B90B', fontSize: '12px' }}>{t('holdings_est_yield') || '预期收益'}: <b>${actualIncome.toFixed(2)}</b></span>
                 </div>
                 <div style={{ height: '4px', background: theme.border, borderRadius: '2px', marginBottom: '4px' }}>
                   <div style={{ height: '100%', width: `${progress}%`, background: '#F0B90B', borderRadius: '2px', transition: 'width 0.3s' }} />
                 </div>
-                <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
+                <div style={{ color: theme.textSecondary, fontSize: '11px', marginBottom: '8px' }}>
                   {elapsedDays} / {totalDays} {t('holdings_days') || '天'} · {t('holdings_daily_rate') || '日收益率'} {(parseFloat(String(h.daily_yield_rate ?? 0)) * 100).toFixed(2)}%
                 </div>
+                {/* Expand/collapse order records */}
+                <button
+                  onClick={toggleExpand}
+                  style={{ background: 'none', border: `1px solid ${theme.border}`, color: theme.textSecondary, fontSize: '12px', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', width: '100%' }}
+                >
+                  {isExpanded ? '▲ 收起明细' : '▼ 展开明细'}
+                </button>
+                {isExpanded && h.order_records && h.order_records.length > 0 && (
+                  <div style={{ marginTop: '10px', borderTop: `1px solid ${theme.border}`, paddingTop: '10px' }}>
+                    {h.order_records.map((rec, idx) => {
+                      const isPurchase = rec.type === 'purchase';
+                      const isPrincipal = rec.type === 'principal';
+                      const isIncome = rec.type === 'income';
+                      const icon = isPurchase ? '🛒' : isIncome ? '💰' : '🔄';
+                      const amountColor = isPurchase ? '#ef4444' : isPrincipal ? '#3b82f6' : '#22c55e';
+                      const amountStr = isPurchase
+                        ? `-$${Math.abs(rec.amount).toFixed(2)}`
+                        : `+$${rec.amount.toFixed(2)}`;
+                      const dateStr = new Date(rec.income_date || rec.created_at).toLocaleDateString(lang);
+                      return (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: idx < h.order_records!.length - 1 ? `1px solid ${theme.border}` : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{icon}</span>
+                            <div>
+                              <div style={{ color: theme.text, fontSize: '12px' }}>{rec.description}</div>
+                              <div style={{ color: theme.textSecondary, fontSize: '10px' }}>{dateStr}</div>
+                            </div>
+                          </div>
+                          <div style={{ color: amountColor, fontWeight: '600', fontSize: '13px' }}>{amountStr}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

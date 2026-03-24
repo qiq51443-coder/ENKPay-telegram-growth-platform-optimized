@@ -728,7 +728,59 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
       [userId]
     );
 
-    res.json({ success: true, data: result.rows });
+    // Fetch income records for this user, ordered by date
+    const incomeResult = await query(
+      `SELECT id, holding_id, amount, income_date, created_at
+       FROM nft_income_records
+       WHERE user_id = $1
+       ORDER BY income_date ASC`,
+      [userId]
+    );
+
+    // Group income records by holding_id
+    const incomeByHolding: Record<string, any[]> = {};
+    for (const row of incomeResult.rows) {
+      if (!incomeByHolding[row.holding_id]) incomeByHolding[row.holding_id] = [];
+      incomeByHolding[row.holding_id].push(row);
+    }
+
+    // Build holdings with order_records and total_income
+    const holdings = result.rows.map((h: any) => {
+      const incomeRows = incomeByHolding[h.id] || [];
+      const total_income = incomeRows.reduce((sum: number, r: any) => sum + parseFloat(r.amount || 0), 0);
+
+      const order_records: any[] = [];
+      // First entry: purchase (negative amount = outflow of funds)
+      order_records.push({
+        type: 'purchase',
+        amount: -parseFloat(h.amount || 0),
+        description: `购买 ${h.product_name}`,
+        created_at: h.created_at,
+      });
+      // Daily income entries
+      incomeRows.forEach((r: any, idx: number) => {
+        order_records.push({
+          type: 'income',
+          amount: parseFloat(r.amount || 0),
+          description: `第${idx + 1}天收益`,
+          income_date: r.income_date,
+          created_at: r.created_at,
+        });
+      });
+      // Principal return if expired
+      if (h.status === 'expired') {
+        order_records.push({
+          type: 'principal',
+          amount: parseFloat(h.amount || 0),
+          description: '本金返还',
+          created_at: h.updated_at || h.end_date,
+        });
+      }
+
+      return { ...h, total_income, order_records };
+    });
+
+    res.json({ success: true, data: holdings });
   } catch (error: any) {
     console.error('Get holdings error:', error);
     res.status(500).json({ error: error.message });
