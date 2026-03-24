@@ -74,6 +74,34 @@ const TX_FILTER_TABS = [
 
 const TX_DESC_TRUNCATE_LEN = 8;
 
+// Types that represent outgoing / negative transactions (red, minus sign)
+const NEGATIVE_TX_TYPES = new Set([
+  'trade_loss',
+  'product_purchase', 'nft_purchase',
+  'auction_join', 'auction_buy',
+  'transfer_out',
+  'withdrawal',
+  'admin_debit',
+]);
+
+// Types that represent incoming / positive transactions (green, plus sign)
+const POSITIVE_TX_TYPES = new Set([
+  'trade_win',
+  'product_yield', 'nft_income', 'nft_settle',
+  'product_refund', 'nft_principal_return',
+  'transfer_in',
+  'deposit',
+  'auction_redeem', 'auction_refund',
+  'reward', 'invite', 'invite_reward', 'follow_reward', 'bind_reward', 'red_packet',
+  'admin_credit',
+]);
+
+function isTxNegative(type: string, amount: number): boolean {
+  if (NEGATIVE_TX_TYPES.has(type)) return true;
+  if (POSITIVE_TX_TYPES.has(type)) return false;
+  return amount < 0;
+}
+
 export const Profile: React.FC = () => {
   const { user: tgUser } = useTelegram();
   const { lang, setLang, t } = useLang();
@@ -84,6 +112,7 @@ export const Profile: React.FC = () => {
   const [idCopied, setIdCopied] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [txLoading, setTxLoading] = useState(false);
   const [annLoading, setAnnLoading] = useState(false);
   const [agreementText, setAgreementText] = useState('');
@@ -339,49 +368,21 @@ export const Profile: React.FC = () => {
                 const typeInfo = TX_TYPE_LABEL_KEYS[tx.type] || { labelKey: tx.type, icon: '📋' };
                 const dateStr = new Date(tx.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
                   + ' ' + new Date(tx.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                const isNeg = isTxNegative(tx.type, tx.amount);
+                const amtColor = isNeg ? '#ef4444' : theme.success;
+                const amtStr = `${isNeg ? '-' : '+'}${Math.abs(parseFloat(String(tx.amount))).toFixed(2)} USDT`;
                 return (
-                  <div key={tx.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={tx.id} onClick={() => setSelectedTx(tx)} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <span style={{ fontSize: '20px' }}>{typeInfo.icon}</span>
                       <div>
                         <div style={{ color: theme.text, fontSize: '13px', fontWeight: '500' }}>{t(typeInfo.labelKey)}</div>
                         <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{dateStr}</div>
                         {tx.status && <div style={{ color: theme.textSecondary, fontSize: '11px' }}>{tx.status}</div>}
-                        {tx.type === 'deposit' && tx.description && (
-                          <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
-                            {tx.description.length > TX_DESC_TRUNCATE_LEN ? tx.description.slice(0, TX_DESC_TRUNCATE_LEN) + '...' : tx.description}
-                          </div>
-                        )}
-                        {tx.type === 'withdrawal' && (
-                          <>
-                            {tx.description && (
-                              <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
-                                {tx.description.length > TX_DESC_TRUNCATE_LEN ? tx.description.slice(0, TX_DESC_TRUNCATE_LEN) + '...' : tx.description}
-                              </div>
-                            )}
-                            {tx.order_id && (
-                              <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
-                                {tx.order_id}
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {(tx.type === 'transfer_in' || tx.type === 'transfer_out') && tx.order_id && (
-                          <div style={{ color: theme.textSecondary, fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>
-                            {tx.order_id}
-                          </div>
-                        )}
-                        {(tx.type === 'trade_win' || tx.type === 'trade_loss') && (
-                          <div style={{ color: tx.type === 'trade_win' ? theme.success : '#ef4444', fontSize: '10px', fontWeight: '600', marginTop: '2px' }}>
-                            {tx.type === 'trade_win' ? t('tx_trade_win_direction') : t('tx_trade_loss_direction')}
-                          </div>
-                        )}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: tx.amount >= 0 ? theme.success : '#ef4444', fontWeight: '600', fontSize: '14px' }}>
-                        {tx.amount >= 0 ? '+' : ''}{parseFloat(String(tx.amount)).toFixed(2)}
-                      </div>
+                      <div style={{ color: amtColor, fontWeight: '600', fontSize: '14px' }}>{amtStr}</div>
                       <div style={{ color: theme.textSecondary, fontSize: '11px' }}>
                         {tx.balance_after != null ? `${t('balance_label')}: ${parseFloat(String(tx.balance_after)).toFixed(2)} USDT` : ''}
                       </div>
@@ -392,6 +393,78 @@ export const Profile: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Transaction Detail Modal */}
+        {selectedTx && (() => {
+          const tx = selectedTx;
+          const typeInfo = TX_TYPE_LABEL_KEYS[tx.type] || { labelKey: tx.type, icon: '📋' };
+          const isNeg = isTxNegative(tx.type, tx.amount);
+          const amtColor = isNeg ? '#ef4444' : theme.success;
+          const amtStr = `${isNeg ? '-' : '+'}${Math.abs(parseFloat(String(tx.amount))).toFixed(2)} USDT`;
+          return (
+            <div
+              onClick={() => setSelectedTx(null)}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: theme.bgCard, borderRadius: '16px 16px 0 0', padding: '20px', width: '100%', maxWidth: '480px', maxHeight: '80vh', overflowY: 'auto' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '22px' }}>{typeInfo.icon}</span>
+                    <span style={{ color: theme.text, fontWeight: '700', fontSize: '16px' }}>{t(typeInfo.labelKey)}</span>
+                  </div>
+                  <button onClick={() => setSelectedTx(null)} style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>金额</span>
+                    <span style={{ color: amtColor, fontWeight: '700', fontSize: '15px', fontFamily: 'monospace' }}>{amtStr}</span>
+                  </div>
+                  {tx.balance_after != null && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>余额</span>
+                      <span style={{ color: theme.text, fontFamily: 'monospace' }}>{parseFloat(String(tx.balance_after)).toFixed(2)} USDT</span>
+                    </div>
+                  )}
+                  {tx.status && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>状态</span>
+                      <span style={{ color: theme.text }}>{tx.status}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>时间</span>
+                    <span style={{ color: theme.text }}>{new Date(tx.created_at).toLocaleString('zh-CN')}</span>
+                  </div>
+                  {tx.order_id && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>订单号</span>
+                      <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{tx.order_id}</span>
+                    </div>
+                  )}
+                  {tx.description && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>
+                        {tx.type === 'withdrawal' ? '提现地址' : tx.type === 'deposit' ? '交易哈希' : '描述'}
+                      </span>
+                      <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{tx.description}</span>
+                    </div>
+                  )}
+                  {(tx.type === 'trade_win' || tx.type === 'trade_loss') && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>方向</span>
+                      <span style={{ color: tx.type === 'trade_win' ? theme.success : '#ef4444', fontWeight: '700' }}>
+                        {tx.type === 'trade_win' ? 'WIN' : 'LOSS'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
