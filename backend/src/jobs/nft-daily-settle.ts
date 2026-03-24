@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { query, transaction } from '../db';
 import { TelegramAPI } from '../utils/telegram';
-import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification } from '../i18n/nft-notifications';
+import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification, buildNFTIncomeDescription, buildNFTPrincipalReturnDescription } from '../i18n/nft-notifications';
 
 let cronJob: cron.ScheduledTask | null = null;
 let isRunning = false;
@@ -102,6 +102,15 @@ async function settleDailyIncome(): Promise<void> {
           'UPDATE nft_holdings SET total_income = COALESCE(total_income, 0) + $1 WHERE id = $2',
           [dailyIncome, holding.id]
         );
+
+        // Write transactions record for this income
+        const lang = (holding.language_code || 'en').split('-')[0];
+        const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
+        await client.query(
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+           SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+          [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
+        );
       });
 
       // Send bot notification
@@ -183,6 +192,15 @@ async function settleDailyIncome(): Promise<void> {
           await client.query(
             'UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2',
             [dailyIncome, holding.user_id]
+          );
+
+          // Write transactions record for this income
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+            [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
           );
         });
 
@@ -275,6 +293,15 @@ async function releaseMatureHoldings(): Promise<void> {
           `UPDATE nft_products SET current_holders = GREATEST(COALESCE(current_holders, 0) - 1, 0) WHERE id = $1`,
           [holding.product_id]
         );
+
+        // Write transactions record for principal return
+        const lang = (holding.language_code || 'en').split('-')[0];
+        const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
+        await client.query(
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+           SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+          [holding.user_id, principal, principalDesc, String(holding.id)]
+        );
       });
 
       // Send maturity notification
@@ -345,6 +372,15 @@ async function releaseMatureHoldings(): Promise<void> {
           await client.query(
             `UPDATE nft_products SET current_holders = GREATEST(COALESCE(current_holders, 0) - 1, 0) WHERE id = $1`,
             [holding.product_id]
+          );
+
+          // Write transactions record for principal return
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+            [holding.user_id, principal, principalDesc, String(holding.id)]
           );
         });
 
