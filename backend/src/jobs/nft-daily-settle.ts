@@ -32,9 +32,7 @@ async function sendBotNotification(
  * Settle daily income for all active fixed_term NFT holdings.
  */
 async function settleDailyIncome(): Promise<void> {
-  // Use local date string to avoid UTC vs local timezone issues
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
 
   // Find all active fixed_term holdings that haven't been settled today
   const holdingsResult = await query(
@@ -212,7 +210,7 @@ async function releaseMatureHoldings(): Promise<void> {
 /**
  * Main daily settlement function
  */
-async function runNFTDailySettle(): Promise<void> {
+export async function runNFTDailySettle(): Promise<void> {
   if (isRunning) {
     console.log('NFT daily settle already running, skipping...');
     return;
@@ -232,7 +230,7 @@ async function runNFTDailySettle(): Promise<void> {
 
 /**
  * Start the NFT daily settlement cron job
- * Runs at 10:00 UTC+8 (02:00 UTC) every day
+ * Runs at 10:05 UTC every day
  */
 export function startNFTDailySettle(): void {
   if (cronJob) {
@@ -240,12 +238,12 @@ export function startNFTDailySettle(): void {
     return;
   }
 
-  // Runs at 10:00 UTC+8 (02:00 UTC) every day
-  cronJob = cron.schedule('0 2 * * *', async () => {
+  // Runs at 10:05 UTC every day
+  cronJob = cron.schedule('5 10 * * *', async () => {
     await runNFTDailySettle();
   });
 
-  console.log('✓ NFT daily settle job started (runs at 10:00 UTC+8 / 02:00 UTC daily)');
+  console.log('✓ NFT daily settle job started (runs at 10:05 UTC daily)');
 }
 
 /**

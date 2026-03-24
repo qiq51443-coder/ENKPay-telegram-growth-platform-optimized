@@ -9,6 +9,7 @@ import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
+import { runNFTDailySettle } from '../jobs/nft-daily-settle';
 
 const router = express.Router();
 
@@ -854,6 +855,69 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
     });
   } catch (error: any) {
     console.error('Get product holders error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/admin/settle/trigger
+ * Manually trigger NFT daily settlement (admin only)
+ * Used for testing or manual compensation.
+ */
+router.post('/admin/settle/trigger', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    console.log(`[NFT Admin] Manual settle triggered by admin ${req.user?.username} (id=${req.user?.id})`);
+    // Run asynchronously so the HTTP response returns immediately
+    runNFTDailySettle().catch((err: any) => {
+      console.error('[NFT Admin] Manual settle error:', err.message);
+    });
+    res.json({
+      success: true,
+      message: 'NFT daily settlement triggered. Check server logs for progress.',
+    });
+  } catch (error: any) {
+    console.error('Manual settle trigger error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/nft/admin/settle/status
+ * Query the last settlement records (admin only)
+ * Returns the most recent 50 income records across all holdings.
+ */
+router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT
+         ir.id,
+         ir.holding_id,
+         ir.user_id,
+         ir.product_id,
+         ir.amount,
+         ir.income_date,
+         ir.created_at,
+         p.name AS product_name,
+         u.username,
+         u.telegram_id
+       FROM nft_income_records ir
+       JOIN nft_products p ON ir.product_id = p.id
+       JOIN users u ON ir.user_id = u.id
+       ORDER BY ir.created_at DESC
+       LIMIT 50`
+    );
+
+    const todayUTC = new Date().toISOString().slice(0, 10);
+    const todayCount = result.rows.filter((r: any) => r.income_date === todayUTC).length;
+
+    res.json({
+      success: true,
+      today_utc: todayUTC,
+      today_settled_count: todayCount,
+      recent_records: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Settle status error:', error);
     res.status(500).json({ error: error.message });
   }
 });
