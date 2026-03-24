@@ -868,12 +868,17 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
          ph.created_at AS purchase_date,
          ph.end_date::TIMESTAMPTZ AS expires_at,
          ph.status,
-         0 AS total_income,
+         COALESCE(inc.total_income, 0) AS total_income,
          p.term_days,
          EXTRACT(EPOCH FROM (NOW() - ph.created_at)) / 86400 /* seconds per day */ AS days_elapsed
        FROM product_holdings ph
        JOIN users u ON ph.user_id = u.id
        JOIN nft_products p ON ph.product_id = p.id
+       LEFT JOIN (
+         SELECT holding_id, SUM(amount) AS total_income
+         FROM nft_income_records
+         GROUP BY holding_id
+       ) inc ON inc.holding_id = ph.id
        WHERE ph.product_id = $1
        ORDER BY ph.created_at DESC`,
       [id]

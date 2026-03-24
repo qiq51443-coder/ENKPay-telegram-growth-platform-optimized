@@ -186,9 +186,11 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       const transactions = await query(
         `SELECT id, type, amount, status, created_at, description, order_id
          FROM (
-           -- Legacy reward / admin adjustment records
-           SELECT id::text, type, amount::numeric,
-                  'completed' AS status, created_at, description, NULL AS order_id
+           -- All ledger transactions (includes nft_purchase, nft_income, nft_principal_return,
+           --   product_purchase, product_yield, product_refund, auction_*, reward, etc.)
+           SELECT id::text, type, ABS(amount)::numeric AS amount,
+                  'completed' AS status, created_at, description,
+                  reference_id::text AS order_id
            FROM transactions WHERE user_id = $1
 
            UNION ALL
@@ -247,6 +249,31 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       transactionRows = [...transactionRows, ...nftRows.rows];
     } catch {
       // Table does not exist yet — ignore
+    }
+
+    // Supplement from nft_income_records (dedup against transactions table entries)
+    try {
+      const nftIncomeRows = await query(
+        `SELECT
+           ir.id::text,
+           'nft_income' AS type,
+           ir.amount::numeric AS amount,
+           'completed' AS status,
+           ir.created_at,
+           p.name AS description,
+           ir.holding_id::text AS order_id
+         FROM nft_income_records ir
+         JOIN nft_products p ON ir.product_id = p.id
+         WHERE ir.user_id = $1`,
+        [id]
+      );
+      const existingIds = new Set(transactionRows.map((r: any) => r.id));
+      const newRows = nftIncomeRows.rows.filter((r: any) => !existingIds.has(r.id));
+      if (newRows.length > 0) {
+        transactionRows = [...transactionRows, ...newRows];
+      }
+    } catch {
+      // nft_income_records table may not exist — ignore
     }
 
     // Sort combined results and cap at 100
