@@ -50,6 +50,7 @@ import miniappRoutes from './routes/miniapp';
 import miniappBotTokenRoutes from './routes/miniapp-bot-token';
 import profileRoutes from './routes/profile';
 import dbRepairRoutes from './routes/db-repair';
+import healthRoutes from './routes/health';
 
 dotenv.config();
 
@@ -72,9 +73,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+app.use('/health', healthRoutes);
 
 // Static file serving for uploads (legacy)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

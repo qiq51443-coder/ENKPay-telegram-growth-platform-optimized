@@ -17,8 +17,8 @@ try {
 
 const poolConfig: PoolConfig = {
   connectionString: dbUrl,
-  // Connection pool configuration optimized for Render free tier
-  max: parseInt(process.env.DB_POOL_MAX || '5'),       // Maximum number of connections in the pool
+  // Connection pool configuration optimized for Render Standard tier
+  max: parseInt(process.env.DB_POOL_MAX || '10'),      // Maximum number of connections in the pool
   min: parseInt(process.env.DB_POOL_MIN || '1'),       // Minimum number of connections in the pool
   idleTimeoutMillis: 30000,                             // Close idle connections after 30 seconds
   connectionTimeoutMillis: 30000,                       // Connection timeout (30 seconds for cold-start)

@@ -3,7 +3,9 @@ services:
     name: telegram-growth-platform
     runtime: node
     region: singapore
-    plan: starter
+    plan: standard
+    autoDeploy: false
+    healthCheckPath: /health
     buildCommand: |
       cd mini-app && npm ci && npm run build && cd .. && \
       cd admin-panel && npm ci && npm run build && cd .. && \
@@ -11,6 +13,7 @@ services:
       mkdir -p dist/public/admin dist/public/app && \
       cp -r ../admin-panel/dist/. dist/public/admin/ && \
       cp -r ../mini-app/dist/. dist/public/app/
+    preDeployCommand: cd backend && node -e "require('./dist/db/migrate').runMigrations().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
     startCommand: cd backend && node dist/index.js
     envVars:
       - key: NODE_ENV
@@ -44,9 +47,29 @@ services:
         sync: false
       - key: WEBAPP_URL
         sync: false
+      - key: DB_POOL_MAX
+        value: "20"
+      - key: DB_POOL_MIN
+        value: "5"
+      - key: WALLET_ENCRYPTION_KEY
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false
+      - key: BETA_MODE
+        value: "true"
+      - key: MAX_USERS
+        value: "1000"
+      - key: LOG_LEVEL
+        value: debug
+
+  - type: redis
+    name: telegram-growth-redis
+    region: singapore
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
 
 databases:
   - name: telegram-growth-db
     databaseName: telegram_growth
     region: singapore
-    plan: starter
+    plan: basic-1gb

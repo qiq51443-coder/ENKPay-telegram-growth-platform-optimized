@@ -1,582 +1,285 @@
-# Deployment Guide
-
-## Production Deployment
-
-### Prerequisites
-
-1. Server with Docker and Docker Compose installed
-2. Domain name with SSL certificate
-3. Telegram Bot Token from @BotFather
-4. PostgreSQL 15+ and Redis 7+ (or use Docker)
-
-### Step 1: Prepare Server
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Install Docker Compose
-sudo apt install docker-compose -y
-
-# Create app directory
-mkdir -p /opt/telegram-growth-platform
-cd /opt/telegram-growth-platform
-```
-
-### Step 2: Clone Repository
-
-```bash
-git clone https://github.com/qiq51443-coder/telegram-growth-platform-optimized.git .
-```
-
-### Step 3: Configure Environment
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-**Important environment variables:**
-
-```env
-# Database - Use strong password in production
-DATABASE_URL=postgresql://telegram:STRONG_PASSWORD_HERE@postgres:5432/telegram_growth
-
-# Backend - Use strong secret
-JWT_SECRET=GENERATE_STRONG_SECRET_HERE
-BACKEND_PORT=3000
-
-# Bot - Get from @BotFather
-BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-BOT_ID=bot_unique_id
-BOT_WEBHOOK_URL=https://yourdomain.com/webhook/YOUR_BOT_TOKEN
-BOT_WEBHOOK_SECRET=GENERATE_WEBHOOK_SECRET
-
-# Admin - Change default credentials
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=STRONG_ADMIN_PASSWORD
-
-# Platform
-PLATFORM_NAME=YourPlatform
-PLATFORM_URL=https://yourplatform.com
-PLATFORM_REGISTER_URL=https://yourplatform.com/register
-
-# Telegram Groups/Channels
-REQUIRED_CHANNEL_ID=@yourchannel
-REQUIRED_GROUP_ID=-1001234567890
-SCREENSHOT_GROUP_ID=-1001234567890
-
-# Rewards
-FOLLOW_REWARD=50
-BIND_REWARD=100
-INVITE_REWARD=25
-NEW_USER_RED_PACKET_CREDITS=3
-SCREENSHOT_REWARD_CREDITS=1
-
-# Redis
-REDIS_URL=redis://redis:6379
-```
-
-### Step 4: Setup SSL with Nginx
-
-Create nginx configuration:
-
-```bash
-sudo nano /etc/nginx/sites-available/telegram-growth
-```
-
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    # Backend API
-    location /api/ {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Webhook endpoint
-    location /webhook/ {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # Admin panel (if implemented)
-    location / {
-        root /opt/telegram-growth-platform/admin-panel/dist;
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-Enable and restart nginx:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/telegram-growth /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-### Step 5: Start Services
-
-```bash
-# Build and start containers
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f
-
-# Verify all services are running
-docker-compose ps
-```
-
-### Step 6: Initialize Database
-
-The database will be automatically initialized on first startup using the schema.sql file.
-
-### Step 7: Create Admin User
-
-```bash
-# Connect to backend container
-docker-compose exec backend npm run ts-node
-
-# Then in Node REPL:
-```
-
-```javascript
-const bcrypt = require('bcryptjs');
-const { query } = require('./src/db');
-
-async function createAdmin() {
-  const passwordHash = await bcrypt.hash('your-admin-password', 10);
-  await query(
-    'INSERT INTO admin_users (username, password_hash, email) VALUES ($1, $2, $3)',
-    ['admin', passwordHash, 'admin@example.com']
-  );
-  console.log('Admin user created');
-}
-
-createAdmin().then(() => process.exit(0));
-```
-
-### Step 8: Register Bot
-
-```bash
-# Create a bot in database
-docker-compose exec postgres psql -U telegram -d telegram_growth
-```
-
-```sql
--- Insert your bot
-INSERT INTO bots (name, token, username) 
-VALUES ('Your Bot', 'YOUR_BOT_TOKEN', 'your_bot_username');
-
--- Get the bot ID
-SELECT id FROM bots WHERE token = 'YOUR_BOT_TOKEN';
-
--- Initialize bot settings
-INSERT INTO bot_settings (bot_id) VALUES ('BOT_ID_FROM_ABOVE');
-```
-
-### Step 9: Set Webhook (Optional)
-
-If using webhooks instead of polling:
-
-```bash
-curl -X POST "https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://yourdomain.com/webhook/YOUR_BOT_TOKEN",
-    "secret_token": "YOUR_WEBHOOK_SECRET",
-    "allowed_updates": ["message", "callback_query"]
-  }'
-```
-
-### Step 10: Test Bot
-
-1. Open Telegram
-2. Search for your bot (@your_bot_username)
-3. Send `/start`
-4. Verify welcome message appears
-5. Test language switching
-6. Test task viewing
-
-## Monitoring
-
-### Check Logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f bot
-docker-compose logs -f backend
-docker-compose logs -f postgres
-```
-
-### Check Service Status
-
-```bash
-docker-compose ps
-```
-
-### Restart Services
-
-```bash
-# Restart all
-docker-compose restart
-
-# Restart specific service
-docker-compose restart bot
-docker-compose restart backend
-```
-
-## Backup
-
-### Database Backup
-
-```bash
-# Create backup
-docker-compose exec postgres pg_dump -U telegram telegram_growth > backup_$(date +%Y%m%d).sql
-
-# Restore backup
-docker-compose exec -T postgres psql -U telegram telegram_growth < backup_20240101.sql
-```
-
-### Full Backup
-
-```bash
-# Backup everything
-tar -czf backup_$(date +%Y%m%d).tar.gz \
-  .env \
-  docker-compose.yml \
-  backend/ \
-  bot/ \
-  admin-panel/
-
-# Upload to remote storage
-# aws s3 cp backup_20240101.tar.gz s3://your-bucket/
-```
-
-## Updates
-
-### Update Code
-
-```bash
-cd /opt/telegram-growth-platform
-git pull origin main
-docker-compose down
-docker-compose build
-docker-compose up -d
-```
-
-### Update Dependencies
-
-```bash
-# Backend
-cd backend
-npm update
-npm run build
-
-# Bot
-cd ../bot
-npm update
-npm run build
-
-# Rebuild containers
-cd ..
-docker-compose build
-docker-compose up -d
-```
-
-## Security Checklist
-
-- [ ] Change default admin password
-- [ ] Use strong JWT_SECRET
-- [ ] Use strong database password
-- [ ] Enable SSL/TLS (HTTPS)
-- [ ] Set up firewall (ufw/iptables)
-- [ ] Restrict database access
-- [ ] Set up webhook secret
-- [ ] Regular backups
-- [ ] Keep dependencies updated
-- [ ] Monitor logs for suspicious activity
-
-## Performance Optimization
-
-### Database
-
-```sql
--- Add indexes for frequently queried columns
-CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at);
-CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
-
--- Analyze and vacuum regularly
-ANALYZE;
-VACUUM;
-```
-
-### Redis
-
-```bash
-# Set memory limit
-docker-compose exec redis redis-cli CONFIG SET maxmemory 256mb
-docker-compose exec redis redis-cli CONFIG SET maxmemory-policy allkeys-lru
-```
-
-### Nginx
-
-- Enable gzip compression
-- Set up caching headers
-- Configure rate limiting
-
-## Troubleshooting
-
-### Bot Not Responding
-
-1. Check bot is running: `docker-compose ps`
-2. Check logs: `docker-compose logs bot`
-3. Verify BOT_TOKEN is correct
-4. Check network connectivity
-5. Verify webhook is set correctly (if using)
-
-### Database Connection Issues
-
-1. Check PostgreSQL is running
-2. Verify DATABASE_URL is correct
-3. Check database logs: `docker-compose logs postgres`
-4. Test connection: `docker-compose exec postgres psql -U telegram telegram_growth`
-
-### High Memory Usage
-
-1. Check Redis memory: `docker-compose exec redis redis-cli INFO memory`
-2. Optimize queries
-3. Increase swap space
-4. Upgrade server resources
-
-## Support
-
-For issues and support:
-- Create issue on GitHub
-- Check documentation
-- Review logs for errors
+# ENKPay Telegram 增长平台 — Render 部署操作手册
+
+> 适用版本：内测 v1.0（1000 用户规模）  
+> 部署平台：[Render](https://render.com)  
+> 最后更新：2026
 
 ---
 
-## Trading Feature Setup
+## 目录
 
-The instant-trading (Quick Session) feature requires additional database
-migrations and background services beyond the base setup.
+1. [内测前检查清单](#一内测前检查清单)
+2. [Render 环境变量说明](#二render-环境变量说明)
+3. [首次部署步骤](#三首次部署步骤)
+4. [数据库初始化说明](#四数据库初始化说明)
+5. [Render 计划升级路径](#五render-计划升级路径)
+6. [常见问题排查](#六常见问题排查)
+7. [内测反馈收集建议](#七内测反馈收集建议)
 
-### Required Migration
+---
 
-Run the trading schema migration **before** starting the backend:
+## 一、内测前检查清单
 
-```bash
-docker-compose exec postgres psql -U telegram -d telegram_growth \
-  -f /migrations/200_trading_rules_and_settlement.sql
+在触发首次 Render 部署前，请逐项确认：
+
+### 基础配置
+- [ ] `render.yaml` 已声明 Redis 服务（`telegram-growth-redis`）
+- [ ] Web Service `plan` 已设为 `standard`（2 GB RAM）
+- [ ] 数据库 `plan` 已设为 `basic-1gb`（1 GB RAM，100 连接）
+- [ ] `healthCheckPath: /health` 已配置
+- [ ] `autoDeploy: false` 已设置（内测期间手动控制部署）
+
+### 环境变量
+- [ ] `BOT_TOKEN` 已在 Render Dashboard 中手动填写
+- [ ] `WEBHOOK_DOMAIN` 已填写（格式：`https://your-service.onrender.com`）
+- [ ] `BOT_USERNAME` 已填写（格式：`your_bot_username`，不含 `@`）
+- [ ] `WEBAPP_URL` 已填写（Mini App 访问地址）
+- [ ] `BACKEND_URL` 已填写
+- [ ] `CORS_ORIGIN` 已填写（允许访问的前端域名，多个用英文逗号分隔）
+- [ ] `WALLET_ENCRYPTION_KEY` 已由 Render 自动生成（勿手动设置）
+- [ ] `JWT_SECRET` 已由 Render 自动生成
+- [ ] `ADMIN_PASSWORD` 已由 Render 自动生成（部署后在 Dashboard 查看）
+
+### 代码检查
+- [ ] `backend/src/routes/health.ts` 独立健康检查模块已存在
+- [ ] `/health` 端点会检查 DB 和 Redis，DB 失败时返回 `503`
+- [ ] 数据库连接池默认 `max=10`（Render 会通过环境变量覆盖为 `20`）
+- [ ] 所有 migrations 会在 `preDeployCommand` 和服务启动时自动运行
+
+---
+
+## 二、Render 环境变量说明
+
+以下变量在 `render.yaml` 中已预先声明；带 `sync: false` 的变量**必须**在 Render Dashboard 中手动填写，部署前不可遗漏。
+
+| 变量名 | 填写方式 | 说明 |
+|---|---|---|
+| `NODE_ENV` | 自动（`production`） | 生产环境标志 |
+| `USE_WEBHOOK` | 自动（`true`） | 使用 Telegram Webhook 模式 |
+| `DATABASE_URL` | 自动（fromDatabase） | Render 管理 DB 自动注入 |
+| `REDIS_URL` | 自动（fromService） | Render 管理 Redis 自动注入 |
+| `JWT_SECRET` | 自动生成 | 每次部署保持不变，勿手动修改 |
+| `ADMIN_USERNAME` | 自动（`admin`） | 管理后台登录用户名 |
+| `ADMIN_PASSWORD` | 自动生成 | 首次部署后在 Dashboard 查看 |
+| `BINANCE_API_URL` | 自动 | Binance API 地址 |
+| `DB_POOL_MAX` | 自动（`20`） | 数据库最大连接数 |
+| `DB_POOL_MIN` | 自动（`5`） | 数据库最小连接数 |
+| `WALLET_ENCRYPTION_KEY` | 自动生成 | 钱包加密密钥，**切勿丢失** |
+| `BETA_MODE` | 自动（`true`） | 内测模式标志 |
+| `MAX_USERS` | 自动（`1000`） | 内测用户上限（供业务逻辑读取） |
+| `LOG_LEVEL` | 自动（`debug`） | 内测期间输出详细日志 |
+| `BOT_TOKEN` | **手动填写** | 从 @BotFather 获取 |
+| `WEBHOOK_DOMAIN` | **手动填写** | 如 `https://xxx.onrender.com` |
+| `BOT_USERNAME` | **手动填写** | Bot 用户名（不含 `@`） |
+| `WEBAPP_URL` | **手动填写** | Mini App 完整 URL |
+| `BACKEND_URL` | **手动填写** | 后端服务完整 URL |
+| `CORS_ORIGIN` | **手动填写** | 前端域名，多个用英文逗号分隔 |
+
+---
+
+## 三、首次部署步骤
+
+### 1. 连接 GitHub 仓库
+
+1. 登录 [Render Dashboard](https://dashboard.render.com)
+2. 点击 **New → Blueprint**
+3. 选择此仓库，Render 会自动读取 `render.yaml`
+
+### 2. 填写手动环境变量
+
+在 Render Dashboard → Web Service → **Environment** 中，填写所有标注为"手动填写"的变量（见上表）。
+
+### 3. 触发首次部署
+
+由于 `autoDeploy: false`，在 Dashboard 中手动点击 **Deploy latest commit** 触发首次部署。
+
+### 4. 等待构建完成
+
+构建日志会依次显示：
+```
+Building mini-app...
+Building admin-panel...
+Building backend...
+Running preDeployCommand (DB migrations)...
+Starting server...
+✓ Database connection established
+✓ Redis connected
+✓ Backend server running on port ...
 ```
 
-Or directly:
+### 5. 验证健康检查
+
 ```bash
-psql "$DATABASE_URL" -f backend/db/migrations/200_trading_rules_and_settlement.sql
+curl https://your-service.onrender.com/health
 ```
 
-> If this step is skipped the `/api/trading/quick-session` endpoint returns
-> `503 Trading feature is not ready`.  Check `/api/trading/health` to confirm
-> which tables are missing.
+期望返回：
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-24T10:30:00.000Z",
+  "checks": {
+    "database": "ok",
+    "redis": "ok"
+  },
+  "version": "1.0.0",
+  "uptime": 12
+}
+```
 
-### Required: At Least One Trading Pair + Rule
+### 6. 注册 Bot Webhook
 
-After running the migration, seed at least one active pair and one rule:
+部署成功后，Render 会通过 `/health` 确认服务就绪，Bot Manager 会在启动时自动注册 Webhook。如需手动验证：
+
+```bash
+curl https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
+```
+
+确认 `url` 字段已指向你的 Render 服务地址。
+
+---
+
+## 四、数据库初始化说明
+
+### 自动运行（推荐）
+
+Render 的 `preDeployCommand` 会在每次部署时自动执行所有待运行的 migrations：
+
+```yaml
+preDeployCommand: cd backend && node -e "require('./dist/db/migrate').runMigrations()..."
+```
+
+服务启动时，`startServer()` 也会再次调用 `runMigrations()`，确保双重保障。
+
+### 手动验证 Migrations 状态
+
+如果怀疑 migrations 未正确运行，可在 Render Dashboard → PostgreSQL → **Connect** 中使用 `psql` 检查：
 
 ```sql
--- Insert a BTC/USDT trading pair (real = live Binance price)
-INSERT INTO trading_pairs (symbol, display_name, pair_type, binance_symbol, is_active)
-VALUES ('BTC', 'BTC/USDT', 'real', 'BTCUSDT', true);
+-- 查看已运行的 migrations
+SELECT * FROM migrations ORDER BY applied_at;
 
--- Insert a 1-minute trading rule for the pair (replace <pair_id> with the id above)
-INSERT INTO trading_rules (pair_id, duration_seconds, odds, min_bet, max_bet, is_active)
-VALUES (<pair_id>, 60, 1.95, 1, 10000, true);
-```
-
-### Required Background Job: Auto-Settle
-
-Trading orders are settled by the `auto-settle` job which runs every 10 seconds.
-Make sure the backend process starts this job (it is started automatically in
-`backend/src/index.ts` via `startAutoSettle()`).  Confirm it is running:
-
-```bash
-docker-compose logs backend | grep "auto-settle"
-```
-
-### Optional: Redis for Price Cache
-
-Real-time prices are cached in Redis (`REDIS_URL` env var).  Without Redis the
-platform falls back to direct Binance API calls for each request.  Set:
-
-```env
-REDIS_URL=redis://redis:6379
-```
-
-### Verify Trading Readiness
-
-```bash
-curl https://yourdomain.com/api/trading/health
-# Returns: {"status":"ok",...} when ready
-# Returns: {"status":"migration_required",...} when migrations are missing
+-- 确认关键表存在
+\dt
 ```
 
 ---
 
-## Multi-Bot + MiniApp Configuration
+## 五、Render 计划升级路径
 
-When running **multiple bots**, the Telegram Mini App authenticates the user via
-`initData` signed with the **bot token that opened the WebApp**.
+随着用户量增长，按以下路径升级 Render 计划：
 
-### How Token Validation Works
+| 阶段 | 用户量 | Web Service | PostgreSQL | Redis | 估算月费 |
+|---|---|---|---|---|---|
+| **内测** | ~1,000 | Standard（2 GB） | Basic-1gb | Starter | ~$54/月 |
+| **成长期** | ~5,000 | Pro（4 GB） | Pro-4gb | Standard | ~$190/月 |
+| **扩张期** | ~10,000 | Pro Plus（8 GB）或 2 × Standard | Pro-8gb | Standard | ~$400/月 |
+| **大规模** | 10,000+ | 多实例 + 微服务拆分 | Pro-16gb + 读副本 | 独立集群 | $800+/月 |
 
-The backend (`backend/src/middleware/miniapp-auth.ts`) tries tokens in order:
+### 升级操作步骤
 
-1. `BOT_TOKEN` environment variable (highest priority)
-2. All tokens from `bots` table where `is_active = true` (DB-sourced)
+1. 登录 Render Dashboard → 进入对应服务
+2. **Settings → Instance Type** → 选择更高规格
+3. 同步更新 `render.yaml` 中的 `plan` 字段，保持配置与实际一致
+4. 数据库升级前请先创建备份（Dashboard → PostgreSQL → **Backups**）
 
-The first token that produces a matching HMAC hash is accepted.
+### 中期扩容建议
 
-### Correct Multi-Bot Setup
-
-1. **Add every bot token to the `bots` table** with `is_active = true`.
-2. Keep `BOT_TOKEN` set to the **primary / default bot token** in `.env`.
-3. All additional bots must be registered in DB (Step 8 of this guide).
-
-```sql
--- Verify active bots
-SELECT id, name, username, is_active FROM bots WHERE is_active = true;
-```
-
-### Common Mistake: Token Mismatch
-
-If `BOT_TOKEN` in `.env` belongs to Bot A but the user opens the Mini App via
-Bot B, authentication fails with `401 Invalid init data signature`.
-
-Fix: ensure Bot B's token is present in the `bots` table with `is_active = true`
-(the middleware will try it as a fallback candidate).
-
-```sql
-UPDATE bots SET is_active = true WHERE username = 'your_bot_b_username';
-```
-
-### Nginx: Preserve X-Telegram-Init-Data Header
-
-Make sure your Nginx proxy does **not** strip or modify custom headers:
-
-```nginx
-location /api/ {
-    proxy_pass http://localhost:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    # Do NOT add proxy_hide_header or header filtering here
-}
-```
+- 将高频定时任务（`real-price-snapshot`、`auto-settle`）拆分为独立的 **Render Background Worker**，减轻 Web Service 事件循环压力
+- 在 Standard 及以上计划中启用 **Auto-Scaling**（Dashboard → Settings → Scaling），应对突发流量
+- 用户量超过 5,000 后考虑将 Bot 模块与 API 分离成独立 Web Service
 
 ---
 
-## Troubleshooting
+## 六、常见问题排查
 
-### MiniApp Shows ID:#N/A or Balance = 0
+### DB 连接失败
 
-**Cause A – App opened outside Telegram (development/testing)**
+**现象**：`/health` 返回 `{"status":"unhealthy","checks":{"database":"error",...}}`，HTTP 503
 
-The Telegram WebApp SDK is not available in a regular browser, so `initData` is
-empty and `tgUser` is `undefined`.  This is expected behaviour outside Telegram.
+**排查步骤**：
 
-Fix: always test the Mini App via the bot link inside Telegram.
-
-**Cause B – Bot token mismatch (production)**
-
-The `X-Telegram-Init-Data` signature cannot be verified because `BOT_TOKEN` or
-the DB tokens do not match the bot that opened the WebApp.
-
-Diagnosis:
-```bash
-# Check backend logs for the exact error
-docker-compose logs backend | grep "miniapp-auth"
-# Look for: REJECTED: HMAC hash mismatch  or  No bot tokens available
-```
-
-Fix: add the correct bot token to the `bots` table (see Multi-Bot section above).
-
-**Cause C – Duplicate telegram_id records in the database**
-
-The miniApp reads the oldest user record (`ORDER BY created_at ASC LIMIT 1`)
-but a newer duplicate record holds the actual balance.
-
-Diagnosis:
-```sql
-SELECT telegram_id, COUNT(*), SUM(wallet_balance)
-FROM users
-GROUP BY telegram_id HAVING COUNT(*) > 1;
-```
-
-Fix: run the one-time deduplication helper:
-```bash
-psql "$DATABASE_URL" -f scripts/fix_duplicate_users.sql
-```
-Uncomment the `BEGIN … COMMIT` block in that file first; review the preview
-output before committing.
+1. 检查 Render Dashboard → PostgreSQL → **Status** 是否为 `Available`
+2. 检查 Web Service 日志：
+   ```
+   ⚠ DB not ready (attempt 1/10): ...
+   ```
+3. 确认 `DATABASE_URL` 环境变量已正确注入（应以 `postgres://` 或 `postgresql://` 开头）
+4. 若 DB 刚创建，等待约 2 分钟让其完全启动
 
 ---
 
-### Instant Trading Not Working
+### Redis 不可用
 
-**Symptom:** Button disabled, or API returns 503 / 500.
+**现象**：`/health` 返回 `{"status":"degraded","checks":{"redis":"unavailable",...}}`，HTTP 200
 
-1. **Check trading readiness endpoint:**
+**说明**：Redis 不可用属于**非致命**状态，服务仍正常运行，但限流器和缓存会退化为内存模式。
+
+**排查步骤**：
+
+1. 检查 Render Dashboard → Redis（`telegram-growth-redis`）→ **Status** 是否为 `Available`
+2. 确认 `REDIS_URL` 环境变量已正确注入（应以 `redis://` 或 `rediss://` 开头）
+3. 检查 Redis 服务日志，查找连接拒绝等错误
+
+---
+
+### Bot Webhook 未注册
+
+**现象**：Bot 不响应用户消息，Telegram 无法推送更新
+
+**排查步骤**：
+
+1. 确认 `BOT_TOKEN`、`WEBHOOK_DOMAIN` 环境变量均已正确填写
+2. 查看服务启动日志，确认以下输出存在：
+   ```
+   ✓ Webhook registered for bot ...
+   ```
+3. 手动验证 Webhook 状态：
    ```bash
-   curl https://yourdomain.com/api/trading/health
+   curl https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
    ```
-   If `status` is `migration_required`, run the `200_trading_rules_and_settlement.sql`
-   migration (see Trading Feature Setup above).
-
-2. **No active trading pairs or rules:**
-   ```sql
-   SELECT * FROM trading_pairs WHERE is_active = true;
-   SELECT * FROM trading_rules WHERE is_active = true;
-   ```
-   Seed at least one pair + rule if the tables are empty.
-
-3. **Auth failure when placing order:**
-   Check backend logs for `[miniapp-auth] REJECTED`.  The order API uses the
-   same Telegram initData auth as the profile page – fix the token mismatch first.
-
-4. **Auto-settle job not running:**
-   Orders stay in `active` state indefinitely if the settle job is down.
+4. 如果 `url` 为空或指向旧地址，手动重新注册：
    ```bash
-   docker-compose logs backend | grep -E "(auto-settle|settlement)"
+   curl -X POST https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://your-service.onrender.com/webhook/<YOUR_BOT_TOKEN>"}'
    ```
 
 ---
 
-*Last updated: 2026*
+### 服务频繁 OOM（内存溢出）重启
+
+**现象**：Render 日志中出现 `Out of memory` 或进程频繁重启
+
+**解决方案**：
+
+1. 确认 Web Service 计划为 `standard`（2 GB），而非 `starter`（512 MB）
+2. 检查 `LOG_LEVEL=debug` 是否产生过多日志累积（内测结束后改为 `info`）
+3. 若问题持续，升级到 `pro`（4 GB）或将高频 Jobs 拆分为独立 Worker
+
+---
+
+### 管理后台无法登录
+
+**现象**：访问 `/admin` 时用户名密码认证失败
+
+**解决方案**：
+
+1. 在 Render Dashboard → Web Service → **Environment** 中找到 `ADMIN_PASSWORD`（自动生成的值）
+2. 使用该密码配合用户名 `admin` 登录
+
+---
+
+## 七、内测反馈收集建议
+
+内测期间建议通过以下方式收集用户反馈：
+
+1. **Telegram 反馈群**：创建专用内测反馈群，引导用户提交 Bug 和建议
+2. **Bot 内置反馈命令**：可在 Bot 中添加 `/feedback` 命令，将反馈直接写入数据库或转发到管理群
+3. **日志监控**：`LOG_LEVEL=debug` 已开启，通过 Render Dashboard → **Logs** 实时查看异常
+4. **健康检查监控**：定期或使用外部服务（如 UptimeRobot）定时访问 `/health`，一旦返回 `503` 即告警
+5. **数据库性能**：内测期间定期在 PostgreSQL → **Metrics** 中查看连接数和查询性能，避免连接池耗尽
+
+---
+
+*本文档适用于 Render 付费层 + 内测阶段（1000 用户规模）部署。生产环境正式上线前请根据实际情况调整各项参数。*
