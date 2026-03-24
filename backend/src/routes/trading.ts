@@ -885,8 +885,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
       // For real pairs with a Binance symbol, align open_price with the current 1m kline
       // open price so it matches the close price used by auto-settle for settlement.
-      // Fall back to the price_points value if the Binance call fails.
-      let finalEntryPrice = entryPrice;
+      // If the Binance call fails, open_price stays NULL so auto-settle's null-open-price
+      // fallback logic can handle it correctly.  Do NOT fall back to the tick price here.
+      let klineOpenPrice: number | null = null;
       if (pairRow.pair_type === 'real' && pairRow.binance_symbol) {
         try {
           const klines = await binanceFetch('/api/v3/klines', {
@@ -896,11 +897,14 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           });
           if (Array.isArray(klines) && klines.length > 0) {
             // Binance kline format: [openTime, open, high, low, close, volume, ...]
-            finalEntryPrice = parseFloat(klines[0][1]); // index 1 = open price
+            klineOpenPrice = parseFloat(klines[0][1]); // index 1 = open price
           }
         } catch (binanceErr: any) {
-          console.warn('[quick-session] Binance kline fetch failed, using price_points price:', binanceErr.message);
+          console.warn('[quick-session] Binance kline fetch failed, open_price will be NULL:', binanceErr.message);
         }
+      } else {
+        // For custom pairs use the price_points price as the open_price baseline
+        klineOpenPrice = entryPrice;
       }
 
       // Try to reuse an existing active/pending session for the same period
@@ -946,7 +950,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
             `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
              VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
              RETURNING *`,
-            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, finalEntryPrice]
+            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
           );
         } catch (insertErr: any) {
           // Fallback: period_label column might not exist yet (migration not applied)
@@ -956,7 +960,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
               `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
                VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
                RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, finalEntryPrice]
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, klineOpenPrice]
             );
           } else {
             throw insertErr;
@@ -1000,7 +1004,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
          (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
          RETURNING *`,
-        [session.id, user_id, pairIdInt, direction, orderAmount, finalEntryPrice, ruleId, odds]
+        [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
       );
 
       return {
@@ -1009,18 +1013,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           start_time: session.start_time,
           end_time: session.end_time,
           status: session.status,
-          open_price: session.open_price ?? finalEntryPrice,
+          open_price: session.open_price ?? klineOpenPrice,
         },
         order: {
           id: orderResult.rows[0].id,
           direction,
           amount: orderAmount,
-          entry_price: finalEntryPrice,
+          entry_price: entryPrice,
           odds,
           status: 'pending',
         },
         odds,
-        entry_price: finalEntryPrice,
+        entry_price: entryPrice,
         expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
       };
     });
