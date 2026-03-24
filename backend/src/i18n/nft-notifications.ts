@@ -56,3 +56,76 @@ export function buildNFTMaturityReturnNotification(params: {
     product_name: params.product_name,
   });
 }
+
+// ── Transaction description templates ─────────────────────────────────────────
+
+const NFT_PURCHASE_DESC_TEMPLATES: Record<string, string> = {
+  en: 'Purchased NFT product: {product_name}',
+  zh: '购买定期产品：{product_name}',
+  ja: 'NFT定期商品を購入しました：{product_name}',
+  ar: 'تم شراء منتج NFT: {product_name}',
+  fr: 'Produit NFT acheté: {product_name}',
+  de: 'NFT-Produkt gekauft: {product_name}',
+  es: 'Producto NFT comprado: {product_name}',
+};
+
+const NFT_INCOME_DESC_TEMPLATES: Record<string, string> = {
+  en: 'Day {day} yield from NFT product: {product_name}',
+  zh: '第{day}天收益 - {product_name}',
+  ja: '{product_name} {day}日目の収益',
+  ar: 'عائد اليوم {day} من منتج NFT: {product_name}',
+  fr: 'Rendement jour {day} du produit NFT: {product_name}',
+  de: 'Tag {day} Ertrag aus NFT-Produkt: {product_name}',
+  es: 'Rendimiento del día {day} del producto NFT: {product_name}',
+};
+
+const NFT_PRINCIPAL_RETURN_DESC_TEMPLATES: Record<string, string> = {
+  en: 'Principal returned for NFT product: {product_name}',
+  zh: '本金返还 - {product_name}',
+  ja: 'NFT商品の元本返還：{product_name}',
+  ar: 'إعادة رأس المال لمنتج NFT: {product_name}',
+  fr: 'Capital remboursé pour le produit NFT: {product_name}',
+  de: 'Kapitalrückgabe für NFT-Produkt: {product_name}',
+  es: 'Capital devuelto para el producto NFT: {product_name}',
+};
+
+const NFT_PURCHASE_SUCCESS_TEMPLATES: Record<string, string> = {
+  en: 'Purchase successful. Yield starts from the next day.',
+  zh: '购买成功，次日起收益自动到账',
+  ja: '購入成功。翌日から収益が自動入金されます。',
+  ar: 'تم الشراء بنجاح. يبدأ العائد من اليوم التالي.',
+  fr: 'Achat réussi. Le rendement commence dès le lendemain.',
+  de: 'Kauf erfolgreich. Der Ertrag beginnt ab dem nächsten Tag.',
+  es: 'Compra exitosa. El rendimiento comienza a partir del día siguiente.',
+};
+
+export function buildNFTPurchaseDescription(params: {
+  lang: string;
+  product_name: string;
+}): string {
+  const tpl = NFT_PURCHASE_DESC_TEMPLATES[params.lang] || NFT_PURCHASE_DESC_TEMPLATES['en'];
+  return fill(tpl, { product_name: params.product_name });
+}
+
+export function buildNFTIncomeDescription(params: {
+  lang: string;
+  product_name: string;
+  day: number;
+}): string {
+  const tpl = NFT_INCOME_DESC_TEMPLATES[params.lang] || NFT_INCOME_DESC_TEMPLATES['en'];
+  return fill(tpl, { product_name: params.product_name, day: String(params.day) });
+}
+
+export function buildNFTPrincipalReturnDescription(params: {
+  lang: string;
+  product_name: string;
+}): string {
+  const tpl = NFT_PRINCIPAL_RETURN_DESC_TEMPLATES[params.lang] || NFT_PRINCIPAL_RETURN_DESC_TEMPLATES['en'];
+  return fill(tpl, { product_name: params.product_name });
+}
+
+export function buildNFTPurchaseSuccessMessage(params: {
+  lang: string;
+}): string {
+  return NFT_PURCHASE_SUCCESS_TEMPLATES[params.lang] || NFT_PURCHASE_SUCCESS_TEMPLATES['en'];
+}

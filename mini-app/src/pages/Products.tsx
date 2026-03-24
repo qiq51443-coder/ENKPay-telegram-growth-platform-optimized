@@ -83,7 +83,7 @@ export const Products: React.FC = () => {
 
   useEffect(() => {
     if (activeView === 'mine') fetchHoldings();
-  }, [activeView]);
+  }, [activeView, lang]);
 
   const fetchProducts = async () => {
     try {
@@ -99,7 +99,7 @@ export const Products: React.FC = () => {
   const fetchHoldings = async () => {
     setHoldingsLoading(true);
     try {
-      const data = await api.get('/nft/holdings/my');
+      const data = await api.get('/nft/holdings/my', { params: { lang } });
       setHoldings(data.data?.data || []);
     } catch {
       setHoldings([]);

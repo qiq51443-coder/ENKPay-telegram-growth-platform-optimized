@@ -159,8 +159,11 @@ export const UserDetail: React.FC = () => {
           auction_join:   { text: '夺宝参与',   color: 'purple' },
           auction_redeem: { text: '夺宝兑奖',   color: 'gold' },
           auction_refund: { text: '夺宝退款',   color: 'blue' },
-          nft_purchase:   { text: 'NFT购买',    color: 'blue' },
-          nft_settle:     { text: 'NFT结算收益', color: 'green' },
+          nft_purchase:         { text: 'NFT购买',    color: 'blue' },
+          nft_settle:           { text: 'NFT结算收益', color: 'green' },
+          product_purchase:     { text: 'NFT购买',    color: 'blue' },
+          nft_income:           { text: 'NFT收益',    color: 'green' },
+          nft_principal_return: { text: 'NFT本金返还', color: 'cyan' },
         };
         const info = typeMap[type] || { text: type, color: 'default' };
         return <Tag color={info.color}>{info.text}</Tag>;

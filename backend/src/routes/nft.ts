@@ -10,6 +10,12 @@ import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/a
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { runNFTDailySettle } from '../jobs/nft-daily-settle';
+import {
+  buildNFTPurchaseDescription,
+  buildNFTIncomeDescription,
+  buildNFTPrincipalReturnDescription,
+  buildNFTPurchaseSuccessMessage,
+} from '../i18n/nft-notifications';
 
 const router = express.Router();
 
@@ -447,7 +453,7 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
 
       // Get user balance
       const userResult = await client.query(
-        'SELECT wallet_balance FROM users WHERE id = $1',
+        'SELECT wallet_balance, language_code FROM users WHERE id = $1',
         [user_id]
       );
 
@@ -500,6 +506,15 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
          VALUES ($1, $2, $3, 'active', $4)
          RETURNING *`,
         [user_id, product_id, product.price, expiresAt]
+      );
+
+      // Write transactions record
+      const lang = ((user.language_code as string) || 'en').split('-')[0];
+      const purchaseDesc = buildNFTPurchaseDescription({ lang, product_name: product.name });
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+         SELECT $1, 'product_purchase', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+        [user_id, -parseFloat(product.price), purchaseDesc, String(holdingResult.rows[0].id)]
       );
 
       // Trigger first trade reward for referrer
@@ -634,7 +649,7 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
     await transaction(async (client) => {
       // ✅ Fix: use wallet_balance instead of balance
       const userResult = await client.query(
-        `SELECT id, wallet_balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        `SELECT id, wallet_balance, language_code FROM users WHERE telegram_id = $1 FOR UPDATE`,
         [telegramId]
       );
       if (userResult.rows.length === 0) throw new Error('User not found');
@@ -677,9 +692,9 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       const endDate = new Date(startDate.getTime() + termDays * 86400000);
 
       // Write to product_holdings (for nft-yield.service.ts compatibility)
-      await client.query(
+      const holdingInsert = await client.query(
         `INSERT INTO product_holdings (user_id, product_id, amount, start_date, end_date, status)
-         VALUES ($1, $2, $3, $4, $5, 'active')`,
+         VALUES ($1, $2, $3, $4, $5, 'active') RETURNING id`,
         [user.id, productId, amount, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
       );
 
@@ -688,15 +703,20 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
         [productId]
       );
 
-      // ✅ Fix: use wallet_balance in balance_after subquery
+      // Write transactions record with i18n description
+      const lang = ((user.language_code as string) || 'en').split('-')[0];
+      const purchaseDesc = buildNFTPurchaseDescription({ lang, product_name: product.name });
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
          SELECT $1, 'product_purchase', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
-        [user.id, -amount, `购买定期产品: ${product.name}`, String(productId)]
+        [user.id, -amount, purchaseDesc, String(holdingInsert.rows[0].id)]
       );
-    });
 
-    res.json({ success: true, message: '购买成功，次日起收益自动到账' });
+      return { lang };
+    }).then(({ lang }) => {
+      const successMsg = buildNFTPurchaseSuccessMessage({ lang });
+      res.json({ success: true, message: successMsg });
+    });
   } catch (error: any) {
     console.error('Product purchase error:', error);
     res.status(400).json({ error: error.message });
@@ -713,11 +733,13 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
     if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
 
     const userResult = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      `SELECT id, language_code FROM users WHERE telegram_id = $1 LIMIT 1`,
       [telegramId]
     );
     if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const userId = userResult.rows[0].id;
+    // Determine language: prefer ?lang query param, fallback to user's stored language_code
+    const lang = ((req.query.lang as string) || (userResult.rows[0].language_code as string) || 'en').split('-')[0];
 
     const result = await query(
       `SELECT ph.*, p.name as product_name, p.image_url, p.daily_yield_rate, p.term_days
@@ -754,7 +776,7 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
       order_records.push({
         type: 'purchase',
         amount: -parseFloat(h.amount || 0),
-        description: `购买 ${h.product_name}`,
+        description: buildNFTPurchaseDescription({ lang, product_name: h.product_name }),
         created_at: h.created_at,
       });
       // Daily income entries
@@ -762,7 +784,7 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
         order_records.push({
           type: 'income',
           amount: parseFloat(r.amount || 0),
-          description: `第${idx + 1}天收益`,
+          description: buildNFTIncomeDescription({ lang, product_name: h.product_name, day: idx + 1 }),
           income_date: r.income_date,
           created_at: r.created_at,
         });
@@ -772,7 +794,7 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
         order_records.push({
           type: 'principal',
           amount: parseFloat(h.amount || 0),
-          description: '本金返还',
+          description: buildNFTPrincipalReturnDescription({ lang, product_name: h.product_name }),
           created_at: h.updated_at || h.end_date,
         });
       }
