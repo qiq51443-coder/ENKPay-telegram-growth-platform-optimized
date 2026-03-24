@@ -47,6 +47,19 @@ interface Order {
   display_name?: string;
 }
 
+interface TradingSession {
+  id: string;
+  pair_id: string;
+  status: string;
+  start_time: string;
+  end_time: string;
+  duration_seconds: number;
+  period_label?: string;
+  open_price?: string;
+  up_count: number;
+  down_count: number;
+}
+
 const DURATION_OPTIONS = [
   { labelKey: 'duration_1min', seconds: 60, periodsPerDay: 1440 },
   { labelKey: 'duration_5min', seconds: 300, periodsPerDay: 288 },
@@ -171,6 +184,8 @@ export const Trading: React.FC = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sessions, setSessions] = useState<TradingSession[]>([]);
+  const sessionsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync availableBalance from UserContext whenever context user changes
   useEffect(() => {
@@ -192,6 +207,7 @@ export const Trading: React.FC = () => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (pairsPollRef.current) clearInterval(pairsPollRef.current);
+      if (sessionsPollRef.current) clearInterval(sessionsPollRef.current);
       if (chartTickRef.current) clearTimeout(chartTickRef.current);
       if (orderErrorTimerRef.current) clearTimeout(orderErrorTimerRef.current);
       if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
@@ -245,6 +261,27 @@ export const Trading: React.FC = () => {
       fetchRulesForPair(selectedPair);
     }, 60000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPair?.id]);
+
+  // Poll sessions for the selected pair to get persistent up_count / down_count
+  useEffect(() => {
+    if (!selectedPair) {
+      if (sessionsPollRef.current) clearInterval(sessionsPollRef.current);
+      setSessions([]);
+      return;
+    }
+    const fetchSessions = async () => {
+      try {
+        const res = await api.get('/trading/sessions', { params: { pair_id: selectedPair.id } });
+        setSessions(res.data?.data || []);
+      } catch (err) {
+        console.warn('[Trading] fetchSessions error:', err);
+      }
+    };
+    fetchSessions();
+    sessionsPollRef.current = setInterval(fetchSessions, 5000);
+    return () => { if (sessionsPollRef.current) clearInterval(sessionsPollRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPair?.id]);
 
@@ -526,6 +563,29 @@ export const Trading: React.FC = () => {
         })
       );
       setPrices((prev) => ({ ...prev, ...updates }));
+
+      // Push the latest price tick into the K-line chart for the currently selected pair
+      const selectedPair = selectedPairRef.current;
+      if (selectedPair && updates[selectedPair.id] != null) {
+        const latestPrice = updates[selectedPair.id].price;
+        if (
+          latestPrice > 0 &&
+          candleSeriesRef.current &&
+          lastKlineTimeRef.current > 0 &&
+          lastCandleRef.current
+        ) {
+          const prev = lastCandleRef.current;
+          const updatedCandle = {
+            time: lastKlineTimeRef.current,
+            open: prev.open,
+            high: Math.max(prev.high, latestPrice),
+            low: Math.min(prev.low, latestPrice),
+            close: latestPrice,
+          };
+          try { candleSeriesRef.current.update(updatedCandle); } catch { /* ignore */ }
+          lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: updatedCandle.close };
+        }
+      }
     };
     fetchPrices();
     if (pollRef.current) clearInterval(pollRef.current);
@@ -1010,6 +1070,34 @@ export const Trading: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Session buyer counts — sourced from server-side aggregation (up_count / down_count) */}
+        {(() => {
+          const activeSession = sessions.find(
+            (s) => s.duration_seconds === selectedDuration && (s.status === 'active' || s.status === 'pending')
+          );
+          if (!activeSession) return null;
+          return (
+            <div style={{
+              backgroundColor: theme.bgCard,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '8px',
+              padding: '6px 12px',
+              marginBottom: '8px',
+              display: 'flex',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              fontSize: '13px',
+            }}>
+              <span style={{ color: '#26a69a', fontWeight: 600 }}>
+                📈 {activeSession.up_count ?? 0} 人买涨
+              </span>
+              <span style={{ color: '#ef5350', fontWeight: 600 }}>
+                📉 {activeSession.down_count ?? 0} 人买跌
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Result banner */}
         {resultMsg && (

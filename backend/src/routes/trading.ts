@@ -2,7 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
-import { getPairPrice, getKlineData, cacheKlineData } from '../services/price.service';
+import { getPairPrice, getKlineData, cacheKlineData, binanceFetch } from '../services/price.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
 import { getCurrentPeriod, getNextPeriod, resolvePeriodFromClient, resolvePeriodFromLabel, PeriodInfo } from '../services/period.service';
@@ -329,12 +329,15 @@ router.get('/sessions', async (req, res) => {
     const { pair_id } = req.query;
 
     let queryText = `
-      SELECT 
+      SELECT
         s.*,
         p.symbol,
-        COALESCE(p.display_name, p.name, p.symbol) as display_name
+        COALESCE(p.display_name, p.name, p.symbol) as display_name,
+        COUNT(CASE WHEN o.direction = 'up'   THEN 1 END)::int AS up_count,
+        COUNT(CASE WHEN o.direction = 'down' THEN 1 END)::int AS down_count
       FROM trading_sessions s
       JOIN trading_pairs p ON s.pair_id = p.id
+      LEFT JOIN trading_orders o ON o.session_id = s.id AND o.status IN ('active', 'pending', 'settled')
       WHERE s.status IN ('pending', 'active')
     `;
     const params: any[] = [];
@@ -344,7 +347,7 @@ router.get('/sessions', async (req, res) => {
       queryText += ` AND s.pair_id = $${params.length}`;
     }
 
-    queryText += ` ORDER BY COALESCE(s.start_time, s.start_at)`;
+    queryText += ` GROUP BY s.id, p.symbol, p.display_name, p.name ORDER BY COALESCE(s.start_time, s.start_at)`;
 
     const result = await query(queryText, params);
 
@@ -366,10 +369,14 @@ router.get('/sessions/:id', authenticateMiniApp, async (req: MiniAppAuthRequest,
   try {
     const { id } = req.params;
     const result = await query(
-      `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name
+      `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
+              COUNT(CASE WHEN o.direction = 'up'   THEN 1 END)::int AS up_count,
+              COUNT(CASE WHEN o.direction = 'down' THEN 1 END)::int AS down_count
        FROM trading_sessions s
        JOIN trading_pairs p ON s.pair_id = p.id
-       WHERE s.id = $1`,
+       LEFT JOIN trading_orders o ON o.session_id = s.id AND o.status IN ('active', 'pending', 'settled')
+       WHERE s.id = $1
+       GROUP BY s.id, p.symbol, p.display_name, p.name`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -758,14 +765,15 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     const result = await transaction(async (client) => {
       // Get trading pair (use integer pairIdInt to avoid string/int type mismatch)
       const pairResult = await client.query(
-        'SELECT id, symbol, display_name, is_active FROM trading_pairs WHERE id = $1',
+        'SELECT id, symbol, display_name, is_active, pair_type, binance_symbol FROM trading_pairs WHERE id = $1',
         [pairIdInt]
       );
       console.log(`[quick-session] pair lookup: pairIdInt=${pairIdInt}, found=${pairResult.rows.length}`);
       if (pairResult.rows.length === 0) {
         throw Object.assign(new Error(`Trading pair not found: id=${pairIdInt}`), { statusCode: 404 });
       }
-      if (!pairResult.rows[0].is_active) {
+      const pairRow = pairResult.rows[0];
+      if (!pairRow.is_active) {
         throw Object.assign(new Error(`Trading pair is inactive: id=${pairIdInt}`), { statusCode: 400 });
       }
 
@@ -875,6 +883,26 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         }
       }
 
+      // For real pairs with a Binance symbol, align open_price with the current 1m kline
+      // open price so it matches the close price used by auto-settle for settlement.
+      // Fall back to the price_points value if the Binance call fails.
+      let finalEntryPrice = entryPrice;
+      if (pairRow.pair_type === 'real' && pairRow.binance_symbol) {
+        try {
+          const klines = await binanceFetch('/api/v3/klines', {
+            symbol: pairRow.binance_symbol,
+            interval: '1m',
+            limit: 1,
+          });
+          if (Array.isArray(klines) && klines.length > 0) {
+            // Binance kline format: [openTime, open, high, low, close, volume, ...]
+            finalEntryPrice = parseFloat(klines[0][1]); // index 1 = open price
+          }
+        } catch (binanceErr: any) {
+          console.warn('[quick-session] Binance kline fetch failed, using price_points price:', binanceErr.message);
+        }
+      }
+
       // Try to reuse an existing active/pending session for the same period
       // Lookup by period_label when available, otherwise by start_time alignment
       let session: any;
@@ -915,20 +943,20 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         let sessionInsertResult;
         try {
           sessionInsertResult = await client.query(
-            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at)
-             VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
+            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+             VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
              RETURNING *`,
-            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime]
+            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, finalEntryPrice]
           );
         } catch (insertErr: any) {
           // Fallback: period_label column might not exist yet (migration not applied)
           // PostgreSQL error code 42703 = undefined_column
           if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
             sessionInsertResult = await client.query(
-              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at)
-               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7)
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
+               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
                RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime]
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, finalEntryPrice]
             );
           } else {
             throw insertErr;
@@ -970,9 +998,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       const orderResult = await client.query(
         `INSERT INTO trading_orders
          (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
-         VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, 'pending')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
          RETURNING *`,
-        [session.id, user_id, pairIdInt, direction, orderAmount, ruleId, odds]
+        [session.id, user_id, pairIdInt, direction, orderAmount, finalEntryPrice, ruleId, odds]
       );
 
       return {
@@ -981,17 +1009,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           start_time: session.start_time,
           end_time: session.end_time,
           status: session.status,
+          open_price: session.open_price ?? finalEntryPrice,
         },
         order: {
           id: orderResult.rows[0].id,
           direction,
           amount: orderAmount,
-          entry_price: null,
+          entry_price: finalEntryPrice,
           odds,
           status: 'pending',
         },
         odds,
-        entry_price: null,
+        entry_price: finalEntryPrice,
         expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
       };
     });
