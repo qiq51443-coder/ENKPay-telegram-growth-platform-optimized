@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, TranslationOutlined,
-  TeamOutlined, LoadingOutlined,
+  TeamOutlined, LoadingOutlined, ThunderboltOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -89,6 +89,11 @@ export const NFTProducts: React.FC = () => {
   const [holders, setHolders] = useState<Holder[]>([]);
   const [holdersTotal, setHoldersTotal] = useState(0);
   const [holdersLoading, setHoldersLoading] = useState(false);
+
+  // Settle state
+  const [settleLoading, setSettleLoading] = useState(false);
+  const [settleStatus, setSettleStatus] = useState<any>(null);
+  const [settleStatusVisible, setSettleStatusVisible] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -246,6 +251,32 @@ export const NFTProducts: React.FC = () => {
       message.error('获取持有用户失败');
     } finally {
       setHoldersLoading(false);
+    }
+  };
+
+  const handleCheckSettleStatus = async () => {
+    try {
+      const response = await apiClient.getNFTSettleStatus();
+      setSettleStatus(response);
+      setSettleStatusVisible(true);
+    } catch (error) {
+      message.error('获取结算状态失败');
+    }
+  };
+
+  const handleTriggerSettle = async () => {
+    setSettleLoading(true);
+    try {
+      await apiClient.triggerNFTSettle();
+      message.success('结算任务已触发，请稍后查看结算状态');
+      // Auto-refresh settle status after triggering
+      const statusResponse = await apiClient.getNFTSettleStatus();
+      setSettleStatus(statusResponse);
+      setSettleStatusVisible(true);
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '结算触发失败');
+    } finally {
+      setSettleLoading(false);
     }
   };
 
@@ -465,9 +496,25 @@ export const NFTProducts: React.FC = () => {
           <h2 style={{ margin: 0 }}>NFT 产品管理</h2>
           <p style={{ color: '#666', marginTop: 4 }}>管理 NFT 产品和库存</p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenDrawer()}>
-          添加产品
-        </Button>
+        <Space>
+          <Button icon={<CheckCircleOutlined />} onClick={handleCheckSettleStatus}>
+            查看结算状态
+          </Button>
+          <Popconfirm
+            title="手动结算收益"
+            description="确认触发今日 NFT 收益结算？已结算用户将不会重复结算。"
+            onConfirm={handleTriggerSettle}
+            okText="确认结算"
+            cancelText="取消"
+          >
+            <Button type="primary" icon={<ThunderboltOutlined />} loading={settleLoading}>
+              手动结算收益
+            </Button>
+          </Popconfirm>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenDrawer()}>
+            添加产品
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -869,6 +916,43 @@ export const NFTProducts: React.FC = () => {
               rowKey="holding_id"
               pagination={{ pageSize: 10 }}
               size="small"
+            />
+          </>
+        )}
+      </Modal>
+
+      {/* Settle Status Modal */}
+      <Modal
+        title="结算状态"
+        open={settleStatusVisible}
+        onCancel={() => setSettleStatusVisible(false)}
+        footer={<Button onClick={() => setSettleStatusVisible(false)}>关闭</Button>}
+        width={800}
+      >
+        {settleStatus && (
+          <>
+            <div style={{ marginBottom: 16, display: 'flex', gap: 24 }}>
+              <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '12px 20px' }}>
+                <div style={{ color: '#52c41a', fontWeight: 600, fontSize: 24 }}>{settleStatus.today_settled_count ?? 0}</div>
+                <div style={{ color: '#666', fontSize: 12 }}>今日已结算笔数</div>
+              </div>
+              <div style={{ background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 8, padding: '12px 20px' }}>
+                <div style={{ color: '#1890ff', fontWeight: 600, fontSize: 16 }}>{settleStatus.today_utc}</div>
+                <div style={{ color: '#666', fontSize: 12 }}>当前 UTC 日期</div>
+              </div>
+            </div>
+            <Table
+              size="small"
+              pagination={{ pageSize: 10 }}
+              dataSource={settleStatus.recent_records || []}
+              rowKey="id"
+              columns={[
+                { title: '产品', dataIndex: 'product_name', key: 'product_name' },
+                { title: '用户', dataIndex: 'username', key: 'username' },
+                { title: '金额 (USDT)', dataIndex: 'amount', key: 'amount', render: (v: any) => `+${parseFloat(v).toFixed(4)}` },
+                { title: '收益日期', dataIndex: 'income_date', key: 'income_date' },
+                { title: '结算时间', dataIndex: 'created_at', key: 'created_at', render: (d: string) => new Date(d).toLocaleString('zh-CN') },
+              ]}
             />
           </>
         )}

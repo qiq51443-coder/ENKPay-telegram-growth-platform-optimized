@@ -425,6 +425,16 @@ class ApiClient {
     return response.data;
   }
 
+  async triggerNFTSettle() {
+    const response = await this.client.post('/nft/admin/settle/trigger');
+    return response.data;
+  }
+
+  async getNFTSettleStatus() {
+    const response = await this.client.get('/nft/admin/settle/status');
+    return response.data;
+  }
+
   // Auction API
   async getAuctions(params?: any) {
     const response = await this.client.get('/auctions', { params });
