@@ -55,8 +55,8 @@ export const Analytics: React.FC = () => {
         setStats({
           total_users: safeNum(d.users?.total_users),
           new_today: safeNum(d.users?.new_today),
-          total_deposits: safeNum(d.transactions?.total_deposits),
-          total_withdrawals: safeNum(d.withdrawals?.total_withdrawn),
+          total_deposits: safeNum(d.deposits?.total_deposits),
+          total_withdrawals: safeNum(d.withdrawals?.total_withdrawals),
           total_rewards: safeNum(d.transactions?.total_rewards),
           total_red_packet_amount: safeNum(d.redPackets?.total_red_packet_amount),
           total_claimed_amount: safeNum(d.redPackets?.total_claimed_amount),

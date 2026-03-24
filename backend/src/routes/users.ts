@@ -16,9 +16,12 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
       SELECT u.*, 
         COUNT(i.id) as invite_count,
         (SELECT COUNT(*) FROM invitations WHERE invitee_id = u.id) as invited_by_count,
-        (SELECT COUNT(*) FROM users u2 WHERE u2.telegram_id = u.telegram_id) as bot_count
+        (SELECT COUNT(*) FROM users u2 WHERE u2.telegram_id = u.telegram_id) as bot_count,
+        b.username as bot_username,
+        b.name as bot_display_name
       FROM users u
       LEFT JOIN invitations i ON i.inviter_id = u.id
+      LEFT JOIN bots b ON u.bot_id = b.id
       WHERE 1=1
     `;
     const params: any[] = [];
