@@ -19,13 +19,6 @@ export const ja: Record<string, string> = {
   // Welcome message (legacy)
   welcome_title: '🎉 ENK Pay へようこそ！',
   welcome_description: 'タスクを完了して報酬を獲得しましょう！',
-  welcome_register_prompt: '📝 まず登録してください：',
-  welcome_after_register: '登録後、以下のタスクを完了してください：',
-  welcome_task_follow: '✓ チャンネルをフォロー',
-  welcome_task_join: '✓ グループに参加',
-  welcome_task_bind: '✓ アカウントを連携',
-  welcome_rewards_locked: '🔒 報酬は現在ロックされています',
-  welcome_unlock_rewards: 'タスクを完了して報酬をアンロックしましょう！',
 
   // Wallet
   wallet_title: 'マイウォレット',
@@ -90,34 +83,18 @@ export const ja: Record<string, string> = {
   account_invite_code: '招待コード',
   account_registered: '登録日',
   account_balance: '残高',
-  account_platform_status: 'プラットフォームステータス',
   account_account_status: 'アカウントステータス',
   account_red_packet_credits: 'レッドパケット残高 (USDT)',
-  account_bound: '連携済み',
-  account_unbound: '未連携',
   account_active: 'アクティブ',
-  account_pending: '審査中',
 
   // Language
   language_title: '🌐 言語を選択',
   language_changed: '✅ 言語が変更されました！',
 
-  // Tutorials
-  tutorials_title: '📚 チュートリアル',
-  tutorials_select_exchange: '取引所を選択：',
-  tutorials_back_button: '« チュートリアルに戻る',
-
-  // Exchange
-  exchange_title: '🏦 取引所チュートリアル',
-  exchange_register: '登録',
-  exchange_view_tutorial: 'チュートリアルを見る',
-
   // Help
   help_title: '❓ ヘルプ & サポート',
   help_description: 'どのようにお手伝いできますか？',
   help_contact: 'サポートに連絡',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'レッドパケットを受け取る',

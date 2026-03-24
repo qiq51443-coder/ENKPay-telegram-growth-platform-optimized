@@ -19,13 +19,6 @@ export const ar: Record<string, string> = {
   // Welcome message (legacy)
   welcome_title: '🎉 مرحبًا بك في ENK Pay!',
   welcome_description: 'أكمل المهام واكسب المكافآت!',
-  welcome_register_prompt: '📝 يرجى التسجيل أولاً:',
-  welcome_after_register: 'بعد التسجيل، أكمل المهام:',
-  welcome_task_follow: '✓ متابعة قناتنا',
-  welcome_task_join: '✓ الانضمام لمجموعتنا',
-  welcome_task_bind: '✓ ربط حسابك',
-  welcome_rewards_locked: '🔒 المكافآت مقفلة حالياً',
-  welcome_unlock_rewards: 'أكمل المهام لفتح مكافآتك!',
 
   // Wallet
   wallet_title: 'محفظتي',
@@ -90,34 +83,18 @@ export const ar: Record<string, string> = {
   account_invite_code: 'رمز الدعوة',
   account_registered: 'تاريخ التسجيل',
   account_balance: 'الرصيد',
-  account_platform_status: 'حالة المنصة',
   account_account_status: 'حالة الحساب',
   account_red_packet_credits: 'رصيد الحزمة الحمراء (USDT)',
-  account_bound: 'مرتبط',
-  account_unbound: 'غير مرتبط',
   account_active: 'نشط',
-  account_pending: 'معلق',
 
   // Language
   language_title: '🌐 اختر اللغة',
   language_changed: '✅ تم تغيير اللغة بنجاح!',
 
-  // Tutorials
-  tutorials_title: '📚 الدروس',
-  tutorials_select_exchange: 'اختر بورصة:',
-  tutorials_back_button: '« العودة للدروس',
-
-  // Exchange
-  exchange_title: '🏦 دروس البورصة',
-  exchange_register: 'التسجيل',
-  exchange_view_tutorial: 'مشاهدة الدرس',
-
   // Help
   help_title: '❓ المساعدة والدعم',
   help_description: 'كيف يمكننا مساعدتك؟',
   help_contact: 'التواصل مع الدعم',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'المطالبة بالحزمة الحمراء',
