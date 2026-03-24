@@ -21,6 +21,8 @@ interface User {
   is_frozen?: boolean;
   created_at: string;
   bot_count?: number;
+  bot_username?: string;
+  bot_display_name?: string;
 }
 
 interface ErrorBoundaryState {
@@ -220,10 +222,22 @@ const UsersPage: React.FC = () => {
     },
     {
       title: '关联机器人',
-      dataIndex: 'bot_count',
-      key: 'bot_count',
-      width: 100,
-      render: (count: number | undefined) => count != null ? count : '-',
+      key: 'bot_info',
+      width: 160,
+      render: (_: any, record: User) => {
+        const botDisplay = record.bot_username
+          ? `@${record.bot_username}`
+          : record.bot_display_name || '-';
+        const count = record.bot_count;
+        return (
+          <div>
+            <div style={{ fontWeight: 500 }}>{botDisplay}</div>
+            {count != null && count > 1 && (
+              <div style={{ fontSize: '12px', color: '#666' }}>共 {count} 个 Bot</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '操作',

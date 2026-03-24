@@ -392,7 +392,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
       whereClause = `WHERE bot_id = $${params.length}`;
     }
 
-    const [userStats, transactionStats, bindingStats, redPacketStats] = await Promise.all([
+    const [userStats, transactionStats, bindingStats, redPacketStats, depositStats, withdrawalStats] = await Promise.all([
       query(`
         SELECT 
           COUNT(*) as total_users,
@@ -426,14 +426,26 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
           COUNT(*) FILTER (WHERE status = 'active') as active_red_packets
         FROM red_packets
         ${whereClause}
-      `, params)
+      `, params),
+      query(`
+        SELECT COALESCE(SUM(amount), 0) as total_deposits
+        FROM deposit_records
+        WHERE status IN ('credited', 'confirmed')
+      `),
+      query(`
+        SELECT COALESCE(SUM(amount), 0) as total_withdrawals
+        FROM withdrawal_records
+        WHERE status = 'completed'
+      `)
     ]);
 
     res.json({
       users: userStats.rows[0],
       transactions: transactionStats.rows[0],
       bindings: bindingStats.rows[0],
-      redPackets: redPacketStats.rows[0]
+      redPackets: redPacketStats.rows[0],
+      deposits: { total_deposits: parseFloat(depositStats.rows[0].total_deposits) },
+      withdrawals: { total_withdrawals: parseFloat(withdrawalStats.rows[0].total_withdrawals) },
     });
   } catch (error) {
     console.error('Get dashboard stats error:', error);
