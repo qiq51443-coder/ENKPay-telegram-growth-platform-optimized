@@ -44,7 +44,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
       }
     }
 
-    queryText += ` GROUP BY u.id ORDER BY u.created_at DESC`;
+    queryText += ` GROUP BY u.id, b.username, b.name ORDER BY u.created_at DESC`;
     
     params.push(Number(limit), offset);
     queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
