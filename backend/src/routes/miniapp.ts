@@ -264,6 +264,27 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
                 created_at, pair_id::text AS description, NULL AS order_id
          FROM trading_orders
          WHERE user_id = $1
+
+         UNION ALL
+
+         -- Other transaction types from ledger (product, auction, rewards, etc.)
+         -- Excludes types already fetched from their dedicated tables above:
+         --   transfer_in/out → transfer_records
+         --   deposit         → deposit_records
+         --   withdrawal      → withdrawal_records
+         --   trade_win/loss  → trading_orders
+         SELECT id::text,
+                type,
+                ABS(amount)::numeric,
+                'completed' AS status,
+                created_at,
+                description,
+                reference_id::text AS order_id
+         FROM transactions
+         WHERE user_id = $1
+           AND type NOT IN (
+             'transfer_in','transfer_out','deposit','withdrawal','trade_win','trade_loss'
+           )
        ) AS combined
        ORDER BY created_at DESC
        LIMIT $2`,
