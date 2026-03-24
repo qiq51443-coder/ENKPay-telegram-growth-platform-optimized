@@ -19,13 +19,6 @@ export const es: Record<string, string> = {
   // Welcome message (legacy)
   welcome_title: '🎉 ¡Bienvenido a ENK Pay!',
   welcome_description: '¡Completa tareas y gana recompensas!',
-  welcome_register_prompt: '📝 Por favor regístrate primero:',
-  welcome_after_register: 'Después del registro, completa las tareas:',
-  welcome_task_follow: '✓ Seguir nuestro canal',
-  welcome_task_join: '✓ Unirse a nuestro grupo',
-  welcome_task_bind: '✓ Vincular tu cuenta',
-  welcome_rewards_locked: '🔒 Las recompensas están bloqueadas',
-  welcome_unlock_rewards: '¡Completa las tareas para desbloquear tus recompensas!',
 
   // Wallet
   wallet_title: 'Mi Billetera',
@@ -90,34 +83,18 @@ export const es: Record<string, string> = {
   account_invite_code: 'Código de invitación',
   account_registered: 'Registrado',
   account_balance: 'Saldo',
-  account_platform_status: 'Estado de plataforma',
   account_account_status: 'Estado de cuenta',
   account_red_packet_credits: 'Saldo de sobre rojo (USDT)',
-  account_bound: 'Vinculado',
-  account_unbound: 'No vinculado',
   account_active: 'Activo',
-  account_pending: 'Pendiente',
 
   // Language
   language_title: '🌐 Seleccionar idioma',
   language_changed: '✅ ¡Idioma cambiado con éxito!',
 
-  // Tutorials
-  tutorials_title: '📚 Tutoriales',
-  tutorials_select_exchange: 'Selecciona un intercambio:',
-  tutorials_back_button: '« Volver a Tutoriales',
-
-  // Exchange
-  exchange_title: '🏦 Tutoriales de intercambio',
-  exchange_register: 'Registrarse',
-  exchange_view_tutorial: 'Ver tutorial',
-
   // Help
   help_title: '❓ Ayuda & Soporte',
   help_description: '¿Cómo podemos ayudarte?',
   help_contact: 'Contactar soporte',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Reclamar sobre rojo',

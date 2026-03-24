@@ -19,13 +19,6 @@ export const zh = {
   // Welcome message (legacy)
   welcome_title: '🎉 欢迎来到 ENK Pay！',
   welcome_description: '完成任务，赚取奖励！',
-  welcome_register_prompt: '📝 请先在我们的平台注册：',
-  welcome_after_register: '注册后，完成以下任务解锁奖励：',
-  welcome_task_follow: '✓ 关注我们的频道',
-  welcome_task_join: '✓ 加入我们的群组',
-  welcome_task_bind: '✓ 绑定您的平台账户',
-  welcome_rewards_locked: '🔒 奖励目前已锁定',
-  welcome_unlock_rewards: '完成上述任务以解锁您的奖励！',
 
   // Wallet
   wallet_title: '我的钱包',
@@ -89,34 +82,18 @@ export const zh = {
   account_invite_code: '邀请码',
   account_registered: '注册时间',
   account_balance: '余额',
-  account_platform_status: '平台状态',
   account_account_status: '账户状态',
   account_red_packet_credits: '红包余额 (USDT)',
-  account_bound: '已绑定',
-  account_unbound: '未绑定',
   account_active: '活跃',
-  account_pending: '待审核',
 
   // Language
   language_title: '🌐 选择语言',
   language_changed: '✅ 语言已成功更改！',
 
-  // Tutorials
-  tutorials_title: '📚 教程',
-  tutorials_select_exchange: '选择交易所查看教程：',
-  tutorials_back_button: '« 返回教程',
-
-  // Exchange
-  exchange_title: '🏦 交易所教程',
-  exchange_register: '注册',
-  exchange_view_tutorial: '查看教程',
-
   // Help
   help_title: '❓ 帮助与支持',
   help_description: '我们能帮您什么？',
   help_contact: '联系支持',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: '领取红包',

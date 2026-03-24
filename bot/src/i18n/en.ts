@@ -19,13 +19,6 @@ export const en = {
   // Welcome message (legacy)
   welcome_title: '🎉 Welcome to ENK Pay!',
   welcome_description: 'Complete tasks and earn rewards!',
-  welcome_register_prompt: '📝 Please register on our platform first:',
-  welcome_after_register: 'After registration, complete the tasks below to unlock rewards:',
-  welcome_task_follow: '✓ Follow our channel',
-  welcome_task_join: '✓ Join our group',
-  welcome_task_bind: '✓ Bind your platform account',
-  welcome_rewards_locked: '🔒 Rewards are currently locked',
-  welcome_unlock_rewards: 'Complete the tasks above to unlock your rewards!',
 
   // Wallet
   wallet_title: 'My Wallet',
@@ -89,34 +82,18 @@ export const en = {
   account_invite_code: 'Invite Code',
   account_registered: 'Registered',
   account_balance: 'Balance',
-  account_platform_status: 'Platform Status',
   account_account_status: 'Account Status',
   account_red_packet_credits: 'Red Packet Balance (USDT)',
-  account_bound: 'Bound',
-  account_unbound: 'Unbound',
   account_active: 'Active',
-  account_pending: 'Pending',
 
   // Language
   language_title: '🌐 Select Language',
   language_changed: '✅ Language changed successfully!',
 
-  // Tutorials
-  tutorials_title: '📚 Tutorials',
-  tutorials_select_exchange: 'Select an exchange to view tutorial:',
-  tutorials_back_button: '« Back to Tutorials',
-
-  // Exchange
-  exchange_title: '🏦 Exchange Tutorials',
-  exchange_register: 'Register',
-  exchange_view_tutorial: 'View Tutorial',
-
   // Help
   help_title: '❓ Help & Support',
   help_description: 'How can we help you?',
   help_contact: 'Contact Support',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Claim Red Packet',

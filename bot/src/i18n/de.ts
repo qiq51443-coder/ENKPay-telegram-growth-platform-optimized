@@ -19,13 +19,6 @@ export const de: Record<string, string> = {
   // Welcome message (legacy)
   welcome_title: '🎉 Willkommen bei ENK Pay!',
   welcome_description: 'Erledige Aufgaben und verdiene Belohnungen!',
-  welcome_register_prompt: '📝 Bitte zuerst registrieren:',
-  welcome_after_register: 'Nach der Registrierung Aufgaben erledigen:',
-  welcome_task_follow: '✓ Kanal folgen',
-  welcome_task_join: '✓ Gruppe beitreten',
-  welcome_task_bind: '✓ Konto verknüpfen',
-  welcome_rewards_locked: '🔒 Belohnungen sind gesperrt',
-  welcome_unlock_rewards: 'Aufgaben erledigen um Belohnungen freizuschalten!',
 
   // Wallet
   wallet_title: 'Mein Wallet',
@@ -90,34 +83,18 @@ export const de: Record<string, string> = {
   account_invite_code: 'Einladungscode',
   account_registered: 'Registriert am',
   account_balance: 'Guthaben',
-  account_platform_status: 'Plattformstatus',
   account_account_status: 'Kontostatus',
   account_red_packet_credits: 'Rotes-Paket-Guthaben (USDT)',
-  account_bound: 'Verknüpft',
-  account_unbound: 'Nicht verknüpft',
   account_active: 'Aktiv',
-  account_pending: 'Ausstehend',
 
   // Language
   language_title: '🌐 Sprache auswählen',
   language_changed: '✅ Sprache erfolgreich geändert!',
 
-  // Tutorials
-  tutorials_title: '📚 Tutorials',
-  tutorials_select_exchange: 'Börse auswählen:',
-  tutorials_back_button: '« Zurück zu Tutorials',
-
-  // Exchange
-  exchange_title: '🏦 Börsen-Tutorials',
-  exchange_register: 'Registrieren',
-  exchange_view_tutorial: 'Tutorial ansehen',
-
   // Help
   help_title: '❓ Hilfe & Support',
   help_description: 'Wie können wir helfen?',
   help_contact: 'Support kontaktieren',
-
-  // Platform Binding (removed - feature deprecated)
 
   // Red Packet
   redpacket_claim: 'Rotes Paket einlösen',
