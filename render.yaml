@@ -7,9 +7,9 @@ services:
     autoDeploy: false
     healthCheckPath: /health
     buildCommand: |
-      cd mini-app && npm ci && npm run build && cd .. && \
-      cd admin-panel && npm ci && npm run build && cd .. && \
-      cd backend && npm ci && npm run build && \
+      cd mini-app && npm install && npm run build && cd .. && \
+      cd admin-panel && npm install && npm run build && cd .. && \
+      cd backend && npm install && npm run build && \
       mkdir -p dist/public/admin dist/public/app && \
       cp -r ../admin-panel/dist/. dist/public/admin/ && \
       cp -r ../mini-app/dist/. dist/public/app/
