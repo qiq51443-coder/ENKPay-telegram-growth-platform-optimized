@@ -67,9 +67,12 @@ services:
     region: frankfurt
     plan: starter
     maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all
 
 databases:
   - name: telegram-growth-db
     databaseName: telegram_growth
     region: frankfurt
-    plan: basic
+    plan: basic-256mb
