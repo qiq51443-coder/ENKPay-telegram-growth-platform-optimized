@@ -965,6 +965,19 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
                RETURNING *`,
               [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, klineOpenPrice]
             );
+          } else if (
+            insertErr.code === '42P10' ||
+            (insertErr.message && insertErr.message.includes('no unique or exclusion constraint'))
+          ) {
+            // Unique index on (pair_id, duration_seconds, period_label) is missing.
+            // Migration 1015 has not been applied yet. Fall back to insert without ON CONFLICT.
+            console.warn('[quick-session] idx_trading_sessions_period_unique missing — falling back to plain INSERT. Please apply migration 1015.');
+            sessionInsertResult = await client.query(
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+               RETURNING *`,
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+            );
           } else {
             throw insertErr;
           }
