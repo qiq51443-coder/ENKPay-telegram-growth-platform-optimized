@@ -171,14 +171,22 @@ router.get('/products', async (req, res) => {
     try {
       result = await query(fullQuery, params);
     } catch (queryErr: any) {
-      // 42P01 = undefined_table, 42703 = undefined_column
-      // Both can happen when DB migrations haven't fully run yet.
-      if (queryErr.code === '42P01' || queryErr.code === '42703') {
+      // 42P01 = undefined_table
+      // 42703 = undefined_column
+      // 42804 = datatype mismatch (e.g. product_holdings.product_id is UUID but nft_products.id is INT)
+      // 42883 = operator does not exist (type mismatch in JOIN condition)
+      // 22P02 = invalid input syntax for type (cast failure)
+      const isSchemaError = (code: string) =>
+        ['42P01', '42703', '42804', '42883', '22P02'].includes(code);
+
+      if (isSchemaError(queryErr.code)) {
+        console.warn(`GET /nft/products: primary query failed (${queryErr.code}: ${queryErr.message}), trying fallback`);
         try {
           result = await query(fallbackQuery, params);
         } catch (fallbackErr: any) {
           // fallbackQuery still references display_holders_count which may also be missing
-          if (fallbackErr.code === '42703' || fallbackErr.code === '42P01') {
+          if (isSchemaError(fallbackErr.code)) {
+            console.warn(`GET /nft/products: fallback query failed (${fallbackErr.code}: ${fallbackErr.message}), trying bare minimum`);
             // Ultimate fallback: bare minimum query with no optional columns
             result = await query(
               `SELECT p.*, 0 AS total_holders_count
