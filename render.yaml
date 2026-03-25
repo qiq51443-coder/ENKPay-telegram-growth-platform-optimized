@@ -72,4 +72,4 @@ databases:
   - name: telegram-growth-db
     databaseName: telegram_growth
     region: singapore
-    plan: basic-1gb
+    plan: basic
