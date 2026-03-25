@@ -27,6 +27,10 @@ interface CharityProject {
 const resolveAdminImageUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined);
+  if (apiBase) {
+    return `${apiBase.replace(/\/api$/, '')}${url}`;
+  }
   return `${window.location.origin}${url}`;
 };
 
