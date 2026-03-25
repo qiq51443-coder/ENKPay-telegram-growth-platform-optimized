@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS trading_pairs (
   is_active BOOLEAN DEFAULT true,
   sort_order INT DEFAULT 0,
   price_source VARCHAR(20) DEFAULT 'binance',
+  pair_type VARCHAR(10) DEFAULT 'real' CHECK (pair_type IN ('real', 'custom')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS trading_sessions (
   end_at TIMESTAMPTZ,
   rule_id INT,
   result_direction VARCHAR(10),
-  settlement_price DECIMAL(18,8),
+  settlement_price DECIMAL(20,8),
+  settlement_price_source VARCHAR(20),  -- 'binance_mark' | 'internal'
   total_bet_amount DECIMAL(18,2) DEFAULT 0,
   total_payout DECIMAL(18,2) DEFAULT 0,
   settled_at TIMESTAMPTZ,
@@ -60,6 +62,8 @@ CREATE TABLE IF NOT EXISTS trading_orders (
   direction VARCHAR(10) CHECK (direction IN ('up', 'down')),
   amount DECIMAL(18,2) NOT NULL,
   entry_price DECIMAL(18,8),
+  entry_price_source VARCHAR(20),  -- 'binance_mark' | 'internal'
+  leverage DECIMAL(5,2) DEFAULT 1.0,
   exit_price DECIMAL(18,8),
   odds DECIMAL(5,2) DEFAULT 1.95,
   profit DECIMAL(18,2) DEFAULT 0,
@@ -76,7 +80,7 @@ CREATE TABLE IF NOT EXISTS price_points (
   id BIGSERIAL PRIMARY KEY,
   pair_id INT REFERENCES trading_pairs(id) ON DELETE CASCADE,
   price DECIMAL(18,8) NOT NULL,
-  source VARCHAR(20) DEFAULT 'generated',
+  source VARCHAR(20) DEFAULT 'generated',  -- 'binance_mark', 'internal', 'generated'
   recorded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
