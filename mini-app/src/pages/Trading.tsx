@@ -140,7 +140,7 @@ export const Trading: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDirection, setConfirmDirection] = useState<'up' | 'down'>('up');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [resultMsg, setResultMsg] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ win: boolean; profit: number; draw?: boolean; settling?: boolean } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -795,6 +795,7 @@ export const Trading: React.FC = () => {
     // Poll for the settled order with exponential backoff (up to ~15 seconds total)
     // to give the backend auto-settlement service time to finish.
     const delays = [1000, 2000, 3000, 5000, 5000];
+    let settled = false;
     for (const delay of delays) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       try {
@@ -803,6 +804,7 @@ export const Trading: React.FC = () => {
         });
         const order = res.data?.data?.find((o: any) => o.id === orderId);
         if (order) {
+          settled = true;
           const isDraw = order.result === 'draw';
           const win = order.result === 'win';
           const profit = isDraw
@@ -846,6 +848,21 @@ export const Trading: React.FC = () => {
           }
 
           break; // Order found and settled — stop retrying
+        }
+      } catch {}
+    }
+    // If polling ended without finding a settled order, check whether the order is still
+    // active/pending and show a "settling in progress" banner instead of silently doing nothing.
+    if (!settled) {
+      try {
+        const checkRes = await api.get('/trading/orders/my', { params: { limit: 50 } });
+        const pendingOrder = checkRes.data?.data?.find(
+          (o: any) => o.id === orderId && (o.status === 'active' || o.status === 'pending')
+        );
+        if (pendingOrder) {
+          setResultMsg({ win: false, profit: 0, settling: true });
+          if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 8000);
         }
       } catch {}
     }
@@ -1038,14 +1055,16 @@ export const Trading: React.FC = () => {
         {/* Result banner */}
         {resultMsg && (
           <div style={{
-            backgroundColor: resultMsg.draw ? '#4a3800' : resultMsg.win ? '#1b5e20' : '#b71c1c',
+            backgroundColor: resultMsg.settling ? '#1a3a5c' : resultMsg.draw ? '#4a3800' : resultMsg.win ? '#1b5e20' : '#b71c1c',
             borderRadius: '12px', padding: '16px', marginBottom: '12px', textAlign: 'center'
           }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#fff' }}>
-              {resultMsg.draw ? '➖ 平局' : resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
+              {resultMsg.settling ? '⏳ 结算处理中' : resultMsg.draw ? '➖ 平局' : resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
             </div>
             <div style={{ color: '#fff', fontSize: '16px', marginTop: '4px' }}>
-              {resultMsg.draw
+              {resultMsg.settling
+                ? '订单正在结算，请稍候...'
+                : resultMsg.draw
                 ? '退还金额'
                 : resultMsg.win
                 ? `+${safeFixed(resultMsg.profit)} USDT`

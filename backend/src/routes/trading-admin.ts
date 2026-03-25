@@ -1179,6 +1179,7 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
          COUNT(CASE WHEN "to".direction = 'down' THEN 1 END) AS down_count
        FROM trading_sessions ts
        LEFT JOIN trading_orders "to" ON "to".session_id = ts.id
+         AND "to".status IN ('active', 'pending', 'settled')
        WHERE ts.pair_id = $1
          AND ts.start_time >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
        GROUP BY ts.id
@@ -1188,10 +1189,15 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
 
     // Build a lookup map: slot start time (truncated to second, as epoch ms) → DB row
     const dbSessionMap = new Map<number, any>();
+    // Fallback map keyed by period_label for sessions that have one
+    const dbSessionByLabel = new Map<string, any>();
     for (const s of dbSessionsResult.rows) {
       // Truncate to second precision to avoid sub-second mismatch
       const startMs = Math.round(new Date(s.start_time).getTime() / 1000) * 1000;
       dbSessionMap.set(startMs, s);
+      if (s.period_label) {
+        dbSessionByLabel.set(s.period_label, s);
+      }
     }
 
     // Determine day boundaries
@@ -1262,7 +1268,8 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
         const slotEnd = slotStart + durationMs;
         // Round to second precision for map lookup
         const keyMs = Math.round(slotStart / 1000) * 1000;
-        const dbSession = dbSessionMap.get(keyMs);
+        // Match DB session by start_time first, then fall back to period_label
+        const dbSession = dbSessionMap.get(keyMs) ?? dbSessionByLabel.get(makePeriodLabel(new Date(slotStart)));
 
         if (dbSession) {
           // DB record exists — use its data as-is
