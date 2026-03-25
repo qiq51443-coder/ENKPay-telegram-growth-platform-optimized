@@ -1,5 +1,5 @@
 import express from 'express';
-import { query, transaction } from '../db';
+import { query, transaction, withSavepoint } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { getPairPrice, getKlineData, cacheKlineData, binanceFetch } from '../services/price.service';
@@ -809,38 +809,43 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       // (period-snapshot never activated them, auto-settle skipped them)
       // These orders should be refunded and cancelled to unblock the user.
       try {
-        const stuckOrdersResult = await client.query(
-          `SELECT o.id, o.user_id, o.amount, o.status, o.session_id,
-                  s.end_time, s.open_price, s.status as session_status
-           FROM trading_orders o
-           JOIN trading_sessions s ON s.id = o.session_id
-           WHERE o.user_id = $1
-             AND o.pair_id = $2
-             AND o.status IN ('active', 'pending')
-             AND s.end_time < NOW() - INTERVAL '30 seconds'
-             AND (s.open_price IS NULL OR s.status = 'pending')
-           LIMIT 10`,
-          [user_id, pairIdInt]
+        const stuckOrdersResult = await withSavepoint(client, 'sp_stuck_query', () =>
+          client.query(
+            `SELECT o.id, o.user_id, o.amount, o.status, o.session_id,
+                    s.end_time, s.open_price, s.status as session_status
+             FROM trading_orders o
+             JOIN trading_sessions s ON s.id = o.session_id
+             WHERE o.user_id = $1
+               AND o.pair_id = $2
+               AND o.status IN ('active', 'pending')
+               AND s.end_time < NOW() - INTERVAL '30 seconds'
+               AND (s.open_price IS NULL OR s.status = 'pending')
+             LIMIT 10`,
+            [user_id, pairIdInt]
+          )
         );
 
         for (const stuckOrder of stuckOrdersResult.rows) {
-          // Refund the stuck order amount
-          await client.query(
-            `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-            [parseFloat(stuckOrder.amount), stuckOrder.user_id]
-          );
-          // Cancel the stuck order
-          await client.query(
-            `UPDATE trading_orders SET status = 'cancelled', result = NULL WHERE id = $1`,
-            [stuckOrder.id]
-          );
-          // Also mark the stuck session as settled to prevent further processing
-          await client.query(
-            `UPDATE trading_sessions SET status = 'settled', result = 'draw'
-             WHERE id = $1 AND status IN ('active', 'pending')`,
-            [stuckOrder.session_id]
-          );
-          console.warn(`[quick-session] auto-cancelled stuck order ${stuckOrder.id} for user ${stuckOrder.user_id}, refunded ${stuckOrder.amount}`);
+          try {
+            await withSavepoint(client, `sp_stuck_${stuckOrder.id}`, async () => {
+              await client.query(
+                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+                [parseFloat(stuckOrder.amount), stuckOrder.user_id]
+              );
+              await client.query(
+                `UPDATE trading_orders SET status = 'cancelled', result = NULL WHERE id = $1`,
+                [stuckOrder.id]
+              );
+              await client.query(
+                `UPDATE trading_sessions SET status = 'settled', result = 'draw'
+                 WHERE id = $1 AND status IN ('active', 'pending')`,
+                [stuckOrder.session_id]
+              );
+            });
+            console.warn(`[quick-session] auto-cancelled stuck order ${stuckOrder.id} for user ${stuckOrder.user_id}, refunded ${stuckOrder.amount}`);
+          } catch (singleErr: any) {
+            console.error(`[quick-session] failed to cancel stuck order ${stuckOrder.id} (non-fatal):`, singleErr.message);
+          }
         }
       } catch (cleanupErr: any) {
         console.error('[quick-session] stuck order cleanup failed (non-fatal):', cleanupErr.message);
@@ -945,26 +950,38 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         // requests try to create the same period simultaneously (TOCTOU).
         // start_at/end_at are written alongside start_time/end_time for backward
         // compatibility with databases where migration 1008 has not yet been applied.
-        let sessionInsertResult;
+        let sessionInsertResult: any = null;
+
+        // Try primary path: INSERT with ON CONFLICT + period_label
         try {
-          sessionInsertResult = await client.query(
-            `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
-             VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (pair_id, duration_seconds, period_label) DO NOTHING
-             RETURNING *`,
-            [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+          sessionInsertResult = await withSavepoint(client, 'sp_session_insert_main', () =>
+            client.query(
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (pair_id, duration_seconds, period_label) DO NOTHING
+               RETURNING *`,
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+            )
           );
         } catch (insertErr: any) {
-          // Fallback: period_label column or unique index might not exist yet (migration not applied)
-          // PostgreSQL error code 42703 = undefined_column
+          // Primary path failed — transaction rolled back to savepoint, fallbacks are safe to attempt
           if (insertErr.code === '42703' ||
               (insertErr.message && insertErr.message.includes('period_label'))) {
-            sessionInsertResult = await client.query(
-              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
-               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
-               RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, klineOpenPrice]
-            );
+            // period_label column missing (migration not applied) — insert without it
+            console.warn('[quick-session] period_label column missing, falling back to insert without it.');
+            try {
+              sessionInsertResult = await withSavepoint(client, 'sp_session_insert_fallback1', () =>
+                client.query(
+                  `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
+                   VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
+                   RETURNING *`,
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, klineOpenPrice]
+                )
+              );
+            } catch (fb1Err: any) {
+              console.error('[quick-session] fallback1 insert also failed:', fb1Err.message);
+              throw fb1Err;
+            }
           } else if (
             insertErr.code === '42P10' ||
             (insertErr.message && insertErr.message.includes('no unique or exclusion constraint'))
@@ -972,12 +989,19 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
             // Unique index on (pair_id, duration_seconds, period_label) is missing.
             // Migration 1015 has not been applied yet. Fall back to insert without ON CONFLICT.
             console.warn('[quick-session] idx_trading_sessions_period_unique missing — falling back to plain INSERT. Please apply migration 1015.');
-            sessionInsertResult = await client.query(
-              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
-               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
-               RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
-            );
+            try {
+              sessionInsertResult = await withSavepoint(client, 'sp_session_insert_fallback2', () =>
+                client.query(
+                  `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+                   VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+                   RETURNING *`,
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+                )
+              );
+            } catch (fb2Err: any) {
+              console.error('[quick-session] fallback2 insert also failed:', fb2Err.message);
+              throw fb2Err;
+            }
           } else {
             throw insertErr;
           }
@@ -1027,12 +1051,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           } catch { /* ignore — period-snapshot will retry */ }
         }
         if (inlineOpenPrice) {
-          await client.query(
-            `UPDATE trading_sessions SET status = 'active', open_price = $1 WHERE id = $2 AND status = 'pending'`,
-            [inlineOpenPrice, session.id]
-          );
-          session = { ...session, status: 'active', open_price: inlineOpenPrice };
-          console.log(`[quick-session] inline-activated session id=${session.id} open_price=${inlineOpenPrice}`);
+          try {
+            await withSavepoint(client, 'sp_activate_session', () =>
+              client.query(
+                `UPDATE trading_sessions SET status = 'active', open_price = $1 WHERE id = $2 AND status = 'pending'`,
+                [inlineOpenPrice, session.id]
+              )
+            );
+            session = { ...session, status: 'active', open_price: inlineOpenPrice };
+            console.log(`[quick-session] inline-activated session id=${session.id} open_price=${inlineOpenPrice}`);
+          } catch (activateErr: any) {
+            console.warn(`[quick-session] inline-activate failed (non-fatal):`, activateErr.message);
+          }
         }
       }
 
@@ -1073,6 +1103,18 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
       );
 
+      // Query up/down counts for the session (including the order just placed)
+      const dirCountResult = await client.query(
+        `SELECT
+           COUNT(CASE WHEN direction = 'up'   THEN 1 END)::int AS up_count,
+           COUNT(CASE WHEN direction = 'down' THEN 1 END)::int AS down_count
+         FROM trading_orders
+         WHERE session_id = $1 AND status IN ('active', 'pending')`,
+        [session.id]
+      );
+      const upCount   = dirCountResult.rows[0]?.up_count   ?? 0;
+      const downCount = dirCountResult.rows[0]?.down_count ?? 0;
+
       return {
         session: {
           id: session.id,
@@ -1080,6 +1122,9 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           end_time: session.end_time,
           status: session.status,
           open_price: session.open_price ?? klineOpenPrice,
+          up_count: upCount,
+          down_count: downCount,
+          period_label: session.period_label ?? resolvedPeriodLabel,
         },
         order: {
           id: orderResult.rows[0].id,
