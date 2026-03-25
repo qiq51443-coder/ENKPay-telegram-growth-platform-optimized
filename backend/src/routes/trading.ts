@@ -940,22 +940,25 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       }
 
       if (!session) {
-        // Create a new session with fixed period boundaries and open_price
-        // start_at/end_at are written alongside start_time/end_time for backward compatibility
-        // with databases where migration 1008 has not yet been applied (start_at/end_at NOT NULL).
-        // Once all deployments have run migration 1008, start_at/end_at can be removed.
+        // Create a new session with fixed period boundaries and open_price.
+        // ON CONFLICT DO NOTHING guards against race conditions where two concurrent
+        // requests try to create the same period simultaneously (TOCTOU).
+        // start_at/end_at are written alongside start_time/end_time for backward
+        // compatibility with databases where migration 1008 has not yet been applied.
         let sessionInsertResult;
         try {
           sessionInsertResult = await client.query(
             `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
              VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (pair_id, duration_seconds, period_label) DO NOTHING
              RETURNING *`,
             [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
           );
         } catch (insertErr: any) {
-          // Fallback: period_label column might not exist yet (migration not applied)
+          // Fallback: period_label column or unique index might not exist yet (migration not applied)
           // PostgreSQL error code 42703 = undefined_column
-          if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('period_label'))) {
+          if (insertErr.code === '42703' ||
+              (insertErr.message && insertErr.message.includes('period_label'))) {
             sessionInsertResult = await client.query(
               `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
                VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
@@ -966,8 +969,58 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
             throw insertErr;
           }
         }
-        session = sessionInsertResult.rows[0];
-        console.log(`[quick-session] created new session id=${session.id} period_label=${resolvedPeriodLabel}`);
+
+        if (sessionInsertResult && sessionInsertResult.rows.length > 0) {
+          session = sessionInsertResult.rows[0];
+          console.log(`[quick-session] created new session id=${session.id} period_label=${resolvedPeriodLabel}`);
+        } else {
+          // ON CONFLICT hit: another concurrent request created the session first — reuse it
+          const existingAfterConflict = await client.query(
+            `SELECT id, pair_id, rule_id, status, start_time, end_time, duration_seconds,
+                    period_label, open_price, created_at
+             FROM trading_sessions
+             WHERE pair_id = $1 AND duration_seconds = $2 AND period_label = $3
+               AND status IN ('active', 'pending')
+             ORDER BY created_at ASC LIMIT 1`,
+            [pairIdInt, durationSeconds, resolvedPeriodLabel]
+          );
+          if (existingAfterConflict.rows.length > 0) {
+            session = existingAfterConflict.rows[0];
+            console.log(`[quick-session] reusing session after conflict id=${session.id} period_label=${resolvedPeriodLabel}`);
+          } else {
+            throw new Error('Failed to create or reuse trading session');
+          }
+        }
+      }
+
+      // If the session's start_time has already passed and it is still pending,
+      // try to activate it inline so orders are not left in a permanently-pending state.
+      // This covers the edge case where a user places an order in the last seconds of a
+      // period and the period-snapshot job has not yet run.
+      if (session.status === 'pending' && new Date(session.start_time) <= new Date()) {
+        let inlineOpenPrice: number | null = session.open_price ?? klineOpenPrice;
+        if (!inlineOpenPrice && pairRow.pair_type === 'real' && pairRow.binance_symbol) {
+          try {
+            const startTimeMs = new Date(session.start_time).getTime();
+            const klines = await binanceFetch('/api/v3/klines', {
+              symbol: pairRow.binance_symbol,
+              interval: '1m',
+              startTime: startTimeMs,
+              limit: 1,
+            });
+            if (Array.isArray(klines) && klines.length > 0) {
+              inlineOpenPrice = parseFloat(klines[0][1]);
+            }
+          } catch { /* ignore — period-snapshot will retry */ }
+        }
+        if (inlineOpenPrice) {
+          await client.query(
+            `UPDATE trading_sessions SET status = 'active', open_price = $1 WHERE id = $2 AND status = 'pending'`,
+            [inlineOpenPrice, session.id]
+          );
+          session = { ...session, status: 'active', open_price: inlineOpenPrice };
+          console.log(`[quick-session] inline-activated session id=${session.id} open_price=${inlineOpenPrice}`);
+        }
       }
 
       // Only block if user already has an order in THIS SPECIFIC session (same period)
@@ -1088,9 +1141,10 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
 
     const result = await query(
       `SELECT 
-         o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status, o.created_at,
+         o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status,
+         o.result, o.profit, o.settled_at, o.created_at,
          p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
-         s.start_time as session_start, s.end_time as session_end
+         s.start_time as session_start, s.end_time as session_end, s.period_label
        FROM trading_orders o
        JOIN trading_pairs p ON o.pair_id = p.id
        JOIN trading_sessions s ON o.session_id = s.id

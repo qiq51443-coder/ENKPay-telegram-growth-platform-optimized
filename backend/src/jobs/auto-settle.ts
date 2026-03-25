@@ -18,6 +18,9 @@ let isRunning = false;
  * so we fall through directly to the up/down comparison.
  */
 function determineDirection(openPrice: number, closePrice: number): string {
+  if (!isFinite(openPrice) || !isFinite(closePrice) || isNaN(openPrice) || isNaN(closePrice)) {
+    return 'draw'; // Safe fallback: refund users when prices are invalid
+  }
   if (openPrice > 0) {
     const priceDiff = Math.abs(closePrice - openPrice) / openPrice;
     if (priceDiff < DRAW_THRESHOLD_PERCENTAGE) return 'draw';
@@ -301,6 +304,19 @@ async function autoSettleSessions(): Promise<void> {
             [session.id]
           );
           if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
+
+          // If the session is still 'pending' at settlement time (was never activated by
+          // period-snapshot), promote it to 'active' now so the settle logic proceeds correctly.
+          if (checkResult.rows[0].status === 'pending') {
+            await client.query(
+              `UPDATE trading_sessions SET status = 'active' WHERE id = $1 AND status = 'pending'`,
+              [session.id]
+            );
+            await client.query(
+              `UPDATE trading_orders SET status = 'active' WHERE session_id = $1 AND status = 'pending'`,
+              [session.id]
+            );
+          }
 
           // Get all active orders for this session
           const ordersResult = await client.query(
