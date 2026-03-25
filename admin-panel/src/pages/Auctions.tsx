@@ -372,7 +372,7 @@ export const Auctions: React.FC = () => {
 
   const imageUploadProps = (fileList: UploadFile[], setFileList: (fl: UploadFile[]) => void, fieldName: string, targetForm: FormInstance) => ({
     name: 'file',
-    action: '/api/admin/upload',
+    action: '/api/admin/auctions/upload-image',
     headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
     listType: 'picture' as const,
     fileList,

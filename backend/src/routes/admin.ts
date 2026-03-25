@@ -1000,6 +1000,33 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
   }
 });
 
+// Announcement image upload endpoint
+const announcementUploadDir = path.join(__dirname, '../../uploads/announcement-images');
+if (!fs.existsSync(announcementUploadDir)) fs.mkdirSync(announcementUploadDir, { recursive: true });
+
+const announcementStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, announcementUploadDir),
+  filename: (_req, file, cb) => {
+    const rawExt = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+    const ext = allowedExts.includes(rawExt) ? rawExt : '.jpg';
+    cb(null, `announcement-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const announcementUpload = multer({
+  storage: announcementStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+});
+
+router.post('/upload-announcement-image', adminLimiter, authenticateAdmin, announcementUpload.single('file'), (req: AuthRequest, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ url: `/uploads/announcement-images/${req.file.filename}`, filename: req.file.filename });
+});
+
 // Translate text to multiple languages
 router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {

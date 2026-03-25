@@ -547,6 +547,15 @@ class ApiClient {
     return response.data;
   }
 
+  async uploadCoinIcon(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post('/admin/trading/upload-icon', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
   async refreshTradingPairIcon(id: string) {
     const response = await this.client.post(`/admin/trading/pairs/${id}/icon/refresh`);
     return response.data;

@@ -55,6 +55,9 @@ export const TradingPairs: React.FC = () => {
   const [iconUploading, setIconUploading] = useState(false);
   const [iconRefreshing, setIconRefreshing] = useState(false);
 
+  // Custom form icon upload state
+  const [customIconFileList, setCustomIconFileList] = useState<UploadFile[]>([]);
+
   useEffect(() => {
     fetchPairs();
   }, []);
@@ -135,6 +138,7 @@ export const TradingPairs: React.FC = () => {
   const handleOpenModal = () => {
     realForm.resetFields();
     customForm.resetFields();
+    setCustomIconFileList([]);
     setSelectedLibrarySymbols([]);
     setModalOpen(true);
   };
@@ -158,15 +162,19 @@ export const TradingPairs: React.FC = () => {
     try {
       const values = await customForm.validateFields();
       const { name, custom_initial_price, ...rest } = values;
+      // icon_url may have been set via the Upload component
+      const iconUrl = customForm.getFieldValue('icon_url') || undefined;
       await apiClient.createCustomPair({
         ...rest,
         display_name: name,
         initial_price: custom_initial_price,
+        icon_url: iconUrl,
       });
       message.success('自定义交易对创建成功');
       
       setModalOpen(false);
       customForm.resetFields();
+      setCustomIconFileList([]);
       fetchPairs();
     } catch (error: any) {
       console.error('Failed to create custom pair:', error);
@@ -532,6 +540,7 @@ export const TradingPairs: React.FC = () => {
           setModalOpen(false);
           realForm.resetFields();
           customForm.resetFields();
+          setCustomIconFileList([]);
           setSelectedLibrarySymbols([]);
         }}
         footer={null}
@@ -705,6 +714,36 @@ export const TradingPairs: React.FC = () => {
                     label="描述"
                   >
                     <Input.TextArea rows={3} placeholder="币种描述" />
+                  </Form.Item>
+
+                  <Form.Item label="币种图标（可选）" name="icon_url" extra="建议使用PNG/SVG，最大200KB">
+                    <Upload
+                      name="file"
+                      action="/api/admin/trading/upload-icon"
+                      headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
+                      listType="picture"
+                      fileList={customIconFileList}
+                      maxCount={1}
+                      accept="image/*"
+                      onChange={({ fileList, file }) => {
+                        setCustomIconFileList(fileList);
+                        if (file.status === 'done' && file.response?.url) {
+                          customForm.setFieldValue('icon_url', file.response.url);
+                          message.success('图标上传成功');
+                        } else if (file.status === 'error') {
+                          message.error('图标上传失败');
+                        }
+                      }}
+                      beforeUpload={(file) => {
+                        const isImage = file.type.startsWith('image/');
+                        if (!isImage) { message.error('只能上传图片文件'); return false; }
+                        const isLt200K = file.size / 1024 < 200;
+                        if (!isLt200K) { message.error('图标大小不能超过200KB'); return false; }
+                        return true;
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />}>点击上传图标</Button>
+                    </Upload>
                   </Form.Item>
 
                   <Form.Item>

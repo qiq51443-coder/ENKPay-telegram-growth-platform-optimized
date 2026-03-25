@@ -77,7 +77,7 @@ export const NFTProducts: React.FC = () => {
   const dailyYieldRate = Form.useWatch('daily_yield_rate', form);
   const [imageMode, setImageMode] = useState<'upload' | 'url'>('url');
   const [imagePreview, setImagePreview] = useState<string>('');
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageFileList, setImageFileList] = useState<import('antd/es/upload/interface').UploadFile[]>([]);
 
   // Translation state
   const [translating, setTranslating] = useState(false);
@@ -140,11 +140,13 @@ export const NFTProducts: React.FC = () => {
         product.image_url.startsWith('data:')
       );
       setImageMode(isAbsolute ? 'url' : 'upload');
+      setImageFileList([]);
     } else {
       setEditingProduct(null);
       form.resetFields();
       setImagePreview('');
       setImageMode('url');
+      setImageFileList([]);
     }
     setDrawerOpen(true);
   };
@@ -168,20 +170,7 @@ export const NFTProducts: React.FC = () => {
     }
   };
 
-  const handleImageUpload = async (file: File) => {
-    setUploadingImage(true);
-    try {
-      const response = await apiClient.uploadNFTImage(file);
-      setImagePreview(response.url);
-      form.setFieldValue('image_url', response.url);
-      message.success('图片上传成功');
-    } catch (error) {
-      message.error('图片上传失败');
-    } finally {
-      setUploadingImage(false);
-    }
-    return false; // prevent default upload
-  };
+  // Image upload is handled by the Ant Design Upload component via action prop
 
   const handleSubmit = async () => {
     try {
@@ -620,6 +609,7 @@ export const NFTProducts: React.FC = () => {
               onChange={e => {
                 setImageMode(e.target.value);
                 setImagePreview('');
+                setImageFileList([]);
                 form.setFieldValue('image_url', '');
               }}
               style={{ marginBottom: 8 }}
@@ -630,15 +620,32 @@ export const NFTProducts: React.FC = () => {
             {imageMode === 'upload' ? (
               <div>
                 <Upload
+                  name="file"
+                  action="/api/nft/upload"
+                  headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
                   accept="image/*"
-                  showUploadList={false}
-                  beforeUpload={(file) => handleImageUpload(file)}
+                  listType="picture"
+                  fileList={imageFileList}
+                  maxCount={1}
+                  onChange={({ fileList, file }) => {
+                    setImageFileList(fileList);
+                    if (file.status === 'done' && file.response?.url) {
+                      setImagePreview(file.response.url);
+                      form.setFieldValue('image_url', file.response.url);
+                      message.success('图片上传成功');
+                    } else if (file.status === 'error') {
+                      message.error('图片上传失败');
+                    }
+                  }}
+                  beforeUpload={(file) => {
+                    const isImage = file.type.startsWith('image/');
+                    if (!isImage) { message.error('只能上传图片文件'); return false; }
+                    return true;
+                  }}
                 >
-                  <Button icon={uploadingImage ? <LoadingOutlined /> : <UploadOutlined />} loading={uploadingImage}>
-                    点击上传图片
-                  </Button>
+                  <Button icon={<UploadOutlined />}>点击上传图片</Button>
                 </Upload>
-                {imagePreview && (
+                {imagePreview && imageFileList.length === 0 && (
                   <div style={{ marginTop: 8 }}>
                     <img
                       src={resolveImageUrl(imagePreview)}

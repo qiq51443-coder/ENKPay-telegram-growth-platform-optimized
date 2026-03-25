@@ -136,7 +136,7 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
  */
 router.post('/pairs/custom', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { symbol, display_name, base_currency, quote_currency, initial_price } = req.body;
+    const { symbol, display_name, base_currency, quote_currency, initial_price, icon_url } = req.body;
 
     if (!symbol || !initial_price) {
       return res.status(400).json({ error: 'symbol and initial_price are required' });
@@ -147,10 +147,10 @@ router.post('/pairs/custom', authenticateAdmin, async (req: AuthRequest, res) =>
       const effectiveName = display_name || symbol;
       const pairResult = await client.query(
         `INSERT INTO trading_pairs 
-         (symbol, name, display_name, pair_type, base_currency, quote_currency, custom_initial_price)
-         VALUES ($1, $2, $3, 'custom', $4, $5, $6)
+         (symbol, name, display_name, pair_type, base_currency, quote_currency, custom_initial_price, icon_url)
+         VALUES ($1, $2, $3, 'custom', $4, $5, $6, $7)
          RETURNING *`,
-        [symbol, effectiveName, effectiveName, base_currency, quote_currency, parseFloat(initial_price)]
+        [symbol, effectiveName, effectiveName, base_currency, quote_currency, parseFloat(initial_price), icon_url || null]
       );
 
       const pair = pairResult.rows[0];
@@ -983,6 +983,16 @@ router.patch('/pairs/:id/toggle', adminLimiter, authenticateAdmin, async (req: A
     console.error('Toggle pair error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+/**
+ * POST /api/admin/trading/upload-icon
+ * Upload a coin icon without binding to a specific pair — returns a persistent URL
+ * Used by the Ant Design Upload component with action prop (for create form)
+ */
+router.post('/upload-icon', authenticateAdmin, adminLimiter, iconUpload.single('file'), (req: AuthRequest, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ success: true, url: `/uploads/coin-icons/${req.file.filename}` });
 });
 
 /**

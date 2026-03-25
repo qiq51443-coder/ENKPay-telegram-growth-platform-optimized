@@ -866,9 +866,27 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
 
 /**
  * POST /api/nft/upload-image
- * Upload an NFT product image (admin) — returns a persistent URL
+ * Upload an NFT product image (admin) — returns a persistent URL (field: image)
  */
 router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: AuthRequest, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+    const relativeUrl = `/uploads/nft/${req.file.filename}`;
+    res.json({ success: true, url: relativeUrl });
+  } catch (error: any) {
+    console.error('Image upload error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/nft/upload
+ * Upload an NFT product image (admin) — returns a persistent URL (field: file)
+ * Used by the Ant Design Upload component with action prop
+ */
+router.post('/upload', authenticateAdmin, upload.single('file'), (req: AuthRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
