@@ -380,7 +380,10 @@ class ApiClient {
 
   async getNFTProducts(params?: any) {
     const response = await this.client.get('/nft/products', { params });
-    return response.data;
+    // Normalize: support both { data: [...] } and { products: [...] } response shapes
+    const raw = response.data;
+    const data = raw?.data || raw?.products || [];
+    return { ...raw, data };
   }
 
   async getNFTProduct(id: string) {

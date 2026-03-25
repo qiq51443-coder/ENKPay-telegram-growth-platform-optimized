@@ -235,7 +235,7 @@ router.get('/products', async (req, res) => {
       },
     });
   } catch (error: any) {
-    console.error('Get products error:', error);
+    console.error('Get products error:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
