@@ -108,37 +108,76 @@ router.get('/products', async (req, res) => {
     const { page = 1, limit = 20, category_id, status, lang } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    let queryText = `
-      SELECT 
-        p.*,
-        c.name as category_name,
-        COALESCE(p.display_holders_count, 0)
-        + COALESCE((SELECT COUNT(*) FROM nft_holdings h WHERE h.product_id = p.id AND h.status = 'active'), 0)
-        + COALESCE((SELECT COUNT(*) FROM product_holdings ph WHERE ph.product_id = p.id AND ph.status = 'active'), 0)
-        AS total_holders_count
-      FROM nft_products p
-      LEFT JOIN nft_categories c ON p.category_id = c.id
-      WHERE 1=1
-    `;
+    // Build WHERE clause additions + ORDER BY/LIMIT/OFFSET that are shared by
+    // both the full query (with holdings joins) and the fallback query.
     const params: any[] = [];
+    let whereClause = '';
 
     if (category_id) {
       params.push(category_id);
-      queryText += ` AND p.category_id = $${params.length}`;
+      whereClause += ` AND p.category_id = $${params.length}`;
     }
 
     if (status) {
       params.push(status);
-      queryText += ` AND p.status = $${params.length}`;
+      whereClause += ` AND p.status = $${params.length}`;
     }
     // No default status filter — callers (e.g. admin panel) can see all products;
     // front-end mini-app passes status=active explicitly when needed.
 
-    queryText += ` ORDER BY p.created_at DESC`;
     params.push(Number(limit), offset);
-    queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const paginationClause = ` ORDER BY p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
-    const result = await query(queryText, params);
+    // Primary query: LEFT JOIN aggregation instead of correlated subqueries so
+    // the query remains valid even when the holdings tables have zero rows.
+    const fullQuery = `
+      SELECT 
+        p.*,
+        c.name as category_name,
+        COALESCE(p.display_holders_count, 0)
+        + COALESCE(nh.nft_holders_count, 0)
+        + COALESCE(ph.product_holders_count, 0)
+        AS total_holders_count
+      FROM nft_products p
+      LEFT JOIN nft_categories c ON p.category_id = c.id
+      LEFT JOIN (
+        SELECT product_id, COUNT(*) AS nft_holders_count
+        FROM nft_holdings
+        WHERE status = 'active'
+        GROUP BY product_id
+      ) nh ON nh.product_id = p.id
+      LEFT JOIN (
+        SELECT product_id, COUNT(*) AS product_holders_count
+        FROM product_holdings
+        WHERE status = 'active'
+        GROUP BY product_id
+      ) ph ON ph.product_id = p.id
+      WHERE 1=1${whereClause}${paginationClause}
+    `;
+
+    // Fallback query used when either holdings table does not yet exist (42P01).
+    // Returns display_holders_count only so the endpoint always succeeds.
+    const fallbackQuery = `
+      SELECT 
+        p.*,
+        c.name as category_name,
+        COALESCE(p.display_holders_count, 0) AS total_holders_count
+      FROM nft_products p
+      LEFT JOIN nft_categories c ON p.category_id = c.id
+      WHERE 1=1${whereClause}${paginationClause}
+    `;
+
+    let result: any;
+    try {
+      result = await query(fullQuery, params);
+    } catch (queryErr: any) {
+      // 42P01 = undefined_table; retry without the holdings joins
+      if (queryErr.code === '42P01') {
+        result = await query(fallbackQuery, params);
+      } else {
+        throw queryErr;
+      }
+    }
 
     // Map description based on requested language
     const langCode = typeof lang === 'string' ? lang.split('-')[0] : null;
