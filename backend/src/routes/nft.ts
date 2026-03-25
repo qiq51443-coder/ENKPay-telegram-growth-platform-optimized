@@ -171,9 +171,25 @@ router.get('/products', async (req, res) => {
     try {
       result = await query(fullQuery, params);
     } catch (queryErr: any) {
-      // 42P01 = undefined_table; retry without the holdings joins
-      if (queryErr.code === '42P01') {
-        result = await query(fallbackQuery, params);
+      // 42P01 = undefined_table, 42703 = undefined_column
+      // Both can happen when DB migrations haven't fully run yet.
+      if (queryErr.code === '42P01' || queryErr.code === '42703') {
+        try {
+          result = await query(fallbackQuery, params);
+        } catch (fallbackErr: any) {
+          // fallbackQuery still references display_holders_count which may also be missing
+          if (fallbackErr.code === '42703' || fallbackErr.code === '42P01') {
+            // Ultimate fallback: bare minimum query with no optional columns
+            result = await query(
+              `SELECT p.*, 0 AS total_holders_count
+               FROM nft_products p
+               WHERE 1=1${whereClause}${paginationClause}`,
+              params
+            );
+          } else {
+            throw fallbackErr;
+          }
+        }
       } else {
         throw queryErr;
       }

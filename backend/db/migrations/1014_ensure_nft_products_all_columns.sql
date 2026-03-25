@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS product_holdings (
 );
 
 -- Fix status CHECK constraint to include both old and new allowed values
+-- Pre-emptively drop known constraint names before the generic loop
+ALTER TABLE nft_products DROP CONSTRAINT IF EXISTS nft_products_status_check;
+ALTER TABLE nft_products DROP CONSTRAINT IF EXISTS nft_products_status_check1;
+
 DO $$
 DECLARE v_constraint TEXT;
 BEGIN

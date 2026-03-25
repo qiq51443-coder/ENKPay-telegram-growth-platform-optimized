@@ -88,8 +88,8 @@ export const Products: React.FC = () => {
   const fetchProducts = async () => {
     try {
       const data = await api.get('/nft/products?limit=6');
-      // data = axios response; data.data = backend response body { success, data: [...], pagination }
-      setProducts(data.data || data.data?.data || data.data?.products || []);
+      // data = axios AxiosResponse; data.data = backend body { success, data: NFTProduct[], pagination }
+      setProducts(data.data?.data || data.data?.products || []);
     } catch {
       setProducts([]);
     } finally {
