@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
+import { runMigrations } from '../db/migrate';
 
 const router = express.Router();
 
@@ -103,6 +104,38 @@ router.get('/status', authenticateAdmin, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('DB repair status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/db-repair/force-migrations
+ * Delete _migrations records for all zzz_ files then re-run the full
+ * migration pipeline so that safety-net files are applied immediately,
+ * without requiring a server restart.
+ * Protected by admin authentication.
+ */
+router.post('/force-migrations', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Remove _migrations records for zzz_ files so runMigrations() will
+    // re-execute them even though they were previously marked as applied.
+    const deleteResult = await query(
+      `DELETE FROM _migrations WHERE filename LIKE $1`,
+      ['zzz_%']
+    );
+    const deletedCount = deleteResult.rowCount ?? 0;
+
+    // Re-run the full migration pipeline (zzz_ files will now always run;
+    // regular files that are already recorded will be skipped automatically).
+    await runMigrations();
+
+    res.json({
+      success: true,
+      message: 'Force-migration completed successfully',
+      zzz_records_cleared: deletedCount,
+    });
+  } catch (error: any) {
+    console.error('Force-migration error:', error);
     res.status(500).json({ error: error.message });
   }
 });

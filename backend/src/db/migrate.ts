@@ -24,14 +24,23 @@ export async function runMigrations(): Promise<void> {
 
     // Helper to run a SQL file
     const runSqlFile = async (filePath: string, filename: string) => {
-      // Check if already executed
-      const result = await client.query(
-        'SELECT id FROM _migrations WHERE filename = $1',
-        [filename]
-      );
-      if (result.rows.length > 0) {
-        console.log(`  ⏭️  Skipping ${filename} (already applied)`);
-        return;
+      // Files prefixed with "zzz_" are idempotent safety-nets and must run on
+      // every startup so that any tables added to them after the initial deploy
+      // are created on existing databases.
+      const isZzz = filename.startsWith('zzz_');
+
+      if (!isZzz) {
+        // Check if already executed for normal migration files
+        const result = await client.query(
+          'SELECT id FROM _migrations WHERE filename = $1',
+          [filename]
+        );
+        if (result.rows.length > 0) {
+          console.log(`  ⏭️  Skipping ${filename} (already applied)`);
+          return;
+        }
+      } else {
+        console.log(`  🔄  Force-running ${filename} (zzz_ safety-net)...`);
       }
 
       console.log(`  ▶️  Applying ${filename}...`);
@@ -40,15 +49,27 @@ export async function runMigrations(): Promise<void> {
       try {
         await client.query('BEGIN');
         await client.query(sql);
-        await client.query(
-          'INSERT INTO _migrations (filename) VALUES ($1)',
-          [filename]
-        );
+        // For zzz_ files use upsert so the record is created on first run and
+        // updated on subsequent runs. The executed_at timestamp reflects when the
+        // safety-net last ran, which is useful for debugging.
+        if (isZzz) {
+          await client.query(
+            `INSERT INTO _migrations (filename, executed_at) VALUES ($1, NOW())
+             ON CONFLICT (filename) DO UPDATE SET executed_at = NOW()`,
+            [filename]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO _migrations (filename) VALUES ($1)',
+            [filename]
+          );
+        }
         await client.query('COMMIT');
         console.log(`  ✅ Applied ${filename}`);
       } catch (err: any) {
         await client.query('ROLLBACK');
         console.error(`  ❌ Failed to apply ${filename}: ${err.message}`);
+        console.error(`     → This migration will be retried on next startup (not recorded in _migrations)`);
         // Don't throw — continue with next migration
       }
     };
