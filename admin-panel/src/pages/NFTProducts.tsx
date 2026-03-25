@@ -108,6 +108,7 @@ export const NFTProducts: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch NFT products:', error);
       message.error('获取产品列表失败');
+      setProducts([]);
     } finally {
       setLoading(false);
     }
