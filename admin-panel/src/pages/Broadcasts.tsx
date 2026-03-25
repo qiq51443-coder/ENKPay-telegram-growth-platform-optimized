@@ -327,7 +327,7 @@ export const Broadcasts: React.FC = () => {
               listType="picture"
               maxCount={1}
               accept="image/*,.gif"
-              action="/api/admin/upload"
+              action="/api/admin/upload-broadcast-image"
               headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
               onChange={(info: UploadChangeParam<UploadFile>) => {
                 if (info.file.status === 'done') {
