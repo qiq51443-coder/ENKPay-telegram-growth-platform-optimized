@@ -77,6 +77,33 @@ export const transaction = async (callback: (client: PoolClient) => Promise<any>
   }
 };
 
+/**
+ * Execute a callback within a SAVEPOINT so that if it throws, only the
+ * savepoint is rolled back and the outer transaction remains valid.
+ *
+ * This is required whenever a try/catch inside a transaction needs to attempt
+ * a fallback query — PostgreSQL marks the entire transaction as aborted on
+ * any error, so without ROLLBACK TO SAVEPOINT the fallback queries also fail.
+ */
+export const withSavepoint = async <T>(
+  client: PoolClient,
+  name: string,
+  callback: () => Promise<T>
+): Promise<T> => {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid savepoint name: ${name}`);
+  }
+  await client.query(`SAVEPOINT ${name}`);
+  try {
+    const result = await callback();
+    await client.query(`RELEASE SAVEPOINT ${name}`);
+    return result;
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${name}`);
+    throw err;
+  }
+};
+
 // Health check function
 export async function healthCheck(): Promise<boolean> {
   try {
