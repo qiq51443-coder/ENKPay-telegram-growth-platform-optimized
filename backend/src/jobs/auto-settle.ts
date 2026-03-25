@@ -280,6 +280,16 @@ async function autoSettleSessions(): Promise<void> {
           openPrice = parseFloat(session.open_price);
         }
 
+        // Diagnostic log: always record open/close prices and their sources for auditability.
+        // This makes it easy to verify that open and close prices are from aligned klines.
+        const openSource = session.open_price != null ? 'db' : 'kline@start_time';
+        console.log(
+          `[auto-settle] session ${session.id} (${session.period_label ?? 'no-label'}): ` +
+          `open=${openPrice} (from ${openSource}), ` +
+          `close=${closePrice} (from kline@end_time), ` +
+          `result=${determineDirection(openPrice, closePrice)}`
+        );
+
         // 3. Determine result direction.
         //    ALWAYS use real price comparison as the primary logic.
         //    rule_direction is ONLY applied when the rule explicitly marks force_result = true,

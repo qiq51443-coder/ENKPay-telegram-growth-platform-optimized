@@ -888,21 +888,38 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         }
       }
 
-      // For real pairs with a Binance symbol, align open_price with the current 1m kline
-      // open price so it matches the close price used by auto-settle for settlement.
-      // If the Binance call fails, open_price stays NULL so auto-settle's null-open-price
-      // fallback logic can handle it correctly.  Do NOT fall back to the tick price here.
+      // For real pairs with a Binance symbol, fetch the 1m kline whose open time matches
+      // sessionStartTime.  This ensures open_price is from the SAME candle that auto-settle
+      // uses for close_price, preventing direction mismatches.
+      // CRITICAL: we must pass startTime=sessionStartTime so Binance returns the candle that
+      // starts at session start, NOT the currently-open candle (which is wrong when the user
+      // places their order before the period begins).
+      // If sessionStartTime is in the future, Binance returns an empty array and
+      // klineOpenPrice stays NULL — period-snapshot will backfill it when the period opens.
       let klineOpenPrice: number | null = null;
       if (pairRow.pair_type === 'real' && pairRow.binance_symbol) {
         try {
+          const targetMs = sessionStartTime.getTime();
           const klines = await binanceFetch('/api/v3/klines', {
             symbol: pairRow.binance_symbol,
             interval: '1m',
-            limit: 1,
+            startTime: targetMs,
+            limit: 2, // fetch 2 to handle minor timestamp drift
           });
           if (Array.isArray(klines) && klines.length > 0) {
             // Binance kline format: [openTime, open, high, low, close, volume, ...]
-            klineOpenPrice = parseFloat(klines[0][1]); // index 1 = open price
+            // Pick the kline whose open time is closest to (and <= ) sessionStartTime.
+            // Start with the last candle that is <= targetMs; fall back to the first candle
+            // if all returned candles start after targetMs (future session — unlikely but safe).
+            let best: any = null;
+            for (const k of klines) {
+              if (k[0] <= targetMs) {
+                if (best === null || k[0] > best[0]) best = k;
+              }
+            }
+            if (best === null) best = klines[0]; // all candles in future → use first available
+            klineOpenPrice = parseFloat(best[1]); // index 1 = open price
+            console.log(`[quick-session] pair ${pairRow.binance_symbol} open_price=${klineOpenPrice} from kline at ${new Date(best[0]).toISOString()} for session start=${sessionStartTime.toISOString()}`);
           }
         } catch (binanceErr: any) {
           console.warn('[quick-session] Binance kline fetch failed, open_price will be NULL:', binanceErr.message);
@@ -1027,6 +1044,22 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           } else {
             throw new Error('Failed to create or reuse trading session');
           }
+        }
+      }
+
+      // After session is found or created: if open_price is NULL but we just fetched a valid
+      // klineOpenPrice, backfill it now.  This handles the case where a previous order created
+      // the session without a valid open_price (old buggy code) and the current order can fix it.
+      if (session && session.open_price == null && klineOpenPrice != null) {
+        try {
+          await client.query(
+            `UPDATE trading_sessions SET open_price = $1 WHERE id = $2 AND open_price IS NULL`,
+            [klineOpenPrice, session.id]
+          );
+          session = { ...session, open_price: klineOpenPrice };
+          console.log(`[quick-session] backfilled open_price=${klineOpenPrice} for session id=${session.id}`);
+        } catch (backfillErr: any) {
+          console.warn('[quick-session] Failed to backfill open_price (non-fatal):', backfillErr.message);
         }
       }
 
