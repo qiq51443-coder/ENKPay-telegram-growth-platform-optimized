@@ -2,7 +2,7 @@ services:
   - type: web
     name: telegram-growth-platform
     runtime: node
-    region: singapore
+    region: frankfurt
     plan: standard
     autoDeploy: false
     healthCheckPath: /health
@@ -64,12 +64,12 @@ services:
 
   - type: redis
     name: telegram-growth-redis
-    region: singapore
+    region: frankfurt
     plan: starter
     maxmemoryPolicy: allkeys-lru
 
 databases:
   - name: telegram-growth-db
     databaseName: telegram_growth
-    region: singapore
+    region: frankfurt
     plan: basic
