@@ -446,12 +446,20 @@ export async function settleSession(
     }
 
     // Resolve open price: caller → stored in DB → fall back to closePrice (draw)
-    const resolvedOpenPrice =
-      openPrice != null
-        ? openPrice
-        : session.open_price != null
-          ? parseFloat(session.open_price)
-          : closePrice;
+    let resolvedOpenPrice: number;
+    if (openPrice != null) {
+      resolvedOpenPrice = openPrice;
+    } else if (session.open_price != null) {
+      resolvedOpenPrice = parseFloat(session.open_price);
+    } else {
+      // No open price available — result will be draw (full refund).
+      // Callers should ensure openPrice is passed to avoid unintended draws.
+      console.warn(
+        `[settlement] session ${sessionId}: open_price is NULL and no openPrice passed by caller. ` +
+        `Falling back to closePrice=${closePrice} — this will result in DRAW (full refund).`
+      );
+      resolvedOpenPrice = closePrice;
+    }
 
     // Compute result direction from prices
     const resultDirection = determineResultDirection(resolvedOpenPrice, closePrice);
