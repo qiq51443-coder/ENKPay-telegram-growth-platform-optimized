@@ -102,20 +102,39 @@ async function runPeriodSnapshot(): Promise<void> {
 
         if (openPrice === null || openPrice <= 0) {
           const startedMinsAgo = (Date.now() - new Date(session.start_time).getTime()) / 60000;
-          if (startedMinsAgo >= 2) {
+          if (startedMinsAgo >= 5) {
+            // Price still unavailable after 5 minutes — cancel the session and refund all bets
+            // to prevent the session from being stuck indefinitely.
             console.warn(
-              `[period-snapshot] [FORCE-ACTIVATE] session ${session.id}: start_time=${session.start_time} ` +
-              `(${startedMinsAgo.toFixed(1)}min ago), no price obtainable — force-activating with open_price=0 (will settle as draw)`
+              `[period-snapshot] [CANCEL] session ${session.id}: no price after ${startedMinsAgo.toFixed(1)}min, cancelling and refunding`
             );
-            openPrice = 0; // will result in draw at settlement
-            // fall through to the activation transaction below
+            await query(
+              `UPDATE trading_sessions SET status = 'cancelled' WHERE id = $1 AND status = 'pending'`,
+              [session.id]
+            );
+            await query(
+              `UPDATE trading_orders SET status = 'cancelled', result = 'draw', profit = 0
+               WHERE session_id = $1 AND status IN ('pending', 'active')`,
+              [session.id]
+            );
+            const ordersResult = await query(
+              `SELECT user_id, SUM(amount::numeric) AS total FROM trading_orders WHERE session_id = $1 AND result = 'draw' GROUP BY user_id`,
+              [session.id]
+            );
+            for (const row of ordersResult.rows) {
+              await query(
+                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+                [parseFloat(row.total), row.user_id]
+              );
+            }
+            console.log(`[period-snapshot] session ${session.id}: cancelled and refunded`);
           } else {
             console.warn(
               `[period-snapshot] [WARN] session ${session.id} (pair_id=${session.pair_id}, start_time=${session.start_time}): ` +
-              `cannot get open price — skipping. Ensure real-price-snapshot or price-generator is running.`
+              `cannot get open price (${startedMinsAgo.toFixed(1)}min ago) — skipping. Will retry next tick.`
             );
-            continue;
           }
+          continue; // Do not fall through to the activation logic; never write open_price=0
         }
 
         // Activate session and orders atomically, with double-activation guard
