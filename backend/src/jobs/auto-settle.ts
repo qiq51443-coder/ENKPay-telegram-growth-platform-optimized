@@ -307,10 +307,19 @@ async function autoSettleSessions(): Promise<void> {
         }
 
         // 4. Settle session + orders in a transaction
+        // Capture totals outside so settlement log can be written after the transaction commits
+        let settledOrderCount = 0;
+        let settledTotalBetAmount = 0;
+        let settledTotalPayout = 0;
+        let settledWinningOrders = 0;
+        let settledLosingOrders = 0;
+        let settledDrawOrders = 0;
+        let isSettled = false;
+
         await transaction(async (client) => {
-          // Guard against double-settle
+          // Guard against double-settle — use FOR UPDATE to lock the row and prevent races
           const checkResult = await client.query(
-            `SELECT status FROM trading_sessions WHERE id = $1`,
+            `SELECT status FROM trading_sessions WHERE id = $1 FOR UPDATE`,
             [session.id]
           );
           if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
@@ -410,9 +419,7 @@ async function autoSettleSessions(): Promise<void> {
             );
           }
 
-          const platformProfit = totalBetAmount - totalPayout;
-
-          // Update session
+          // Update session — include open_price backfill so it is atomically committed
           await client.query(
             `UPDATE trading_sessions
              SET status = 'settled',
@@ -420,29 +427,43 @@ async function autoSettleSessions(): Promise<void> {
                  result = $1,
                  settlement_price = $2,
                  close_price = $2,
-                 total_bet_amount = $3,
-                 total_payout = $4,
-                 order_count = $5,
+                 open_price = COALESCE(open_price, $3),
+                 total_bet_amount = $4,
+                 total_payout = $5,
+                 order_count = $6,
                  settled_at = NOW()
-             WHERE id = $6`,
-            [resultDirection, closePrice, totalBetAmount, totalPayout, orders.length, session.id]
+             WHERE id = $7`,
+            [resultDirection, closePrice, openPrice, totalBetAmount, totalPayout, orders.length, session.id]
           );
 
-          // Log settlement
+          // Capture totals for the settlement log written after this transaction commits
+          settledOrderCount = orders.length;
+          settledTotalBetAmount = totalBetAmount;
+          settledTotalPayout = totalPayout;
+          settledWinningOrders = winningOrders;
+          settledLosingOrders = losingOrders;
+          settledDrawOrders = drawOrders;
+          isSettled = true;
+        });
+
+        // Write settlement log OUTSIDE the transaction so that issues with the log
+        // table (missing columns, constraints, etc.) cannot roll back the settlement.
+        if (isSettled) {
+          const platformProfit = settledTotalBetAmount - settledTotalPayout;
           try {
-            await client.query(
+            await query(
               `INSERT INTO trading_settlement_log
                (session_id, rule_id, result_direction, settlement_price, total_orders, total_bet_amount, total_payout, platform_profit)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [session.id, session.rule_id, resultDirection, closePrice, orders.length, totalBetAmount, totalPayout, platformProfit]
+              [session.id, session.rule_id, resultDirection, closePrice, settledOrderCount, settledTotalBetAmount, settledTotalPayout, platformProfit]
             );
-          } catch { /* log table may not exist yet */ }
+          } catch (logErr: any) { console.warn(`[auto-settle] session ${session.id}: settlement log insert failed (non-critical):`, logErr.message); }
 
           console.log(
             `[auto-settle] session ${session.id} settled, result=${resultDirection}, close_price=${closePrice} ` +
-            `(open=${openPrice}, orders=${orders.length}: win=${winningOrders}, lose=${losingOrders}, draw=${drawOrders})`
+            `(open=${openPrice}, orders=${settledOrderCount}: win=${settledWinningOrders}, lose=${settledLosingOrders}, draw=${settledDrawOrders})`
           );
-        });
+        }
       } catch (err: any) {
         console.error(`[auto-settle] Error settling session ${session.id}:`, err.message);
       }
