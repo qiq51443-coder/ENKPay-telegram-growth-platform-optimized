@@ -274,7 +274,7 @@ async function autoSettleSessions(): Promise<void> {
        WHERE ts.end_time <= NOW()
          AND ts.status IN ('active', 'pending')
        ORDER BY ts.end_time ASC
-       LIMIT 20`,
+       LIMIT 100`,
       []
     );
 
@@ -379,7 +379,7 @@ async function autoSettleSessions(): Promise<void> {
 
         if (session.pair_type === 'real' && session.binance_symbol) {
           const ONE_MINUTE_MS = 60_000;
-          const KLINE_END_BUFFER_MS = 5_000;
+          const KLINE_END_BUFFER_MS = 2_000; // small buffer to reduce risk of picking the next candle
           try {
             const endTimeMs = new Date(session.end_time).getTime();
             const klineData = await binanceFetch('/api/v3/klines', {
@@ -387,14 +387,14 @@ async function autoSettleSessions(): Promise<void> {
               interval: '1m',
               startTime: endTimeMs - ONE_MINUTE_MS,
               endTime: endTimeMs + KLINE_END_BUFFER_MS,
-              limit: 2,
+              limit: 3, // fetch one extra to handle edge-case time shifts
             });
             if (Array.isArray(klineData) && klineData.length > 0) {
-              // Pick the kline whose open_time is the latest at or before end_time
-              const validKlines = (klineData as any[][]).filter((k) => k[0] <= endTimeMs);
+              // Strictly exclude any candle whose openTime >= endTimeMs (the new candle)
+              const validKlines = (klineData as any[][]).filter((k) => k[0] < endTimeMs);
               if (validKlines.length === 0) {
                 throw new Error(
-                  `No valid kline at or before end_time for session ${session.id} ` +
+                  `No valid kline strictly before end_time for session ${session.id} ` +
                   `(endTimeMs=${endTimeMs})`
                 );
               }
@@ -404,7 +404,8 @@ async function autoSettleSessions(): Promise<void> {
               );
               closePrice = parseFloat(bestKline[4]);
               console.log(
-                `[auto-settle] session ${session.id}: Binance kline close_price=${closePrice}`
+                `[auto-settle] session ${session.id}: Binance kline close_price=${closePrice} ` +
+                `from kline at ${new Date(bestKline[0]).toISOString()}`
               );
             } else {
               throw new Error('No kline data returned');
@@ -470,29 +471,51 @@ async function autoSettleSessions(): Promise<void> {
         if (session.open_price != null) {
           openPrice = parseFloat(session.open_price);
         } else if (session.pair_type === 'real' && session.binance_symbol && session.start_time) {
+          // Try to fetch the historical kline that was open at start_time.
+          // Use a symmetric window to the close_price fetch: [-60s, +5s] around start_time.
           try {
             const startTimeMs = new Date(session.start_time).getTime();
+            const ONE_MINUTE_MS = 60_000;
+            const START_BUFFER_MS = 5_000;
             const startKlineData = await binanceFetch('/api/v3/klines', {
               symbol: session.binance_symbol,
               interval: '1m',
-              startTime: startTimeMs,
-              limit: 1,
+              startTime: startTimeMs - ONE_MINUTE_MS,
+              endTime: startTimeMs + START_BUFFER_MS,
+              limit: 2,
             });
             if (Array.isArray(startKlineData) && startKlineData.length > 0) {
-              openPrice = parseFloat((startKlineData as any[][])[0][1]);
-              console.log(
-                `[auto-settle] session ${session.id}: historical open_price=${openPrice}`
-              );
+              // Pick the kline whose openTime is the latest at or before start_time
+              const validKlines = (startKlineData as any[][]).filter((k) => k[0] <= startTimeMs);
+              if (validKlines.length > 0) {
+                const bestKline = validKlines.reduce(
+                  (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
+                  validKlines[0]
+                );
+                openPrice = parseFloat(bestKline[1]); // index 1 = open price of the candle
+                console.log(
+                  `[auto-settle] session ${session.id}: fetched historical open_price=${openPrice} ` +
+                  `from kline at ${new Date(bestKline[0]).toISOString()}`
+                );
+              } else {
+                // All returned candles are after start_time — use the first candle's open
+                openPrice = parseFloat((startKlineData as any[][])[0][1]);
+                console.warn(
+                  `[auto-settle] session ${session.id}: no kline at or before start_time, ` +
+                  `using first available kline open_price=${openPrice}`
+                );
+              }
             } else {
-              throw new Error('No kline data for start_time');
+              throw new Error('No kline data returned for start_time');
             }
           } catch (err: any) {
+            // Kline fetch failed — fall back to closePrice so we can still settle as draw
+            // rather than cancelling and leaving users without a result.
             console.warn(
-              `[auto-settle] session ${session.id}: cannot get open_price ` +
-              `(${err.message}), cancelling...`
+              `[auto-settle] session ${session.id}: cannot fetch historical open_price ` +
+              `(${err.message}), falling back to closePrice=${closePrice} → will settle as draw`
             );
-            await cancelSessionAndRefund(session.id);
-            continue;
+            openPrice = closePrice;
           }
         } else {
           try {
@@ -501,10 +524,9 @@ async function autoSettleSessions(): Promise<void> {
           } catch (priceErr: any) {
             console.warn(
               `[auto-settle] session ${session.id}: cannot get open_price ` +
-              `(${priceErr.message}), cancelling...`
+              `(${priceErr.message}), falling back to closePrice=${closePrice} → will settle as draw`
             );
-            await cancelSessionAndRefund(session.id);
-            continue;
+            openPrice = closePrice;
           }
         }
 
