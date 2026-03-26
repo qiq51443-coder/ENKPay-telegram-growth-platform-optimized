@@ -1,0 +1,1222 @@
+import express from 'express';
+import { query, transaction, withSavepoint } from '../db';
+import { authenticateBot, AuthRequest } from '../middleware/auth';
+import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
+import { getPairPrice, getKlineData, cacheKlineData, binanceFetch } from '../services/price.service';
+import { triggerFirstTradeReward } from '../services/invitation-reward.service';
+import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
+import { getCurrentPeriod, getNextPeriod, resolvePeriodFromClient, resolvePeriodFromLabel, PeriodInfo } from '../services/period.service';
+
+const router = express.Router();
+
+/**
+ * Parse a kline interval string (e.g. '1m', '5m', '1h', '1d') into seconds.
+ */
+function parseIntervalToSeconds(interval: string): number {
+  const match = interval.match(/^(+)(m|h|d)$/i);
+  if (!match) return 60;
+  const value = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === 'm') return value * 60;
+  if (unit === 'h') return value * 3600;
+  if (unit === 'd') return value * 86400;
+  return 60;
+}
+
+/** Minimum number of candles required before synthetic seed candles are injected. */
+const MIN_CANDLES_FOR_CHART = 10;
+/** Seed candle price jitter: each synthetic candle has a ±0.2% random variance. */
+const SEED_JITTER_RANGE = 0.004;
+const SEED_JITTER_OFFSET = 0.002;
+
+/**
+ * Check whether the PostgreSQL error is a "relation does not exist" error,
+ * which typically means a required database migration has not been run.
+ */
+function isMissingTableError(err: any): boolean {
+  // PostgreSQL error code 42P01 = "undefined_table"
+  return err?.code === '42P01' || /relation .* does not exist/i.test(err?.message ?? '');
+}
+
+/**
+ * Check whether the PostgreSQL error is an "undefined column" error (42703),
+ * which means a required database migration has not been run.
+ */
+function isMissingColumnError(err: any): boolean {
+  // PostgreSQL error code 42703 = "undefined_column"
+  return err?.code === '42703' || /column .* does not exist/i.test(err?.message ?? '');
+}
+
+/**
+ * GET /api/trading/health
+ * Check trading feature readiness (tables present, at least one active pair).
+ * Returns 200 when ready, 503 when migrations are missing, 500 on other errors.
+ */
+router.get('/health', async (_req, res) => {
+  const checks: Record<string, boolean | string> = {};
+  try {
+    await query('SELECT 1 FROM trading_pairs LIMIT 1');
+    checks.trading_pairs = true;
+  } catch (err: any) {
+    checks.trading_pairs = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_rules LIMIT 1');
+    checks.trading_rules = true;
+  } catch (err: any) {
+    checks.trading_rules = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_sessions LIMIT 1');
+    checks.trading_sessions = true;
+  } catch (err: any) {
+    checks.trading_sessions = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+  try {
+    await query('SELECT 1 FROM trading_orders LIMIT 1');
+    checks.trading_orders = true;
+  } catch (err: any) {
+    checks.trading_orders = isMissingTableError(err) ? 'missing_migration' : err.message;
+  }
+
+  const allOk = Object.values(checks).every(v => v === true);
+  const hasMissingMigration = Object.values(checks).some(v => v === 'missing_migration');
+
+  if (allOk) {
+    return res.json({ status: 'ok', checks });
+  }
+
+  const status = hasMissingMigration ? 503 : 500;
+  return res.status(status).json({
+    status: hasMissingMigration ? 'migration_required' : 'error',
+    message: hasMissingMigration
+      ? 'Trading feature is not ready. Please run: backend/db/migrations/200_trading_rules_and_settlement.sql'
+      : 'Trading health check failed',
+    checks,
+  });
+});
+
+
+/**
+ * GET /api/trading/current-period
+ * Returns server-authoritative current and next period info for a given duration.
+ * Mini-app uses this to sync its countdown clock with the server.
+ */
+router.get('/current-period', async (req, res) => {
+  try {
+    const { duration = '60' } = req.query;
+    const durationSeconds = parseInt(String(duration), 10);
+    if (isNaN(durationSeconds) || durationSeconds <= 0) {
+      return res.status(400).json({ error: 'Invalid duration' });
+    }
+    const nowMs = Date.now();
+    const current = getCurrentPeriod(durationSeconds, nowMs);
+    const next = getNextPeriod(durationSeconds, nowMs);
+    res.json({
+      success: true,
+      data: {
+        server_time: nowMs,
+        duration_seconds: durationSeconds,
+        current: {
+          period_label: current.periodLabel,
+          period_start: current.periodStartMs,
+          period_end: current.periodEndMs,
+          remaining_ms: current.remainingMs,
+        },
+        next: {
+          period_label: next.periodLabel,
+          period_start: next.periodStartMs,
+          period_end: next.periodEndMs,
+          remaining_ms: next.remainingMs,
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+router.get('/pairs', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT 
+         id, symbol, COALESCE(display_name, name, symbol) as display_name, pair_type, base_currency, quote_currency,
+         binance_symbol, is_active, icon_url, sort_order, current_price, price_change_24h, created_at
+       FROM trading_pairs
+       WHERE is_active = true
+       ORDER BY sort_order ASC, created_at DESC`
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get pairs error:', error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'Required database migrations have not been applied. ' +
+              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+      });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/pairs/:id/price
+ * Get current price for trading pair
+ */
+router.get('/pairs/:id/price', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get price using price service
+    const priceData = await getPairPrice(parseInt(id));
+
+    res.json({
+      success: true,
+      data: priceData,
+    });
+  } catch (error: any) {
+    console.error('Get price error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/pairs/:id/kline
+ * Get kline/candlestick data
+ */
+router.get('/pairs/:id/kline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { interval = '1m', limit = 100 } = req.query;
+    const pairId = parseInt(id);
+    const limitNum = Number(limit);
+    const intervalStr = String(interval);
+
+    // Get pair type and binance symbol
+    const pairResult = await query(
+      `SELECT pair_type, binance_symbol FROM trading_pairs WHERE id = $1`,
+      [pairId]
+    );
+
+    if (pairResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
+    const pair = pairResult.rows[0];
+    let klineData;
+
+    if (pair.pair_type === 'real' && pair.binance_symbol) {
+      // Fetch real K-line data from Binance; fall back to empty array if unreachable
+      try {
+        klineData = await getKlineData(pair.binance_symbol, intervalStr, limitNum);
+        // Async cache to DB without blocking response
+        cacheKlineData(pairId, intervalStr, klineData).catch((err: any) => {
+          console.error('Failed to cache kline data:', err);
+        });
+      } catch (binanceErr) {
+        console.warn('Binance kline fetch failed, returning empty array:', binanceErr);
+        klineData = [];
+      }
+    } else {
+      // Aggregate price data into OHLC candles for custom pairs
+      const intervalSeconds = parseIntervalToSeconds(intervalStr);
+      const intervalMs = intervalSeconds * 1000;
+
+      const ohlcQuery = (table: string) => `
+        SELECT
+          (floor(extract(epoch from timestamp) / $3::float) * $4)::bigint AS open_time,
+          (ARRAY_AGG(price ORDER BY timestamp ASC))[1]                    AS open,
+          MAX(price)                                                       AS high,
+          MIN(price)                                                       AS low,
+          (ARRAY_AGG(price ORDER BY timestamp DESC))[1]                   AS close
+        FROM ${table}
+        WHERE pair_id = $1
+          AND timestamp >= NOW() - make_interval(secs => $2::int * $3::int)
+        GROUP BY floor(extract(epoch from timestamp) / $3::float)
+        ORDER BY open_time DESC
+        LIMIT $2`;
+
+      try {
+        // Query both price_points (auto-generated) and custom_price_points (admin-set)
+        const [ppResult, cppResult] = await Promise.all([
+          query(ohlcQuery('price_points'), [pairId, limitNum, intervalSeconds, intervalMs]),
+          query(ohlcQuery('custom_price_points'), [pairId, limitNum, intervalSeconds, intervalMs]),
+        ]);
+
+        // Merge by open_time — price_points takes precedence over custom_price_points
+        const mergedMap = new Map<number, any>();
+        for (const row of [...cppResult.rows, ...ppResult.rows]) {
+          mergedMap.set(parseFloat(row.open_time), row);
+        }
+
+        klineData = Array.from(mergedMap.values())
+          .sort((a: any, b: any) => parseFloat(a.open_time) - parseFloat(b.open_time))
+          .slice(-limitNum)
+          .map((row: any) => ({
+            open_time: parseFloat(row.open_time),
+            timestamp: parseFloat(row.open_time),
+            open:      parseFloat(row.open),
+            high:      parseFloat(row.high),
+            low:       parseFloat(row.low),
+            close:     parseFloat(row.close),
+            volume:    0,
+          }));
+
+        // If fewer than MIN_CANDLES_FOR_CHART candles exist, synthesize seed candles from initial/current price
+        if (klineData.length < MIN_CANDLES_FOR_CHART) {
+          const pairInfoResult = await query(
+            `SELECT custom_initial_price, current_price FROM trading_pairs WHERE id = $1`,
+            [pairId]
+          );
+          const seedPrice = pairInfoResult.rows.length > 0
+            ? parseFloat(pairInfoResult.rows[0].current_price || pairInfoResult.rows[0].custom_initial_price || '0')
+            : 0;
+
+          if (seedPrice > 0) {
+            const neededCandles = limitNum - klineData.length;
+            const existingTimes = new Set(klineData.map((c: any) => c.open_time));
+            const nowBucket = Math.floor(Date.now() / intervalMs) * intervalMs;
+            const seedCandles: Array<{ open_time: number; timestamp: number; open: number; high: number; low: number; close: number; volume: number }> = [];
+
+            for (let i = neededCandles; i > 0; i--) {
+              const openTime = nowBucket - i * intervalMs;
+              if (!existingTimes.has(openTime)) {
+                // Apply a tiny random jitter so consecutive synthetic candles differ slightly (±0.2%)
+                const jitter = 1 + (Math.random() * SEED_JITTER_RANGE - SEED_JITTER_OFFSET);
+                const p = parseFloat((seedPrice * jitter).toFixed(8));
+                seedCandles.push({
+                  open_time: openTime,
+                  timestamp: openTime,
+                  open: p, high: p, low: p, close: p, volume: 0,
+                });
+              }
+            }
+
+            klineData = [
+              ...seedCandles,
+              ...klineData,
+            ].sort((a: any, b: any) => a.open_time - b.open_time).slice(-limitNum);
+          }
+        }
+      } catch (klineErr: any) {
+        console.warn('[kline] Custom pair aggregation error:', klineErr.message);
+        klineData = [];
+      }
+    }
+
+    res.json({
+      success: true,
+      data: klineData,
+    });
+  } catch (error: any) {
+    console.error('Get kline error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/sessions
+ * Get current and upcoming trading sessions
+ */
+router.get('/sessions', async (req, res) => {
+  try {
+    const { pair_id } = req.query;
+
+    let queryText = `
+      SELECT
+        s.*,
+        p.symbol,
+        COALESCE(p.display_name, p.name, p.symbol) as display_name,
+        COUNT(CASE WHEN o.direction = 'up'   THEN 1 END)::int AS up_count,
+        COUNT(CASE WHEN o.direction = 'down' THEN 1 END)::int AS down_count
+      FROM trading_sessions s
+      JOIN trading_pairs p ON s.pair_id = p.id
+      LEFT JOIN trading_orders o ON o.session_id = s.id AND o.status IN ('active', 'pending', 'settled')
+      WHERE s.status IN ('pending', 'active')
+    `;
+    const params: any[] = [];
+
+    if (pair_id) {
+      params.push(pair_id);
+      queryText += ` AND s.pair_id = $${params.length}`;
+    }
+
+    queryText += ` GROUP BY s.id, p.symbol, p.display_name, p.name ORDER BY COALESCE(s.start_time, s.start_at)`;
+
+    const result = await query(queryText, params);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/sessions/:id
+ * Get a single trading session by ID (used by the mini-app to poll for open_price)
+ */
+router.get('/sessions/:id', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
+              COUNT(CASE WHEN o.direction = 'up'   THEN 1 END)::int AS up_count,
+              COUNT(CASE WHEN o.direction = 'down' THEN 1 END)::int AS down_count
+       FROM trading_sessions s
+       JOIN trading_pairs p ON s.pair_id = p.id
+       LEFT JOIN trading_orders o ON o.session_id = s.id AND o.status IN ('active', 'pending', 'settled')
+       WHERE s.id = $1
+       GROUP BY s.id, p.symbol, p.display_name, p.name`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Get session error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/trading/sessions/:id/order
+ * Place trading order for session
+ */
+router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, direction, amount } = req.body;
+
+    if (!user_id || !direction || !amount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!['up', 'down'].includes(direction)) {
+      return res.status(400).json({ error: 'Invalid direction. Must be up or down' });
+    }
+
+    const orderAmount = parseFloat(amount);
+    if (orderAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid order amount' });
+    }
+
+    const result = await transaction(async (client) => {
+      // Get session details
+      const sessionResult = await client.query(
+        `SELECT s.*, p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name 
+         FROM trading_sessions s
+         JOIN trading_pairs p ON s.pair_id = p.id
+         WHERE s.id = $1`,
+        [id]
+      );
+
+      if (sessionResult.rows.length === 0) {
+        throw new Error('Trading session not found');
+      }
+
+      const session = sessionResult.rows[0];
+
+      // Verify session is active and accepting orders
+      if (session.status !== 'active') {
+        throw new Error('Trading session is not active');
+      }
+
+      const now = new Date();
+      const sessionEnd = new Date(session.end_time);
+      // Allow pre-ordering when start_time is in the future (next-period orders).
+      // Only reject if the session has already ended.
+      if (now > sessionEnd) {
+        throw new Error('Trading session has already ended');
+      }
+
+      // Get trading rule for this session (if exists)
+      let ruleId = session.rule_id;
+      let odds = 1.85; // Default odds, aligned with frontend
+      let minBet = 1.0;
+      let maxBet = 10000.0;
+
+      if (ruleId) {
+        const ruleResult = await client.query(
+          `SELECT id, odds, min_bet, max_bet, is_active
+           FROM trading_rules
+           WHERE id = $1`,
+          [ruleId]
+        );
+
+        if (ruleResult.rows.length > 0 && ruleResult.rows[0].is_active) {
+          const rule = ruleResult.rows[0];
+          odds = parseFloat(rule.odds);
+          minBet = parseFloat(rule.min_bet);
+          maxBet = parseFloat(rule.max_bet);
+        }
+      }
+
+      // Check min/max bet amounts
+      if (orderAmount < minBet) {
+        throw new Error(`Minimum bet amount is ${minBet}`);
+      }
+      if (orderAmount > maxBet) {
+        throw new Error(`Maximum bet amount is ${maxBet}`);
+      }
+
+      // Get user balance
+      const userResult = await client.query(
+        'SELECT wallet_balance, COALESCE(red_packet_balance, 0) AS red_packet_balance FROM users WHERE id = $1',
+        [user_id]
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
+      const totalAvailable = walletBal + redPacketBal;
+      if (totalAvailable < orderAmount) {
+        throw new Error('Insufficient balance');
+      }
+
+      // Get current price
+      const priceResult = await client.query(
+        `SELECT price FROM price_points 
+         WHERE pair_id = $1 
+         ORDER BY timestamp DESC 
+         LIMIT 1`,
+        [session.pair_id]
+      );
+
+      if (priceResult.rows.length === 0) {
+        throw new Error('Price data not available');
+      }
+
+      const entryPrice = parseFloat(priceResult.rows[0].price);
+
+      // Deduct from wallet_balance first, then red_packet_balance for the remainder
+      const fromWallet = Math.min(walletBal, orderAmount);
+      const fromRedPacket = orderAmount - fromWallet;
+      if (fromWallet > 0) {
+        await client.query(
+          `UPDATE users SET wallet_balance = wallet_balance - $1
+           WHERE id = $2 AND wallet_balance >= $1`,
+          [fromWallet, user_id]
+        );
+      }
+      if (fromRedPacket > 0) {
+        await client.query(
+          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
+          [fromRedPacket, orderAmount, user_id]
+        );
+      }
+
+      // Create order with rule_id and odds
+      const orderResult = await client.query(
+        `INSERT INTO trading_orders 
+         (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+         RETURNING *`,
+        [id, user_id, session.pair_id, direction, orderAmount, entryPrice, ruleId, odds]
+      );
+
+      // Trigger first trade reward for referrer
+      await triggerFirstTradeReward(client, user_id);
+
+      return orderResult.rows[0];
+    });
+
+    // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
+    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRewardBalance failed:', err)
+    );
+    autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRedPacketBalance failed:', err)
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Order placed successfully',
+    });
+  } catch (error: any) {
+    console.error('Place order error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/my-orders
+ * Get user's trading orders
+ */
+router.get('/my-orders', authenticateBot, async (req: AuthRequest, res) => {
+  try {
+    const { user_id, page = 1, limit = 20, status } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    let queryText = `
+      SELECT 
+        o.*,
+        p.symbol,
+        COALESCE(p.display_name, p.name, p.symbol) as display_name,
+        s.start_time as session_start,
+        s.end_time as session_end,
+        s.status as session_status
+      FROM trading_orders o
+      JOIN trading_pairs p ON o.pair_id = p.id
+      JOIN trading_sessions s ON o.session_id = s.id
+      WHERE o.user_id = $1
+    `;
+    const params: any[] = [user_id];
+
+    if (status) {
+      params.push(status);
+      queryText += ` AND o.status = $${params.length}`;
+    }
+
+    queryText += ` ORDER BY o.created_at DESC`;
+    params.push(Number(limit), offset);
+    queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+
+    const result = await query(queryText, params);
+
+    let countQuery = 'SELECT COUNT(*) FROM trading_orders WHERE user_id = $1';
+    const countParams: any[] = [user_id];
+    if (status) {
+      countParams.push(status);
+      countQuery += ' AND status = $2';
+    }
+
+    const countResult = await query(countQuery, countParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: parseInt(countResult.rows[0].count),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get orders error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/rules
+ * Get all active trading rules (no pair filter, for miniApp use)
+ */
+router.get('/rules', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, duration_seconds, odds, min_bet, max_bet, is_active
+       FROM trading_rules
+       WHERE is_active = true
+       ORDER BY duration_seconds ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get trading rules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/trading/pairs/:id/rules
+ * Get trading rules for a pair, optionally filtered by duration
+ */
+router.get('/pairs/:id/rules', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { duration } = req.query;
+
+    let queryText = `
+      SELECT id, duration_seconds, odds, min_bet, max_bet, is_active
+      FROM trading_rules
+      WHERE (pair_id = $1 OR pair_id IS NULL) AND is_active = true
+    `;
+    const params: any[] = [id];
+
+    if (duration) {
+      params.push(Number(duration));
+      queryText += ` AND duration_seconds = $${params.length}`;
+    }
+
+    queryText += ' ORDER BY duration_seconds ASC';
+
+    const result = await query(queryText, params);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    console.error('Get rules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/trading/quick-session
+ * Create a quick trading session for a pair+duration and place an order atomically
+ * Uses Telegram WebApp initData for authentication
+ */
+router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const { pair_id, duration, direction, amount, period_label, period_start } = req.body;
+    const telegramId = req.telegramUser?.id;
+
+    console.log('[quick-session] request body:', { pair_id, duration, direction, amount, period_label, period_start });
+    console.log('[quick-session] telegramId:', telegramId);
+
+    if (!telegramId) {
+      return res.status(401).json({ error: 'Unauthorized: no Telegram user' });
+    }
+
+    if (!pair_id || !duration || !direction || !amount) {
+      return res.status(400).json({ error: 'Missing required fields: pair_id, duration, direction, amount' });
+    }
+
+    if (!['up', 'down'].includes(direction)) {
+      return res.status(400).json({ error: 'Invalid direction. Must be up or down' });
+    }
+
+    const orderAmount = parseFloat(amount);
+    const durationSeconds = parseInt(duration, 10);
+    // Ensure pair_id is always passed as an integer to avoid type mismatch in WHERE id = $1
+    const pairIdInt = parseInt(pair_id, 10);
+
+    if (isNaN(orderAmount) || orderAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    if (isNaN(durationSeconds) || durationSeconds <= 0) {
+      return res.status(400).json({ error: 'Invalid duration' });
+    }
+
+    if (isNaN(pairIdInt) || pairIdInt <= 0) {
+      return res.status(400).json({ error: 'Invalid pair_id' });
+    }
+
+    // ── Period Resolution (server-authoritative) ─────────────────────────────────
+    // Always resolve the period on the server side. Client hints are accepted but
+    // validated and snapped to the nearest valid period boundary.
+    const nowMs = Date.now();
+    let resolvedPeriod: PeriodInfo;
+
+    try {
+      if (period_start != null) {
+        const clientMs = Number(period_start);
+        if (isNaN(clientMs)) {
+          return res.status(400).json({ error: 'Invalid period_start: must be a Unix timestamp in milliseconds' });
+        }
+        // Try to resolve from client period_start (snaps to nearest boundary)
+        resolvedPeriod = resolvePeriodFromClient(clientMs, durationSeconds, nowMs);
+      } else if (period_label) {
+        // Try to resolve from label (e.g. frontend sent nextPeriodLabel without period_start)
+        const fromLabel = resolvePeriodFromLabel(period_label, durationSeconds, nowMs);
+        if (fromLabel) {
+          resolvedPeriod = fromLabel;
+        } else {
+          // Label out of range — fall back to next period
+          resolvedPeriod = getNextPeriod(durationSeconds, nowMs);
+        }
+      } else {
+        // No hints from client — use next period (users always bet on the NEXT period)
+        resolvedPeriod = getNextPeriod(durationSeconds, nowMs);
+      }
+    } catch (periodErr: any) {
+      if (periodErr.code === 'PERIOD_OUT_OF_RANGE') {
+        return res.status(400).json({ error: periodErr.message });
+      }
+      throw periodErr;
+    }
+
+    const periodStartMs = resolvedPeriod.periodStartMs;
+    const resolvedPeriodLabel = resolvedPeriod.periodLabel;
+    const sessionStartTime = new Date(periodStartMs);
+    const sessionEndTime = new Date(resolvedPeriod.periodEndMs);
+
+    // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
+    const userLookup = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [telegramId]
+    );
+
+    if (userLookup.rows.length === 0) {
+      return res.status(404).json({ error: 'User account not initialized. Please open the app home screen first.' });
+    }
+
+    const user_id = userLookup.rows[0].id;
+
+    const result = await transaction(async (client) => {
+      // Get trading pair (use integer pairIdInt to avoid string/int type mismatch)
+      const pairResult = await client.query(
+        'SELECT id, symbol, display_name, is_active, pair_type, binance_symbol FROM trading_pairs WHERE id = $1',
+        [pairIdInt]
+      );
+      console.log(`[quick-session] pair lookup: pairIdInt=${pairIdInt}, found=${pairResult.rows.length}`);
+      if (pairResult.rows.length === 0) {
+        throw Object.assign(new Error(`Trading pair not found: id=${pairIdInt}`), { statusCode: 404 });
+      }
+      const pairRow = pairResult.rows[0];
+      if (!pairRow.is_active) {
+        throw Object.assign(new Error(`Trading pair is inactive: id=${pairIdInt}`), { statusCode: 400 });
+      }
+
+      // Get applicable rule: pair-specific rules take precedence (ORDER BY pair_id DESC NULLS LAST),
+      // then fall back to global rules (pair_id IS NULL). If neither exists, defaults (1.85/1/10000) are used.
+      const ruleResult = await client.query(
+        `SELECT id, odds, min_bet, max_bet
+         FROM trading_rules
+         WHERE (pair_id = $1 OR pair_id IS NULL) AND duration_seconds = $2 AND is_active = true
+         ORDER BY pair_id DESC NULLS LAST
+         LIMIT 1`,
+        [pairIdInt, durationSeconds]
+      );
+
+      let ruleId: number | null = null;
+      let odds = 1.85;
+      let minBet = 1.0;
+      let maxBet = 10000.0;
+
+      if (ruleResult.rows.length > 0) {
+        const rule = ruleResult.rows[0];
+        ruleId = rule.id;
+        odds = parseFloat(rule.odds);
+        minBet = parseFloat(rule.min_bet);
+        maxBet = parseFloat(rule.max_bet);
+      }
+      // If no rule found, use defaults (odds=1.85, min_bet=1, max_bet=10000) — already set above
+
+      if (orderAmount < minBet) throw new Error(`Minimum bet is ${minBet}`);
+      if (orderAmount > maxBet) throw new Error(`Maximum bet is ${maxBet}`);
+
+      // Auto-cancel stuck orders: orders for sessions that ended but open_price is NULL
+      // (period-snapshot never activated them, auto-settle skipped them)
+      // These orders should be refunded and cancelled to unblock the user.
+      try {
+        const stuckOrdersResult = await withSavepoint(client, 'sp_stuck_query', () =>
+          client.query(
+            `SELECT o.id, o.user_id, o.amount, o.status, o.session_id,
+                    s.end_time, s.open_price, s.status as session_status
+             FROM trading_orders o
+             JOIN trading_sessions s ON s.id = o.session_id
+             WHERE o.user_id = $1
+               AND o.pair_id = $2
+               AND o.status IN ('active', 'pending')
+               AND s.end_time < NOW() - INTERVAL '30 seconds'
+               AND (s.open_price IS NULL OR s.status = 'pending')
+             LIMIT 10`,
+            [user_id, pairIdInt]
+          )
+        );
+
+        for (const stuckOrder of stuckOrdersResult.rows) {
+          try {
+            await withSavepoint(client, `sp_stuck_${stuckOrder.id}`, async () => {
+              await client.query(
+                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+                [parseFloat(stuckOrder.amount), stuckOrder.user_id]
+              );
+              await client.query(
+                `UPDATE trading_orders SET status = 'cancelled', result = NULL WHERE id = $1`,
+                [stuckOrder.id]
+              );
+              await client.query(
+                `UPDATE trading_sessions SET status = 'settled', result = 'draw'
+                 WHERE id = $1 AND status IN ('active', 'pending')`,
+                [stuckOrder.session_id]
+              );
+            });
+            console.warn(`[quick-session] auto-cancelled stuck order ${stuckOrder.id} for user ${stuckOrder.user_id}, refunded ${stuckOrder.amount}`);
+          } catch (singleErr: any) {
+            console.error(`[quick-session] failed to cancel stuck order ${stuckOrder.id} (non-fatal):`, singleErr.message);
+          }
+        }
+      } catch (cleanupErr: any) {
+        console.error('[quick-session] stuck order cleanup failed (non-fatal):', cleanupErr.message);
+      }
+
+      // Check user balance
+      const userResult = await client.query(
+        'SELECT wallet_balance, COALESCE(red_packet_balance, 0) AS red_packet_balance FROM users WHERE id = $1',
+        [user_id]
+      );
+      if (userResult.rows.length === 0) throw new Error('User not found');
+      const walletBal = parseFloat(String(userResult.rows[0].wallet_balance ?? 0));
+      const redPacketBal = parseFloat(String(userResult.rows[0].red_packet_balance ?? 0));
+      const totalAvailable = walletBal + redPacketBal;
+      console.log(`[quick-session] user_id=${user_id}, walletBal=${walletBal}, redPacketBal=${redPacketBal}, totalAvailable=${totalAvailable}, orderAmount=${orderAmount}`);
+      if (totalAvailable < orderAmount) {
+        throw Object.assign(new Error('Insufficient balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+      }
+
+      // Get current live price – used as both entry_price for the order and open_price for the session.
+      let entryPrice: number;
+      let sessionOpenPrice: number | null = null;
+      try {
+        const livePrice = await getPairPrice(pairIdInt);
+        entryPrice = livePrice.price;
+        sessionOpenPrice = livePrice.price;
+        console.log(`[quick-session] pair ${pairIdInt} entry_price/open_price=${entryPrice} from getPairPrice()`);
+      } catch (priceErr: any) {
+        throw new Error(`Price data not available: ${(priceErr as any).message}`);
+      }
+
+      // Try to reuse an existing active/pending session for the same period
+      // Lookup by period_label when available, otherwise by start_time alignment
+      let session: any;
+      if (resolvedPeriodLabel) {
+        const existingSession = await client.query(
+          `SELECT * FROM trading_sessions
+           WHERE pair_id = $1 AND duration_seconds = $2 AND period_label = $3
+             AND status IN ('active', 'pending')
+           ORDER BY created_at ASC LIMIT 1`,
+          [pairIdInt, durationSeconds, resolvedPeriodLabel]
+        );
+        if (existingSession.rows.length > 0) {
+          session = existingSession.rows[0];
+          console.log(`[quick-session] reusing existing session id=${session.id} for period_label=${resolvedPeriodLabel}`);
+        }
+      }
+
+      if (!session) {
+        // Also check by start_time in case period_label column doesn't exist yet
+        const byStartTime = await client.query(
+          `SELECT * FROM trading_sessions
+           WHERE pair_id = $1 AND duration_seconds = $2
+             AND start_time = $3 AND status IN ('active', 'pending')
+           ORDER BY created_at ASC LIMIT 1`,
+          [pairIdInt, durationSeconds, sessionStartTime]
+        );
+        if (byStartTime.rows.length > 0) {
+          session = byStartTime.rows[0];
+          console.log(`[quick-session] reusing session by start_time id=${session.id}`);
+        }
+      }
+
+      if (!session) {
+        // Create a new session with fixed period boundaries and open_price.
+        // ON CONFLICT DO NOTHING guards against race conditions where two concurrent
+        // requests try to create the same period simultaneously (TOCTOU).
+        // start_at/end_at are written alongside start_time/end_time for backward
+        // compatibility with databases where migration 1008 has not yet been applied.
+        let sessionInsertResult: any = null;
+
+        // Try primary path: INSERT with ON CONFLICT + period_label
+        try {
+          sessionInsertResult = await withSavepoint(client, 'sp_session_insert_main', () =>
+            client.query(
+              `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+               VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (pair_id, duration_seconds, period_label) DO NOTHING
+               RETURNING *`,
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, sessionOpenPrice]
+            )
+          );
+        } catch (insertErr: any) {
+          // Primary path failed — transaction rolled back to savepoint, fallbacks are safe to attempt
+          if (insertErr.code === '42703' ||
+              (insertErr.message && insertErr.message.includes('period_label'))) {
+            // period_label column missing (migration not applied) — insert without it
+            console.warn('[quick-session] period_label column missing, falling back to insert without it.');
+            try {
+              sessionInsertResult = await withSavepoint(client, 'sp_session_insert_fallback1', () =>
+                client.query(
+                  `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
+                   VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
+                   RETURNING *`,
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, sessionOpenPrice]
+                )
+              );
+            } catch (fb1Err: any) {
+              console.error('[quick-session] fallback1 insert also failed:', fb1Err.message);
+              throw fb1Err;
+            }
+          } else if (
+            insertErr.code === '42P10' ||
+            (insertErr.message && insertErr.message.includes('no unique or exclusion constraint'))
+          ) {
+            // Unique index on (pair_id, duration_seconds, period_label) is missing.
+            // Migration 1015 has not been applied yet. Fall back to insert without ON CONFLICT.
+            console.warn('[quick-session] idx_trading_sessions_period_unique missing — falling back to plain INSERT. Please apply migration 1015.');
+            try {
+              sessionInsertResult = await withSavepoint(client, 'sp_session_insert_fallback2', () =>
+                client.query(
+                  `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
+                   VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
+                   RETURNING *`,
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, sessionOpenPrice]
+                )
+              );
+            } catch (fb2Err: any) {
+              console.error('[quick-session] fallback2 insert also failed:', fb2Err.message);
+              throw fb2Err;
+            }
+          } else {
+            throw insertErr;
+          }
+        }
+
+        if (sessionInsertResult && sessionInsertResult.rows.length > 0) {
+          session = sessionInsertResult.rows[0];
+          console.log(`[quick-session] created new session id=${session.id} period_label=${resolvedPeriodLabel}`);
+        } else {
+          // ON CONFLICT hit: another concurrent request created the session first — reuse it
+          const existingAfterConflict = await client.query(
+            `SELECT id, pair_id, rule_id, status, start_time, end_time, duration_seconds,
+                    period_label, open_price, created_at
+             FROM trading_sessions
+             WHERE pair_id = $1 AND duration_seconds = $2 AND period_label = $3
+               AND status IN ('active', 'pending')
+             ORDER BY created_at ASC LIMIT 1`,
+            [pairIdInt, durationSeconds, resolvedPeriodLabel]
+          );
+          if (existingAfterConflict.rows.length > 0) {
+            session = existingAfterConflict.rows[0];
+            console.log(`[quick-session] reusing session after conflict id=${session.id} period_label=${resolvedPeriodLabel}`);
+          } else {
+            throw new Error('Failed to create or reuse trading session');
+          }
+        }
+      }
+
+      // After session is found or created: if open_price is NULL but we just fetched a valid
+      // sessionOpenPrice, backfill it now.  This handles the case where a previous order created
+      // the session without a valid open_price (old buggy code) and the current order can fix it.
+      if (session && session.open_price == null && sessionOpenPrice != null) {
+        try {
+          await client.query(
+            `UPDATE trading_sessions SET open_price = $1 WHERE id = $2 AND open_price IS NULL`,
+            [sessionOpenPrice, session.id]
+          );
+          session = { ...session, open_price: sessionOpenPrice };
+          console.log(`[quick-session] backfilled open_price=${sessionOpenPrice} for session id=${session.id}`);
+        } catch (backfillErr: any) {
+          console.warn('[quick-session] Failed to backfill open_price (non-fatal):', backfillErr.message);
+        }
+      }
+
+      // If the session's start_time has already passed and it is still pending,
+      // try to activate it inline so orders are not left in a permanently-pending state.
+      // This covers the edge case where a user places an order in the last seconds of a
+      // period and the period-snapshot job has not yet run.
+      if (session.status === 'pending' && new Date(session.start_time) <= new Date()) {
+        let inlineOpenPrice: number | null = session.open_price ?? sessionOpenPrice;
+        if (!inlineOpenPrice && pairRow.pair_type === 'real' && pairRow.binance_symbol) {
+          try {
+            const startTimeMs = new Date(session.start_time).getTime();
+            const klines = await binanceFetch('/api/v3/klines', {
+              symbol: pairRow.binance_symbol,
+              interval: '1m',
+              startTime: startTimeMs,
+              limit: 1,
+            });
+            if (Array.isArray(klines) && klines.length > 0) {
+              inlineOpenPrice = parseFloat(klines[0][1]);
+            }
+          } catch { /* ignore — period-snapshot will retry */ }
+        }
+        if (inlineOpenPrice) {
+          try {
+            await withSavepoint(client, 'sp_activate_session', () =>
+              client.query(
+                `UPDATE trading_sessions SET status = 'active', open_price = $1 WHERE id = $2 AND status = 'pending'`,
+                [inlineOpenPrice, session.id]
+              )
+            );
+            session = { ...session, status: 'active', open_price: inlineOpenPrice };
+            console.log(`[quick-session] inline-activated session id=${session.id} open_price=${inlineOpenPrice}`);
+          } catch (activateErr: any) {
+            console.warn(`[quick-session] inline-activate failed (non-fatal):`, activateErr.message);
+          }
+        }
+      }
+
+      // Only block if user already has an order in THIS SPECIFIC session (same period)
+      // Do NOT block orders for different periods even if old ones are stuck
+      const existingOrderResult = await client.query(
+        `SELECT id FROM trading_orders 
+         WHERE user_id = $1 AND session_id = $2 AND status IN ('active', 'pending')
+         LIMIT 1`,
+        [user_id, session.id]
+      );
+      if (existingOrderResult.rows.length > 0) {
+        throw new Error('You already have an order for this trading period. Please wait for the next period.');
+      }
+
+      // Deduct from wallet_balance first, then red_packet_balance for the remainder.
+      // Each deduction uses an atomic SQL UPDATE with a balance guard (wallet >= amount)
+      // to prevent over-spending under concurrent requests.
+      const fromWallet = Math.min(walletBal, orderAmount);
+      const fromRedPacketQS = orderAmount - fromWallet;
+      if (fromWallet > 0) {
+        const deductWallet = await client.query(
+          `UPDATE users SET wallet_balance = wallet_balance - $1
+           WHERE id = $2 AND wallet_balance >= $1 RETURNING id`,
+          [fromWallet, user_id]
+        );
+        if (deductWallet.rows.length === 0) {
+          throw Object.assign(new Error('Insufficient wallet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+        }
+      }
+      if (fromRedPacketQS > 0) {
+        const deductRP = await client.query(
+          `UPDATE users SET red_packet_balance = red_packet_balance - $1,
+           red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2
+           WHERE id = $3 AND red_packet_balance >= $1 RETURNING id`,
+          [fromRedPacketQS, orderAmount, user_id]
+        );
+        if (deductRP.rows.length === 0) {
+          throw Object.assign(new Error('Insufficient red packet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+        }
+      }
+
+      // Create order (status='active' – immediate, no pending state needed)
+      const orderResult = await client.query(
+        `INSERT INTO trading_orders
+         (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+         RETURNING *`,
+        [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
+      );
+
+      // Query up/down counts for the session (including the order just placed)
+      const dirCountResult = await client.query(
+        `SELECT
+           COUNT(CASE WHEN direction = 'up'   THEN 1 END)::int AS up_count,
+           COUNT(CASE WHEN direction = 'down' THEN 1 END)::int AS down_count
+         FROM trading_orders
+         WHERE session_id = $1 AND status IN ('active', 'pending')`,
+        [session.id]
+      );
+      const upCount   = dirCountResult.rows[0]?.up_count   ?? 0;
+      const downCount = dirCountResult.rows[0]?.down_count ?? 0;
+
+      return {
+        session: {
+          id: session.id,
+          start_time: session.start_time,
+          end_time: session.end_time,
+          status: session.status,
+          open_price: session.open_price ?? sessionOpenPrice,
+          up_count: upCount,
+          down_count: downCount,
+          period_label: session.period_label ?? resolvedPeriodLabel,
+        },
+        order: {
+          id: orderResult.rows[0].id,
+          direction,
+          amount: orderAmount,
+          entry_price: entryPrice,
+          odds,
+          status: 'active',
+        },
+        odds,
+        entry_price: entryPrice,
+        expected_profit: parseFloat((orderAmount * odds - orderAmount).toFixed(2)),
+      };
+    });
+
+    // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
+    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRewardBalance failed:', err)
+    );
+    autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
+      console.error('[trading] autoUnlockRedPacketBalance failed:', err)
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Session created and order placed successfully',
+    });
+  } catch (error: any) {
+    console.error('Quick session error:', error);
+    if (isMissingTableError(error) || isMissingColumnError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: isMissingColumnError(error)
+          ? 'A required column is missing. Run: backend/db/migrations/1001_fix_trading_sessions_status.sql'
+          : 'Required database migrations have not been applied. ' +
+            'Run: backend/db/migrations/200_trading_rules_and_settlement.sql and backend/db/migrations/1001_fix_trading_sessions_status.sql',
+      });
+    }
+    // PostgreSQL error code 23514 = check_violation
+    if (error.code === '23514' && error.message?.includes('trading_sessions_status_check')) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'The trading_sessions status constraint is outdated. Run: backend/db/migrations/1009_fix_trading_sessions_status_constraint.sql',
+      });
+    }
+    const statusCode = error.statusCode || 500;
+    const body: Record<string, any> = { error: error.message };
+    if (error.current_balance !== undefined) body.current_balance = error.current_balance;
+    if (error.required !== undefined) body.required = error.required;
+    res.status(statusCode).json(body);
+  }
+});
+
+/**
+ * GET /api/trading/orders/my
+ * Get the current user's trading orders (mini-app auth)
+ */
+router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { limit = 50 } = req.query;
+
+    const userResult = await query(
+      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [telegramId]
+    );
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const userId = userResult.rows[0].id;
+
+    const result = await query(
+      `SELECT 
+         o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status,
+         o.result, o.profit, o.settled_at, o.created_at,
+         p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
+         s.start_time as session_start, s.end_time as session_end, s.period_label
+       FROM trading_orders o
+       JOIN trading_pairs p ON o.pair_id = p.id
+       JOIN trading_sessions s ON o.session_id = s.id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC
+       LIMIT $2`,
+      [userId, Number(limit)]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Get my orders error:', error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        error: 'Trading feature is not ready',
+        hint: 'Required database migrations have not been applied. ' +
+              'Run: backend/db/migrations/200_trading_rules_and_settlement.sql',
+      });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;

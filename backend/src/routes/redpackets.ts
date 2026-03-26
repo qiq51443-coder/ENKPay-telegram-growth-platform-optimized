@@ -346,6 +346,18 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
             throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition: 'deposited' });
           }
         }
+
+        if (condition === 'trade_volume_100' || condition === 'trade_volume_200') {
+          const requiredVolume = condition === 'trade_volume_100' ? 100 : 200;
+          const volumeResult = await client.query(
+            "SELECT COALESCE(SUM(amount), 0) as total_volume FROM trading_orders WHERE user_id = $1 AND status = 'settled'",
+            [user_id]
+          );
+          const totalVolume = parseFloat(volumeResult.rows[0].total_volume);
+          if (totalVolume < requiredVolume) {
+            throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition });
+          }
+        }
       }
 
       // Calculate claim amount based on locked row data

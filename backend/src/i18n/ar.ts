@@ -129,6 +129,8 @@ export const ar: Record<string, string> = {
   redpacket_condition_not_met: '❌ أنت لا تستوفي شروط الاستلام\nيتطلب هذا المغلف الأحمر: {condition_desc}',
   redpacket_condition_first_follow: 'المستخدمون الجدد فقط الذين يتابعون البوت لأول مرة',
   redpacket_condition_deposited: 'المستخدمون الذين قاموا بالإيداع فقط',
+  redpacket_condition_trade_100: 'حجم التداول الفوري ≥ 100 USDT',
+  redpacket_condition_trade_200: 'حجم التداول الفوري ≥ 200 USDT',
 
   // General
   back: '« رجوع',
