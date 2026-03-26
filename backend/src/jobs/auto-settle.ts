@@ -15,7 +15,7 @@
 
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { binanceFetch, getPairPrice } from '../services/price.service';
+import { binanceFetch, getPairPrice, okxKlineFetch } from '../services/price.service';
 import { settleSession } from '../services/trading-settlement.service';
 
 let isRunning = false;
@@ -108,35 +108,51 @@ async function fetchClosePrice(session: {
   if (session.pair_type === 'real' && session.binance_symbol) {
     const ONE_MINUTE_MS = 60_000;
     const KLINE_END_BUFFER_MS = 2_000;
+    const endTimeMs = new Date(session.end_time).getTime();
+
+    let klineData: any[][] | null = null;
     try {
-      const endTimeMs = new Date(session.end_time).getTime();
-      const klineData = await binanceFetch('/api/v3/klines', {
+      klineData = await binanceFetch('/api/v3/klines', {
         symbol: session.binance_symbol,
         interval: '1m',
         startTime: endTimeMs - ONE_MINUTE_MS,
         endTime: endTimeMs + KLINE_END_BUFFER_MS,
         limit: 3,
       });
-      if (Array.isArray(klineData) && klineData.length > 0) {
-        const validKlines = (klineData as any[][]).filter((k) => k[0] < endTimeMs);
-        if (validKlines.length > 0) {
-          const bestKline = validKlines.reduce(
-            (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
-            validKlines[0]
-          );
-          const price = parseFloat(bestKline[4]);
-          console.log(
-            `[auto-settle] session ${session.id}: Binance kline close_price=${price} ` +
-            `from kline at ${new Date(bestKline[0]).toISOString()}`
-          );
-          return price;
-        }
-      }
     } catch (klineErr: any) {
       console.warn(
         `[auto-settle] session ${session.id}: Binance kline failed ` +
-        `(${klineErr.message}), trying live price...`
+        `(${klineErr.message}), trying OKX kline...`
       );
+      try {
+        klineData = await okxKlineFetch(session.binance_symbol!, '1m', {
+          startTime: endTimeMs - ONE_MINUTE_MS,
+          endTime: endTimeMs + KLINE_END_BUFFER_MS,
+          limit: 3,
+        });
+        console.log(`[auto-settle] session ${session.id}: OKX kline fallback succeeded`);
+      } catch (okxErr: any) {
+        console.warn(
+          `[auto-settle] session ${session.id}: OKX kline also failed ` +
+          `(${okxErr.message}), trying live price...`
+        );
+      }
+    }
+
+    if (klineData && Array.isArray(klineData) && klineData.length > 0) {
+      const validKlines = (klineData as any[][]).filter((k) => k[0] < endTimeMs);
+      if (validKlines.length > 0) {
+        const bestKline = validKlines.reduce(
+          (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
+          validKlines[0]
+        );
+        const price = parseFloat(bestKline[4]);
+        console.log(
+          `[auto-settle] session ${session.id}: close_price=${price} ` +
+          `from kline at ${new Date(bestKline[0]).toISOString()}`
+        );
+        return price;
+      }
     }
     // Live-price fallback
     try {
@@ -194,36 +210,51 @@ async function fetchOpenPrice(session: {
   }
 
   if (session.pair_type === 'real' && session.binance_symbol && session.start_time) {
+    const startTimeMs = new Date(session.start_time).getTime();
+
+    let startKlineData: any[][] | null = null;
     try {
-      const startTimeMs = new Date(session.start_time).getTime();
-      const startKlineData = await binanceFetch('/api/v3/klines', {
+      startKlineData = await binanceFetch('/api/v3/klines', {
         symbol: session.binance_symbol,
         interval: '1m',
         startTime: startTimeMs - 60_000,
         endTime: startTimeMs + 5_000,
         limit: 2,
       });
-      if (Array.isArray(startKlineData) && startKlineData.length > 0) {
-        const validKlines = (startKlineData as any[][]).filter((k) => k[0] <= startTimeMs);
-        if (validKlines.length > 0) {
-          const best = validKlines.reduce(
-            (b: any[], k: any[]) => (k[0] > b[0] ? k : b),
-            validKlines[0]
-          );
-          const price = parseFloat(best[1]);
-          console.log(
-            `[auto-settle] session ${session.id}: fetched historical open_price=${price} ` +
-            `from kline at ${new Date(best[0]).toISOString()}`
-          );
-          return price;
-        }
-        return parseFloat((startKlineData as any[][])[0][1]);
-      }
-    } catch (err: any) {
+    } catch (klineErr: any) {
       console.warn(
-        `[auto-settle] session ${session.id}: cannot fetch historical open_price ` +
-        `(${err.message}), will settle as draw`
+        `[auto-settle] session ${session.id}: Binance open_price kline failed ` +
+        `(${klineErr.message}), trying OKX kline...`
       );
+      try {
+        startKlineData = await okxKlineFetch(session.binance_symbol!, '1m', {
+          startTime: startTimeMs - 60_000,
+          endTime: startTimeMs + 5_000,
+          limit: 2,
+        });
+      } catch (okxErr: any) {
+        console.warn(
+          `[auto-settle] session ${session.id}: OKX open_price kline also failed ` +
+          `(${okxErr.message}), will settle as draw`
+        );
+      }
+    }
+
+    if (startKlineData && Array.isArray(startKlineData) && startKlineData.length > 0) {
+      const validKlines = (startKlineData as any[][]).filter((k) => k[0] <= startTimeMs);
+      if (validKlines.length > 0) {
+        const best = validKlines.reduce(
+          (b: any[], k: any[]) => (k[0] > b[0] ? k : b),
+          validKlines[0]
+        );
+        const price = parseFloat(best[1]);
+        console.log(
+          `[auto-settle] session ${session.id}: fetched historical open_price=${price} ` +
+          `from kline at ${new Date(best[0]).toISOString()}`
+        );
+        return price;
+      }
+      return parseFloat((startKlineData as any[][])[0][1]);
     }
     return null;
   }

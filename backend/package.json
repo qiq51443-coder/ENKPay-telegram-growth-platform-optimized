@@ -34,9 +34,11 @@
     "rate-limit-redis": "^4.2.0",
     "redis": "^4.6.11",
     "telegraf": "^4.16.3",
-    "tronweb": "^5.3.2"
+    "tronweb": "^5.3.2",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
