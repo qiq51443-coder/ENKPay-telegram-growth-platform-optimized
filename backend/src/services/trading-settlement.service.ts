@@ -33,7 +33,8 @@ interface SettlementResult {
 export async function settleSession(
   sessionId: number,
   resultDirection: string,
-  settlementPrice: number
+  settlementPrice: number,
+  options?: { openPrice?: number }
 ): Promise<SettlementResult> {
   return await transaction(async (client) => {
     // Validate result direction
@@ -55,6 +56,18 @@ export async function settleSession(
 
     if (session.status === 'settled') {
       throw new Error(`Trading session ${sessionId} is already settled`);
+    }
+
+    // Promote pending session and orders to active before settling
+    if (session.status === 'pending') {
+      await client.query(
+        `UPDATE trading_sessions SET status = 'active' WHERE id = $1 AND status = 'pending'`,
+        [sessionId]
+      );
+      await client.query(
+        `UPDATE trading_orders SET status = 'active' WHERE session_id = $1 AND status = 'pending'`,
+        [sessionId]
+      );
     }
 
     // Get trading rule for this session (if exists)
@@ -84,7 +97,7 @@ export async function settleSession(
       }
     }
 
-    // Get all orders for this session
+    // Get all orders for this session (pending orders were already promoted to active above)
     const ordersResult = await client.query(
       `SELECT id, user_id, direction, amount, odds
        FROM trading_orders
@@ -103,12 +116,13 @@ export async function settleSession(
              result = $1,
              settlement_price = $2,
              close_price = $2,
+             open_price = COALESCE(open_price, $3),
              total_bet_amount = 0,
              total_payout = 0,
              order_count = 0,
              settled_at = NOW()
-         WHERE id = $3`,
-        [resultDirection, settlementPrice, sessionId]
+         WHERE id = $4`,
+        [resultDirection, settlementPrice, options?.openPrice ?? null, sessionId]
       );
 
       return {
@@ -193,9 +207,10 @@ export async function settleSession(
              settlement_price = $3,
              close_price = $3,
              settled_at = NOW(),
-             status = 'settled'
-         WHERE id = $4`,
-        [orderResult, profit, settlementPrice, order.id]
+             status = 'settled',
+             entry_price = COALESCE(entry_price, $4)
+         WHERE id = $5`,
+        [orderResult, profit, settlementPrice, options?.openPrice ?? null, order.id]
       );
     }
 
@@ -209,12 +224,13 @@ export async function settleSession(
            result = $1,
            settlement_price = $2,
            close_price = $2,
-           total_bet_amount = $3,
-           total_payout = $4,
-           order_count = $6,
+           open_price = COALESCE(open_price, $3),
+           total_bet_amount = $4,
+           total_payout = $5,
+           order_count = $7,
            settled_at = NOW()
-       WHERE id = $5`,
-      [resultDirection, settlementPrice, totalBetAmount, totalPayout, sessionId, orders.length]
+       WHERE id = $6`,
+      [resultDirection, settlementPrice, options?.openPrice ?? null, totalBetAmount, totalPayout, sessionId, orders.length]
     );
 
     // Log settlement
