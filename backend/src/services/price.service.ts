@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { query } from '../db';
 import { getCache, setCache } from '../utils/cache';
+import { getWsPrice } from './price-ws.service';
 
 interface PriceData {
   price: number;
@@ -25,6 +26,76 @@ const BINANCE_FALLBACK_URLS = [
   'https://api.binance.com',
   'https://api1.binance.com',
 ];
+
+// OKX public REST API (no key required)
+const OKX_API_URL = process.env.OKX_API_URL || 'https://www.okx.com';
+
+/**
+ * Convert Binance-style symbol (e.g. "BTCUSDT") to OKX instId (e.g. "BTC-USDT")
+ */
+function toOkxInstId(binanceSymbol: string): string {
+  for (const quote of ['USDT', 'USDC', 'BTC', 'ETH', 'BNB']) {
+    if (binanceSymbol.endsWith(quote)) {
+      const base = binanceSymbol.slice(0, -quote.length);
+      return `${base}-${quote}`;
+    }
+  }
+  return binanceSymbol.slice(0, -4) + '-' + binanceSymbol.slice(-4);
+}
+
+/**
+ * Convert Binance kline interval to OKX bar format
+ */
+function toOkxBar(binanceInterval: string): string {
+  const map: Record<string, string> = {
+    '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+    '1h': '1H', '2h': '2H', '4h': '4H', '6h': '6H', '12h': '12H',
+    '1d': '1D', '3d': '3D', '1w': '1W', '1M': '1M',
+  };
+  return map[binanceInterval] || '1m';
+}
+
+/**
+ * Fetch from OKX public market REST API (no API key required).
+ */
+async function okxFetch(path: string, params?: Record<string, any>): Promise<any> {
+  const response = await axios.get(`${OKX_API_URL}${path}`, { params, timeout: 8000 });
+  if (response.data?.code !== '0') {
+    throw new Error(`OKX API error: ${response.data?.msg || 'unknown'}`);
+  }
+  return response.data.data;
+}
+
+/**
+ * Fetch kline data from OKX and convert to Binance-compatible array format.
+ * Returns array of [openTime, open, high, low, close, volume, ...]
+ * Note: OKX returns candles in descending order (newest first).
+ */
+export async function okxKlineFetch(
+  binanceSymbol: string,
+  interval: string,
+  params: { startTime?: number; endTime?: number; limit?: number }
+): Promise<any[][]> {
+  const instId = toOkxInstId(binanceSymbol);
+  const bar = toOkxBar(interval);
+
+  const okxParams: Record<string, any> = { instId, bar, limit: params.limit || 3 };
+  if (params.endTime) okxParams.after = String(params.endTime);
+  if (params.startTime) okxParams.before = String(params.startTime);
+
+  const data = await okxFetch('/api/v5/market/candles', okxParams);
+
+  // OKX: [ts, open, high, low, close, vol, volCcy, volCcyQuote, confirm]
+  // Map to Binance format: [openTime, open, high, low, close, volume]
+  return (data as any[][]).map((k) => [
+    parseInt(k[0]),  // openTime ms
+    k[1],            // open
+    k[2],            // high
+    k[3],            // low
+    k[4],            // close
+    k[5],            // volume
+  ]);
+}
 
 // Redis cache TTLs
 const CACHE_TTL = {
@@ -87,28 +158,43 @@ export async function checkBinanceConnectivity(): Promise<boolean> {
 export async function getRealTimePrice(symbol: string): Promise<PriceData> {
   const binanceSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
   const cacheKey = `price:${binanceSymbol}`;
-  
-  // Try cache first
-  const cached = await getCache<PriceData>(cacheKey);
-  if (cached) {
-    return cached;
+
+  // 1. WebSocket real-time data (in-memory, zero latency)
+  const wsSnapshot = getWsPrice(binanceSymbol);
+  if (wsSnapshot) {
+    return {
+      price: wsSnapshot.price,
+      change24h: wsSnapshot.change24h,
+      timestamp: wsSnapshot.timestamp,
+    };
   }
 
+  // 2. Redis cache
+  const cached = await getCache<PriceData>(cacheKey);
+  if (cached) return cached;
+
+  // 3. Binance REST
   try {
     const data = await binanceFetch(`/api/v3/ticker/price`, { symbol: binanceSymbol });
-
-    const priceData: PriceData = {
-      price: parseFloat(data.price),
-      timestamp: Date.now(),
-    };
-
-    // Cache for 5 seconds
+    const priceData: PriceData = { price: parseFloat(data.price), timestamp: Date.now() };
     await setCache(cacheKey, priceData, CACHE_TTL.PRICE);
-    
     return priceData;
-  } catch (error: any) {
-    console.error(`Error fetching Binance price for ${binanceSymbol}:`, error.message);
-    throw new Error(`Failed to fetch price for ${binanceSymbol}`);
+  } catch (binanceErr: any) {
+    console.warn(`[price] Binance ticker failed for ${binanceSymbol}: ${binanceErr.message}, trying OKX REST...`);
+  }
+
+  // 4. OKX REST fallback
+  try {
+    const instId = toOkxInstId(binanceSymbol);
+    const data = await okxFetch('/api/v5/market/ticker', { instId });
+    const price = parseFloat(data[0].last);
+    const priceData: PriceData = { price, timestamp: Date.now() };
+    await setCache(cacheKey, priceData, CACHE_TTL.PRICE);
+    console.log(`[price] OKX REST fallback price for ${binanceSymbol}: ${price}`);
+    return priceData;
+  } catch (okxErr: any) {
+    console.error(`[price] OKX REST fallback also failed for ${binanceSymbol}: ${okxErr.message}`);
+    throw new Error(`Failed to fetch price for ${binanceSymbol} from all sources`);
   }
 }
 
@@ -119,20 +205,36 @@ export async function getRealTimePrice(symbol: string): Promise<PriceData> {
 export async function get24hChange(symbol: string): Promise<number> {
   const binanceSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
   const cacheKey = `change24h:${binanceSymbol}`;
-  
-  // Try cache first
-  const cached = await getCache<number>(cacheKey);
-  if (cached !== null) {
-    return cached;
+
+  // 1. WebSocket real-time data
+  const wsSnapshot = getWsPrice(binanceSymbol);
+  if (wsSnapshot) {
+    return wsSnapshot.change24h;
   }
 
+  // 2. Redis cache
+  const cached = await getCache<number>(cacheKey);
+  if (cached !== null) return cached;
+
+  // 3. Binance REST
   try {
     const data = await binanceFetch('/api/v3/ticker/24hr', { symbol: binanceSymbol });
     const change = parseFloat(data.priceChangePercent);
     await setCache(cacheKey, change, CACHE_TTL.CHANGE_24H);
     return change;
-  } catch (error: any) {
-    console.error(`Error fetching 24h change for ${binanceSymbol}:`, error.message);
+  } catch {
+    // fall through to OKX
+  }
+
+  // 4. OKX REST fallback
+  try {
+    const instId = toOkxInstId(binanceSymbol);
+    const data = await okxFetch('/api/v5/market/ticker', { instId });
+    // OKX `changeUtc0` is the change since UTC 00:00 (best approximation when Binance is unavailable)
+    const change = data[0]?.changeUtc0 ? parseFloat(data[0].changeUtc0) * 100 : 0;
+    await setCache(cacheKey, change, CACHE_TTL.CHANGE_24H);
+    return change;
+  } catch {
     return 0;
   }
 }
@@ -146,20 +248,33 @@ export async function getDayOpenPrice(symbol: string): Promise<number> {
   const cacheKey = `dayopen:${binanceSymbol}`;
 
   const cached = await getCache<number>(cacheKey);
-  if (cached !== null) {
-    return cached;
+  if (cached !== null) return cached;
+
+  // Try Binance
+  try {
+    const data = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval: '1d', limit: 1 });
+    if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length >= 2) {
+      const openPrice = parseFloat(data[0][1]);
+      if (!isNaN(openPrice)) {
+        await setCache(cacheKey, openPrice, 60);
+        return openPrice;
+      }
+    }
+  } catch {
+    // fall through to OKX
   }
 
-  const data = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval: '1d', limit: 1 });
-  if (!Array.isArray(data) || data.length === 0 || !Array.isArray(data[0]) || data[0].length < 2) {
-    throw new Error(`Unexpected Binance kline response for ${binanceSymbol}`);
+  // OKX fallback
+  try {
+    const okxData = await okxKlineFetch(binanceSymbol, '1d', { limit: 1 });
+    if (!okxData.length) throw new Error(`No daily kline from OKX for ${binanceSymbol}`);
+    const openPrice = parseFloat(okxData[0][1]);
+    if (isNaN(openPrice)) throw new Error(`Invalid OKX open price for ${binanceSymbol}`);
+    await setCache(cacheKey, openPrice, 60);
+    return openPrice;
+  } catch (okxErr: any) {
+    throw new Error(`getDayOpenPrice failed for ${binanceSymbol}: ${okxErr.message}`);
   }
-  const openPrice = parseFloat(data[0][1]);
-  if (isNaN(openPrice)) {
-    throw new Error(`Invalid open price in Binance kline response for ${binanceSymbol}`);
-  }
-  await setCache(cacheKey, openPrice, 60);
-  return openPrice;
 }
 
 /**
@@ -173,37 +288,41 @@ export async function getKlineData(
 ): Promise<KlineData[]> {
   const binanceSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
   const cacheKey = `kline:${binanceSymbol}:${interval}:${limit}`;
-  
-  // Try cache first
+
   const cached = await getCache<KlineData[]>(cacheKey);
-  if (cached) {
-    return cached;
-  }
+  if (cached) return cached;
+
+  let rawData: any[][];
 
   try {
-    const data = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval, limit });
-
-    const klineData = data.map((item: any) => ({
-      timestamp: item[0],
-      open: parseFloat(item[1]),
-      high: parseFloat(item[2]),
-      low: parseFloat(item[3]),
-      close: parseFloat(item[4]),
-      volume: parseFloat(item[5]),
-    }));
-
-    // Cache with dynamic TTL based on interval
-    const ttl = KLINE_TTL_MAP[interval] ?? CACHE_TTL.KLINE;
-    if (!(interval in KLINE_TTL_MAP)) {
-      console.warn(`Unknown kline interval "${interval}", using default TTL of ${CACHE_TTL.KLINE}s`);
+    rawData = await binanceFetch('/api/v3/klines', { symbol: binanceSymbol, interval, limit });
+  } catch (binanceErr: any) {
+    console.warn(`[price] Binance kline failed for ${binanceSymbol}: ${binanceErr.message}, trying OKX...`);
+    try {
+      rawData = await okxKlineFetch(binanceSymbol, interval, { limit });
+      // OKX returns newest-first; reverse to match Binance oldest-first order
+      rawData = rawData.reverse();
+    } catch (okxErr: any) {
+      console.error(`[price] OKX kline also failed for ${binanceSymbol}: ${okxErr.message}`);
+      throw new Error(`Failed to fetch kline data for ${binanceSymbol} from all sources`);
     }
-    await setCache(cacheKey, klineData, ttl);
-    
-    return klineData;
-  } catch (error: any) {
-    console.error(`Error fetching kline data for ${binanceSymbol}:`, error.message);
-    throw new Error(`Failed to fetch kline data for ${binanceSymbol}`);
   }
+
+  const klineData = rawData.map((item: any) => ({
+    timestamp: item[0],
+    open: parseFloat(item[1]),
+    high: parseFloat(item[2]),
+    low: parseFloat(item[3]),
+    close: parseFloat(item[4]),
+    volume: parseFloat(item[5]),
+  }));
+
+  const ttl = KLINE_TTL_MAP[interval] ?? CACHE_TTL.KLINE;
+  if (!(interval in KLINE_TTL_MAP)) {
+    console.warn(`Unknown kline interval "${interval}", using default TTL of ${CACHE_TTL.KLINE}s`);
+  }
+  await setCache(cacheKey, klineData, ttl);
+  return klineData;
 }
 
 /**

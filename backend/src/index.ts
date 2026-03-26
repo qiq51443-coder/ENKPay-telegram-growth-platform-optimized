@@ -6,6 +6,7 @@ import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { startSweepScheduler } from './jobs/sweep-scheduler';
 import { checkBinanceConnectivity } from './services/price.service';
+import { startPriceWs } from './services/price-ws.service';
 import { startAutoSettle } from './jobs/auto-settle';
 import { startPeriodSnapshot } from './jobs/period-snapshot';
 import { startCleanupJob } from './jobs/cleanup';
@@ -204,6 +205,25 @@ const startServer = async () => {
 
     // Check Binance API connectivity
     await checkBinanceConnectivity();
+
+    // Start OKX WebSocket price service (real-time tickers, no API key needed)
+    try {
+      const { query } = await import('./db');
+      const pairsResult = await query(
+        `SELECT DISTINCT binance_symbol FROM trading_pairs
+         WHERE pair_type = 'real' AND binance_symbol IS NOT NULL AND is_active = true`,
+        []
+      );
+      const symbols: string[] = pairsResult.rows.map((r: any) => r.binance_symbol as string);
+      if (symbols.length > 0) {
+        startPriceWs(symbols);
+        console.log(`✓ OKX WebSocket price service started (${symbols.length} pairs)`);
+      } else {
+        console.warn('⚠ No active real trading pairs found, OKX WebSocket not started');
+      }
+    } catch (wsErr: any) {
+      console.warn(`⚠ Failed to start OKX WebSocket price service: ${wsErr.message}`);
+    }
 
     // Start deposit checker job
     startDepositChecker();
