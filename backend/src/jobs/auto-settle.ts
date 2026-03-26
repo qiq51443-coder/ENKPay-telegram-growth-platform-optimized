@@ -66,7 +66,7 @@ async function cancelSessionAndRefund(sessionId: string): Promise<void> {
       await client.query(
         `UPDATE users u
          SET wallet_balance = wallet_balance + v.refund
-         FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS refund) v
+         FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS refund) v
          WHERE u.id = v.user_id`,
         [userIds, amounts]
       );
