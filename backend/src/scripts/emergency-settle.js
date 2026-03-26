@@ -65,8 +65,8 @@ async function run() {
 
         } else {
           // ── SETTLE ──────────────────────────────────────────────
-          const diff = (s.close - s.open) / s.open;
-          const dir = Math.abs(diff) <= 0.0001 ? 'draw' : (s.close > s.open ? 'up' : 'down');
+          const diff = s.close - s.open;
+          const dir = Math.abs(diff) < 0.0001 ? 'draw' : (s.close > s.open ? 'up' : 'down');
           console.log('session ' + s.id + ': open=' + s.open + ' close=' + s.close + ' => ' + dir);
 
           const orders = await client.query(
@@ -83,7 +83,7 @@ async function run() {
             if (dir === 'draw') {
               result = 'draw'; payout = amt; profit = 0; draws++;
             } else if (o.direction === dir) {
-              result = 'win'; payout = amt * odds; profit = payout - amt; wins++;
+              result = 'win'; payout = amt * odds; profit = payout; wins++;
             } else {
               result = 'lose'; payout = 0; profit = -amt; loses++;
             }

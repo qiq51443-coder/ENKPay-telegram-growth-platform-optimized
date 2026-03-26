@@ -810,7 +810,7 @@ export const Trading: React.FC = () => {
           const profit = isDraw
             ? 0
             : win
-            ? parseFloat(order.amount) * (parseFloat(order.odds) - 1)
+            ? parseFloat(order.amount) * parseFloat(order.odds)
             : -parseFloat(order.amount);
           setResultMsg({ win: isDraw ? false : win, profit, draw: isDraw });
 
