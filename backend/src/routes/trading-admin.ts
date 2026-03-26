@@ -792,24 +792,17 @@ router.get('/sessions', authenticateAdmin, async (req: AuthRequest, res) => {
 router.post('/sessions/:id/settle', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { result_direction, settlement_price } = req.body;
+    const { settlement_price } = req.body;
 
-    if (!result_direction || !settlement_price) {
+    if (!settlement_price) {
       return res.status(400).json({
-        error: 'result_direction and settlement_price are required',
-      });
-    }
-
-    if (!['up', 'down'].includes(result_direction)) {
-      return res.status(400).json({
-        error: 'result_direction must be "up" or "down"',
+        error: 'settlement_price is required',
       });
     }
 
     const { settleSession } = require('../services/trading-settlement.service');
     const result = await settleSession(
       parseInt(id),
-      result_direction,
       parseFloat(settlement_price)
     );
 

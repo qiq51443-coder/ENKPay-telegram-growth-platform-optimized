@@ -1,15 +1,45 @@
 import { PoolClient } from 'pg';
 import { transaction } from '../db';
 
-interface SettlementResult {
-  total_orders: number;
-  total_bet_amount: number;
-  total_payout: number;
-  platform_profit: number;
-  winning_orders: number;
-  losing_orders: number;
-  draw_orders: number;
-  result_direction: string;
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Price difference threshold for a draw (0.01%). */
+const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
+
+export interface OrderSettlementInput {
+  orderId: number;
+  closePrice: number;
+}
+
+export interface OrderSettlementResult {
+  orderId: number;
+  userId: number;
+  direction: 'up' | 'down';
+  result: 'win' | 'lose' | 'draw';
+  amount: number;
+  odds: number;
+  payout: number;
+  profit: number;
+  openPrice: number;
+  closePrice: number;
+}
+
+export interface SessionSettlementSummary {
+  sessionId: number;
+  resultDirection: 'up' | 'down' | 'draw';
+  totalOrders: number;
+  totalBetAmount: number;
+  totalPayout: number;
+  platformProfit: number;
+  winningOrders: number;
+  losingOrders: number;
+  drawOrders: number;
 }
 
 export interface ExecuteSettlementResult {
@@ -20,8 +50,55 @@ export interface ExecuteSettlementResult {
   drawOrders: number;
 }
 
+// ---------------------------------------------------------------------------
+// Direction helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Core settlement executor – shared by auto-settle, force-settle, and admin manual-settle.
+ * Determine the session result direction from open and close prices.
+ *
+ * Rules:
+ *   closePrice > openPrice (by > 0.01%) → 'up'
+ *   closePrice < openPrice (by > 0.01%) → 'down'
+ *   |diff| ≤ 0.01%                      → 'draw'
+ */
+function determineResultDirection(
+  openPrice: number,
+  closePrice: number
+): 'up' | 'down' | 'draw' {
+  if (!isFinite(openPrice) || !isFinite(closePrice) || isNaN(openPrice) || isNaN(closePrice)) {
+    return 'draw';
+  }
+  if (openPrice > 0) {
+    const priceDiff = Math.abs(closePrice - openPrice) / openPrice;
+    if (priceDiff <= DRAW_THRESHOLD_PERCENTAGE) return 'draw';
+  }
+  return closePrice > openPrice ? 'up' : 'down';
+}
+
+/**
+ * Determine whether an individual order is a win, lose, or draw.
+ *
+ * @param direction  The direction the trader bet on ('up' | 'down').
+ * @param openPrice  The session open price.
+ * @param closePrice The session close price.
+ */
+export function determineTradeResult(
+  direction: 'up' | 'down',
+  openPrice: number,
+  closePrice: number
+): 'win' | 'lose' | 'draw' {
+  const resultDirection = determineResultDirection(openPrice, closePrice);
+  if (resultDirection === 'draw') return 'draw';
+  return direction === resultDirection ? 'win' : 'lose';
+}
+
+// ---------------------------------------------------------------------------
+// Core batch settlement (internal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Core settlement executor – used internally by settleOrder and settleSession.
  *
  * Applies WIN / LOSE / DRAW logic to the supplied orders inside the caller's
  * already-open database transaction, using batch SQL to minimise round-trips:
@@ -61,7 +138,6 @@ export async function executeSettlement(
   let losingOrders = 0;
   let drawOrders = 0;
 
-  // Compute per-order results in memory
   const orderIds: number[] = [];
   const orderResults: string[] = [];
   const orderProfits: number[] = [];
@@ -152,54 +228,212 @@ export async function executeSettlement(
   return { totalBetAmount, totalPayout, winningOrders, losingOrders, drawOrders };
 }
 
+// ---------------------------------------------------------------------------
+// settleOrder – single-order settlement (idempotent, atomic)
+// ---------------------------------------------------------------------------
+
 /**
- * Settle a trading session
+ * Settle a single trading order.
  *
- * This service is used by the admin manual-settlement API.
- * The caller (admin route) is responsible for computing `resultDirection`
- * based on the actual close price vs. open price before calling this function.
- * Do NOT pass a direction derived from a trading_rule's direction field unless
- * that rule explicitly has force_result = true.
+ * Idempotent: if the order is already 'settled', returns the existing result
+ * without any further database writes.
  *
- * Settlement logic:
- * - WIN: order.direction === resultDirection → user receives amount × odds
- * - LOSE: order.direction !== resultDirection → user gets nothing (already paid when placing order)
- * - DRAW: full refund of the bet amount
+ * @param input.orderId    The order to settle.
+ * @param input.closePrice The settlement price used to determine the result.
+ */
+export async function settleOrder(
+  input: OrderSettlementInput
+): Promise<OrderSettlementResult> {
+  const DEFAULT_ODDS = 1.85;
+
+  return await transaction(async (client) => {
+    const orderRes = await client.query(
+      `SELECT o.id, o.user_id, o.direction, o.amount, o.odds, o.entry_price,
+              o.status, o.result, o.profit, o.close_price,
+              ts.rule_id, ts.open_price AS session_open_price
+       FROM trading_orders o
+       JOIN trading_sessions ts ON o.session_id = ts.id
+       WHERE o.id = $1
+       FOR UPDATE`,
+      [input.orderId]
+    );
+
+    if (orderRes.rows.length === 0) {
+      throw new Error(`Order ${input.orderId} not found`);
+    }
+
+    const order = orderRes.rows[0];
+
+    // Idempotency guard
+    if (order.status === 'settled') {
+      const amount = parseFloat(order.amount);
+      const odds = parseFloat(order.odds ?? DEFAULT_ODDS);
+      const result: 'win' | 'lose' | 'draw' = order.result;
+      const payout =
+        result === 'win' ? amount * odds :
+        result === 'draw' ? amount : 0;
+      return {
+        orderId: order.id,
+        userId: order.user_id,
+        direction: order.direction,
+        result,
+        amount,
+        odds,
+        payout,
+        profit: parseFloat(order.profit ?? 0),
+        openPrice: parseFloat(order.session_open_price ?? order.entry_price ?? 0),
+        closePrice: parseFloat(order.close_price ?? input.closePrice),
+      };
+    }
+
+    const openPrice = parseFloat(order.entry_price ?? order.session_open_price ?? 0);
+    const closePrice = input.closePrice;
+    const amount = parseFloat(order.amount);
+
+    // Resolve odds from order, then from rule
+    let odds = order.odds ? parseFloat(order.odds) : 0;
+    if (!odds || odds <= 0) {
+      if (order.rule_id) {
+        const ruleRes = await client.query(
+          `SELECT odds FROM trading_rules WHERE id = $1`,
+          [order.rule_id]
+        );
+        if (ruleRes.rows.length > 0) odds = parseFloat(ruleRes.rows[0].odds);
+      }
+      if (!odds || odds <= 0) odds = DEFAULT_ODDS;
+    }
+
+    const resultDirection = determineResultDirection(openPrice, closePrice);
+    let result: 'win' | 'lose' | 'draw';
+    let payout: number;
+    let profit: number;
+
+    if (resultDirection === 'draw') {
+      result = 'draw';
+      payout = amount;
+      profit = 0;
+    } else if (order.direction === resultDirection) {
+      result = 'win';
+      payout = amount * odds;
+      profit = payout - amount;
+    } else {
+      result = 'lose';
+      payout = 0;
+      profit = -amount;
+    }
+
+    // Credit payout for winners and draws
+    if (payout > 0) {
+      await client.query(
+        `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+        [payout, order.user_id]
+      );
+    }
+
+    // Increment reward_unlock_traded
+    await client.query(
+      `UPDATE users SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + $1 WHERE id = $2`,
+      [amount, order.user_id]
+    );
+
+    // Update order record
+    await client.query(
+      `UPDATE trading_orders
+       SET result = $1, profit = $2, close_price = $3, settlement_price = $3,
+           entry_price = COALESCE(entry_price, $4), settled_at = NOW(), status = 'settled'
+       WHERE id = $5`,
+      [result, profit, closePrice, openPrice, input.orderId]
+    );
+
+    console.log(JSON.stringify({
+      event: 'order_settled',
+      orderId: input.orderId,
+      userId: order.user_id,
+      direction: order.direction,
+      result,
+      amount,
+      payout,
+    }));
+
+    return {
+      orderId: order.id,
+      userId: order.user_id,
+      direction: order.direction,
+      result,
+      amount,
+      odds,
+      payout,
+      profit,
+      openPrice,
+      closePrice,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// settleSession – batch settlement of all active orders in a session
+// ---------------------------------------------------------------------------
+
+/**
+ * Settle a trading session and all its active orders.
  *
- * @param sessionId - The trading session to settle
- * @param resultDirection - The actual result: 'up', 'down', or 'draw' (must be based on real price comparison)
- * @param settlementPrice - The final price used for settlement
- * @returns Settlement summary
+ * Single entry-point for all settlement callers (auto-settle job, admin API,
+ * force-settle script). Internally uses batch SQL via executeSettlement() for
+ * efficiency.
+ *
+ * Idempotent: if the session is already 'settled', returns summary data from
+ * the existing session record without any further writes.
+ *
+ * Concurrency-safe: acquires a FOR UPDATE row-lock on trading_sessions before
+ * any writes; concurrent calls block until the lock is released.
+ *
+ * @param sessionId  The session to settle.
+ * @param closePrice The settlement price. Direction is computed automatically
+ *                   (closePrice > openPrice → up wins; < openPrice → down wins;
+ *                    difference ≤ 0.01% → draw / full refund).
+ * @param openPrice  Optional override for the session open price. When omitted
+ *                   the value stored in trading_sessions.open_price is used; if
+ *                   that is also NULL, closePrice is used (resulting in a draw).
  */
 export async function settleSession(
   sessionId: number,
-  resultDirection: string,
-  settlementPrice: number,
-  options?: { openPrice?: number }
-): Promise<SettlementResult> {
+  closePrice: number,
+  openPrice?: number
+): Promise<SessionSettlementSummary> {
   return await transaction(async (client) => {
-    // Validate result direction
-    if (!['up', 'down', 'draw'].includes(resultDirection)) {
-      throw new Error('Invalid result direction. Must be "up", "down", or "draw"');
-    }
-
-    // Get session details
-    const sessionResult = await client.query(
-      `SELECT id, status, rule_id, duration_seconds FROM trading_sessions WHERE id = $1`,
+    // Acquire row-level lock to prevent concurrent settle / cancel races
+    const sessionRes = await client.query(
+      `SELECT id, status, rule_id, duration_seconds, open_price,
+              result_direction, order_count, total_bet_amount, total_payout
+       FROM trading_sessions WHERE id = $1 FOR UPDATE`,
       [sessionId]
     );
 
-    if (sessionResult.rows.length === 0) {
+    if (sessionRes.rows.length === 0) {
       throw new Error(`Trading session ${sessionId} not found`);
     }
 
-    const session = sessionResult.rows[0];
+    const session = sessionRes.rows[0];
 
+    // Idempotency: already settled – return summary from stored data
     if (session.status === 'settled') {
-      throw new Error(`Trading session ${sessionId} is already settled`);
+      console.log(`[settlement] session ${sessionId}: already settled, skipping`);
+      return {
+        sessionId,
+        resultDirection: session.result_direction ?? 'draw',
+        totalOrders: parseInt(session.order_count ?? '0', 10),
+        totalBetAmount: parseFloat(session.total_bet_amount ?? '0'),
+        totalPayout: parseFloat(session.total_payout ?? '0'),
+        platformProfit:
+          parseFloat(session.total_bet_amount ?? '0') -
+          parseFloat(session.total_payout ?? '0'),
+        winningOrders: 0,
+        losingOrders: 0,
+        drawOrders: 0,
+      };
     }
 
-    // Promote pending session and orders to active before settling
+    // Promote pending → active before settlement
     if (session.status === 'pending') {
       await client.query(
         `UPDATE trading_sessions SET status = 'active' WHERE id = $1 AND status = 'pending'`,
@@ -211,141 +445,121 @@ export async function settleSession(
       );
     }
 
-    // Get trading rule for this session (if exists)
-    let ruleOdds = 1.85; // Default odds
-    let ruleId = session.rule_id;
+    // Resolve open price: caller → stored in DB → fall back to closePrice (draw)
+    const resolvedOpenPrice =
+      openPrice != null
+        ? openPrice
+        : session.open_price != null
+          ? parseFloat(session.open_price)
+          : closePrice;
 
-    if (!ruleId) {
-      // Try to find a global default rule for this duration
-      const globalRuleResult = await client.query(
-        `SELECT id, odds FROM trading_rules
+    // Compute result direction from prices
+    const resultDirection = determineResultDirection(resolvedOpenPrice, closePrice);
+
+    // Resolve rule odds
+    let ruleOdds = 1.85;
+    const ruleId: number | null = session.rule_id;
+    if (ruleId) {
+      const ruleRes = await client.query(
+        `SELECT odds FROM trading_rules WHERE id = $1`,
+        [ruleId]
+      );
+      if (ruleRes.rows.length > 0) ruleOdds = parseFloat(ruleRes.rows[0].odds);
+    } else {
+      const globalRule = await client.query(
+        `SELECT odds FROM trading_rules
          WHERE pair_id IS NULL AND duration_seconds = $1 AND is_active = true
          ORDER BY id ASC LIMIT 1`,
         [session.duration_seconds]
       );
-      if (globalRuleResult.rows.length > 0) {
-        ruleId = globalRuleResult.rows[0].id;
-        ruleOdds = parseFloat(globalRuleResult.rows[0].odds);
-      }
-    } else {
-      const ruleResult = await client.query(
-        `SELECT id, odds FROM trading_rules WHERE id = $1`,
-        [ruleId]
-      );
-
-      if (ruleResult.rows.length > 0) {
-        ruleOdds = parseFloat(ruleResult.rows[0].odds);
-      }
+      if (globalRule.rows.length > 0) ruleOdds = parseFloat(globalRule.rows[0].odds);
     }
 
-    // Get all orders for this session (pending orders were already promoted to active above)
-    const ordersResult = await client.query(
+    // Fetch all active orders for this session
+    const ordersRes = await client.query(
       `SELECT id, user_id, direction, amount, odds
        FROM trading_orders
        WHERE session_id = $1 AND status = 'active'`,
       [sessionId]
     );
+    const orders = ordersRes.rows;
 
-    const orders = ordersResult.rows;
-
-    if (orders.length === 0) {
-      // No orders to settle
-      await client.query(
-        `UPDATE trading_sessions
-         SET status = 'settled',
-             result_direction = $1,
-             result = $1,
-             settlement_price = $2,
-             close_price = $2,
-             open_price = COALESCE(open_price, $3),
-             total_bet_amount = 0,
-             total_payout = 0,
-             order_count = 0,
-             settled_at = NOW()
-         WHERE id = $4`,
-        [resultDirection, settlementPrice, options?.openPrice ?? null, sessionId]
-      );
-
-      return {
-        total_orders: 0,
-        total_bet_amount: 0,
-        total_payout: 0,
-        platform_profit: 0,
-        winning_orders: 0,
-        losing_orders: 0,
-        draw_orders: 0,
-        result_direction: resultDirection,
-      };
-    }
-
-    // Delegate order settlement to shared core function (uses batch SQL)
-    const {
-      totalBetAmount,
-      totalPayout,
-      winningOrders,
-      losingOrders,
-      drawOrders,
-    } = await executeSettlement(
+    // Execute batch settlement
+    const stats = await executeSettlement(
       client,
       orders,
       resultDirection,
-      settlementPrice,
-      options?.openPrice ?? settlementPrice,
+      closePrice,
+      resolvedOpenPrice,
       ruleOdds
     );
 
-    const platformProfit = totalBetAmount - totalPayout;
+    const platformProfit = stats.totalBetAmount - stats.totalPayout;
 
-    // Update session
+    // Update session record
     await client.query(
       `UPDATE trading_sessions
-       SET status = 'settled',
+       SET status           = 'settled',
            result_direction = $1,
-           result = $1,
+           result           = $1,
            settlement_price = $2,
-           close_price = $2,
-           open_price = COALESCE(open_price, $3),
+           close_price      = $2,
+           open_price       = COALESCE(open_price, $3),
            total_bet_amount = $4,
-           total_payout = $5,
-           order_count = $7,
-           settled_at = NOW()
-       WHERE id = $6`,
-      [resultDirection, settlementPrice, options?.openPrice ?? null, totalBetAmount, totalPayout, sessionId, orders.length]
+           total_payout     = $5,
+           order_count      = $6,
+           settled_at       = NOW()
+       WHERE id = $7`,
+      [
+        resultDirection,
+        closePrice,
+        resolvedOpenPrice,
+        stats.totalBetAmount,
+        stats.totalPayout,
+        orders.length,
+        sessionId,
+      ]
     );
 
-    // Log settlement
+    // Write settlement audit log
     await client.query(
       `INSERT INTO trading_settlement_log
-       (session_id, rule_id, result_direction, settlement_price, total_orders, 
-        total_bet_amount, total_payout, platform_profit)
+       (session_id, rule_id, result_direction, settlement_price,
+        total_orders, total_bet_amount, total_payout, platform_profit)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         sessionId,
         ruleId,
         resultDirection,
-        settlementPrice,
+        closePrice,
         orders.length,
-        totalBetAmount,
-        totalPayout,
+        stats.totalBetAmount,
+        stats.totalPayout,
         platformProfit,
       ]
     );
 
-    console.log(
-      `✓ Settled session ${sessionId}: ${orders.length} orders, ` +
-      `${winningOrders} wins, ${losingOrders} losses, ${drawOrders} draws, ` +
-      `platform profit: $${platformProfit.toFixed(2)}`
-    );
+    console.log(JSON.stringify({
+      event: 'session_settled',
+      sessionId,
+      resultDirection,
+      orders: orders.length,
+      winningOrders: stats.winningOrders,
+      losingOrders: stats.losingOrders,
+      drawOrders: stats.drawOrders,
+      platformProfit,
+    }));
 
     return {
-      total_orders: orders.length,
-      total_bet_amount: totalBetAmount,
-      total_payout: totalPayout,
-      platform_profit: platformProfit,
-      winning_orders: winningOrders,
-      losing_orders: losingOrders,
-      draw_orders: drawOrders,
-      result_direction: resultDirection,
+      sessionId,
+      resultDirection,
+      totalOrders: orders.length,
+      totalBetAmount: stats.totalBetAmount,
+      totalPayout: stats.totalPayout,
+      platformProfit,
+      winningOrders: stats.winningOrders,
+      losingOrders: stats.losingOrders,
+      drawOrders: stats.drawOrders,
     };
   });
 }
