@@ -122,7 +122,7 @@ export function determineTradeResult(
  */
 export async function executeSettlement(
   client: PoolClient,
-  orders: Array<{ id: number; user_id: number; direction: string; amount: any; odds?: any }>,
+  orders: Array<{ id: string; user_id: string; direction: string; amount: any; odds?: any }>,
   resultDirection: string,
   closePrice: number,
   openPrice: number,
@@ -138,13 +138,13 @@ export async function executeSettlement(
   let losingOrders = 0;
   let drawOrders = 0;
 
-  const orderIds: number[] = [];
+  const orderIds: string[] = [];
   const orderResults: string[] = [];
   const orderProfits: number[] = [];
 
   // Aggregate payouts and traded amounts per user to avoid duplicate-user issues in batch UPDATE
-  const payoutByUser = new Map<number, number>();
-  const amountByUser = new Map<number, number>();
+  const payoutByUser = new Map<string, number>();
+  const amountByUser = new Map<string, number>();
 
   for (const order of orders) {
     const amount = parseFloat(order.amount);
@@ -191,7 +191,7 @@ export async function executeSettlement(
     await client.query(
       `UPDATE users u
        SET wallet_balance = wallet_balance + v.payout
-       FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS payout) v
+       FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS payout) v
        WHERE u.id = v.user_id`,
       [payoutUserIds, payoutAmounts]
     );
@@ -203,7 +203,7 @@ export async function executeSettlement(
   await client.query(
     `UPDATE users u
      SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + v.amount
-     FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS amount) v
+     FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS amount) v
      WHERE u.id = v.user_id`,
     [allUserIds, allAmounts]
   );
@@ -218,7 +218,7 @@ export async function executeSettlement(
          entry_price      = COALESCE(entry_price, $5),
          settled_at       = NOW(),
          status           = 'settled'
-     FROM (SELECT unnest($1::int[]) AS id,
+     FROM (SELECT unnest($1::uuid[]) AS id,
                   unnest($2::text[]) AS result,
                   unnest($3::numeric[]) AS profit) v
      WHERE trading_orders.id = v.id`,

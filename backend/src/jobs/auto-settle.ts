@@ -38,7 +38,7 @@ async function cancelSessionAndRefund(sessionId: number): Promise<void> {
     if (
       !checkResult.rows.length ||
       checkResult.rows[0].status === 'settled' ||
-      checkResult.rows[0].status === 'cancelled'
+      checkResult.rows[0].status === 'expired'
     ) {
       return;
     }
@@ -52,8 +52,8 @@ async function cancelSessionAndRefund(sessionId: number): Promise<void> {
 
     if (ordersResult.rows.length > 0) {
       // Aggregate refund amounts per user (multiple orders possible)
-      const refundByUser = new Map<number, number>();
-      const orderIds: number[] = [];
+      const refundByUser = new Map<string, number>();
+      const orderIds: string[] = [];
       for (const order of ordersResult.rows) {
         const amount = parseFloat(order.amount);
         refundByUser.set(order.user_id, (refundByUser.get(order.user_id) ?? 0) + amount);
@@ -66,7 +66,7 @@ async function cancelSessionAndRefund(sessionId: number): Promise<void> {
       await client.query(
         `UPDATE users u
          SET wallet_balance = wallet_balance + v.refund
-         FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS refund) v
+         FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS refund) v
          WHERE u.id = v.user_id`,
         [userIds, amounts]
       );
@@ -74,18 +74,18 @@ async function cancelSessionAndRefund(sessionId: number): Promise<void> {
       await client.query(
         `UPDATE trading_orders
          SET status = 'cancelled', result = 'draw', profit = 0
-         WHERE id = ANY($1::int[])`,
+         WHERE id = ANY($1::uuid[])`,
         [orderIds]
       );
     }
 
     await client.query(
-      `UPDATE trading_sessions SET status = 'cancelled' WHERE id = $1`,
+      `UPDATE trading_sessions SET status = 'expired', settled_at = NOW() WHERE id = $1`,
       [sessionId]
     );
   });
 
-  console.log(`[auto-settle] session ${sessionId}: cancelled and all orders refunded`);
+  console.log(`[auto-settle] session ${sessionId}: expired and all orders refunded`);
 }
 
 // ---------------------------------------------------------------------------
