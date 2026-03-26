@@ -4,18 +4,19 @@
  * Background cron job: settles all expired trading sessions every 10 seconds.
  *
  * Flow per session:
- *  1. Resolve close_price: use admin-preset settlement_price when available,
- *     otherwise fetch from Binance kline (real pairs) or price_points (custom pairs).
- *  2. Resolve open_price from the session record or Binance historical kline.
- *  3. Delegate all settlement logic (direction determination, order updates,
- *     balance payouts, session update, log write) to settleSession() in the
- *     trading-settlement service.
+ *  1. Resolve close_price:
+ *     - Admin-preset settlement_price takes priority.
+ *     - Real pairs: OKX WebSocket (if session ended ≤30s ago) → OKX REST kline → live price fallback.
+ *     - Custom pairs: price_points table → live price fallback.
+ *  2. Resolve open_price from the session record or OKX REST historical kline.
+ *  3. Delegate all settlement logic to settleSession() in trading-settlement service.
  *  4. If no price can be obtained, cancel the session and refund all orders.
  */
 
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { binanceFetch, getPairPrice, okxKlineFetch } from '../services/price.service';
+import { getPairPrice, okxKlineFetch } from '../services/price.service';
+import { getWsPrice } from '../services/price-ws.service';
 import { settleSession } from '../services/trading-settlement.service';
 
 let isRunning = false;
@@ -94,7 +95,7 @@ async function cancelSessionAndRefund(sessionId: string): Promise<void> {
 
 /**
  * Fetch the close price for a session.
- * For real pairs: Binance kline at end_time, with live-price fallback.
+ * For real pairs: OKX WebSocket (if session ended ≤30s ago) → OKX REST kline → live-price fallback.
  * For custom pairs: nearest price_points entry, with live-price fallback.
  * Returns null when no price can be obtained.
  */
@@ -109,34 +110,36 @@ async function fetchClosePrice(session: {
     const ONE_MINUTE_MS = 60_000;
     const KLINE_END_BUFFER_MS = 2_000;
     const endTimeMs = new Date(session.end_time).getTime();
+    const nowMs = Date.now();
 
+    // 1. OKX WebSocket real-time price (if session ended within last 30 seconds)
+    if (nowMs - endTimeMs <= 30_000) {
+      const wsSnapshot = getWsPrice(session.binance_symbol!);
+      if (wsSnapshot && wsSnapshot.price > 0) {
+        console.log(
+          `[auto-settle] session ${session.id}: close_price=${wsSnapshot.price} ` +
+          `from OKX WebSocket (age=${nowMs - wsSnapshot.timestamp}ms)`
+        );
+        return wsSnapshot.price;
+      }
+    }
+
+    // 2. OKX REST kline (historical)
     let klineData: any[][] | null = null;
     try {
-      klineData = await binanceFetch('/api/v3/klines', {
-        symbol: session.binance_symbol,
-        interval: '1m',
+      klineData = await okxKlineFetch(session.binance_symbol, '1m', {
         startTime: endTimeMs - ONE_MINUTE_MS,
         endTime: endTimeMs + KLINE_END_BUFFER_MS,
         limit: 3,
       });
-    } catch (klineErr: any) {
-      console.warn(
-        `[auto-settle] session ${session.id}: Binance kline failed ` +
-        `(${klineErr.message}), trying OKX kline...`
-      );
-      try {
-        klineData = await okxKlineFetch(session.binance_symbol!, '1m', {
-          startTime: endTimeMs - ONE_MINUTE_MS,
-          endTime: endTimeMs + KLINE_END_BUFFER_MS,
-          limit: 3,
-        });
-        console.log(`[auto-settle] session ${session.id}: OKX kline fallback succeeded`);
-      } catch (okxErr: any) {
-        console.warn(
-          `[auto-settle] session ${session.id}: OKX kline also failed ` +
-          `(${okxErr.message}), trying live price...`
-        );
+      if (klineData && klineData.length > 0) {
+        console.log(`[auto-settle] session ${session.id}: OKX kline fetch succeeded`);
       }
+    } catch (okxErr: any) {
+      console.warn(
+        `[auto-settle] session ${session.id}: OKX kline failed ` +
+        `(${okxErr.message}), trying live price...`
+      );
     }
 
     if (klineData && Array.isArray(klineData) && klineData.length > 0) {
@@ -154,7 +157,8 @@ async function fetchClosePrice(session: {
         return price;
       }
     }
-    // Live-price fallback
+
+    // 3. Live-price fallback (calls getRealTimePrice which uses WS → Redis → OKX REST)
     try {
       const priceData = await getPairPrice(session.pair_id);
       console.warn(
@@ -194,7 +198,7 @@ async function fetchClosePrice(session: {
 /**
  * Resolve the open price for a session.
  * Returns the stored session.open_price when present; otherwise fetches the
- * historical Binance kline open at session start_time (real pairs) or live
+ * historical OKX kline open at session start_time (real pairs) or live
  * price (custom pairs). Falls back to null on failure.
  */
 async function fetchOpenPrice(session: {
@@ -212,32 +216,19 @@ async function fetchOpenPrice(session: {
   if (session.pair_type === 'real' && session.binance_symbol && session.start_time) {
     const startTimeMs = new Date(session.start_time).getTime();
 
+    // OKX REST kline (skip Binance entirely)
     let startKlineData: any[][] | null = null;
     try {
-      startKlineData = await binanceFetch('/api/v3/klines', {
-        symbol: session.binance_symbol,
-        interval: '1m',
+      startKlineData = await okxKlineFetch(session.binance_symbol, '1m', {
         startTime: startTimeMs - 60_000,
         endTime: startTimeMs + 5_000,
         limit: 2,
       });
-    } catch (klineErr: any) {
+    } catch (okxErr: any) {
       console.warn(
-        `[auto-settle] session ${session.id}: Binance open_price kline failed ` +
-        `(${klineErr.message}), trying OKX kline...`
+        `[auto-settle] session ${session.id}: OKX open_price kline failed ` +
+        `(${okxErr.message}), will settle as draw`
       );
-      try {
-        startKlineData = await okxKlineFetch(session.binance_symbol!, '1m', {
-          startTime: startTimeMs - 60_000,
-          endTime: startTimeMs + 5_000,
-          limit: 2,
-        });
-      } catch (okxErr: any) {
-        console.warn(
-          `[auto-settle] session ${session.id}: OKX open_price kline also failed ` +
-          `(${okxErr.message}), will settle as draw`
-        );
-      }
     }
 
     if (startKlineData && Array.isArray(startKlineData) && startKlineData.length > 0) {
