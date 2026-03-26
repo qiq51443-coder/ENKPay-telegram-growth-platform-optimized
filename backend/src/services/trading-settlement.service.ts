@@ -5,8 +5,12 @@ import { transaction } from '../db';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Price difference threshold for a draw (0.01%). */
-const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
+/**
+ * Absolute price difference threshold for a draw (in quote currency, e.g. USDT).
+ * Only prices that differ by less than this amount are considered a draw.
+ * Setting to 0.0001 means essentially only exact ties result in a draw.
+ */
+const DRAW_THRESHOLD_ABSOLUTE = 0.0001;
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -58,9 +62,11 @@ export interface ExecuteSettlementResult {
  * Determine the session result direction from open and close prices.
  *
  * Rules:
- *   closePrice > openPrice (by > 0.01%) → 'up'
- *   closePrice < openPrice (by > 0.01%) → 'down'
- *   |diff| ≤ 0.01%                      → 'draw'
+ *   |closePrice - openPrice| >= DRAW_THRESHOLD_ABSOLUTE → 'up' or 'down'
+ *   |closePrice - openPrice| <  DRAW_THRESHOLD_ABSOLUTE → 'draw'
+ *
+ * Using an absolute threshold prevents high-price assets (e.g. BTC at ~$97,000)
+ * from being incorrectly judged as a draw when the price moves by tens of dollars.
  */
 function determineResultDirection(
   openPrice: number,
@@ -69,10 +75,8 @@ function determineResultDirection(
   if (!isFinite(openPrice) || !isFinite(closePrice) || isNaN(openPrice) || isNaN(closePrice)) {
     return 'draw';
   }
-  if (openPrice > 0) {
-    const priceDiff = Math.abs(closePrice - openPrice) / openPrice;
-    if (priceDiff <= DRAW_THRESHOLD_PERCENTAGE) return 'draw';
-  }
+  const absDiff = Math.abs(closePrice - openPrice);
+  if (absDiff < DRAW_THRESHOLD_ABSOLUTE) return 'draw';
   return closePrice > openPrice ? 'up' : 'down';
 }
 
@@ -165,8 +169,7 @@ export async function executeSettlement(
     } else if (order.direction === resultDirection) {
       orderResult = 'win';
       payout = amount * orderOdds;
-      profit = payout - amount;
-      winningOrders++;
+      profit = payout; // Full payout amount (principal × odds)
     } else {
       orderResult = 'lose';
       payout = 0;
@@ -315,7 +318,7 @@ export async function settleOrder(
     } else if (order.direction === resultDirection) {
       result = 'win';
       payout = amount * odds;
-      profit = payout - amount;
+      profit = payout; // Full payout amount (principal × odds)
     } else {
       result = 'lose';
       payout = 0;
