@@ -128,6 +128,8 @@ export const en = {
   redpacket_condition_not_met: '❌ You do not meet the claim requirements\nThis red packet requires: {condition_desc}',
   redpacket_condition_first_follow: 'New users who follow the Bot for the first time only',
   redpacket_condition_deposited: 'Deposited users only',
+  redpacket_condition_trade_100: 'Instant trading volume ≥ 100 USDT',
+  redpacket_condition_trade_200: 'Instant trading volume ≥ 200 USDT',
 
   // General
   back: '« Back',

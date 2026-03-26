@@ -107,6 +107,8 @@ export const zh = {
   redpacket_condition_not_met: '❌ 你不满足领取条件\n此红包领取条件为：{condition_desc}',
   redpacket_condition_first_follow: '仅首次关注 Bot 用户',
   redpacket_condition_deposited: '仅充值用户',
+  redpacket_condition_trade_100: '即时交易流水 ≥ 100 USDT',
+  redpacket_condition_trade_200: '即时交易流水 ≥ 200 USDT',
 
   // General
   back: '« 返回',
