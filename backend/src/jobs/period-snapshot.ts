@@ -9,15 +9,19 @@ async function runPeriodSnapshot(): Promise<void> {
   if (isRunning) return;
   isRunning = true;
   try {
-    // Query all pending sessions whose start_time has arrived
+    // Query all pending sessions whose start_time has arrived,
+    // plus any active sessions that are missing open_price (backfill)
     const pendingResult = await query(
-      `SELECT ts.id, ts.pair_id, ts.start_time, tp.pair_type, tp.binance_symbol
+      `SELECT ts.id, ts.pair_id, ts.start_time, ts.status, ts.open_price, tp.pair_type, tp.binance_symbol
        FROM trading_sessions ts
        JOIN trading_pairs tp ON ts.pair_id = tp.id
-       WHERE ts.status = 'pending'
-         AND ts.start_time <= NOW()
+       WHERE (
+           (ts.status = 'pending' AND ts.start_time <= NOW())
+           OR
+           (ts.status = 'active' AND ts.open_price IS NULL AND ts.start_time <= NOW())
+         )
        ORDER BY ts.start_time ASC
-       LIMIT 50`,
+       LIMIT 100`,
       []
     );
 
@@ -118,12 +122,34 @@ async function runPeriodSnapshot(): Promise<void> {
         await transaction(async (client) => {
           // Guard: double-activation check
           const check = await client.query(
-            `SELECT status FROM trading_sessions WHERE id = $1`,
+            `SELECT status, open_price FROM trading_sessions WHERE id = $1`,
             [session.id]
           );
-          if (!check.rows.length || check.rows[0].status !== 'pending') return;
+          if (!check.rows.length) return;
+          const currentStatus = check.rows[0].status;
+          const currentOpenPrice = check.rows[0].open_price;
 
-          // Activate session
+          if (currentStatus === 'settled' || currentStatus === 'cancelled') return;
+
+          if (currentStatus === 'active' && currentOpenPrice !== null) {
+            // Already active with a valid open_price — nothing to do
+            return;
+          }
+
+          if (currentStatus === 'active' && currentOpenPrice === null) {
+            // Backfill open_price for already-active sessions that missed it
+            await client.query(
+              `UPDATE trading_sessions SET open_price = $1 WHERE id = $2 AND open_price IS NULL`,
+              [openPrice, session.id]
+            );
+            await client.query(
+              `UPDATE trading_orders SET entry_price = COALESCE(entry_price, $1) WHERE session_id = $2 AND status = 'active'`,
+              [openPrice, session.id]
+            );
+            return;
+          }
+
+          // Normal pending → active promotion
           await client.query(
             `UPDATE trading_sessions SET status = 'active', open_price = $1 WHERE id = $2 AND status = 'pending'`,
             [openPrice, session.id]
