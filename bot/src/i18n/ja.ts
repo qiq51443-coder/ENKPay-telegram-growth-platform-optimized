@@ -108,8 +108,6 @@ export const ja: Record<string, string> = {
   redpacket_condition_not_met: '❌ 受け取り条件を満たしていません\nこの紅包の条件：{condition_desc}',
   redpacket_condition_first_follow: 'Botを初めてフォローした新規ユーザーのみ',
   redpacket_condition_deposited: '入金済みユーザーのみ',
-  redpacket_condition_trade_100: '即時取引量 ≥ 100 USDT',
-  redpacket_condition_trade_200: '即時取引量 ≥ 200 USDT',
 
   // General
   back: '« 戻る',

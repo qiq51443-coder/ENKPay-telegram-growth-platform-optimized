@@ -6,8 +6,6 @@ import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { startSweepScheduler } from './jobs/sweep-scheduler';
 import { checkBinanceConnectivity } from './services/price.service';
-import { startAutoSettle } from './jobs/auto-settle';
-import { startPeriodSnapshot } from './jobs/period-snapshot';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
@@ -40,8 +38,6 @@ import announcementsRoutes from './routes/announcements';
 import nftRoutes from './routes/nft';
 import luckyAuctionRoutes from './routes/auctions';
 import auctionAdminRoutes from './routes/auction-admin';
-import tradingRoutes from './routes/trading';
-import tradingAdminRoutes from './routes/trading-admin';
 import charityRoutes from './routes/charity';
 import walletRoutes from './routes/wallet';
 import walletAdminRoutes from './routes/wallet-admin';
@@ -152,8 +148,6 @@ app.use('/webhook/deposit', depositWebhookRoutes);
 app.use('/api/nft', nftRoutes);
 app.use('/api/auctions', luckyAuctionRoutes);
 app.use('/api/admin/auctions', auctionAdminRoutes);
-app.use('/api/trading', tradingRoutes);
-app.use('/api/admin/trading', tradingAdminRoutes);
 app.use('/api/charity', charityRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/admin/wallet', walletAdminRoutes);
@@ -213,14 +207,6 @@ const startServer = async () => {
 
     // Start real price snapshot job FIRST (writes price_points for real pairs every 3s)
     startRealPriceSnapshot();
-
-    // Start period snapshot job (pending → active, every 5 seconds)
-    startPeriodSnapshot();
-
-    // Start auto-settle job AFTER (active → settled, every 10 seconds)
-    startAutoSettle();
-
-    console.log('✓ Trading lifecycle jobs registered: real-price-snapshot(3s) → period-snapshot(5s) → auto-settle(10s)');
 
     // Start cleanup job
     startCleanupJob();

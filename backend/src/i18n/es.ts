@@ -129,8 +129,6 @@ export const es: Record<string, string> = {
   redpacket_condition_not_met: '❌ No cumples los requisitos\nEste sobre rojo requiere: {condition_desc}',
   redpacket_condition_first_follow: 'Solo nuevos usuarios que siguen al Bot por primera vez',
   redpacket_condition_deposited: 'Solo usuarios que han realizado depósitos',
-  redpacket_condition_trade_100: 'Volumen de trading instantáneo ≥ 100 USDT',
-  redpacket_condition_trade_200: 'Volumen de trading instantáneo ≥ 200 USDT',
 
   // General
   back: '« Volver',
