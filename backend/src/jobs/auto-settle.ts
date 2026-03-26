@@ -35,20 +35,18 @@ function determineDirection(openPrice: number, closePrice: number): string {
 async function cancelSessionAndRefund(sessionId: string, closePrice?: number): Promise<void> {
   await transaction(async (client) => {
     const checkResult = await client.query(
-      `SELECT status, open_price, entry_price FROM trading_sessions WHERE id = $1`,
+      `SELECT status, open_price FROM trading_sessions WHERE id = $1`,
       [sessionId]
     );
     if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
 
     const sessionRow = checkResult.rows[0];
-    // Use provided closePrice, or fall back to open_price, then entry_price, then null
+    // Use provided closePrice, or fall back to open_price, then null
     let refundPrice: number | null = null;
     if (closePrice != null) {
       refundPrice = closePrice;
     } else if (sessionRow.open_price != null) {
       refundPrice = parseFloat(sessionRow.open_price);
-    } else if (sessionRow.entry_price != null) {
-      refundPrice = parseFloat(sessionRow.entry_price);
     }
 
     const ordersResult = await client.query(
@@ -110,7 +108,7 @@ async function autoSettleSessions(): Promise<void> {
          ts.start_time,
          ts.end_time,
          ts.status,
-         COALESCE(ts.open_price, ts.entry_price) as open_price,
+         ts.open_price,
          ts.result_direction,
          ts.settlement_price,
          tr.direction as rule_direction,
@@ -194,7 +192,7 @@ async function autoSettleSessions(): Promise<void> {
             }
 
             const ordersResult = await client.query(
-              `SELECT id, user_id, direction, amount, odds, entry_price, status
+              `SELECT id, user_id, direction, amount, odds, status
                FROM trading_orders
                WHERE session_id = $1 AND status IN ('active', 'pending')`,
               [session.id]
@@ -262,10 +260,9 @@ async function autoSettleSessions(): Promise<void> {
 
               await client.query(
                 `UPDATE trading_orders
-                 SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled',
-                     entry_price = COALESCE(entry_price, $4)
-                 WHERE id = $5`,
-                [orderResult, profit, closePrice, openPrice, order.id]
+                 SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled'
+                 WHERE id = $4`,
+                [orderResult, profit, closePrice, order.id]
               );
             }
 
@@ -440,7 +437,7 @@ async function autoSettleSessions(): Promise<void> {
               openPrice = priceData.price;
               // Backfill open_price in DB so future runs and audits have a value
               await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
-            } catch (priceErr: any) {
+            } catch (priceErr) {
               // Cannot get open_price — use closePrice as draw fallback if session just expired;
               // cancel and refund if price data has been unavailable for too long
               const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
@@ -525,7 +522,7 @@ async function autoSettleSessions(): Promise<void> {
 
           // Get all active orders for this session
           const ordersResult = await client.query(
-            `SELECT id, user_id, direction, amount, odds, entry_price, status
+            `SELECT id, user_id, direction, amount, odds, status
              FROM trading_orders
              WHERE session_id = $1 AND status IN ('active', 'pending')`,
             [session.id]
@@ -598,10 +595,9 @@ async function autoSettleSessions(): Promise<void> {
 
             await client.query(
               `UPDATE trading_orders
-               SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled',
-                   entry_price = COALESCE(entry_price, $4)
-               WHERE id = $5`,
-              [orderResult, profit, closePrice, openPrice, order.id]
+               SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled'
+               WHERE id = $4`,
+              [orderResult, profit, closePrice, order.id]
             );
           }
 
