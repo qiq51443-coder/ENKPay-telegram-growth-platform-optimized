@@ -139,13 +139,14 @@ export async function executeSettlement(
          profit           = v.profit,
          close_price      = $4,
          settlement_price = $4,
+         entry_price      = COALESCE(entry_price, $5),
          settled_at       = NOW(),
          status           = 'settled'
      FROM (SELECT unnest($1::int[]) AS id,
                   unnest($2::text[]) AS result,
                   unnest($3::numeric[]) AS profit) v
      WHERE trading_orders.id = v.id`,
-    [orderIds, orderResults, orderProfits, closePrice]
+    [orderIds, orderResults, orderProfits, closePrice, openPrice]
   );
 
   return { totalBetAmount, totalPayout, winningOrders, losingOrders, drawOrders };
