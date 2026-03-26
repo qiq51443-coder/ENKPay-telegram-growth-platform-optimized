@@ -15,7 +15,7 @@
 
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { binanceFetch, getPairPrice } from '../services/price.service';
+import { binanceFetch, getPairPrice, okxKlineFetch } from '../services/price.service';
 import { settleSession } from '../services/trading-settlement.service';
 
 let isRunning = false;
@@ -135,8 +135,35 @@ async function fetchClosePrice(session: {
     } catch (klineErr: any) {
       console.warn(
         `[auto-settle] session ${session.id}: Binance kline failed ` +
-        `(${klineErr.message}), trying live price...`
+        `(${klineErr.message}), trying OKX...`
       );
+      // OKX kline fallback
+      try {
+        const endTimeMs = new Date(session.end_time).getTime();
+        const okxKlines = await okxKlineFetch(session.binance_symbol!, '1m', {
+          startTime: endTimeMs - ONE_MINUTE_MS,
+          endTime: endTimeMs + KLINE_END_BUFFER_MS,
+          limit: 3,
+        });
+        if (Array.isArray(okxKlines) && okxKlines.length > 0) {
+          const validKlines = okxKlines.filter((k) => k[0] < endTimeMs);
+          if (validKlines.length > 0) {
+            const bestKline = validKlines.reduce(
+              (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
+              validKlines[0]
+            );
+            const price = parseFloat(bestKline[4]);
+            console.log(`[auto-settle] session ${session.id}: OKX kline close_price=${price}`);
+            return price;
+          }
+        }
+        console.warn(`[auto-settle] session ${session.id}: OKX kline returned no valid data, trying live price...`);
+      } catch (okxErr: any) {
+        console.warn(
+          `[auto-settle] session ${session.id}: OKX kline also failed ` +
+          `(${okxErr.message}), trying live price...`
+        );
+      }
     }
     // Live-price fallback
     try {
@@ -221,9 +248,40 @@ async function fetchOpenPrice(session: {
       }
     } catch (err: any) {
       console.warn(
-        `[auto-settle] session ${session.id}: cannot fetch historical open_price ` +
-        `(${err.message}), will settle as draw`
+        `[auto-settle] session ${session.id}: Binance kline for open_price failed ` +
+        `(${err.message}), trying OKX...`
       );
+      // OKX kline fallback for open price
+      try {
+        const startTimeMs = new Date(session.start_time!).getTime();
+        const okxKlines = await okxKlineFetch(session.binance_symbol!, '1m', {
+          startTime: startTimeMs - 60_000,
+          endTime: startTimeMs + 5_000,
+          limit: 2,
+        });
+        if (Array.isArray(okxKlines) && okxKlines.length > 0) {
+          const validKlines = (okxKlines as any[][]).filter((k) => k[0] <= startTimeMs);
+          if (validKlines.length > 0) {
+            const best = validKlines.reduce(
+              (b: any[], k: any[]) => (k[0] > b[0] ? k : b),
+              validKlines[0]
+            );
+            const price = parseFloat(best[1]);
+            console.log(
+              `[auto-settle] session ${session.id}: OKX kline open_price=${price} ` +
+              `from kline at ${new Date(best[0]).toISOString()}`
+            );
+            return price;
+          }
+          return parseFloat((okxKlines as any[][])[okxKlines.length - 1][1]);
+        }
+        console.warn(`[auto-settle] session ${session.id}: OKX kline returned no valid open data, will settle as draw`);
+      } catch (okxErr: any) {
+        console.warn(
+          `[auto-settle] session ${session.id}: OKX kline for open_price also failed ` +
+          `(${okxErr.message}), will settle as draw`
+        );
+      }
     }
     return null;
   }
