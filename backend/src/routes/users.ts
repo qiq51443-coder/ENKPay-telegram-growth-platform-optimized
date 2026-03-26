@@ -223,14 +223,6 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
            SELECT id::text, 'transfer_out' AS type, amount::numeric, status,
                   created_at, NULL AS description, order_id
            FROM transfer_records WHERE from_user_id = $1
-
-           UNION ALL
-
-           -- Trading orders (instant trades)
-           SELECT id::text,
-                  CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
-                  amount::numeric, status, created_at, pair_id::text AS description, NULL AS order_id
-           FROM trading_orders WHERE user_id = $1
          ) AS combined
          ORDER BY created_at DESC LIMIT 100`,
         [id]

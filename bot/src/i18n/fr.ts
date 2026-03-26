@@ -108,8 +108,6 @@ export const fr: Record<string, string> = {
   redpacket_condition_not_met: '❌ Vous ne remplissez pas les conditions\nCe paquet rouge nécessite : {condition_desc}',
   redpacket_condition_first_follow: 'Nouveaux utilisateurs uniquement',
   redpacket_condition_deposited: 'Utilisateurs ayant effectué un dépôt uniquement',
-  redpacket_condition_trade_100: 'Volume de trading instantané ≥ 100 USDT',
-  redpacket_condition_trade_200: 'Volume de trading instantané ≥ 200 USDT',
 
   // General
   back: '« Retour',

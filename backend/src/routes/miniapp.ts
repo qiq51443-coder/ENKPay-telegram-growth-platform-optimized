@@ -203,7 +203,7 @@ router.get('/profile', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
 /**
  * GET /api/miniapp/transactions
  * Get current user's transaction history from transfer_records, deposit_records,
- * withdrawal_records, and trading_orders (UNION query).
+ * withdrawal_records, and the transactions ledger (UNION query).
  */
 router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
   try {
@@ -257,22 +257,11 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          UNION ALL
 
-         -- Trading orders (instant trades)
-         SELECT id::text,
-                CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
-                amount::numeric, status,
-                created_at, pair_id::text AS description, NULL AS order_id
-         FROM trading_orders
-         WHERE user_id = $1
-
-         UNION ALL
-
          -- Other transaction types from ledger (product, auction, rewards, etc.)
          -- Excludes types already fetched from their dedicated tables above:
          --   transfer_in/out → transfer_records
          --   deposit         → deposit_records
          --   withdrawal      → withdrawal_records
-         --   trade_win/loss  → trading_orders
          SELECT id::text,
                 type,
                 ABS(amount)::numeric,
@@ -283,7 +272,7 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
          FROM transactions
          WHERE user_id = $1
            AND type NOT IN (
-             'transfer_in','transfer_out','deposit','withdrawal','trade_win','trade_loss'
+             'transfer_in','transfer_out','deposit','withdrawal'
            )
        ) AS combined
        ORDER BY created_at DESC
