@@ -13,13 +13,13 @@ const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
 // ---------------------------------------------------------------------------
 
 export interface OrderSettlementInput {
-  orderId: number;
+  orderId: string;
   closePrice: number;
 }
 
 export interface OrderSettlementResult {
-  orderId: number;
-  userId: number;
+  orderId: string;
+  userId: string;
   direction: 'up' | 'down';
   result: 'win' | 'lose' | 'draw';
   amount: number;
@@ -31,7 +31,7 @@ export interface OrderSettlementResult {
 }
 
 export interface SessionSettlementSummary {
-  sessionId: number;
+  sessionId: string;
   resultDirection: 'up' | 'down' | 'draw';
   totalOrders: number;
   totalBetAmount: number;
@@ -396,7 +396,7 @@ export async function settleOrder(
  *                   that is also NULL, closePrice is used (resulting in a draw).
  */
 export async function settleSession(
-  sessionId: number,
+  sessionId: string,
   closePrice: number,
   openPrice?: number
 ): Promise<SessionSettlementSummary> {
