@@ -70,6 +70,11 @@ async function autoSettleSessions(): Promise<void> {
     return;
   }
   isRunning = true;
+  const lockTimeoutMs = 60_000;
+  const lockTimer = setTimeout(() => {
+    console.warn('[auto-settle] [WARN] isRunning lock timed out after 60s, force-resetting');
+    isRunning = false;
+  }, lockTimeoutMs);
 
   try {
     // Settle sessions that are 'active' OR 'pending' (stuck never activated) AND have ended
@@ -125,16 +130,15 @@ async function autoSettleSessions(): Promise<void> {
         // 1. For real (Binance) pairs, fetch the 1-minute kline that covers the session end_time.
         //    This gives the accurate close price at session end, independent of price_points.
         if (session.pair_type === 'real' && session.binance_symbol) {
-          const ONE_MINUTE_MS = 60000;
-          const KLINE_END_BUFFER_MS = 5000;
+          const KLINE_WINDOW_MS = 120_000;
           try {
             const endTimeMs = new Date(session.end_time).getTime();
             const klineData = await binanceFetch('/api/v3/klines', {
               symbol: session.binance_symbol,
               interval: '1m',
-              startTime: endTimeMs - ONE_MINUTE_MS,
-              endTime: endTimeMs + KLINE_END_BUFFER_MS,
-              limit: 2,
+              startTime: endTimeMs - KLINE_WINDOW_MS,
+              endTime: endTimeMs + KLINE_WINDOW_MS,
+              limit: 5,
             });
             if (Array.isArray(klineData) && klineData.length > 0) {
               // Pick the kline whose open time is closest to (and before) end_time
@@ -157,7 +161,7 @@ async function autoSettleSessions(): Promise<void> {
               console.warn(`[auto-settle] [ALERT] session ${session.id}: used live price fallback ${closePrice}`);
             } catch (priceErr) {
               const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
-              if (expiredMinsAgo > 5) {
+              if (expiredMinsAgo > 2) {
                 console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
                 try {
                   await cancelSessionAndRefund(session.id);
@@ -197,9 +201,9 @@ async function autoSettleSessions(): Promise<void> {
                 [session.pair_id, closePrice]
               ).catch((e: any) => console.warn(`[auto-settle] failed to persist fallback snapshot for session ${session.id} pair ${session.pair_id}:`, e.message));
             } catch (priceErr) {
-              // Cannot get close price — if session has been expired for more than 5 minutes, cancel and refund
+              // Cannot get close price — if session has been expired for more than 2 minutes, cancel and refund
               const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
-              if (expiredMinsAgo > 5) {
+              if (expiredMinsAgo > 2) {
                 console.warn(`[auto-settle] [CANCEL] session ${session.id}: no price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
                 try {
                   await cancelSessionAndRefund(session.id);
@@ -238,19 +242,12 @@ async function autoSettleSessions(): Promise<void> {
                 throw new Error('No kline data returned for start_time');
               }
             } catch (klineErr: any) {
-              console.error(`[auto-settle] [ALERT] session ${session.id} (pair_id=${session.pair_id}): cannot get historical open_price via kline`, klineErr.message);
-              const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
-              if (expiredMinsAgo > 5) {
-                console.warn(`[auto-settle] [CANCEL] session ${session.id}: no open_price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
-                try {
-                  await cancelSessionAndRefund(session.id);
-                } catch (cancelErr: any) {
-                  console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
-                }
-              } else {
-                console.error(`[auto-settle] [ALERT] session ${session.id}: cannot get open_price, SKIPPING settlement`);
-              }
-              continue;
+              console.warn(
+                `[auto-settle] [WARN] session ${session.id}: cannot get historical open_price via kline (${klineErr.message}), ` +
+                `using close_price=${closePrice} as open_price (result will be draw)`
+              );
+              openPrice = closePrice; // draw fallback: open == close → refund users
+              await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
             }
           } else {
             // For custom pairs: fall back to live price as before
@@ -261,19 +258,25 @@ async function autoSettleSessions(): Promise<void> {
               // Backfill open_price in DB so future runs and audits have a value
               await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
             } catch (priceErr: any) {
-              // Cannot get open_price either — if session expired 5+ min ago, cancel and refund
+              // Cannot get open_price — use closePrice as draw fallback if session just expired;
+              // cancel and refund if price data has been unavailable for too long
               const expiredMinsAgo = (Date.now() - new Date(session.end_time).getTime()) / 60000;
-              if (expiredMinsAgo > 5) {
+              if (expiredMinsAgo > 2) {
                 console.warn(`[auto-settle] [CANCEL] session ${session.id}: no open_price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
                 try {
                   await cancelSessionAndRefund(session.id);
                 } catch (cancelErr: any) {
                   console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
                 }
+                continue;
               } else {
-                console.error(`[auto-settle] [ALERT] session ${session.id} (pair_id=${session.pair_id}): cannot get open_price, SKIPPING settlement`, priceErr);
+                console.warn(
+                  `[auto-settle] [WARN] session ${session.id}: cannot get open_price via live price (${priceErr.message}), ` +
+                  `using close_price=${closePrice} as open_price (result will be draw)`
+                );
+                openPrice = closePrice; // draw fallback: open == close → refund users
+                await query(`UPDATE trading_sessions SET open_price = $1 WHERE id = $2`, [openPrice, session.id]);
               }
-              continue;
             }
           }
         } else {
@@ -471,6 +474,7 @@ async function autoSettleSessions(): Promise<void> {
   } catch (err: any) {
     console.error('[auto-settle] Error:', err.message);
   } finally {
+    clearTimeout(lockTimer);
     isRunning = false;
   }
 }

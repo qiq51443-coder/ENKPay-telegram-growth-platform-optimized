@@ -97,11 +97,21 @@ async function runPeriodSnapshot(): Promise<void> {
         }
 
         if (openPrice === null || openPrice <= 0) {
-          console.warn(
-            `[period-snapshot] [WARN] session ${session.id} (pair_id=${session.pair_id}, start_time=${session.start_time}): ` +
-            `cannot get open price — skipping. Ensure real-price-snapshot or price-generator is running.`
-          );
-          continue;
+          const startedMinsAgo = (Date.now() - new Date(session.start_time).getTime()) / 60000;
+          if (startedMinsAgo >= 2) {
+            console.warn(
+              `[period-snapshot] [FORCE-ACTIVATE] session ${session.id}: start_time=${session.start_time} ` +
+              `(${startedMinsAgo.toFixed(1)}min ago), no price obtainable — force-activating with open_price=0 (will settle as draw)`
+            );
+            openPrice = 0; // will result in draw at settlement
+            // fall through to the activation transaction below
+          } else {
+            console.warn(
+              `[period-snapshot] [WARN] session ${session.id} (pair_id=${session.pair_id}, start_time=${session.start_time}): ` +
+              `cannot get open price — skipping. Ensure real-price-snapshot or price-generator is running.`
+            );
+            continue;
+          }
         }
 
         // Activate session and orders atomically, with double-activation guard
