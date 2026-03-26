@@ -18,6 +18,7 @@ dotenv.config();
 
 import { query, transaction } from '../db';
 import { binanceFetch, getPairPrice } from '../services/price.service';
+import { executeSettlement } from '../services/trading-settlement.service';
 
 const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
 
@@ -73,7 +74,7 @@ async function forceSettleStuckSessions(): Promise<void> {
        ts.start_time,
        ts.end_time,
        ts.status,
-       COALESCE(ts.open_price, ts.entry_price) as open_price,
+       ts.open_price,
        ts.result_direction,
        ts.settlement_price,
        tr.direction as rule_direction,
@@ -101,14 +102,16 @@ async function forceSettleStuckSessions(): Promise<void> {
     try {
       console.log(`[force-settle] Processing session ${session.id} (pair_id=${session.pair_id}, end_time=${session.end_time})...`);
 
-      // Short-circuit: if the session already has result_direction and settlement_price,
-      // use them directly and skip the Binance kline fetch entirely.
-      if (session.result_direction && session.settlement_price) {
+      // Short-circuit: only when admin has explicitly pre-set a forced result
+      // (requires force_result=true on the trading rule)
+      const adminForceResult = session.rule_force_result === true || session.rule_force_result === 't';
+      if (adminForceResult && session.result_direction && session.settlement_price) {
         const closePrice: number = parseFloat(session.settlement_price);
         const openPrice: number = session.open_price != null ? parseFloat(session.open_price) : closePrice;
         const resultDirection: string = session.result_direction;
         console.log(
-          `[force-settle] session ${session.id}: using existing result_direction=${resultDirection}, settlement_price=${closePrice} (skipping kline fetch)`
+          `[force-settle] session ${session.id}: ADMIN FORCE RESULT – ` +
+          `direction=${resultDirection}, settlement_price=${closePrice} (skipping kline fetch)`
         );
 
         let settledOrderCount = 0;
@@ -141,18 +144,12 @@ async function forceSettleStuckSessions(): Promise<void> {
           }
 
           const ordersResult = await client.query(
-            `SELECT id, user_id, direction, amount, odds, entry_price, status
+            `SELECT id, user_id, direction, amount, odds
              FROM trading_orders
              WHERE session_id = $1 AND status IN ('active', 'pending')`,
             [session.id]
           );
           const orders = ordersResult.rows;
-
-          let totalBetAmount = 0;
-          let totalPayout = 0;
-          let winningOrders = 0;
-          let losingOrders = 0;
-          let drawOrders = 0;
 
           let ruleOdds = 1.85;
           if (session.rule_id) {
@@ -166,55 +163,7 @@ async function forceSettleStuckSessions(): Promise<void> {
             if (globalRule.rows.length > 0) ruleOdds = parseFloat(globalRule.rows[0].odds);
           }
 
-          for (const order of orders) {
-            const amount = parseFloat(order.amount);
-            const orderOdds = order.odds ? parseFloat(order.odds) : ruleOdds;
-            totalBetAmount += amount;
-
-            let orderResult: string;
-            let profit: number;
-            let payout: number;
-
-            if (resultDirection === 'draw') {
-              orderResult = 'draw';
-              profit = 0;
-              payout = amount;
-              drawOrders++;
-              await client.query(
-                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-                [payout, order.user_id]
-              );
-              totalPayout += payout;
-            } else if (order.direction === resultDirection) {
-              orderResult = 'win';
-              payout = amount * orderOdds;
-              profit = payout - amount;
-              winningOrders++;
-              totalPayout += payout;
-              await client.query(
-                `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-                [payout, order.user_id]
-              );
-            } else {
-              orderResult = 'lose';
-              payout = 0;
-              profit = -amount;
-              losingOrders++;
-            }
-
-            await client.query(
-              `UPDATE users SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + $1 WHERE id = $2`,
-              [amount, order.user_id]
-            );
-
-            await client.query(
-              `UPDATE trading_orders
-               SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled',
-                   entry_price = COALESCE(entry_price, $4)
-               WHERE id = $5`,
-              [orderResult, profit, closePrice, openPrice, order.id]
-            );
-          }
+          const stats = await executeSettlement(client, orders, resultDirection, closePrice, openPrice, ruleOdds);
 
           await client.query(
             `UPDATE trading_sessions
@@ -229,15 +178,15 @@ async function forceSettleStuckSessions(): Promise<void> {
                  order_count = $6,
                  settled_at = NOW()
              WHERE id = $7`,
-            [resultDirection, closePrice, openPrice, totalBetAmount, totalPayout, orders.length, session.id]
+            [resultDirection, closePrice, openPrice, stats.totalBetAmount, stats.totalPayout, orders.length, session.id]
           );
 
           settledOrderCount = orders.length;
-          settledTotalBetAmount = totalBetAmount;
-          settledTotalPayout = totalPayout;
-          settledWinningOrders = winningOrders;
-          settledLosingOrders = losingOrders;
-          settledDrawOrders = drawOrders;
+          settledTotalBetAmount = stats.totalBetAmount;
+          settledTotalPayout = stats.totalPayout;
+          settledWinningOrders = stats.winningOrders;
+          settledLosingOrders = stats.losingOrders;
+          settledDrawOrders = stats.drawOrders;
           isSettled = true;
         });
 
@@ -360,7 +309,6 @@ async function forceSettleStuckSessions(): Promise<void> {
       }
 
       let resultDirection: string;
-      const adminForceResult = session.rule_force_result === true || session.rule_force_result === 't';
       if (session.rule_id && session.rule_direction && adminForceResult) {
         resultDirection = session.rule_direction;
       } else {
@@ -400,18 +348,12 @@ async function forceSettleStuckSessions(): Promise<void> {
         }
 
         const ordersResult = await client.query(
-          `SELECT id, user_id, direction, amount, odds, entry_price, status
+          `SELECT id, user_id, direction, amount, odds
            FROM trading_orders
            WHERE session_id = $1 AND status IN ('active', 'pending')`,
           [session.id]
         );
         const orders = ordersResult.rows;
-
-        let totalBetAmount = 0;
-        let totalPayout = 0;
-        let winningOrders = 0;
-        let losingOrders = 0;
-        let drawOrders = 0;
 
         let ruleOdds = 1.85;
         if (session.rule_id) {
@@ -425,55 +367,7 @@ async function forceSettleStuckSessions(): Promise<void> {
           if (globalRule.rows.length > 0) ruleOdds = parseFloat(globalRule.rows[0].odds);
         }
 
-        for (const order of orders) {
-          const amount = parseFloat(order.amount);
-          const orderOdds = order.odds ? parseFloat(order.odds) : ruleOdds;
-          totalBetAmount += amount;
-
-          let orderResult: string;
-          let profit: number;
-          let payout: number;
-
-          if (resultDirection === 'draw') {
-            orderResult = 'draw';
-            profit = 0;
-            payout = amount;
-            drawOrders++;
-            await client.query(
-              `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-              [payout, order.user_id]
-            );
-            totalPayout += payout;
-          } else if (order.direction === resultDirection) {
-            orderResult = 'win';
-            payout = amount * orderOdds;
-            profit = payout - amount;
-            winningOrders++;
-            totalPayout += payout;
-            await client.query(
-              `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-              [payout, order.user_id]
-            );
-          } else {
-            orderResult = 'lose';
-            payout = 0;
-            profit = -amount;
-            losingOrders++;
-          }
-
-          await client.query(
-            `UPDATE users SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + $1 WHERE id = $2`,
-            [amount, order.user_id]
-          );
-
-          await client.query(
-            `UPDATE trading_orders
-             SET result = $1, profit = $2, close_price = $3, settlement_price = $3, settled_at = NOW(), status = 'settled',
-                 entry_price = COALESCE(entry_price, $4)
-             WHERE id = $5`,
-            [orderResult, profit, closePrice, openPrice, order.id]
-          );
-        }
+        const stats = await executeSettlement(client, orders, resultDirection, closePrice, openPrice, ruleOdds);
 
         await client.query(
           `UPDATE trading_sessions
@@ -488,15 +382,15 @@ async function forceSettleStuckSessions(): Promise<void> {
                order_count = $6,
                settled_at = NOW()
            WHERE id = $7`,
-          [resultDirection, closePrice, openPrice, totalBetAmount, totalPayout, orders.length, session.id]
+          [resultDirection, closePrice, openPrice, stats.totalBetAmount, stats.totalPayout, orders.length, session.id]
         );
 
         settledOrderCount = orders.length;
-        settledTotalBetAmount = totalBetAmount;
-        settledTotalPayout = totalPayout;
-        settledWinningOrders = winningOrders;
-        settledLosingOrders = losingOrders;
-        settledDrawOrders = drawOrders;
+        settledTotalBetAmount = stats.totalBetAmount;
+        settledTotalPayout = stats.totalPayout;
+        settledWinningOrders = stats.winningOrders;
+        settledLosingOrders = stats.losingOrders;
+        settledDrawOrders = stats.drawOrders;
         isSettled = true;
       });
 
@@ -511,7 +405,12 @@ async function forceSettleStuckSessions(): Promise<void> {
             [session.id, session.rule_id, resultDirection, closePrice, settledOrderCount, settledTotalBetAmount, settledTotalPayout, platformProfit]
           );
         } catch (logErr: any) {
-          console.warn(`[force-settle] session ${session.id}: settlement log insert failed (non-critical):`, logErr.message);
+          console.warn(
+            `[force-settle] session ${session.id}: settlement log insert failed ` +
+            `(session_id=${session.id}, result=${resultDirection}, ` +
+            `settlement_price=${closePrice}, platform_profit=${platformProfit}):`,
+            logErr.message
+          );
         }
 
         console.log(
