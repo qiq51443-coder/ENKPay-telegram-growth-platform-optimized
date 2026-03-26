@@ -502,19 +502,20 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       const entryPrice = parseFloat(priceResult.rows[0].price);
 
-      // Deduct from red_packet_balance first, then wallet_balance
-      const fromRedPacket = Math.min(redPacketBal, orderAmount);
-      const fromWallet = orderAmount - fromRedPacket;
+      // Deduct from wallet_balance first, then red_packet_balance for the remainder
+      const fromWallet = Math.min(walletBal, orderAmount);
+      const fromRedPacket = orderAmount - fromWallet;
+      if (fromWallet > 0) {
+        await client.query(
+          `UPDATE users SET wallet_balance = wallet_balance - $1
+           WHERE id = $2 AND wallet_balance >= $1`,
+          [fromWallet, user_id]
+        );
+      }
       if (fromRedPacket > 0) {
         await client.query(
           'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
           [fromRedPacket, orderAmount, user_id]
-        );
-      }
-      if (fromWallet > 0) {
-        await client.query(
-          'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
-          [fromWallet, user_id]
         );
       }
 
@@ -865,68 +866,16 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         throw Object.assign(new Error('Insufficient balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
       }
 
-      // Get current price: try price_points cache first, then fall back to live price
-      const priceResult = await client.query(
-        `SELECT price FROM price_points WHERE pair_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-        [pairIdInt]
-      );
+      // Get current live price – used as both entry_price for the order and open_price for the session.
       let entryPrice: number;
-      if (priceResult.rows.length > 0) {
-        entryPrice = parseFloat(priceResult.rows[0].price);
-      } else {
-        // No cached price available – fetch live price from price service
-        try {
-          const livePrice = await getPairPrice(pairIdInt);
-          entryPrice = livePrice.price;
-          // Cache it in price_points for future use (best-effort, don't fail if this fails)
-          void client.query(
-            `INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())`,
-            [pairIdInt, entryPrice]
-          ).catch((err: any) => console.error('[trading] Failed to cache live price:', err));
-        } catch (priceErr: any) {
-          throw new Error(`Price data not available and live fetch failed: ${priceErr.message}`);
-        }
-      }
-
-      // For real pairs with a Binance symbol, fetch the 1m kline whose open time matches
-      // sessionStartTime.  This ensures open_price is from the SAME candle that auto-settle
-      // uses for close_price, preventing direction mismatches.
-      // CRITICAL: we must pass startTime=sessionStartTime so Binance returns the candle that
-      // starts at session start, NOT the currently-open candle (which is wrong when the user
-      // places their order before the period begins).
-      // If sessionStartTime is in the future, Binance returns an empty array and
-      // klineOpenPrice stays NULL — period-snapshot will backfill it when the period opens.
-      let klineOpenPrice: number | null = null;
-      if (pairRow.pair_type === 'real' && pairRow.binance_symbol) {
-        try {
-          const targetMs = sessionStartTime.getTime();
-          const klines = await binanceFetch('/api/v3/klines', {
-            symbol: pairRow.binance_symbol,
-            interval: '1m',
-            startTime: targetMs,
-            limit: 2, // fetch 2 to handle minor timestamp drift
-          });
-          if (Array.isArray(klines) && klines.length > 0) {
-            // Binance kline format: [openTime, open, high, low, close, volume, ...]
-            // Pick the kline whose open time is closest to (and <= ) sessionStartTime.
-            // Start with the last candle that is <= targetMs; fall back to the first candle
-            // if all returned candles start after targetMs (future session — unlikely but safe).
-            let best: any = null;
-            for (const k of klines) {
-              if (k[0] <= targetMs) {
-                if (best === null || k[0] > best[0]) best = k;
-              }
-            }
-            if (best === null) best = klines[0]; // all candles in future → use first available
-            klineOpenPrice = parseFloat(best[1]); // index 1 = open price
-            console.log(`[quick-session] pair ${pairRow.binance_symbol} open_price=${klineOpenPrice} from kline at ${new Date(best[0]).toISOString()} for session start=${sessionStartTime.toISOString()}`);
-          }
-        } catch (binanceErr: any) {
-          console.warn('[quick-session] Binance kline fetch failed, open_price will be NULL:', binanceErr.message);
-        }
-      } else {
-        // For custom pairs use the price_points price as the open_price baseline
-        klineOpenPrice = entryPrice;
+      let sessionOpenPrice: number | null = null;
+      try {
+        const livePrice = await getPairPrice(pairIdInt);
+        entryPrice = livePrice.price;
+        sessionOpenPrice = livePrice.price;
+        console.log(`[quick-session] pair ${pairIdInt} entry_price/open_price=${entryPrice} from getPairPrice()`);
+      } catch (priceErr: any) {
+        throw new Error(`Price data not available: ${(priceErr as any).message}`);
       }
 
       // Try to reuse an existing active/pending session for the same period
@@ -977,7 +926,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
                VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
                ON CONFLICT (pair_id, duration_seconds, period_label) DO NOTHING
                RETURNING *`,
-              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+              [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, sessionOpenPrice]
             )
           );
         } catch (insertErr: any) {
@@ -992,7 +941,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
                   `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, start_at, end_at, open_price)
                    VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
                    RETURNING *`,
-                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, klineOpenPrice]
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, sessionStartTime, sessionEndTime, sessionOpenPrice]
                 )
               );
             } catch (fb1Err: any) {
@@ -1012,7 +961,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
                   `INSERT INTO trading_sessions (pair_id, rule_id, status, start_time, end_time, duration_seconds, period_label, start_at, end_at, open_price)
                    VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9)
                    RETURNING *`,
-                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, klineOpenPrice]
+                  [pairIdInt, ruleId, sessionStartTime, sessionEndTime, durationSeconds, resolvedPeriodLabel, sessionStartTime, sessionEndTime, sessionOpenPrice]
                 )
               );
             } catch (fb2Err: any) {
@@ -1048,16 +997,16 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       }
 
       // After session is found or created: if open_price is NULL but we just fetched a valid
-      // klineOpenPrice, backfill it now.  This handles the case where a previous order created
+      // sessionOpenPrice, backfill it now.  This handles the case where a previous order created
       // the session without a valid open_price (old buggy code) and the current order can fix it.
-      if (session && session.open_price == null && klineOpenPrice != null) {
+      if (session && session.open_price == null && sessionOpenPrice != null) {
         try {
           await client.query(
             `UPDATE trading_sessions SET open_price = $1 WHERE id = $2 AND open_price IS NULL`,
-            [klineOpenPrice, session.id]
+            [sessionOpenPrice, session.id]
           );
-          session = { ...session, open_price: klineOpenPrice };
-          console.log(`[quick-session] backfilled open_price=${klineOpenPrice} for session id=${session.id}`);
+          session = { ...session, open_price: sessionOpenPrice };
+          console.log(`[quick-session] backfilled open_price=${sessionOpenPrice} for session id=${session.id}`);
         } catch (backfillErr: any) {
           console.warn('[quick-session] Failed to backfill open_price (non-fatal):', backfillErr.message);
         }
@@ -1068,7 +1017,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
       // This covers the edge case where a user places an order in the last seconds of a
       // period and the period-snapshot job has not yet run.
       if (session.status === 'pending' && new Date(session.start_time) <= new Date()) {
-        let inlineOpenPrice: number | null = session.open_price ?? klineOpenPrice;
+        let inlineOpenPrice: number | null = session.open_price ?? sessionOpenPrice;
         if (!inlineOpenPrice && pairRow.pair_type === 'real' && pairRow.binance_symbol) {
           try {
             const startTimeMs = new Date(session.start_time).getTime();
@@ -1111,27 +1060,38 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         throw new Error('You already have an order for this trading period. Please wait for the next period.');
       }
 
-      // Deduct from red_packet_balance first, then wallet_balance
-      const fromRedPacket = Math.min(redPacketBal, orderAmount);
-      const fromWallet = orderAmount - fromRedPacket;
-      if (fromRedPacket > 0) {
-        await client.query(
-          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
-          [fromRedPacket, orderAmount, user_id]
-        );
-      }
+      // Deduct from wallet_balance first, then red_packet_balance for the remainder.
+      // Each deduction uses an atomic SQL UPDATE with a balance guard (wallet >= amount)
+      // to prevent over-spending under concurrent requests.
+      const fromWallet = Math.min(walletBal, orderAmount);
+      const fromRedPacketQS = orderAmount - fromWallet;
       if (fromWallet > 0) {
-        await client.query(
-          'UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2',
+        const deductWallet = await client.query(
+          `UPDATE users SET wallet_balance = wallet_balance - $1
+           WHERE id = $2 AND wallet_balance >= $1 RETURNING id`,
           [fromWallet, user_id]
         );
+        if (deductWallet.rows.length === 0) {
+          throw Object.assign(new Error('Insufficient wallet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+        }
+      }
+      if (fromRedPacketQS > 0) {
+        const deductRP = await client.query(
+          `UPDATE users SET red_packet_balance = red_packet_balance - $1,
+           red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2
+           WHERE id = $3 AND red_packet_balance >= $1 RETURNING id`,
+          [fromRedPacketQS, orderAmount, user_id]
+        );
+        if (deductRP.rows.length === 0) {
+          throw Object.assign(new Error('Insufficient red packet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+        }
       }
 
-      // Create order
+      // Create order (status='active' – immediate, no pending state needed)
       const orderResult = await client.query(
         `INSERT INTO trading_orders
          (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
          RETURNING *`,
         [session.id, user_id, pairIdInt, direction, orderAmount, entryPrice, ruleId, odds]
       );
@@ -1154,7 +1114,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           start_time: session.start_time,
           end_time: session.end_time,
           status: session.status,
-          open_price: session.open_price ?? klineOpenPrice,
+          open_price: session.open_price ?? sessionOpenPrice,
           up_count: upCount,
           down_count: downCount,
           period_label: session.period_label ?? resolvedPeriodLabel,
@@ -1165,7 +1125,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
           amount: orderAmount,
           entry_price: entryPrice,
           odds,
-          status: 'pending',
+          status: 'active',
         },
         odds,
         entry_price: entryPrice,

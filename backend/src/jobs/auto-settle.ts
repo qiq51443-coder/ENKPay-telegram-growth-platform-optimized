@@ -4,41 +4,26 @@
  * Background cron job: settles all expired trading sessions every 10 seconds.
  *
  * Flow per session:
- *  1. Short-circuit: if admin pre-set force_result=true with result_direction +
- *     settlement_price already written, use those values directly.
- *  2. Otherwise, fetch close_price from Binance kline (real pairs) or price_points
- *     (custom pairs), then compute resultDirection via determineDirection().
- *  3. Inside a transaction with FOR UPDATE lock on trading_sessions, settle all
- *     active/pending orders using the shared executeSettlement() core.
- *  4. Write settlement log outside the transaction for audit purposes.
- *  5. If no price can be obtained, cancel the session and refund all orders.
+ *  1. Resolve close_price: use admin-preset settlement_price when available,
+ *     otherwise fetch from Binance kline (real pairs) or price_points (custom pairs).
+ *  2. Resolve open_price from the session record or Binance historical kline.
+ *  3. Delegate all settlement logic (direction determination, order updates,
+ *     balance payouts, session update, log write) to settleSession() in the
+ *     trading-settlement service.
+ *  4. If no price can be obtained, cancel the session and refund all orders.
  */
 
 import cron from 'node-cron';
-import { PoolClient } from 'pg';
 import { query, transaction } from '../db';
 import { binanceFetch, getPairPrice } from '../services/price.service';
-import { executeSettlement } from '../services/trading-settlement.service';
-
-const DRAW_THRESHOLD_PERCENTAGE = 0.0001;
+import { settleSession } from '../services/trading-settlement.service';
 
 let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Cancel & refund helper
 // ---------------------------------------------------------------------------
-
-function determineDirection(openPrice: number, closePrice: number): string {
-  if (!isFinite(openPrice) || !isFinite(closePrice) || isNaN(openPrice) || isNaN(closePrice)) {
-    return 'draw';
-  }
-  if (openPrice > 0) {
-    const priceDiff = Math.abs(closePrice - openPrice) / openPrice;
-    if (priceDiff < DRAW_THRESHOLD_PERCENTAGE) return 'draw';
-  }
-  return closePrice >= openPrice ? 'up' : 'down';
-}
 
 /**
  * Cancel a session and refund all active/pending orders.
@@ -104,144 +89,151 @@ async function cancelSessionAndRefund(sessionId: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fetch odds for a session rule
+// Price resolution helpers
 // ---------------------------------------------------------------------------
 
-async function getRuleOdds(client: PoolClient, ruleId: number | null): Promise<number> {
-  const DEFAULT_ODDS = 1.85;
-  if (!ruleId) {
-    const globalRule = await client.query(
-      `SELECT odds FROM trading_rules
-       WHERE pair_id IS NULL AND is_active = true
-       ORDER BY id ASC LIMIT 1`,
-      []
-    );
-    return globalRule.rows.length > 0 ? parseFloat(globalRule.rows[0].odds) : DEFAULT_ODDS;
+/**
+ * Fetch the close price for a session.
+ * For real pairs: Binance kline at end_time, with live-price fallback.
+ * For custom pairs: nearest price_points entry, with live-price fallback.
+ * Returns null when no price can be obtained.
+ */
+async function fetchClosePrice(session: {
+  id: number;
+  pair_id: number;
+  end_time: Date | string;
+  pair_type: string;
+  binance_symbol: string | null;
+}): Promise<number | null> {
+  if (session.pair_type === 'real' && session.binance_symbol) {
+    const ONE_MINUTE_MS = 60_000;
+    const KLINE_END_BUFFER_MS = 2_000;
+    try {
+      const endTimeMs = new Date(session.end_time).getTime();
+      const klineData = await binanceFetch('/api/v3/klines', {
+        symbol: session.binance_symbol,
+        interval: '1m',
+        startTime: endTimeMs - ONE_MINUTE_MS,
+        endTime: endTimeMs + KLINE_END_BUFFER_MS,
+        limit: 3,
+      });
+      if (Array.isArray(klineData) && klineData.length > 0) {
+        const validKlines = (klineData as any[][]).filter((k) => k[0] < endTimeMs);
+        if (validKlines.length > 0) {
+          const bestKline = validKlines.reduce(
+            (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
+            validKlines[0]
+          );
+          const price = parseFloat(bestKline[4]);
+          console.log(
+            `[auto-settle] session ${session.id}: Binance kline close_price=${price} ` +
+            `from kline at ${new Date(bestKline[0]).toISOString()}`
+          );
+          return price;
+        }
+      }
+    } catch (klineErr: any) {
+      console.warn(
+        `[auto-settle] session ${session.id}: Binance kline failed ` +
+        `(${klineErr.message}), trying live price...`
+      );
+    }
+    // Live-price fallback
+    try {
+      const priceData = await getPairPrice(session.pair_id);
+      console.warn(
+        `[auto-settle] session ${session.id}: using live price fallback close_price=${priceData.price}`
+      );
+      return priceData.price;
+    } catch {
+      return null;
+    }
   }
-  const ruleRes = await client.query(
-    `SELECT odds FROM trading_rules WHERE id = $1`,
-    [ruleId]
+
+  // Custom / simulated pair – look up price_points table
+  const ppResult = await query(
+    `SELECT price FROM price_points
+     WHERE pair_id = $1
+       AND timestamp BETWEEN ($2::timestamptz - INTERVAL '120 seconds')
+                         AND ($2::timestamptz + INTERVAL '30 seconds')
+     ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
+     LIMIT 1`,
+    [session.pair_id, session.end_time]
   );
-  return ruleRes.rows.length > 0 ? parseFloat(ruleRes.rows[0].odds) : DEFAULT_ODDS;
+  if (ppResult.rows.length > 0) {
+    return parseFloat(ppResult.rows[0].price);
+  }
+  try {
+    const priceData = await getPairPrice(session.pair_id);
+    console.warn(
+      `[auto-settle] session ${session.id}: no price_points, ` +
+      `using live price close_price=${priceData.price}`
+    );
+    return priceData.price;
+  } catch {
+    return null;
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Settle a single session inside a database transaction
-// ---------------------------------------------------------------------------
+/**
+ * Resolve the open price for a session.
+ * Returns the stored session.open_price when present; otherwise fetches the
+ * historical Binance kline open at session start_time (real pairs) or live
+ * price (custom pairs). Falls back to null on failure.
+ */
+async function fetchOpenPrice(session: {
+  id: number;
+  pair_id: number;
+  start_time: Date | string | null;
+  open_price: string | number | null;
+  pair_type: string;
+  binance_symbol: string | null;
+}): Promise<number | null> {
+  if (session.open_price != null) {
+    return parseFloat(String(session.open_price));
+  }
 
-interface SettleInTxResult {
-  settled: boolean;
-  orderCount: number;
-  totalBetAmount: number;
-  totalPayout: number;
-  winningOrders: number;
-  losingOrders: number;
-  drawOrders: number;
-}
-
-async function settleSessionInTx(
-  sessionId: number,
-  resultDirection: string,
-  closePrice: number,
-  openPrice: number,
-  ruleId: number | null
-): Promise<SettleInTxResult> {
-  let result: SettleInTxResult = {
-    settled: false,
-    orderCount: 0,
-    totalBetAmount: 0,
-    totalPayout: 0,
-    winningOrders: 0,
-    losingOrders: 0,
-    drawOrders: 0,
-  };
-
-  await transaction(async (client) => {
-    // Acquire row-level lock to prevent concurrent settle / cancel
-    const checkResult = await client.query(
-      `SELECT status FROM trading_sessions WHERE id = $1 FOR UPDATE`,
-      [sessionId]
-    );
-    if (
-      !checkResult.rows.length ||
-      checkResult.rows[0].status === 'settled' ||
-      checkResult.rows[0].status === 'cancelled'
-    ) {
-      console.log(
-        `[auto-settle] session ${sessionId}: already ${checkResult.rows[0]?.status ?? 'gone'}, skipping`
-      );
-      return;
-    }
-
-    // Promote pending → active before settlement
-    if (checkResult.rows[0].status === 'pending') {
-      await client.query(
-        `UPDATE trading_sessions SET status = 'active' WHERE id = $1 AND status = 'pending'`,
-        [sessionId]
-      );
-      await client.query(
-        `UPDATE trading_orders SET status = 'active' WHERE session_id = $1 AND status = 'pending'`,
-        [sessionId]
+  if (session.pair_type === 'real' && session.binance_symbol && session.start_time) {
+    try {
+      const startTimeMs = new Date(session.start_time).getTime();
+      const startKlineData = await binanceFetch('/api/v3/klines', {
+        symbol: session.binance_symbol,
+        interval: '1m',
+        startTime: startTimeMs - 60_000,
+        endTime: startTimeMs + 5_000,
+        limit: 2,
+      });
+      if (Array.isArray(startKlineData) && startKlineData.length > 0) {
+        const validKlines = (startKlineData as any[][]).filter((k) => k[0] <= startTimeMs);
+        if (validKlines.length > 0) {
+          const best = validKlines.reduce(
+            (b: any[], k: any[]) => (k[0] > b[0] ? k : b),
+            validKlines[0]
+          );
+          const price = parseFloat(best[1]);
+          console.log(
+            `[auto-settle] session ${session.id}: fetched historical open_price=${price} ` +
+            `from kline at ${new Date(best[0]).toISOString()}`
+          );
+          return price;
+        }
+        return parseFloat((startKlineData as any[][])[0][1]);
+      }
+    } catch (err: any) {
+      console.warn(
+        `[auto-settle] session ${session.id}: cannot fetch historical open_price ` +
+        `(${err.message}), will settle as draw`
       );
     }
+    return null;
+  }
 
-    // Load all active/pending orders
-    const ordersResult = await client.query(
-      `SELECT id, user_id, direction, amount, odds
-       FROM trading_orders
-       WHERE session_id = $1 AND status IN ('active', 'pending')`,
-      [sessionId]
-    );
-    const orders = ordersResult.rows;
-    const ruleOdds = await getRuleOdds(client, ruleId);
-
-    // Execute core settlement (batch SQL)
-    const stats = await executeSettlement(
-      client,
-      orders,
-      resultDirection,
-      closePrice,
-      openPrice,
-      ruleOdds
-    );
-
-    // Update the session
-    await client.query(
-      `UPDATE trading_sessions
-       SET status           = 'settled',
-           result_direction = $1,
-           result           = $1,
-           settlement_price = $2,
-           close_price      = $2,
-           open_price       = COALESCE(open_price, $3),
-           total_bet_amount = $4,
-           total_payout     = $5,
-           order_count      = $6,
-           settled_at       = NOW()
-       WHERE id = $7`,
-      [
-        resultDirection,
-        closePrice,
-        openPrice,
-        stats.totalBetAmount,
-        stats.totalPayout,
-        orders.length,
-        sessionId,
-      ]
-    );
-
-    result = {
-      settled: true,
-      orderCount: orders.length,
-      totalBetAmount: stats.totalBetAmount,
-      totalPayout: stats.totalPayout,
-      winningOrders: stats.winningOrders,
-      losingOrders: stats.losingOrders,
-      drawOrders: stats.drawOrders,
-    };
-  });
-
-  return result;
+  try {
+    const priceData = await getPairPrice(session.pair_id);
+    return priceData.price;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -257,19 +249,14 @@ async function autoSettleSessions(): Promise<void> {
       `SELECT
          ts.id,
          ts.pair_id,
-         ts.rule_id,
          ts.start_time,
          ts.end_time,
          ts.status,
          ts.open_price,
-         ts.result_direction,
          ts.settlement_price,
-         tr.direction      AS rule_direction,
-         tr.force_result   AS rule_force_result,
          tp.pair_type,
          tp.binance_symbol
        FROM trading_sessions ts
-       LEFT JOIN trading_rules tr ON ts.rule_id = tr.id
        LEFT JOIN trading_pairs tp ON ts.pair_id = tp.id
        WHERE ts.end_time <= NOW()
          AND ts.status IN ('active', 'pending')
@@ -281,22 +268,6 @@ async function autoSettleSessions(): Promise<void> {
     const sessions = expiredSessionsResult.rows;
 
     if (sessions.length === 0) {
-      // Diagnostic: surface sessions that might be stuck for a different reason
-      const diagnosticResult = await query(
-        `SELECT id, status, end_time, open_price
-         FROM trading_sessions
-         WHERE status IN ('active', 'pending')
-           AND end_time <= NOW()
-         LIMIT 5`,
-        []
-      );
-      if (diagnosticResult.rows.length > 0) {
-        console.warn(
-          `[auto-settle] No sessions matched main query but found ` +
-          `${diagnosticResult.rows.length} session(s) in diagnostic check:`,
-          diagnosticResult.rows
-        );
-      }
       return;
     }
 
@@ -309,289 +280,36 @@ async function autoSettleSessions(): Promise<void> {
           `(pair_id=${session.pair_id}, end_time=${session.end_time})...`
         );
 
-        // ---------------------------------------------------------------
-        // SHORT-CIRCUIT: admin-pre-set result – only when force_result=true
-        // ---------------------------------------------------------------
-        const adminForceResult =
-          session.rule_force_result === true || session.rule_force_result === 't';
+        // Resolve close price.
+        // Admin-preset settlement_price takes priority; otherwise fetch from Binance/price_points.
+        let closePrice: number | null =
+          session.settlement_price != null
+            ? parseFloat(session.settlement_price)
+            : await fetchClosePrice(session);
 
-        if (adminForceResult && session.result_direction && session.settlement_price) {
-          const closePrice: number = parseFloat(session.settlement_price);
-          const openPrice: number =
-            session.open_price != null ? parseFloat(session.open_price) : closePrice;
-          const resultDirection: string = session.result_direction;
-
-          console.log(
-            `[auto-settle] session ${session.id}: ADMIN FORCE RESULT – ` +
-            `direction=${resultDirection}, settlement_price=${closePrice} (skipping kline fetch)`
+        if (closePrice == null) {
+          console.warn(
+            `[auto-settle] session ${session.id}: no price available, cancelling and refunding...`
           );
-
-          const stats = await settleSessionInTx(
-            session.id,
-            resultDirection,
-            closePrice,
-            openPrice,
-            session.rule_id
-          );
-
-          if (stats.settled) {
-            const platformProfit = stats.totalBetAmount - stats.totalPayout;
-            try {
-              await query(
-                `INSERT INTO trading_settlement_log
-                 (session_id, rule_id, result_direction, settlement_price,
-                  total_orders, total_bet_amount, total_payout, platform_profit)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                [
-                  session.id,
-                  session.rule_id,
-                  resultDirection,
-                  closePrice,
-                  stats.orderCount,
-                  stats.totalBetAmount,
-                  stats.totalPayout,
-                  platformProfit,
-                ]
-              );
-            } catch (logErr: any) {
-              console.warn(
-                `[auto-settle] session ${session.id}: settlement log insert failed ` +
-                `(session_id=${session.id}, result=${resultDirection}, ` +
-                `settlement_price=${closePrice}, platform_profit=${platformProfit}):`,
-                logErr.message
-              );
-            }
-
-            console.log(
-              `[auto-settle] session ${session.id} SETTLED (admin force): ` +
-              `result=${resultDirection}, close=${closePrice} ` +
-              `(orders=${stats.orderCount}: win=${stats.winningOrders}, ` +
-              `lose=${stats.losingOrders}, draw=${stats.drawOrders})`
-            );
-          }
+          await cancelSessionAndRefund(session.id);
           continue;
         }
 
-        // ---------------------------------------------------------------
-        // Normal settlement: fetch close_price from Binance or price_points
-        // ---------------------------------------------------------------
-        let closePrice: number;
+        // Resolve open price (pass to service so it doesn't need a second DB look-up)
+        const openPrice = await fetchOpenPrice(session);
 
-        if (session.pair_type === 'real' && session.binance_symbol) {
-          const ONE_MINUTE_MS = 60_000;
-          const KLINE_END_BUFFER_MS = 2_000; // small buffer to reduce risk of picking the next candle
-          try {
-            const endTimeMs = new Date(session.end_time).getTime();
-            const klineData = await binanceFetch('/api/v3/klines', {
-              symbol: session.binance_symbol,
-              interval: '1m',
-              startTime: endTimeMs - ONE_MINUTE_MS,
-              endTime: endTimeMs + KLINE_END_BUFFER_MS,
-              limit: 3, // fetch one extra to handle edge-case time shifts
-            });
-            if (Array.isArray(klineData) && klineData.length > 0) {
-              // Strictly exclude any candle whose openTime >= endTimeMs (the new candle)
-              const validKlines = (klineData as any[][]).filter((k) => k[0] < endTimeMs);
-              if (validKlines.length === 0) {
-                throw new Error(
-                  `No valid kline strictly before end_time for session ${session.id} ` +
-                  `(endTimeMs=${endTimeMs})`
-                );
-              }
-              const bestKline = validKlines.reduce(
-                (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
-                validKlines[0]
-              );
-              closePrice = parseFloat(bestKline[4]);
-              console.log(
-                `[auto-settle] session ${session.id}: Binance kline close_price=${closePrice} ` +
-                `from kline at ${new Date(bestKline[0]).toISOString()}`
-              );
-            } else {
-              throw new Error('No kline data returned');
-            }
-          } catch (klineErr: any) {
-            console.warn(
-              `[auto-settle] session ${session.id}: Binance kline failed ` +
-              `(${klineErr.message}), trying live price...`
-            );
-            try {
-              const priceData = await getPairPrice(session.pair_id);
-              closePrice = priceData.price;
-              console.warn(
-                `[auto-settle] session ${session.id}: using live price fallback ` +
-                `close_price=${closePrice}`
-              );
-            } catch {
-              console.warn(
-                `[auto-settle] session ${session.id}: no price available, ` +
-                `cancelling and refunding...`
-              );
-              await cancelSessionAndRefund(session.id);
-              continue;
-            }
-          }
-        } else {
-          // Custom / simulated pair – look up price_points table
-          const ppResult = await query(
-            `SELECT price FROM price_points
-             WHERE pair_id = $1
-               AND timestamp BETWEEN ($2::timestamptz - INTERVAL '120 seconds')
-                                 AND ($2::timestamptz + INTERVAL '30 seconds')
-             ORDER BY ABS(EXTRACT(EPOCH FROM (timestamp - $2::timestamptz))) ASC
-             LIMIT 1`,
-            [session.pair_id, session.end_time]
-          );
-          if (ppResult.rows.length > 0) {
-            closePrice = parseFloat(ppResult.rows[0].price);
-          } else {
-            try {
-              const priceData = await getPairPrice(session.pair_id);
-              closePrice = priceData.price;
-              console.warn(
-                `[auto-settle] session ${session.id}: no price_points, ` +
-                `using live price close_price=${closePrice}`
-              );
-            } catch {
-              console.warn(
-                `[auto-settle] session ${session.id}: no price available, ` +
-                `cancelling and refunding...`
-              );
-              await cancelSessionAndRefund(session.id);
-              continue;
-            }
-          }
-        }
-
-        // ---------------------------------------------------------------
-        // Resolve open_price
-        // ---------------------------------------------------------------
-        let openPrice: number;
-
-        if (session.open_price != null) {
-          openPrice = parseFloat(session.open_price);
-        } else if (session.pair_type === 'real' && session.binance_symbol && session.start_time) {
-          // Try to fetch the historical kline that was open at start_time.
-          // Use a symmetric window to the close_price fetch: [-60s, +5s] around start_time.
-          try {
-            const startTimeMs = new Date(session.start_time).getTime();
-            const ONE_MINUTE_MS = 60_000;
-            const START_BUFFER_MS = 5_000;
-            const startKlineData = await binanceFetch('/api/v3/klines', {
-              symbol: session.binance_symbol,
-              interval: '1m',
-              startTime: startTimeMs - ONE_MINUTE_MS,
-              endTime: startTimeMs + START_BUFFER_MS,
-              limit: 2,
-            });
-            if (Array.isArray(startKlineData) && startKlineData.length > 0) {
-              // Pick the kline whose openTime is the latest at or before start_time
-              const validKlines = (startKlineData as any[][]).filter((k) => k[0] <= startTimeMs);
-              if (validKlines.length > 0) {
-                const bestKline = validKlines.reduce(
-                  (best: any[], k: any[]) => (k[0] > best[0] ? k : best),
-                  validKlines[0]
-                );
-                openPrice = parseFloat(bestKline[1]); // index 1 = open price of the candle
-                console.log(
-                  `[auto-settle] session ${session.id}: fetched historical open_price=${openPrice} ` +
-                  `from kline at ${new Date(bestKline[0]).toISOString()}`
-                );
-              } else {
-                // All returned candles are after start_time — use the first candle's open
-                openPrice = parseFloat((startKlineData as any[][])[0][1]);
-                console.warn(
-                  `[auto-settle] session ${session.id}: no kline at or before start_time, ` +
-                  `using first available kline open_price=${openPrice}`
-                );
-              }
-            } else {
-              throw new Error('No kline data returned for start_time');
-            }
-          } catch (err: any) {
-            // Kline fetch failed — fall back to closePrice so we can still settle as draw
-            // rather than cancelling and leaving users without a result.
-            console.warn(
-              `[auto-settle] session ${session.id}: cannot fetch historical open_price ` +
-              `(${err.message}), falling back to closePrice=${closePrice} → will settle as draw`
-            );
-            openPrice = closePrice;
-          }
-        } else {
-          try {
-            const priceData = await getPairPrice(session.pair_id);
-            openPrice = priceData.price;
-          } catch (priceErr: any) {
-            console.warn(
-              `[auto-settle] session ${session.id}: cannot get open_price ` +
-              `(${priceErr.message}), falling back to closePrice=${closePrice} → will settle as draw`
-            );
-            openPrice = closePrice;
-          }
-        }
-
-        // ---------------------------------------------------------------
-        // Determine result direction
-        // ---------------------------------------------------------------
-        let resultDirection: string;
-        if (session.rule_id && session.rule_direction && adminForceResult) {
-          // rule has force_result=true → use pre-set direction
-          resultDirection = session.rule_direction;
-        } else {
-          resultDirection = determineDirection(openPrice, closePrice);
-        }
+        // Delegate all settlement logic to the unified service function
+        const summary = await settleSession(
+          session.id,
+          closePrice,
+          openPrice ?? undefined
+        );
 
         console.log(
-          `[auto-settle] session ${session.id}: open=${openPrice}, ` +
-          `close=${closePrice}, result=${resultDirection}`
+          `[auto-settle] session ${session.id} SETTLED: result=${summary.resultDirection}, ` +
+          `orders=${summary.totalOrders} ` +
+          `(win=${summary.winningOrders}, lose=${summary.losingOrders}, draw=${summary.drawOrders})`
         );
-
-        // ---------------------------------------------------------------
-        // Settle inside a transaction
-        // ---------------------------------------------------------------
-        const stats = await settleSessionInTx(
-          session.id,
-          resultDirection,
-          closePrice,
-          openPrice,
-          session.rule_id
-        );
-
-        if (stats.settled) {
-          const platformProfit = stats.totalBetAmount - stats.totalPayout;
-          try {
-            await query(
-              `INSERT INTO trading_settlement_log
-               (session_id, rule_id, result_direction, settlement_price,
-                total_orders, total_bet_amount, total_payout, platform_profit)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [
-                session.id,
-                session.rule_id,
-                resultDirection,
-                closePrice,
-                stats.orderCount,
-                stats.totalBetAmount,
-                stats.totalPayout,
-                platformProfit,
-              ]
-            );
-          } catch (logErr: any) {
-            console.warn(
-              `[auto-settle] session ${session.id}: settlement log insert failed ` +
-              `(session_id=${session.id}, result=${resultDirection}, ` +
-              `settlement_price=${closePrice}, platform_profit=${platformProfit}):`,
-              logErr.message
-            );
-          }
-
-          console.log(
-            `[auto-settle] session ${session.id} SETTLED: result=${resultDirection}, ` +
-            `close_price=${closePrice} (open=${openPrice}, ` +
-            `orders=${stats.orderCount}: win=${stats.winningOrders}, ` +
-            `lose=${stats.losingOrders}, draw=${stats.drawOrders})`
-          );
-        }
       } catch (err: any) {
         console.error(`[auto-settle] Error settling session ${session.id}:`, err.message);
       }
