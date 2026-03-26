@@ -32,31 +32,55 @@ function determineDirection(openPrice: number, closePrice: number): string {
  * Cancel a session and refund all active orders.
  * Used as a last-resort fallback when pricing data is unavailable for an expired session.
  */
-async function cancelSessionAndRefund(sessionId: string): Promise<void> {
+async function cancelSessionAndRefund(sessionId: string, closePrice?: number): Promise<void> {
   await transaction(async (client) => {
     const checkResult = await client.query(
-      `SELECT status FROM trading_sessions WHERE id = $1`,
+      `SELECT status, open_price, entry_price FROM trading_sessions WHERE id = $1`,
       [sessionId]
     );
     if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
+
+    const sessionRow = checkResult.rows[0];
+    // Use provided closePrice, or fall back to open_price, then entry_price, then null
+    let refundPrice: number | null = null;
+    if (closePrice != null) {
+      refundPrice = closePrice;
+    } else if (sessionRow.open_price != null) {
+      refundPrice = parseFloat(sessionRow.open_price);
+    } else if (sessionRow.entry_price != null) {
+      refundPrice = parseFloat(sessionRow.entry_price);
+    }
 
     const ordersResult = await client.query(
       `SELECT id, user_id, amount FROM trading_orders WHERE session_id = $1 AND status IN ('active', 'pending')`,
       [sessionId]
     );
+    let totalBetAmount = 0;
     for (const order of ordersResult.rows) {
+      const amount = parseFloat(order.amount);
+      totalBetAmount += amount;
       await client.query(
         `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-        [parseFloat(order.amount), order.user_id]
+        [amount, order.user_id]
       );
       await client.query(
-        `UPDATE trading_orders SET status = 'cancelled', result = 'draw', profit = 0 WHERE id = $1`,
-        [order.id]
+        `UPDATE trading_orders
+         SET status = 'cancelled', result = 'draw', profit = 0,
+             close_price = $1, settlement_price = $1, settled_at = NOW()
+         WHERE id = $2`,
+        [refundPrice, order.id]
       );
     }
     await client.query(
-      `UPDATE trading_sessions SET status = 'cancelled' WHERE id = $1`,
-      [sessionId]
+      `UPDATE trading_sessions
+       SET status = 'cancelled',
+           settlement_price = $1,
+           close_price = $1,
+           total_bet_amount = $2,
+           total_payout = $2,
+           settled_at = NOW()
+       WHERE id = $3`,
+      [refundPrice, totalBetAmount, sessionId]
     );
   });
 }
@@ -264,7 +288,7 @@ async function autoSettleSessions(): Promise<void> {
               if (expiredMinsAgo > 2) {
                 console.warn(`[auto-settle] [CANCEL] session ${session.id}: no open_price after ${expiredMinsAgo.toFixed(1)}min, cancelling and refunding orders`);
                 try {
-                  await cancelSessionAndRefund(session.id);
+                  await cancelSessionAndRefund(session.id, closePrice);
                 } catch (cancelErr: any) {
                   console.error(`[auto-settle] [CANCEL] failed to cancel session ${session.id}:`, cancelErr.message);
                 }

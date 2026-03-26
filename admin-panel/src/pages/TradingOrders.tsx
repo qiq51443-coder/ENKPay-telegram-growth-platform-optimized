@@ -184,18 +184,24 @@ export const TradingOrders: React.FC = () => {
       key: 'result',
       render: (v: string) => {
         if (!v) return '-';
-        return <Tag color={v === 'win' ? 'green' : 'red'}>{v === 'win' ? '赢 ✅' : '输 ❌'}</Tag>;
+        if (v === 'win') return <Tag color="green">赢 ✅</Tag>;
+        if (v === 'draw') return <Tag color="gold">平局 ↩</Tag>;
+        if (v === 'lose') return <Tag color="red">输 ❌</Tag>;
+        return <Tag color="default">{v}</Tag>;
       },
     },
     {
       title: '盈亏 (USDT)',
       dataIndex: 'profit',
       key: 'profit',
-      render: (v: any) => {
+      render: (v: any, record: any) => {
         if (v === null || v === undefined) return '-';
         const num = parseFloat(v);
+        if (record.result === 'draw') {
+          return <span style={{ color: '#f0b90b', fontWeight: 600 }}>↩ 退款</span>;
+        }
         return (
-          <span style={{ color: num >= 0 ? '#26a69a' : '#ef5350', fontWeight: 600 }}>
+          <span style={{ color: num > 0 ? '#26a69a' : num < 0 ? '#ef5350' : '#999', fontWeight: 600 }}>
             {num >= 0 ? '+' : ''}{num.toFixed(2)}
           </span>
         );
