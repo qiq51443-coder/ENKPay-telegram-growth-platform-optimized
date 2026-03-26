@@ -26,28 +26,52 @@ async function cancelSessionAndRefund(sessionId: string): Promise<void> {
       `SELECT status FROM trading_sessions WHERE id = $1 FOR UPDATE`,
       [sessionId]
     );
-    if (!checkResult.rows.length || checkResult.rows[0].status === 'settled' || checkResult.rows[0].status === 'cancelled') return;
+    if (
+      !checkResult.rows.length ||
+      checkResult.rows[0].status === 'settled' ||
+      checkResult.rows[0].status === 'expired'
+    ) return;
 
     const ordersResult = await client.query(
       `SELECT id, user_id, amount FROM trading_orders WHERE session_id = $1 AND status IN ('active', 'pending')`,
       [sessionId]
     );
-    for (const order of ordersResult.rows) {
+
+    if (ordersResult.rows.length > 0) {
+      // Aggregate refund amounts per user (multiple orders possible)
+      const refundByUser = new Map<string, number>();
+      const orderIds: string[] = [];
+      for (const order of ordersResult.rows) {
+        const amount = parseFloat(order.amount);
+        refundByUser.set(order.user_id, (refundByUser.get(order.user_id) ?? 0) + amount);
+        orderIds.push(order.id);
+      }
+
+      const userIds = Array.from(refundByUser.keys());
+      const amounts = userIds.map((uid) => refundByUser.get(uid)!);
+
       await client.query(
-        `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
-        [parseFloat(order.amount), order.user_id]
+        `UPDATE users u
+         SET wallet_balance = wallet_balance + v.refund
+         FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS refund) v
+         WHERE u.id = v.user_id`,
+        [userIds, amounts]
       );
+
       await client.query(
-        `UPDATE trading_orders SET status = 'cancelled', result = 'draw', profit = 0 WHERE id = $1`,
-        [order.id]
+        `UPDATE trading_orders
+         SET status = 'cancelled', result = 'draw', profit = 0
+         WHERE id = ANY($1::uuid[])`,
+        [orderIds]
       );
     }
+
     await client.query(
-      `UPDATE trading_sessions SET status = 'cancelled' WHERE id = $1`,
+      `UPDATE trading_sessions SET status = 'expired', settled_at = NOW() WHERE id = $1`,
       [sessionId]
     );
   });
-  console.log(`[force-settle] session ${sessionId}: cancelled and all orders refunded`);
+  console.log(`[force-settle] session ${sessionId}: expired and all orders refunded`);
 }
 
 async function forceSettleStuckSessions(): Promise<void> {

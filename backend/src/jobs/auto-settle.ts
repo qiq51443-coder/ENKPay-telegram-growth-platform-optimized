@@ -99,7 +99,7 @@ async function cancelSessionAndRefund(sessionId: string): Promise<void> {
  * Returns null when no price can be obtained.
  */
 async function fetchClosePrice(session: {
-  id: number;
+  id: string;
   pair_id: number;
   end_time: Date | string;
   pair_type: string;
@@ -198,7 +198,7 @@ async function fetchClosePrice(session: {
  * price (custom pairs). Falls back to null on failure.
  */
 async function fetchOpenPrice(session: {
-  id: number;
+  id: string;
   pair_id: number;
   start_time: Date | string | null;
   open_price: string | number | null;
