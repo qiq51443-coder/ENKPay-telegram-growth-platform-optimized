@@ -191,7 +191,7 @@ export async function executeSettlement(
     await client.query(
       `UPDATE users u
        SET wallet_balance = wallet_balance + v.payout
-       FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS payout) v
+       FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS payout) v
        WHERE u.id = v.user_id`,
       [payoutUserIds, payoutAmounts]
     );
@@ -203,7 +203,7 @@ export async function executeSettlement(
   await client.query(
     `UPDATE users u
      SET reward_unlock_traded = COALESCE(reward_unlock_traded, 0) + v.amount
-     FROM (SELECT unnest($1::int[]) AS user_id, unnest($2::numeric[]) AS amount) v
+     FROM (SELECT unnest($1::uuid[]) AS user_id, unnest($2::numeric[]) AS amount) v
      WHERE u.id = v.user_id`,
     [allUserIds, allAmounts]
   );
