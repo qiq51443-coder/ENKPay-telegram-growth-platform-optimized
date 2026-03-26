@@ -29,7 +29,7 @@ let cronJob: cron.ScheduledTask | null = null;
  * Cancel a session and refund all active/pending orders.
  * Uses FOR UPDATE on trading_sessions to prevent concurrent cancel+settle races.
  */
-async function cancelSessionAndRefund(sessionId: number): Promise<void> {
+async function cancelSessionAndRefund(sessionId: string): Promise<void> {
   await transaction(async (client) => {
     const checkResult = await client.query(
       `SELECT status FROM trading_sessions WHERE id = $1 FOR UPDATE`,

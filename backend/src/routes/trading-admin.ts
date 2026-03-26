@@ -804,7 +804,7 @@ router.post('/sessions/:id/settle', authenticateAdmin, async (req: AuthRequest, 
     // even when the caller does not supply it explicitly.
     const sessionRow = await query(
       `SELECT open_price FROM trading_sessions WHERE id = $1`,
-      [parseInt(id)]
+      [id]
     );
     const dbOpenPrice =
       sessionRow.rows.length > 0 && sessionRow.rows[0].open_price != null
@@ -813,7 +813,7 @@ router.post('/sessions/:id/settle', authenticateAdmin, async (req: AuthRequest, 
 
     const { settleSession } = require('../services/trading-settlement.service');
     const result = await settleSession(
-      parseInt(id),
+      id,
       parseFloat(settlement_price),
       dbOpenPrice
     );
