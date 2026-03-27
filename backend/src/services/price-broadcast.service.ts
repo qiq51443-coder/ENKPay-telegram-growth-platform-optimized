@@ -46,15 +46,22 @@ async function buildPricePayload(): Promise<BroadcastPayload> {
       const id = String(pair.id);
 
       if (pair.pair_type === 'real' && pair.binance_symbol) {
-        // Real pairs: prefer live OKX WS snapshot (includes change24h from changeUtc0)
         const wsSnap = getWsPrice(pair.binance_symbol);
-        if (wsSnap) {
-          data[id] = { price: wsSnap.price, change24h: wsSnap.change24h };
-          continue;
+        // Use WS price for real-time price, but use DB change24h (synced from Binance REST every 60s)
+        // because OKX WS change24h/changeUtc0 is often inaccurate (UTC-day change, not rolling 24h)
+        const price = wsSnap
+          ? wsSnap.price
+          : pair.current_price != null
+          ? parseFloat(String(pair.current_price))
+          : null;
+        const change24h = parseFloat(String(pair.price_change_24h ?? 0));
+        if (price != null) {
+          data[id] = { price, change24h };
         }
+        continue;
       }
 
-      // Custom pairs or WS not yet ready: fall back to DB-cached price
+      // Custom pairs: fall back to DB-cached price
       if (pair.current_price != null) {
         data[id] = {
           price: parseFloat(String(pair.current_price)),
