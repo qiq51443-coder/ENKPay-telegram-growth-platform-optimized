@@ -208,6 +208,8 @@ const zh: Translations = {
   win_message_win: '🎉 恭喜获胜！ +{amount} USDT',
   win_message_draw: '➖ 平局，退还金额',
   win_message_lose: '💔 很遗憾，下次加油！',
+  trading_orders_title: '📈 交易订单',
+  load_more: '加载更多',
 };
 
 const en: Translations = {
@@ -406,6 +408,8 @@ const en: Translations = {
   win_message_win: '🎉 You Won! +{amount} USDT',
   win_message_draw: '➖ Draw, refunded',
   win_message_lose: '💔 Better luck next time!',
+  trading_orders_title: '📈 Trading Orders',
+  load_more: 'Load More',
 };
 
 const fr: Translations = {
@@ -588,6 +592,8 @@ const fr: Translations = {
   win_message_win: '🎉 Vous avez gagné ! +{amount} USDT',
   win_message_draw: '➖ Nul, remboursé',
   win_message_lose: '💔 Meilleure chance la prochaine fois !',
+  trading_orders_title: '📈 Ordres de trading',
+  load_more: 'Charger plus',
 };
 
 const de: Translations = {
@@ -770,6 +776,8 @@ const de: Translations = {
   win_message_win: '🎉 Gewonnen! +{amount} USDT',
   win_message_draw: '➖ Unentschieden, erstattet',
   win_message_lose: '💔 Beim nächsten Mal klappt es!',
+  trading_orders_title: '📈 Handelsaufträge',
+  load_more: 'Mehr laden',
 };
 
 const es: Translations = {
@@ -952,6 +960,8 @@ const es: Translations = {
   win_message_win: '🎉 ¡Ganaste! +{amount} USDT',
   win_message_draw: '➖ Empate, reembolsado',
   win_message_lose: '💔 ¡Mejor suerte la próxima vez!',
+  trading_orders_title: '📈 Órdenes de trading',
+  load_more: 'Cargar más',
 };
 
 const ar: Translations = {
@@ -1134,6 +1144,8 @@ const ar: Translations = {
   win_message_win: '🎉 لقد فزت! +{amount} USDT',
   win_message_draw: '➖ تعادل، مسترد',
   win_message_lose: '💔 حظاً أوفر في المرة القادمة!',
+  trading_orders_title: '📈 أوامر التداول',
+  load_more: 'تحميل المزيد',
 };
 
 const ja: Translations = {
@@ -1316,6 +1328,8 @@ const ja: Translations = {
   win_message_win: '🎉 おめでとう！ +{amount} USDT',
   win_message_draw: '➖ 引き分け、返金',
   win_message_lose: '💔 また次回頑張ろう！',
+  trading_orders_title: '📈 取引注文',
+  load_more: 'もっと読み込む',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };
