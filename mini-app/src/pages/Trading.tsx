@@ -807,11 +807,23 @@ export const Trading: React.FC = () => {
           settled = true;
           const isDraw = order.result === 'draw';
           const win = order.result === 'win';
-          const profit = isDraw
-            ? 0
-            : win
-            ? parseFloat(order.amount) * parseFloat(order.odds)
-            : -parseFloat(order.amount);
+          const amountVal = parseFloat(String(order.amount));
+          const oddsVal = parseFloat(String(order.odds));
+          let profit: number;
+          if (isDraw) {
+            profit = 0;
+          } else if (win) {
+            const backendProfit = order.profit != null ? Number(order.profit) : NaN;
+            if (!isNaN(backendProfit)) {
+              profit = backendProfit;
+            } else if (!isNaN(amountVal) && !isNaN(oddsVal) && oddsVal > 0) {
+              profit = amountVal * oddsVal;
+            } else {
+              profit = isNaN(amountVal) ? 0 : amountVal;
+            }
+          } else {
+            profit = isNaN(amountVal) ? 0 : -amountVal;
+          }
           setResultMsg({ win: isDraw ? false : win, profit, draw: isDraw });
 
           // Add close price line to chart
@@ -1067,8 +1079,8 @@ export const Trading: React.FC = () => {
                 : resultMsg.draw
                 ? '退还金额'
                 : resultMsg.win
-                ? `+${safeFixed(resultMsg.profit)} USDT`
-                : `${safeFixed(resultMsg.profit)} USDT`}
+                ? `到账金额: +${safeFixed(resultMsg.profit)} USDT`
+                : `亏损金额: ${safeFixed(resultMsg.profit)} USDT`}
             </div>
           </div>
         )}
