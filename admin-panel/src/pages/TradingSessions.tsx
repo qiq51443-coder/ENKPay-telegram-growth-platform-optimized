@@ -195,7 +195,16 @@ const CoinDetailView: React.FC<CoinDetailViewProps> = ({
       width: 130,
       render: (_value: unknown, s: TodayResult) => {
         if (s.period_label) return s.period_label;
-        return dayjs(s.start_time).format('YYYYMMDD-HHmm');
+        // Compute YYYYMMDD-NNN format matching backend period.service.ts
+        const slotStartMs = new Date(s.start_time).getTime();
+        const dur = Number(s.duration_seconds) || 60;
+        const dayStartMs = Math.floor(slotStartMs / 86400000) * 86400000;
+        const periodNumber = Math.floor((slotStartMs - dayStartMs) / (dur * 1000)) + 1;
+        const d = new Date(dayStartMs);
+        const yy = d.getUTCFullYear();
+        const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        return `${yy}${mo}${dd}-${String(periodNumber).padStart(3, '0')}`;
       },
     },
     {

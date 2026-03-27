@@ -1249,14 +1249,15 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
       }
     }
 
-    // Helper to compute period_label string from a UTC Date
-    function makePeriodLabel(d: Date): string {
+    // Helper to compute period_label string matching period.service.ts format: YYYYMMDD-NNN
+    function makePeriodLabel(slotStartMs: number, durationSeconds: number): string {
+      const dayStartMs = Math.floor(slotStartMs / 86_400_000) * 86_400_000;
+      const periodNumber = Math.floor((slotStartMs - dayStartMs) / (durationSeconds * 1000)) + 1;
+      const d = new Date(dayStartMs);
       const yy = d.getUTCFullYear();
       const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
       const dd = String(d.getUTCDate()).padStart(2, '0');
-      const hh = String(d.getUTCHours()).padStart(2, '0');
-      const mm = String(d.getUTCMinutes()).padStart(2, '0');
-      return `${yy}${mo}${dd}-${hh}${mm}`;
+      return `${yy}${mo}${dd}-${String(periodNumber).padStart(3, '0')}`;
     }
 
     // Generate all slots for all three durations, merging with DB data
@@ -1274,7 +1275,7 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
         // Round to second precision for map lookup
         const keyMs = Math.round(slotStart / 1000) * 1000;
         // Match DB session by start_time first, then fall back to period_label
-        const dbSession = dbSessionMap.get(keyMs) ?? dbSessionByLabel.get(makePeriodLabel(new Date(slotStart)));
+        const dbSession = dbSessionMap.get(keyMs) ?? dbSessionByLabel.get(makePeriodLabel(slotStart, duration));
 
         if (dbSession) {
           // DB record exists — use its data as-is
@@ -1319,7 +1320,7 @@ router.get('/sessions/today-results', authenticateAdmin, async (req: AuthRequest
           const startDate = new Date(slotStart);
           allSlots.push({
             id: null,
-            period_label: makePeriodLabel(startDate),
+            period_label: makePeriodLabel(slotStart, duration),
             start_time: startDate.toISOString(),
             end_time: new Date(slotEnd).toISOString(),
             duration_seconds: duration,
