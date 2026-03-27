@@ -1195,7 +1195,8 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
          o.id, o.direction, o.amount, o.entry_price, o.close_price, o.odds, o.status,
          o.result, o.profit, o.settled_at, o.created_at,
          p.symbol, COALESCE(p.display_name, p.name, p.symbol) as display_name,
-         s.start_time as session_start, s.end_time as session_end, s.period_label
+         s.start_time as session_start, s.end_time as session_end, s.period_label,
+         s.open_price as session_open_price, s.close_price as session_close_price
        FROM trading_orders o
        JOIN trading_pairs p ON o.pair_id = p.id
        JOIN trading_sessions s ON o.session_id = s.id

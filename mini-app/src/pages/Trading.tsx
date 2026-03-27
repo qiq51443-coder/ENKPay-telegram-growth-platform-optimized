@@ -49,6 +49,8 @@ interface Order {
   session_start?: string;
   session_end?: string;
   period_label?: string;
+  session_open_price?: number | string;
+  session_close_price?: number | string;
 }
 
 
@@ -152,6 +154,7 @@ export const Trading: React.FC = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [activeOrderEntryPrice, setActiveOrderEntryPrice] = useState<number | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const orderErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -264,6 +267,7 @@ export const Trading: React.FC = () => {
       return createdAt >= staleCutoffMs;
     });
     setActiveOrder(active || null);
+    if (!active) setActiveOrderEntryPrice(null);
   }, [orders, selectedDuration]);
 
   // Update period info every second based on selectedDuration
@@ -890,6 +894,8 @@ export const Trading: React.FC = () => {
                     } catch { /* ignore chart errors */ }
                   }
                 }
+                // Update the progress card to show the authoritative open_price from the session
+                setActiveOrderEntryPrice(openPrice);
                 return;
               }
             } catch { /* ignore polling errors */ }
@@ -904,6 +910,8 @@ export const Trading: React.FC = () => {
       }
 
       startCountdown(sessionEnd, res.data?.data?.order?.id);
+      // Reset entry price display — will be populated once session becomes active
+      setActiveOrderEntryPrice(null);
       // Show brief success feedback
       setOrderSuccess(t('order_placed_success'));
       if (orderSuccessTimerRef.current) clearTimeout(orderSuccessTimerRef.current);
@@ -1307,7 +1315,7 @@ export const Trading: React.FC = () => {
                   {activeOrder.display_name ?? activeOrder.symbol ?? selectedPair?.display_name ?? '--'}
                 </span>
                 <span style={{ color: theme.textSecondary }}>
-                  {t('order_entry_price')} {activeOrder.entry_price ? `${Number(activeOrder.entry_price).toFixed(2)} USDT` : '--'}
+                  {t('order_entry_price')} {activeOrderEntryPrice != null && activeOrderEntryPrice > 0 ? `${activeOrderEntryPrice.toFixed(2)} USDT` : '--'}
                 </span>
                 <span style={{ color: '#f0b90b', fontWeight: 700 }}>{countdown}s</span>
               </div>
@@ -1442,8 +1450,10 @@ export const Trading: React.FC = () => {
                 const goldColor = '#F0B90B';
                 const borderColor = isLose ? theme.border : goldColor;
                 const textColor = isLose ? undefined : goldColor;
-                const entryPrice = o.entry_price != null ? `${Number(o.entry_price).toFixed(2)} USDT` : '--';
-                const closePrice = o.close_price != null ? `${Number(o.close_price).toFixed(2)} USDT` : '--';
+                const rawEntryPrice = o.session_open_price != null ? o.session_open_price : o.entry_price;
+                const rawClosePrice = o.session_close_price != null ? o.session_close_price : o.close_price;
+                const entryPrice = rawEntryPrice != null ? `${Number(rawEntryPrice).toFixed(2)} USDT` : '--';
+                const closePrice = rawClosePrice != null ? `${Number(rawClosePrice).toFixed(2)} USDT` : '--';
                 const periodDisplay = o.period_label ? o.period_label.split('-').pop() ?? o.period_label : '-';
 
                 let resultLabel: string;
