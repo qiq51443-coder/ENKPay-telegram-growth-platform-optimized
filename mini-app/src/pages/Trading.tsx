@@ -124,6 +124,9 @@ const CUSTOM_TICK_RANGE_PCT = 0.002;
 // Must match the backend's 30-second threshold for auto-cancelling stuck orders
 const STALE_ORDER_GRACE_MS = 30000;
 
+// Duration of the flash-up / flash-down price animation (ms)
+const FLASH_ANIMATION_DURATION_MS = 600;
+
 export const Trading: React.FC = () => {
   const { t } = useLang();
   const { user: tgUser, tg } = useTelegram();
@@ -159,6 +162,7 @@ export const Trading: React.FC = () => {
   const pairsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedPairRef = useRef<TradingPair | null>(null);
   const pricesRef = useRef<Record<string, PriceInfo>>({});
+  const prevPricesRef = useRef<Record<string, PriceInfo>>({});
   const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedDurationRef = useRef<number>(selectedDuration);
   const [periodInfo, setPeriodInfo] = useState<{ currentPeriod: number; nextPeriod: number; secondsUntilNext: number; currentPeriodLabel: string; nextPeriodLabel: string } | null>(null);
@@ -254,6 +258,40 @@ export const Trading: React.FC = () => {
     pricesRef.current = prices;
   }, [prices]);
 
+  // Inject flash-up / flash-down keyframe CSS once on mount
+  useEffect(() => {
+    const styleId = 'trading-flash-keyframes';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes flashUp   { 0%{color:#26a69a;text-shadow:0 0 8px rgba(38,166,154,0.6)} 100%{color:inherit;text-shadow:none} }
+        @keyframes flashDown { 0%{color:#ef5350;text-shadow:0 0 8px rgba(239,83,80,0.6)}  100%{color:inherit;text-shadow:none} }
+        .flash-up   { animation: flashUp   ${FLASH_ANIMATION_DURATION_MS}ms ease-out forwards; }
+        .flash-down { animation: flashDown ${FLASH_ANIMATION_DURATION_MS}ms ease-out forwards; }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  // Apply flash-up / flash-down animation on price elements when prices change
+  useEffect(() => {
+    Object.entries(prices).forEach(([id, info]) => {
+      const prev = prevPricesRef.current[id];
+      if (prev && prev.price !== info.price) {
+        const cls = info.price > prev.price ? 'flash-up' : 'flash-down';
+        const el = document.querySelector(`[data-price-id="${CSS.escape(id)}"]`);
+        if (el) {
+          el.classList.remove('flash-up', 'flash-down');
+          void (el as HTMLElement).offsetWidth; // force reflow to restart animation
+          el.classList.add(cls);
+          setTimeout(() => el.classList.remove(cls), FLASH_ANIMATION_DURATION_MS);
+        }
+      }
+    });
+    prevPricesRef.current = prices;
+  }, [prices]);
+
   // Push real-time price tick into the last candle of the chart (real pairs only)
   useEffect(() => {
     if (!selectedPair || selectedPair.pair_type === 'custom') return;
@@ -333,9 +371,6 @@ export const Trading: React.FC = () => {
   // K-line chart: initialize when a pair is selected or interval changes
   useEffect(() => {
     if (!selectedPair || !chartContainerRef.current) return;
-    // Use fallback width of window.innerWidth if container hasn't been laid out yet
-    const containerWidth = chartContainerRef.current.clientWidth || window.innerWidth - 32;
-    if (containerWidth === 0) return;
     setKlineError(false);
 
     // Destroy old chart if exists
@@ -346,76 +381,80 @@ export const Trading: React.FC = () => {
     }
     lastKlineTimeRef.current = 0;
 
-    let chart: any = null;
-    let candleSeries: any = null;
-    try {
-      chart = createChart(chartContainerRef.current, {
-        width: containerWidth,
-        height: 200,
-        layout: {
-          background: { color: 'transparent' },
-          textColor: '#9e9e9e',
-        },
-        grid: {
-          vertLines: { color: 'rgba(255,255,255,0.05)' },
-          horzLines: { color: 'rgba(255,255,255,0.05)' },
-        },
-        crosshair: { mode: 1 },
-        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
-        timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
-      });
+    // Mutable handles accessible by both initChart() and the cleanup closure
+    let klinePoll: ReturnType<typeof setInterval> | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let rafId: number | null = null;
+    let rafRetries = 0;
+    const MAX_RAF_RETRIES = 20;
+    let isDestroyed = false;
+    let registeredHandleResize: (() => void) | null = null;
 
-      candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: false,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      });
-
-      chartRef.current = chart;
-      candleSeriesRef.current = candleSeries;
-    } catch (chartErr) {
-      console.warn('[Trading] createChart failed:', chartErr);
-      setKlineError(true);
-      return;
-    }
-
-    // Load K-line data
-    const fetchKline = async () => {
-      try {
-        const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
-        const raw: any[] = res.data?.data || [];
-        const candleData = raw.map((k: any) => ({
-          time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
-          open: Number(k.open),
-          high: Number(k.high),
-          low: Number(k.low),
-          close: Number(k.close),
-        })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
-
-        if (candleData.length > 0) {
-          candleSeries.setData(candleData);
-          chart.timeScale().fitContent();
-          const last = candleData[candleData.length - 1];
-          lastKlineTimeRef.current = last.time;
-          lastCandleRef.current = { open: last.open, high: last.high, low: last.low, close: last.close };
+    const initChart = () => {
+      if (isDestroyed || !chartContainerRef.current) return;
+      const containerWidth = chartContainerRef.current.clientWidth || window.innerWidth - 32;
+      if (containerWidth === 0) {
+        // Wait for the container to get a non-zero width before initialising
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver((entries) => {
+            const w = entries[0]?.contentRect?.width ?? 0;
+            if (w > 0) {
+              resizeObserver?.disconnect();
+              resizeObserver = null;
+              initChart();
+            }
+          });
+          resizeObserver.observe(chartContainerRef.current);
+        } else {
+          // Fallback: rAF retry (max ~333ms at 60fps)
+          if (rafRetries < MAX_RAF_RETRIES) {
+            rafRetries++;
+            rafId = requestAnimationFrame(initChart);
+          }
         }
-      } catch (err) {
-        console.warn('[Trading] Failed to load K-line data:', err);
-        setKlineError(true);
+        return;
       }
-    };
 
-    fetchKline();
+      let chart: any = null;
+      let candleSeries: any = null;
+      try {
+        chart = createChart(chartContainerRef.current, {
+          width: containerWidth,
+          height: 200,
+          layout: {
+            background: { color: 'transparent' },
+            textColor: '#9e9e9e',
+          },
+          grid: {
+            vertLines: { color: 'rgba(255,255,255,0.05)' },
+            horzLines: { color: 'rgba(255,255,255,0.05)' },
+          },
+          crosshair: { mode: 1 },
+          rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+          timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+        });
 
-    // Poll every 5 seconds for real-time chart updates (use update-only to avoid clearing chart)
-    const klinePoll = setInterval(() => {
-      (async () => {
+        candleSeries = chart.addCandlestickSeries({
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          borderVisible: false,
+          wickUpColor: '#26a69a',
+          wickDownColor: '#ef5350',
+        });
+
+        chartRef.current = chart;
+        candleSeriesRef.current = candleSeries;
+      } catch (chartErr) {
+        console.warn('[Trading] createChart failed:', chartErr);
+        setKlineError(true);
+        return;
+      }
+
+      // Load K-line data
+      const fetchKline = async () => {
         try {
           const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
           const raw: any[] = res.data?.data || [];
-          if (raw.length === 0) return; // Keep existing data if API returns empty
           const candleData = raw.map((k: any) => ({
             time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
             open: Number(k.open),
@@ -423,42 +462,79 @@ export const Trading: React.FC = () => {
             low: Number(k.low),
             close: Number(k.close),
           })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
-          if (candleData.length === 0) return;
-          const newLast = candleData[candleData.length - 1];
-          if (!candleSeries) return;
-          if (newLast.time > lastKlineTimeRef.current) {
-            // New candle — append it
-            try { candleSeries.update(newLast); } catch {}
-            lastKlineTimeRef.current = newLast.time;
-            lastCandleRef.current = { open: newLast.open, high: newLast.high, low: newLast.low, close: newLast.close };
-          } else if (newLast.time === lastKlineTimeRef.current) {
-            // Same candle — just update close
-            const updatedCandle = {
-              time: newLast.time,
-              open: lastCandleRef.current?.open ?? newLast.open,
-              high: Math.max(lastCandleRef.current?.high ?? newLast.high, newLast.close),
-              low: Math.min(lastCandleRef.current?.low ?? newLast.low, newLast.close),
-              close: newLast.close,
-            };
-            try { candleSeries.update(updatedCandle); } catch {}
-            lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: updatedCandle.close };
-          }
-        } catch {}
-      })();
-    }, 5000);
 
-    const handleResize = () => {
-      if (chartContainerRef.current && chart) {
-        const w = chartContainerRef.current.clientWidth || window.innerWidth - 32;
-        if (w > 0) chart.applyOptions({ width: w });
-      }
+          if (candleData.length > 0) {
+            candleSeries.setData(candleData);
+            chart.timeScale().fitContent();
+            const last = candleData[candleData.length - 1];
+            lastKlineTimeRef.current = last.time;
+            lastCandleRef.current = { open: last.open, high: last.high, low: last.low, close: last.close };
+          }
+        } catch (err) {
+          console.warn('[Trading] Failed to load K-line data:', err);
+          setKlineError(true);
+        }
+      };
+
+      fetchKline();
+
+      // Poll every 5 seconds for real-time chart updates (use update-only to avoid clearing chart)
+      klinePoll = setInterval(() => {
+        (async () => {
+          try {
+            const res = await api.get(`/trading/pairs/${selectedPair.id}/kline?interval=${klineInterval}&limit=60`);
+            const raw: any[] = res.data?.data || [];
+            if (raw.length === 0) return; // Keep existing data if API returns empty
+            const candleData = raw.map((k: any) => ({
+              time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
+              open: Number(k.open),
+              high: Number(k.high),
+              low: Number(k.low),
+              close: Number(k.close),
+            })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
+            if (candleData.length === 0) return;
+            const newLast = candleData[candleData.length - 1];
+            if (!candleSeries) return;
+            if (newLast.time > lastKlineTimeRef.current) {
+              // New candle — append it
+              try { candleSeries.update(newLast); } catch {}
+              lastKlineTimeRef.current = newLast.time;
+              lastCandleRef.current = { open: newLast.open, high: newLast.high, low: newLast.low, close: newLast.close };
+            } else if (newLast.time === lastKlineTimeRef.current) {
+              // Same candle — just update close
+              const updatedCandle = {
+                time: newLast.time,
+                open: lastCandleRef.current?.open ?? newLast.open,
+                high: Math.max(lastCandleRef.current?.high ?? newLast.high, newLast.close),
+                low: Math.min(lastCandleRef.current?.low ?? newLast.low, newLast.close),
+                close: newLast.close,
+              };
+              try { candleSeries.update(updatedCandle); } catch {}
+              lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: updatedCandle.close };
+            }
+          } catch {}
+        })();
+      }, 5000);
+
+      const handleResize = () => {
+        if (chartContainerRef.current && chart) {
+          const w = chartContainerRef.current.clientWidth || window.innerWidth - 32;
+          if (w > 0) chart.applyOptions({ width: w });
+        }
+      };
+      registeredHandleResize = handleResize;
+      window.addEventListener('resize', handleResize);
     };
-    window.addEventListener('resize', handleResize);
+
+    initChart();
 
     return () => {
-      clearInterval(klinePoll);
-      window.removeEventListener('resize', handleResize);
-      try { chart.remove(); } catch {}
+      isDestroyed = true;
+      if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+      if (klinePoll) { clearInterval(klinePoll); klinePoll = null; }
+      if (registeredHandleResize) { window.removeEventListener('resize', registeredHandleResize); registeredHandleResize = null; }
+      if (chartRef.current) { try { chartRef.current.remove(); } catch {} }
       chartRef.current = null;
       candleSeriesRef.current = null;
       lastKlineTimeRef.current = 0;
@@ -968,7 +1044,7 @@ export const Trading: React.FC = () => {
 
         {/* Price + 24h change — compact */}
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '6px 16px', marginBottom: '10px', border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ fontSize: '18px', fontWeight: '700', color: theme.text }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: theme.text }} data-price-id={selectedPair.id}>
             {priceInfo.price === 0 && selectedPair.pair_type === 'custom'
               ? t('loading') || '加载中...'
               : `$${priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
@@ -1363,7 +1439,7 @@ export const Trading: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: theme.text, fontWeight: '600' }}>
+                  <div style={{ color: theme.text, fontWeight: '600' }} data-price-id={pair.id}>
                     ${info.price != null ? info.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '--'}
                   </div>
                   <div style={{ color: priceColor(info.change24h), fontSize: '13px' }}>
