@@ -266,10 +266,41 @@ export const Trading: React.FC = () => {
   // Update period info every second based on selectedDuration
   useEffect(() => {
     selectedDurationRef.current = selectedDuration;
+    // Track previous period number to detect period boundary crossings
+    let prevPeriodNumber = -1;
     const updatePeriod = () => {
       const info = getCurrentPeriodInfo(selectedDuration);
       setPeriodInfo(info);
       periodInfoRef.current = info;
+      // Detect period boundary crossing: force immediate K-line refresh
+      if (prevPeriodNumber !== -1 && info.currentPeriod !== prevPeriodNumber) {
+        // New period started — trigger an immediate K-line fetch to sync chart start point
+        const currentPair = selectedPairRef.current;
+        if (currentPair && candleSeriesRef.current) {
+          api.get(`/trading/pairs/${currentPair.id}/kline?interval=1m&limit=60`)
+            .then((res) => {
+              const raw: any[] = res.data?.data || [];
+              if (raw.length === 0) return;
+              const candleData = raw.map((k: any) => ({
+                time: Math.floor(new Date(k.open_time || k.time || k.timestamp).getTime() / 1000),
+                open: Number(k.open),
+                high: Number(k.high),
+                low: Number(k.low),
+                close: Number(k.close),
+              })).filter((d: any) => d.time && d.open && d.high && d.low && d.close);
+              if (candleData.length === 0) return;
+              const newLast = candleData[candleData.length - 1];
+              if (!candleSeriesRef.current) return;
+              if (newLast.time > lastKlineTimeRef.current) {
+                try { candleSeriesRef.current.update(newLast); } catch {}
+                lastKlineTimeRef.current = newLast.time;
+                lastCandleRef.current = { open: newLast.open, high: newLast.high, low: newLast.low, close: newLast.close };
+              }
+            })
+            .catch(() => { /* non-critical */ });
+        }
+      }
+      prevPeriodNumber = info.currentPeriod;
     };
     updatePeriod();
     if (periodTimerRef.current) clearInterval(periodTimerRef.current);
@@ -831,6 +862,31 @@ export const Trading: React.FC = () => {
                     });
                   } catch { /* ignore chart errors */ }
                 }
+                // FIX: Sync lastCandleRef.open with the authoritative open_price from server.
+                // This ensures the new period's first candle open matches what the admin panel shows,
+                // eliminating the visual discrepancy caused by latency in the polling loop.
+                if (lastCandleRef.current && !isNaN(openPrice) && openPrice > 0) {
+                  const newHigh = Math.max(lastCandleRef.current.high, openPrice);
+                  const newLow = Math.min(lastCandleRef.current.low, openPrice);
+                  lastCandleRef.current = {
+                    open: openPrice,
+                    high: newHigh,
+                    low: newLow,
+                    close: lastCandleRef.current.close,
+                  };
+                  // Push the corrected candle to the chart immediately
+                  if (candleSeriesRef.current && lastKlineTimeRef.current > 0) {
+                    try {
+                      candleSeriesRef.current.update({
+                        time: lastKlineTimeRef.current,
+                        open: openPrice,
+                        high: newHigh,
+                        low: newLow,
+                        close: lastCandleRef.current.close,
+                      });
+                    } catch { /* ignore chart errors */ }
+                  }
+                }
                 return;
               }
             } catch { /* ignore polling errors */ }
@@ -838,7 +894,9 @@ export const Trading: React.FC = () => {
           }
         };
 
-        const delay = sessionStartTime ? Math.max(0, sessionStartTime - Date.now()) : 0;
+        // Wait until session start time before polling, with an extra 200ms buffer
+        // for the period-snapshot job to write open_price
+        const delay = sessionStartTime ? Math.max(0, sessionStartTime - Date.now() + 200) : 500;
         setTimeout(drawLineWhenActive, delay);
       }
 
