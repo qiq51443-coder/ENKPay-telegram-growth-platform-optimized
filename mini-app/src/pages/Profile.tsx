@@ -33,12 +33,15 @@ interface TradingOrder {
   close_price?: number;
   odds: number;
   status: string;
-  result?: 'win' | 'lose';
+  result?: 'win' | 'lose' | 'draw';
   profit?: number;
   created_at: string;
   settled_at?: string;
   symbol?: string;
   display_name?: string;
+  session_start?: string;
+  session_end?: string;
+  period_label?: string;
 }
 
 const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
@@ -503,18 +506,66 @@ export const Profile: React.FC = () => {
                 const isActive = order.status === 'active' || order.status === 'pending';
                 const isWin = order.result === 'win';
                 const isLose = order.result === 'lose';
+                const isDraw = order.result === 'draw';
+                const isSettled = isWin || isLose || isDraw;
+
+                if (isSettled) {
+                  const goldColor = '#F0B90B';
+                  const borderColor = isLose ? theme.border : goldColor;
+                  const textColor = isLose ? undefined : goldColor;
+                  const entryPrice = order.entry_price != null ? String(order.entry_price) : '--';
+                  const closePrice = order.close_price != null ? String(order.close_price) : '--';
+                  const periodDisplay = order.period_label ? order.period_label.split('-').pop() ?? order.period_label : '-';
+
+                  let resultLabel: string;
+                  if (isWin) {
+                    resultLabel = `🎉 ${t('order_win_label')} +${(Number(order.amount) * Number(order.odds)).toFixed(1)} USDT 🎉`;
+                  } else if (isDraw) {
+                    resultLabel = `${t('order_draw_label')} +${Number(order.amount).toFixed(1)} USDT`;
+                  } else {
+                    resultLabel = `${t('order_lose_label')} -${Number(order.amount).toFixed(1)} USDT`;
+                  }
+
+                  return (
+                    <div key={order.id} style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '14px', border: `1px solid ${borderColor}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600', fontSize: '13px' }}>
+                          {order.direction === 'up' ? t('order_up') : t('order_down')}
+                        </span>
+                        <span style={{ color: textColor ?? theme.text, fontWeight: '700', fontSize: '14px', textAlign: 'center', flex: 1, padding: '0 8px' }}>
+                          {resultLabel}
+                        </span>
+                        <span style={{ color: textColor ?? theme.textSecondary, fontSize: '11px' }}>
+                          {t('order_settled')}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                        <span style={{ color: textColor ?? theme.textSecondary }}>
+                          {order.display_name ?? order.symbol ?? '--'}
+                        </span>
+                        <span style={{ color: textColor ?? theme.textSecondary }}>
+                          {entryPrice} - {closePrice}
+                        </span>
+                        <span style={{ color: textColor ?? theme.textSecondary }}>
+                          {periodDisplay}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const dateStr = new Date(order.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
                   + ' ' + new Date(order.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
                 return (
                   <div key={order.id} style={{
                     backgroundColor: theme.bgCard,
                     borderRadius: '12px', padding: '14px',
-                    border: `1px solid ${isActive ? '#f0b90b' : isWin ? '#26a69a' : isLose ? '#ef5350' : theme.border}`,
+                    border: `1px solid ${isActive ? '#f0b90b' : theme.border}`,
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 700, fontSize: '15px' }}>
-                          {order.direction === 'up' ? '▲ 买涨' : '▼ 买跌'}
+                          {order.direction === 'up' ? t('order_up') : t('order_down')}
                         </span>
                         {order.display_name && (
                           <span style={{ color: theme.textSecondary, fontSize: '12px' }}>{order.display_name}</span>
@@ -522,9 +573,9 @@ export const Profile: React.FC = () => {
                       </div>
                       <span style={{
                         fontSize: '12px', fontWeight: 600,
-                        color: isActive ? '#f0b90b' : isWin ? '#26a69a' : isLose ? '#ef5350' : theme.textSecondary,
+                        color: isActive ? '#f0b90b' : theme.textSecondary,
                       }}>
-                        {isActive ? '进行中 🕐' : isWin ? '赢 ✅' : isLose ? '输 ❌' : order.status}
+                        {isActive ? '进行中 🕐' : order.status}
                       </span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '12px', color: theme.textSecondary }}>
@@ -535,11 +586,6 @@ export const Profile: React.FC = () => {
                       )}
                       {order.close_price != null && (
                         <div>结算价: <span style={{ color: theme.text }}>{safeFixed(order.close_price, 4)}</span></div>
-                      )}
-                      {(isWin || isLose) && order.profit != null && (
-                        <div>盈亏: <span style={{ color: isWin ? '#26a69a' : '#ef5350', fontWeight: 600 }}>
-                          {Number(order.profit) >= 0 ? '+' : ''}{safeFixed(order.profit)} USDT
-                        </span></div>
                       )}
                       <div style={{ gridColumn: '1 / -1' }}>下单时间: {dateStr}</div>
                     </div>

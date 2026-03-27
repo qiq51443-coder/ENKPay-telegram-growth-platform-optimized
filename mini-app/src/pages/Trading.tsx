@@ -46,6 +46,9 @@ interface Order {
   created_at: string;
   symbol?: string;
   display_name?: string;
+  session_start?: string;
+  session_end?: string;
+  period_label?: string;
 }
 
 
@@ -1428,7 +1431,62 @@ export const Trading: React.FC = () => {
           <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {orders.length === 0 ? (
               <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '16px' }}>{t('no_history')}</div>
-            ) : orders.map((o) => (
+            ) : orders.map((o) => {
+              const isWin = o.result === 'win';
+              const isLose = o.result === 'lose';
+              const isDraw = o.result === 'draw';
+              const isSettled = isWin || isLose || isDraw;
+
+              if (isSettled) {
+                const goldColor = '#F0B90B';
+                const borderColor = isLose ? theme.border : goldColor;
+                const textColor = isLose ? undefined : goldColor;
+                const entryPrice = o.entry_price != null ? String(o.entry_price) : '--';
+                const closePrice = o.close_price != null ? String(o.close_price) : '--';
+                const periodDisplay = o.period_label ? o.period_label.split('-').pop() ?? o.period_label : '-';
+
+                let resultLabel: string;
+                let amountDisplay: string;
+                if (isWin) {
+                  resultLabel = `🎉 ${t('order_win_label')} +${(Number(o.amount) * Number(o.odds)).toFixed(1)} USDT 🎉`;
+                  amountDisplay = `+${(Number(o.amount) * Number(o.odds)).toFixed(1)} USDT`;
+                } else if (isDraw) {
+                  resultLabel = `${t('order_draw_label')} +${Number(o.amount).toFixed(1)} USDT`;
+                  amountDisplay = `+${Number(o.amount).toFixed(1)} USDT`;
+                } else {
+                  resultLabel = `${t('order_lose_label')} -${Number(o.amount).toFixed(1)} USDT`;
+                  amountDisplay = `-${Number(o.amount).toFixed(1)} USDT`;
+                }
+
+                return (
+                  <div key={o.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${borderColor}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: o.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600', fontSize: '13px' }}>
+                        {o.direction === 'up' ? t('order_up') : t('order_down')}
+                      </span>
+                      <span style={{ color: textColor ?? theme.text, fontWeight: '700', fontSize: '14px', textAlign: 'center', flex: 1, padding: '0 8px' }}>
+                        {resultLabel}
+                      </span>
+                      <span style={{ color: textColor ?? theme.textSecondary, fontSize: '11px' }}>
+                        {t('order_settled')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                      <span style={{ color: textColor ?? theme.textSecondary }}>
+                        {o.display_name ?? o.symbol ?? '--'}
+                      </span>
+                      <span style={{ color: textColor ?? theme.textSecondary }}>
+                        {entryPrice} - {closePrice}
+                      </span>
+                      <span style={{ color: textColor ?? theme.textSecondary }}>
+                        {periodDisplay}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
               <div key={o.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${theme.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: o.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600' }}>
@@ -1442,7 +1500,8 @@ export const Trading: React.FC = () => {
                   {t('order_amount_label')}: {o.amount} USDT · {t('order_odds_label')}: {o.odds}x · {new Date(o.created_at).toLocaleString()}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
