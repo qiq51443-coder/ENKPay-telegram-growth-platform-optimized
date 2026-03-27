@@ -5,7 +5,7 @@ import { api } from '../services/api';
 interface LanguageContextValue {
   lang: LangCode;
   setLang: (lang: LangCode) => void;
-  t: (key: string) => string;
+  t: (key: string, replacements?: Record<string, string>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextValue>({
@@ -47,7 +47,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
-  const translate = useCallback((key: string) => t(lang, key), [lang]);
+  const translate = useCallback((key: string, replacements?: Record<string, string>) => t(lang, key, replacements), [lang]);
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t: translate }}>

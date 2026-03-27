@@ -42,6 +42,8 @@ interface TradingOrder {
   session_start?: string;
   session_end?: string;
   period_label?: string;
+  session_open_price?: number | string;
+  session_close_price?: number | string;
 }
 
 const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
@@ -513,8 +515,10 @@ export const Profile: React.FC = () => {
                   const goldColor = '#F0B90B';
                   const borderColor = isLose ? theme.border : goldColor;
                   const textColor = isLose ? undefined : goldColor;
-                  const entryPrice = order.entry_price != null ? String(order.entry_price) : '--';
-                  const closePrice = order.close_price != null ? String(order.close_price) : '--';
+                  const rawEntryPrice = order.session_open_price != null ? order.session_open_price : order.entry_price;
+                  const rawClosePrice = order.session_close_price != null ? order.session_close_price : order.close_price;
+                  const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(4) : '--';
+                  const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(4) : '--';
                   const periodDisplay = order.period_label ? order.period_label.split('-').pop() ?? order.period_label : '-';
 
                   let resultLabel: string;
@@ -544,7 +548,7 @@ export const Profile: React.FC = () => {
                           {order.display_name ?? order.symbol ?? '--'}
                         </span>
                         <span style={{ color: textColor ?? theme.textSecondary }}>
-                          {entryPrice} - {closePrice}
+                          {entryPrice} → {closePrice}
                         </span>
                         <span style={{ color: textColor ?? theme.textSecondary }}>
                           {periodDisplay}

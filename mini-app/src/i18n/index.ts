@@ -197,6 +197,17 @@ const zh: Translations = {
   duration_1min: '1分钟',
   duration_5min: '5分钟',
   duration_10min: '10分钟',
+  result_win_title: '🏆 WIN',
+  result_lose_title: '😞 LOSE',
+  result_draw_title: '➖ 平局',
+  result_settling: '⏳ 结算处理中',
+  result_win_amount: '到账金额: +{amount} USDT',
+  result_lose_amount: '亏损金额: {amount} USDT',
+  result_draw_amount: '退还金额',
+  result_settling_desc: '订单正在结算，请稍候...',
+  win_message_win: '🎉 恭喜获胜！ +{amount} USDT',
+  win_message_draw: '➖ 平局，退还金额',
+  win_message_lose: '💔 很遗憾，下次加油！',
 };
 
 const en: Translations = {
@@ -384,6 +395,17 @@ const en: Translations = {
   duration_1min: '1 Min',
   duration_5min: '5 Min',
   duration_10min: '10 Min',
+  result_win_title: '🏆 WIN',
+  result_lose_title: '😞 LOSE',
+  result_draw_title: '➖ Draw',
+  result_settling: '⏳ Settling...',
+  result_win_amount: 'Credited: +{amount} USDT',
+  result_lose_amount: 'Loss: {amount} USDT',
+  result_draw_amount: 'Refunded',
+  result_settling_desc: 'Order is settling, please wait...',
+  win_message_win: '🎉 You Won! +{amount} USDT',
+  win_message_draw: '➖ Draw, refunded',
+  win_message_lose: '💔 Better luck next time!',
 };
 
 const fr: Translations = {
@@ -555,6 +577,17 @@ const fr: Translations = {
   duration_1min: '1 Min',
   duration_5min: '5 Min',
   duration_10min: '10 Min',
+  result_win_title: '🏆 GAGNÉ',
+  result_lose_title: '😞 PERDU',
+  result_draw_title: '➖ Nul',
+  result_settling: '⏳ Règlement...',
+  result_win_amount: 'Crédité: +{amount} USDT',
+  result_lose_amount: 'Perte: {amount} USDT',
+  result_draw_amount: 'Remboursé',
+  result_settling_desc: 'Ordre en cours, veuillez patienter...',
+  win_message_win: '🎉 Vous avez gagné ! +{amount} USDT',
+  win_message_draw: '➖ Nul, remboursé',
+  win_message_lose: '💔 Meilleure chance la prochaine fois !',
 };
 
 const de: Translations = {
@@ -726,6 +759,17 @@ const de: Translations = {
   duration_1min: '1 Min',
   duration_5min: '5 Min',
   duration_10min: '10 Min',
+  result_win_title: '🏆 GEWONNEN',
+  result_lose_title: '😞 VERLOREN',
+  result_draw_title: '➖ Unentschieden',
+  result_settling: '⏳ Abrechnung...',
+  result_win_amount: 'Gutgeschrieben: +{amount} USDT',
+  result_lose_amount: 'Verlust: {amount} USDT',
+  result_draw_amount: 'Erstattet',
+  result_settling_desc: 'Auftrag wird abgerechnet, bitte warten...',
+  win_message_win: '🎉 Gewonnen! +{amount} USDT',
+  win_message_draw: '➖ Unentschieden, erstattet',
+  win_message_lose: '💔 Beim nächsten Mal klappt es!',
 };
 
 const es: Translations = {
@@ -897,6 +941,17 @@ const es: Translations = {
   duration_1min: '1 Min',
   duration_5min: '5 Min',
   duration_10min: '10 Min',
+  result_win_title: '🏆 GANADO',
+  result_lose_title: '😞 PERDIDO',
+  result_draw_title: '➖ Empate',
+  result_settling: '⏳ Liquidando...',
+  result_win_amount: 'Acreditado: +{amount} USDT',
+  result_lose_amount: 'Pérdida: {amount} USDT',
+  result_draw_amount: 'Reembolsado',
+  result_settling_desc: 'Liquidando orden, espere...',
+  win_message_win: '🎉 ¡Ganaste! +{amount} USDT',
+  win_message_draw: '➖ Empate, reembolsado',
+  win_message_lose: '💔 ¡Mejor suerte la próxima vez!',
 };
 
 const ar: Translations = {
@@ -1068,6 +1123,17 @@ const ar: Translations = {
   duration_1min: '١ دقيقة',
   duration_5min: '٥ دقائق',
   duration_10min: '١٠ دقائق',
+  result_win_title: '🏆 فاز',
+  result_lose_title: '😞 خسر',
+  result_draw_title: '➖ تعادل',
+  result_settling: '⏳ جاري التسوية',
+  result_win_amount: 'المبلغ المضاف: +{amount} USDT',
+  result_lose_amount: 'الخسارة: {amount} USDT',
+  result_draw_amount: 'مسترد',
+  result_settling_desc: 'جاري تسوية الطلب، يرجى الانتظار...',
+  win_message_win: '🎉 لقد فزت! +{amount} USDT',
+  win_message_draw: '➖ تعادل، مسترد',
+  win_message_lose: '💔 حظاً أوفر في المرة القادمة!',
 };
 
 const ja: Translations = {
@@ -1239,11 +1305,28 @@ const ja: Translations = {
   duration_1min: '1分',
   duration_5min: '5分',
   duration_10min: '10分',
+  result_win_title: '🏆 WIN',
+  result_lose_title: '😞 LOSE',
+  result_draw_title: '➖ 引き分け',
+  result_settling: '⏳ 決済中...',
+  result_win_amount: '入金額: +{amount} USDT',
+  result_lose_amount: '損失額: {amount} USDT',
+  result_draw_amount: '返金',
+  result_settling_desc: '注文を決済中です...',
+  win_message_win: '🎉 おめでとう！ +{amount} USDT',
+  win_message_draw: '➖ 引き分け、返金',
+  win_message_lose: '💔 また次回頑張ろう！',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };
 
-export function t(lang: LangCode | string, key: string): string {
+export function t(lang: LangCode | string, key: string, replacements?: Record<string, string>): string {
   const langData = allTranslations[lang as LangCode] || allTranslations['en'];
-  return langData[key] || allTranslations['en'][key] || key;
+  let text = langData[key] || allTranslations['en'][key] || key;
+  if (replacements) {
+    for (const [k, v] of Object.entries(replacements)) {
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+    }
+  }
+  return text;
 }

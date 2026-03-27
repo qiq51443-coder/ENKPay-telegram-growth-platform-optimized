@@ -1099,7 +1099,9 @@ router.get('/orders', authenticateAdmin, async (req: AuthRequest, res) => {
         o.settled_at,
         o.session_id,
         s.period_label,
-        s.duration_seconds as session_duration_seconds
+        s.duration_seconds as session_duration_seconds,
+        s.open_price AS session_open_price,
+        s.settlement_price AS session_close_price
       FROM trading_orders o
       LEFT JOIN users u ON u.id = o.user_id
       LEFT JOIN trading_pairs tp ON tp.id = o.pair_id
