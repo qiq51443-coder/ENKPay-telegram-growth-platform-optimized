@@ -581,10 +581,10 @@ export const Trading: React.FC = () => {
       const data = await api.get('/trading/pairs');
       const list: TradingPair[] = data.data?.data || [];
       setPairs(list);
-      // Pre-populate prices for custom pairs from current_price to avoid showing $0.00
+      // Pre-populate prices for both real and custom pairs from current_price to avoid showing $0.00
       const initialPrices: Record<string, PriceInfo> = {};
       list.forEach((p) => {
-        if (p.pair_type === 'custom' && p.current_price != null) {
+        if (p.current_price != null) {
           initialPrices[p.id] = { price: Number(p.current_price), change24h: Number(p.price_change_24h ?? 0) };
         }
       });
