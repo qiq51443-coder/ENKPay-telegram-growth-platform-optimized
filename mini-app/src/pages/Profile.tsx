@@ -202,6 +202,7 @@ export const Profile: React.FC = () => {
     setView('orders');
     setTxFilter('all');
     fetchTransactions();
+    fetchTradingOrders(1);
   };
 
   const fetchTradingOrders = async (page = 1, append = false) => {
@@ -378,7 +379,60 @@ export const Profile: React.FC = () => {
             <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('no_transactions')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {filteredTransactions.map(tx => {
+              {(() => {
+                const tradingOrderMap = new Map(tradingOrders.map(o => [o.id, o]));
+                return filteredTransactions.map(tx => {
+                // Enhanced display for trade_win / trade_loss using matched trading order data
+                if (tx.type === 'trade_win' || tx.type === 'trade_loss') {
+                  const matchedOrder = tx.order_id ? tradingOrderMap.get(tx.order_id) : undefined;
+                  if (matchedOrder) {
+                    const isWin = matchedOrder.result === 'win';
+                    const isLose = matchedOrder.result === 'lose';
+                    const isDraw = matchedOrder.result === 'draw';
+                    const goldColor = '#F0B90B';
+                    const borderColor = isLose ? theme.border : goldColor;
+                    const textColor = isLose ? undefined : goldColor;
+                    const rawEntryPrice = matchedOrder.session_open_price != null ? matchedOrder.session_open_price : matchedOrder.entry_price;
+                    const rawClosePrice = matchedOrder.session_close_price != null ? matchedOrder.session_close_price : matchedOrder.close_price;
+                    const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(4) : '--';
+                    const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(4) : '--';
+                    const periodDisplay = matchedOrder.period_label ? matchedOrder.period_label.split('-').pop() ?? matchedOrder.period_label : '-';
+                    let resultLabel;
+                    if (isWin) {
+                      resultLabel = `🎉 ${t('order_win_label')} +${(Number(matchedOrder.amount) * Number(matchedOrder.odds)).toFixed(1)} USDT 🎉`;
+                    } else if (isDraw) {
+                      resultLabel = `${t('order_draw_label')} +${Number(matchedOrder.amount).toFixed(1)} USDT`;
+                    } else {
+                      resultLabel = `${t('order_lose_label')} -${Number(matchedOrder.amount).toFixed(1)} USDT`;
+                    }
+                    return (
+                      <div key={tx.id} style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '14px', border: `1px solid ${borderColor}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: matchedOrder.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600', fontSize: '13px' }}>
+                            {matchedOrder.direction === 'up' ? t('order_up') : t('order_down')}
+                          </span>
+                          <span style={{ color: textColor ?? theme.text, fontWeight: '700', fontSize: '14px', textAlign: 'center', flex: 1, padding: '0 8px' }}>
+                            {resultLabel}
+                          </span>
+                          <span style={{ color: textColor ?? theme.textSecondary, fontSize: '11px' }}>
+                            {t('order_settled')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                          <span style={{ color: textColor ?? theme.textSecondary }}>
+                            {matchedOrder.display_name ?? matchedOrder.symbol ?? '--'}
+                          </span>
+                          <span style={{ color: textColor ?? theme.textSecondary }}>
+                            {entryPrice} → {closePrice}
+                          </span>
+                          <span style={{ color: textColor ?? theme.textSecondary }}>
+                            {periodDisplay}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                }
                 const typeInfo = TX_TYPE_LABEL_KEYS[tx.type] || { labelKey: tx.type, icon: '📋' };
                 const dateStr = new Date(tx.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
                   + ' ' + new Date(tx.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -403,7 +457,8 @@ export const Profile: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
+              });
+              })()}
             </div>
           )}
         </div>
@@ -495,7 +550,7 @@ export const Profile: React.FC = () => {
           >
             {t('back')}
           </button>
-          <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>📈 交易订单</h2>
+          <h2 style={{ color: theme.text, fontSize: '18px', margin: 0 }}>{t('trading_orders_title')}</h2>
         </div>
         <div style={{ padding: '16px' }}>
           {tradingOrdersLoading && tradingOrders.length === 0 ? (
@@ -607,7 +662,7 @@ export const Profile: React.FC = () => {
                     opacity: tradingOrdersLoading ? 0.5 : 1,
                   }}
                 >
-                  {tradingOrdersLoading ? t('loading') : '加载更多'}
+                  {tradingOrdersLoading ? t('loading') : t('load_more')}
                 </button>
               )}
             </div>
