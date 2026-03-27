@@ -1022,9 +1022,10 @@ export const Trading: React.FC = () => {
           }
 
           // Confetti on win
-          if (win) {
+          const effectiveWin = isDraw ? false : win;
+          if (effectiveWin) {
             setShowConfetti(true);
-            setWinMessage({ win: true, profit });
+            setWinMessage({ win: true, profit, draw: false });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
             confettiTimerRef.current = setTimeout(() => { setShowConfetti(false); setWinMessage(null); }, 3000);
           } else if (isDraw) {
@@ -1032,7 +1033,7 @@ export const Trading: React.FC = () => {
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
             confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
           } else {
-            setWinMessage({ win: false, profit });
+            setWinMessage({ win: false, profit, draw: false });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
             confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
           }
@@ -1118,10 +1119,10 @@ export const Trading: React.FC = () => {
               backgroundColor: 'rgba(0,0,0,0.85)', padding: '16px 28px', borderRadius: '16px',
               border: `2px solid ${winMessage.win ? '#26a69a' : winMessage.draw ? '#F0B90B' : '#ef5350'}` }}>
               {winMessage.win
-                ? `🎉 恭喜获胜！ +${safeFixed(winMessage.profit)} USDT`
+                ? t('win_message_win', { amount: safeFixed(winMessage.profit) })
                 : winMessage.draw
-                ? `➖ 平局，退还金额`
-                : `💔 很遗憾，下次加油！`}
+                ? t('win_message_draw')
+                : t('win_message_lose')}
             </div>
           </div>
         )}
@@ -1249,16 +1250,16 @@ export const Trading: React.FC = () => {
             borderRadius: '12px', padding: '16px', marginBottom: '12px', textAlign: 'center'
           }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#fff' }}>
-              {resultMsg.settling ? '⏳ 结算处理中' : resultMsg.draw ? '➖ 平局' : resultMsg.win ? '🏆 WIN' : '😞 LOSE'}
+              {resultMsg.settling ? t('result_settling') : resultMsg.draw ? t('result_draw_title') : resultMsg.win ? t('result_win_title') : t('result_lose_title')}
             </div>
             <div style={{ color: '#fff', fontSize: '16px', marginTop: '4px' }}>
               {resultMsg.settling
-                ? '订单正在结算，请稍候...'
+                ? t('result_settling_desc')
                 : resultMsg.draw
-                ? '退还金额'
+                ? t('result_draw_amount')
                 : resultMsg.win
-                ? `到账金额: +${safeFixed(resultMsg.profit)} USDT`
-                : `亏损金额: ${safeFixed(resultMsg.profit)} USDT`}
+                ? t('result_win_amount', { amount: safeFixed(resultMsg.profit) })
+                : t('result_lose_amount', { amount: safeFixed(Math.abs(resultMsg.profit)) })}
             </div>
           </div>
         )}
