@@ -1255,25 +1255,6 @@ export const Trading: React.FC = () => {
           </div>
         )}
 
-        {/* Countdown */}
-        {countdown !== null && (
-          <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '12px', marginBottom: '12px', border: `1px solid ${theme.border}` }}>
-            <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>{t('order_countdown')}</div>
-            <div style={{ height: '6px', backgroundColor: theme.border, borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${(countdown / selectedDuration) * 100}%`,
-                backgroundColor: '#f0b90b',
-                borderRadius: '3px',
-                transition: 'width 1s linear',
-              }} />
-            </div>
-            <div style={{ color: theme.text, fontWeight: '600', marginTop: '6px', textAlign: 'center' }}>
-              {countdown}s
-            </div>
-          </div>
-        )}
-
         {/* Duration selector */}
         <div style={{ marginBottom: '12px' }}>
           <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '8px' }}>{t('select_duration')}</div>
@@ -1298,18 +1279,44 @@ export const Trading: React.FC = () => {
           </div>
         </div>
 
-        {/* Amount + UP/DOWN side by side */}
-        {activeOrder && countdown !== null ? (
-          <div style={{ textAlign: 'center', color: theme.textSecondary, padding: '12px 0', marginBottom: '16px', backgroundColor: theme.bgCard, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-            <div style={{ marginBottom: 6 }}>当前持仓：
-              <span style={{ color: activeOrder.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 'bold' }}>
-                {activeOrder.direction === 'up' ? `📈 ${t('btn_up')}` : `📉 ${t('btn_down')}`}
-              </span>
+        {/* Active order progress card */}
+        {activeOrder && countdown !== null && (
+          <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px', marginBottom: '12px',
+            backgroundColor: 'rgba(38,166,154,0.12)', border: '1px solid rgba(38,166,154,0.4)' }}>
+            {/* Fade-out progress bar (background layer) */}
+            <div style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0,
+              width: `${(countdown / selectedDuration) * 100}%`,
+              backgroundColor: 'rgba(38,166,154,0.25)',
+              transition: 'width 1s linear',
+              borderRadius: '12px 0 0 12px',
+            }} />
+            {/* Content layer */}
+            <div style={{ position: 'relative', zIndex: 1, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: activeOrder.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 600, fontSize: '13px' }}>
+                  {activeOrder.direction === 'up' ? '🟢 UP' : '🔴 DOWN'}
+                </span>
+                <span style={{ color: theme.text, fontWeight: 700, fontSize: '15px' }}>
+                  {Number(activeOrder.amount).toFixed(2)} USDT
+                </span>
+                <span style={{ color: theme.textSecondary, fontSize: '11px' }}>{t('holdings_active')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                <span style={{ color: theme.textSecondary }}>
+                  {activeOrder.display_name ?? activeOrder.symbol ?? selectedPair?.display_name ?? '--'}
+                </span>
+                <span style={{ color: theme.textSecondary }}>
+                  {t('order_entry_price')} {activeOrder.entry_price ? `${Number(activeOrder.entry_price).toFixed(2)} USDT` : '--'}
+                </span>
+                <span style={{ color: '#f0b90b', fontWeight: 700 }}>{countdown}s</span>
+              </div>
             </div>
-            <div style={{ fontSize: '13px' }}>金额：{activeOrder.amount} USDT · 等待结算...</div>
           </div>
-        ) : (
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+        )}
+
+        {/* Amount + UP/DOWN side by side */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
             {/* Left: amount area */}
             <div style={{ flex: 1 }}>
               <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '6px' }}>{t('bet_amount')}</div>
@@ -1382,7 +1389,6 @@ export const Trading: React.FC = () => {
               </button>
             </div>
           </div>
-        )}
 
         {/* Order error banner */}
         {orderError && (
@@ -1414,11 +1420,6 @@ export const Trading: React.FC = () => {
           </div>
         )}
 
-        {/* Debug auth status */}
-        <div style={{ fontSize: '10px', color: theme.textSecondary, textAlign: 'center', padding: '4px', opacity: 0.5 }}>
-          Auth: {authSyncDone ? 'done' : 'pending'} | User: {tgUser?.id || 'none'} | Token: {api.defaults.headers.common['X-Session-Token'] ? '✓' : '✗'}
-        </div>
-
         {/* Order history toggle */}
         <button
           onClick={() => { setHistoryOpen(!historyOpen); if (!historyOpen) fetchOrderHistory(); }}
@@ -1441,8 +1442,8 @@ export const Trading: React.FC = () => {
                 const goldColor = '#F0B90B';
                 const borderColor = isLose ? theme.border : goldColor;
                 const textColor = isLose ? undefined : goldColor;
-                const entryPrice = o.entry_price != null ? String(o.entry_price) : '--';
-                const closePrice = o.close_price != null ? String(o.close_price) : '--';
+                const entryPrice = o.entry_price != null ? `${Number(o.entry_price).toFixed(2)} USDT` : '--';
+                const closePrice = o.close_price != null ? `${Number(o.close_price).toFixed(2)} USDT` : '--';
                 const periodDisplay = o.period_label ? o.period_label.split('-').pop() ?? o.period_label : '-';
 
                 let resultLabel: string;
@@ -1476,7 +1477,7 @@ export const Trading: React.FC = () => {
                         {o.display_name ?? o.symbol ?? '--'}
                       </span>
                       <span style={{ color: textColor ?? theme.textSecondary }}>
-                        {entryPrice} - {closePrice}
+                        {entryPrice} → {closePrice}
                       </span>
                       <span style={{ color: textColor ?? theme.textSecondary }}>
                         {periodDisplay}
