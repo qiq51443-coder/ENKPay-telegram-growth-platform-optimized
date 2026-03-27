@@ -17,6 +17,7 @@ import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
 import { startPriceGenerator } from './services/price-generator.service';
 import { startNFTDailySettle } from './jobs/nft-daily-settle';
 import { startRealPriceSnapshot } from './jobs/real-price-snapshot';
+import { startRealPriceSync, stopRealPriceSync } from './services/real-price-sync.service';
 import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
@@ -259,6 +260,9 @@ const startServer = async () => {
     // Start NFT daily settlement job (10:00 UTC+8 / 02:00 UTC every day)
     startNFTDailySettle();
 
+    // Start real price sync job (syncs 24h change for real pairs every 60s)
+    startRealPriceSync();
+
     const server = http.createServer(app);
 
     // Attach WebSocket price broadcast service
@@ -275,6 +279,7 @@ const startServer = async () => {
     // Graceful shutdown
     const gracefulShutdown = () => {
       stopPriceBroadcast();
+      stopRealPriceSync();
       server.close();
       process.exit(0);
     };

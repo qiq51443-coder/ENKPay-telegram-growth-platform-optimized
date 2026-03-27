@@ -133,8 +133,12 @@ function connect(): void {
         for (const ticker of msg.data) {
           const binanceSymbol = toBinanceSymbol(ticker.instId);
           const price = parseFloat(ticker.last);
-          // OKX `changeUtc0` is the change since UTC 00:00 (not a 24h rolling change)
-          const change24h = ticker.changeUtc0 ? parseFloat(ticker.changeUtc0) * 100 : 0;
+          // Prefer rolling 24h change; fall back to UTC-day change if unavailable
+          const change24h = ticker.change24h
+            ? parseFloat(ticker.change24h) * 100
+            : ticker.changeUtc0
+            ? parseFloat(ticker.changeUtc0) * 100
+            : 0;
 
           if (!isNaN(price) && price > 0) {
             priceCache.set(binanceSymbol, {
