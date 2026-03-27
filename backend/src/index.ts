@@ -2,11 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
+import * as http from 'http';
 import { connectRedis } from './utils/cache';
 import { startDepositChecker } from './jobs/deposit-checker';
 import { startSweepScheduler } from './jobs/sweep-scheduler';
 import { checkBinanceConnectivity } from './services/price.service';
 import { startPriceWs } from './services/price-ws.service';
+import { attachPriceBroadcast, stopPriceBroadcast } from './services/price-broadcast.service';
 import { startAutoSettle } from './jobs/auto-settle';
 import { startPeriodSnapshot } from './jobs/period-snapshot';
 import { startCleanupJob } from './jobs/cleanup';
@@ -257,12 +259,27 @@ const startServer = async () => {
     // Start NFT daily settlement job (10:00 UTC+8 / 02:00 UTC every day)
     startNFTDailySettle();
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+
+    // Attach WebSocket price broadcast service
+    attachPriceBroadcast(server);
+
+    server.listen(PORT, () => {
       console.log(`✓ Backend server running on port ${PORT}`);
+      console.log(`✓ Price broadcast WebSocket: ws://localhost:${PORT}/ws/prices`);
       console.log(`✓ Health check: http://localhost:${PORT}/health`);
       console.log(`✓ Admin panel: http://localhost:${PORT}/admin`);
       console.log(`✓ Mini App: http://localhost:${PORT}/app`);
     });
+
+    // Graceful shutdown
+    const gracefulShutdown = () => {
+      stopPriceBroadcast();
+      server.close();
+      process.exit(0);
+    };
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

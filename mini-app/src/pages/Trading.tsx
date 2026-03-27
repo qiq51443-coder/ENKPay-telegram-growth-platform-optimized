@@ -7,6 +7,7 @@ import { useTelegram } from '../hooks/useTelegram';
 import { useAuthSync } from '../context/AuthSyncContext';
 import { useUser } from '../context/UserContext';
 import { createChart } from 'lightweight-charts';
+import { usePriceWebSocket } from '../hooks/usePriceWebSocket';
 
 interface TradingPair {
   id: string;
@@ -176,6 +177,39 @@ export const Trading: React.FC = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Real-time price updates via WebSocket (replaces HTTP polling)
+  const wsPrices = usePriceWebSocket();
+
+  // Merge WS prices into prices state; WS data takes priority.
+  // Also push the latest price for the selected pair into the K-line chart.
+  useEffect(() => {
+    if (Object.keys(wsPrices).length === 0) return;
+    setPrices((prev) => ({ ...prev, ...wsPrices }));
+
+    // Push the latest price tick into the K-line chart for the currently selected pair
+    const currentSelectedPair = selectedPairRef.current;
+    if (currentSelectedPair && wsPrices[currentSelectedPair.id] != null) {
+      const latestPrice = wsPrices[currentSelectedPair.id].price;
+      if (
+        latestPrice > 0 &&
+        candleSeriesRef.current &&
+        lastKlineTimeRef.current > 0 &&
+        lastCandleRef.current
+      ) {
+        const prev = lastCandleRef.current;
+        const updatedCandle = {
+          time: lastKlineTimeRef.current,
+          open: prev.open,
+          high: Math.max(prev.high, latestPrice),
+          low: Math.min(prev.low, latestPrice),
+          close: latestPrice,
+        };
+        try { candleSeriesRef.current.update(updatedCandle); } catch { /* ignore */ }
+        lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: updatedCandle.close };
+      }
+    }
+  }, [wsPrices]);
 
   // Sync availableBalance from UserContext whenever context user changes
   useEffect(() => {
@@ -557,7 +591,6 @@ export const Trading: React.FC = () => {
       if (Object.keys(initialPrices).length > 0) {
         setPrices((prev) => ({ ...initialPrices, ...prev }));
       }
-      if (list.length > 0) startPricePoll(list);
     } catch {
       setPairs([
         { id: '1', symbol: 'BTC', display_name: 'BTC/USDT', pair_type: 'real', binance_symbol: 'BTCUSDT' },
