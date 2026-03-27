@@ -260,7 +260,8 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
          -- Trading orders (instant trades)
          SELECT id::text,
                 CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
-                amount::numeric, status,
+                CASE WHEN profit >= 0 THEN (amount * odds)::numeric ELSE amount::numeric END AS amount,
+                status,
                 created_at, pair_id::text AS description, NULL AS order_id
          FROM trading_orders
          WHERE user_id = $1
