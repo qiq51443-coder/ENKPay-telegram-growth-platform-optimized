@@ -288,6 +288,20 @@ export const Trading: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrder]);
 
+  // Restore activeOrderEntryPrice from session_open_price when returning to the page
+  // (activeOrderEntryPrice is lost on navigation but session_open_price persists in the order data)
+  useEffect(() => {
+    if (!activeOrder) return;
+    setActiveOrderEntryPrice((prev) => {
+      if (prev != null && prev > 0) return prev; // Already set from server polling, keep it
+      const sessionOpenPrice = activeOrder.session_open_price;
+      if (sessionOpenPrice != null && Number(sessionOpenPrice) > 0) {
+        return Number(sessionOpenPrice);
+      }
+      return null; // Session not yet started, keep showing '--'
+    });
+  }, [activeOrder]);
+
   // Update period info every second based on selectedDuration
   useEffect(() => {
     selectedDurationRef.current = selectedDuration;
@@ -1547,10 +1561,23 @@ export const Trading: React.FC = () => {
               }
 
               // Active/pending order: render rich card matching the top active order card style
-              const entryPriceActive = o.session_open_price != null && Number(o.session_open_price) > 0
-                ? `${Number(o.session_open_price).toFixed(2)} USDT`
+              const isCurrentActiveOrder = activeOrder != null && o.id === activeOrder.id;
+              const sessionOpenPriceNum = o.session_open_price != null && Number(o.session_open_price) > 0
+                ? Number(o.session_open_price)
+                : null;
+              // Use activeOrderEntryPrice (most up-to-date from server polling) for the current active order,
+              // otherwise fall back to session_open_price only (NOT entry_price) so period-not-started shows '--'
+              const displayEntryPrice = isCurrentActiveOrder && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
+                ? `${activeOrderEntryPrice.toFixed(2)} USDT`
+                : sessionOpenPriceNum != null
+                ? `${sessionOpenPriceNum.toFixed(2)} USDT`
                 : '--';
-              const isCurrentActiveOrder = activeOrder != null && o.id === activeOrder.id && countdown !== null;
+              // Use live countdown for the current active order; compute from session_end for others
+              const orderCountdown = isCurrentActiveOrder && countdown !== null
+                ? countdown
+                : o.session_end
+                ? Math.max(0, Math.floor((new Date(o.session_end).getTime() - Date.now()) / 1000))
+                : null;
               return (
                 <div key={o.id} style={{
                   position: 'relative', overflow: 'hidden', borderRadius: '12px',
@@ -1571,11 +1598,11 @@ export const Trading: React.FC = () => {
                         {o.display_name ?? o.symbol ?? '--'}
                       </span>
                       <span style={{ color: theme.textSecondary }}>
-                        {t('order_entry_price')} {entryPriceActive}
+                        {t('order_entry_price')} {displayEntryPrice}
                       </span>
-                      <span style={{ color: '#f0b90b', fontWeight: 700 }}>
-                        {isCurrentActiveOrder ? `${countdown}s` : `${Number(o.odds)}x`}
-                      </span>
+                      {orderCountdown !== null && orderCountdown > 0 && (
+                        <span style={{ color: '#f0b90b', fontWeight: 700 }}>{orderCountdown}s</span>
+                      )}
                     </div>
                   </div>
                 </div>
