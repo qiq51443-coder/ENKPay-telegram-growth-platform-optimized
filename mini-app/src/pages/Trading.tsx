@@ -149,7 +149,7 @@ export const Trading: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDirection, setConfirmDirection] = useState<'up' | 'down'>('up');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [resultMsg, setResultMsg] = useState<{ win: boolean; profit: number; draw?: boolean; settling?: boolean } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{ result: 'win' | 'lose' | 'draw'; profit: number; settling?: boolean } | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -970,60 +970,58 @@ export const Trading: React.FC = () => {
   };
 
   const fetchResult = async (orderId: string) => {
-    // Poll for the settled order with exponential backoff (up to ~15 seconds total)
-    // to give the backend auto-settlement service time to finish.
     const delays = [1000, 2000, 3000, 5000, 5000];
     let settled = false;
     for (const delay of delays) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       try {
+        // ✅ 去掉 status: 'settled' 过滤，改为查全部订单再检查 result 字段
+        // 避免 result 写入了但 status 还未更新到 'settled' 时漏查
         const res = await api.get('/trading/orders/my', {
-          params: { limit: 50, status: 'settled' },
+          params: { limit: 50 },
         });
-        const order = res.data?.data?.find((o: any) => o.id === orderId);
+        const order = res.data?.data?.find((o: any) => o.id === orderId && o.result != null);
         if (order) {
           settled = true;
-          const isDraw = order.result === 'draw';
-          const win = order.result === 'win';
+          // ✅ 直接使用后端 result 字段，不做任何前端推断
+          const orderResult: 'win' | 'lose' | 'draw' = order.result;
+          const isDraw = orderResult === 'draw';
+          const isWin = orderResult === 'win';
+
+          // ✅ profit 直接使用后端值，仅在 null 时做安全回退
           const amountVal = parseFloat(String(order.amount));
-          const oddsVal = parseFloat(String(order.odds));
           let profit: number;
           if (isDraw) {
             profit = 0;
-          } else if (win) {
+          } else if (isWin) {
             const backendProfit = order.profit != null ? Number(order.profit) : NaN;
-            if (!isNaN(backendProfit)) {
-              profit = backendProfit;
-            } else if (!isNaN(amountVal) && !isNaN(oddsVal) && oddsVal > 0) {
-              profit = amountVal * oddsVal;
-            } else {
-              profit = isNaN(amountVal) ? 0 : amountVal;
-            }
+            profit = !isNaN(backendProfit) ? backendProfit : amountVal * Number(order.odds);
           } else {
-            profit = isNaN(amountVal) ? 0 : -amountVal;
+            profit = order.profit != null ? Math.abs(Number(order.profit)) : amountVal;
           }
-          setResultMsg({ win: isDraw ? false : win, profit, draw: isDraw });
+
+          // ✅ resultMsg 和 winMessage 同步设置，使用同一来源
+          setResultMsg({ result: orderResult, profit });
 
           // Add close price line to chart
           if (order.close_price && candleSeriesRef.current) {
             try {
               const closePrice = parseFloat(order.close_price);
-              const lineColor = isDraw ? '#F0B90B' : win ? '#26a69a' : '#ef5350';
-              const lineTitle = isDraw ? `➖ ${closePrice.toFixed(4)}` : win ? `✅ ${closePrice.toFixed(4)}` : `❌ ${closePrice.toFixed(4)}`;
+              const lineColor = isDraw ? '#F0B90B' : isWin ? '#26a69a' : '#ef5350';
+              const lineTitle = isDraw ? `➖ ${closePrice.toFixed(4)}` : isWin ? `✅ ${closePrice.toFixed(4)}` : `❌ ${closePrice.toFixed(4)}`;
               candleSeriesRef.current.createPriceLine({
                 price: closePrice,
                 color: lineColor,
                 lineWidth: 2,
-                lineStyle: 0, // Solid
+                lineStyle: 0,
                 axisLabelVisible: true,
                 title: lineTitle,
               });
             } catch { /* ignore chart errors */ }
           }
 
-          // Confetti on win
-          const effectiveWin = isDraw ? false : win;
-          if (effectiveWin) {
+          // ✅ confetti 和 winMessage 也以 orderResult 为准
+          if (isWin) {
             setShowConfetti(true);
             setWinMessage({ win: true, profit, draw: false });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
@@ -1038,12 +1036,11 @@ export const Trading: React.FC = () => {
             confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
           }
 
-          break; // Order found and settled — stop retrying
+          break;
         }
       } catch {}
     }
-    // If polling ended without finding a settled order, check whether the order is still
-    // active/pending and show a "settling in progress" banner instead of silently doing nothing.
+
     if (!settled) {
       try {
         const checkRes = await api.get('/trading/orders/my', { params: { limit: 50 } });
@@ -1051,14 +1048,14 @@ export const Trading: React.FC = () => {
           (o: any) => o.id === orderId && (o.status === 'active' || o.status === 'pending')
         );
         if (pendingOrder) {
-          setResultMsg({ win: false, profit: 0, settling: true });
+          setResultMsg({ result: 'lose', profit: 0, settling: true });
           if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
           confettiTimerRef.current = setTimeout(() => setResultMsg(null), 8000);
         }
       } catch {}
     }
     await fetchOrderHistory();
-    await fetchBalance(); // refresh balance after settlement
+    await fetchBalance();
   };
 
   const fetchOrderHistory = async () => {
@@ -1246,20 +1243,26 @@ export const Trading: React.FC = () => {
         {/* Result banner */}
         {resultMsg && (
           <div style={{
-            backgroundColor: resultMsg.settling ? '#1a3a5c' : resultMsg.draw ? '#4a3800' : resultMsg.win ? '#1b5e20' : '#b71c1c',
+            backgroundColor: resultMsg.settling ? '#1a3a5c'
+              : resultMsg.result === 'draw' ? '#4a3800'
+              : resultMsg.result === 'win' ? '#1b5e20'
+              : '#b71c1c',
             borderRadius: '12px', padding: '16px', marginBottom: '12px', textAlign: 'center'
           }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#fff' }}>
-              {resultMsg.settling ? t('result_settling') : resultMsg.draw ? t('result_draw_title') : resultMsg.win ? t('result_win_title') : t('result_lose_title')}
+              {resultMsg.settling ? t('result_settling')
+                : resultMsg.result === 'draw' ? t('result_draw_title')
+                : resultMsg.result === 'win' ? t('result_win_title')
+                : t('result_lose_title')}
             </div>
             <div style={{ color: '#fff', fontSize: '16px', marginTop: '4px' }}>
               {resultMsg.settling
                 ? t('result_settling_desc')
-                : resultMsg.draw
+                : resultMsg.result === 'draw'
                 ? t('result_draw_amount')
-                : resultMsg.win
+                : resultMsg.result === 'win'
                 ? t('result_win_amount', { amount: safeFixed(resultMsg.profit) })
-                : t('result_lose_amount', { amount: safeFixed(Math.abs(resultMsg.profit)) })}
+                : t('result_lose_amount', { amount: safeFixed(resultMsg.profit) })}
             </div>
           </div>
         )}
