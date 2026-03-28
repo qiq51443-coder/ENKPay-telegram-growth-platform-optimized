@@ -1503,7 +1503,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
   bot.on('my_chat_member', async (ctx) => {
     try {
       const chat = ctx.myChatMember?.chat;
-      if (chat && (chat.type === 'group' || chat.type === 'supergroup')) {
+      if (chat && (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel')) {
         const newStatus = ctx.myChatMember.new_chat_member?.status;
         if (newStatus === 'member' || newStatus === 'administrator') {
           await query(
@@ -1807,7 +1807,7 @@ class BotManager {
             const webhookTarget = `${backendUrl}/webhook/${botId}`;
             const telegramRes = await axios.post(
               `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
-              { url: webhookTarget }
+              { url: webhookTarget, allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'] }
             );
             if (telegramRes.data?.ok) {
               await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookTarget, botId]);
