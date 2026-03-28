@@ -1059,15 +1059,15 @@ export const Trading: React.FC = () => {
             setShowConfetti(true);
             setWinMessage({ win: true, profit, draw: false });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-            confettiTimerRef.current = setTimeout(() => { setShowConfetti(false); setWinMessage(null); }, 3000);
+            confettiTimerRef.current = setTimeout(() => { setShowConfetti(false); setWinMessage(null); setResultMsg(null); }, 15000);
           } else if (isDraw) {
             setWinMessage({ win: false, profit: 0, draw: true });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-            confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
+            confettiTimerRef.current = setTimeout(() => { setWinMessage(null); setResultMsg(null); }, 15000);
           } else {
             setWinMessage({ win: false, profit, draw: false });
             if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-            confettiTimerRef.current = setTimeout(() => setWinMessage(null), 3000);
+            confettiTimerRef.current = setTimeout(() => { setWinMessage(null); setResultMsg(null); }, 15000);
           }
 
           break;
@@ -1080,7 +1080,7 @@ export const Trading: React.FC = () => {
       // instead of falsely concluding the user lost.
       setResultMsg({ result: 'lose', profit: 0, settling: true });
       if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-      confettiTimerRef.current = setTimeout(() => setResultMsg(null), 10000);
+      confettiTimerRef.current = setTimeout(() => setResultMsg(null), 15000);
     }
     await fetchOrderHistory();
     await fetchBalance();
@@ -1118,9 +1118,9 @@ export const Trading: React.FC = () => {
             }
             return { result: orderResult, profit };
           });
-          // Auto-clear restored result after 5 seconds
+          // Auto-clear restored result after 15 seconds
           if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 5000);
+          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 15000);
         }
       }
     } catch {}
