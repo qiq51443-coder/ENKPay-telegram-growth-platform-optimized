@@ -1513,8 +1513,8 @@ export const Trading: React.FC = () => {
                 const goldColor = '#F0B90B';
                 const borderColor = isLose ? theme.border : goldColor;
                 const textColor = isLose ? undefined : goldColor;
-                const rawEntryPrice = o.session_open_price != null ? o.session_open_price : o.entry_price;
-                const rawClosePrice = o.session_close_price != null ? o.session_close_price : o.close_price;
+                const rawEntryPrice = o.session_open_price != null && Number(o.session_open_price) > 0 ? o.session_open_price : null;
+                const rawClosePrice = o.session_close_price != null && Number(o.session_close_price) > 0 ? o.session_close_price : null;
                 const entryPrice = rawEntryPrice != null ? `${Number(rawEntryPrice).toFixed(2)} USDT` : '--';
                 const closePrice = rawClosePrice != null ? `${Number(rawClosePrice).toFixed(2)} USDT` : '--';
                 const periodDisplay = o.period_label ? o.period_label.split('-').pop() ?? o.period_label : '-';

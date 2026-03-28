@@ -91,8 +91,8 @@ export const TradingOrders: React.FC = () => {
       o.display_name || o.symbol || '',
       o.direction === 'up' ? '买涨' : '买跌',
       o.amount,
-      (o.session_open_price ?? o.entry_price) || '',
-      (o.session_close_price ?? o.close_price) || '',
+      (o.session_open_price != null && parseFloat(o.session_open_price) > 0) ? o.session_open_price : '',
+      (o.session_close_price != null && parseFloat(o.session_close_price) > 0) ? o.session_close_price : '',
       o.odds, o.status, o.result || '',
       o.profit || '',
       o.created_at ? dayjs(o.created_at).format('YYYY-MM-DD HH:mm:ss') : '',
@@ -152,16 +152,16 @@ export const TradingOrders: React.FC = () => {
       title: '入场价',
       key: 'entry_price',
       render: (_: any, record: any) => {
-        const price = record.session_open_price ?? record.entry_price;
-        return price ? parseFloat(price).toFixed(4) : '-';
+        const price = record.session_open_price != null ? parseFloat(record.session_open_price) : NaN;
+        return price > 0 ? price.toFixed(4) : '--';
       },
     },
     {
       title: '结算价',
       key: 'close_price',
       render: (_: any, record: any) => {
-        const price = record.session_close_price ?? record.close_price;
-        return price ? parseFloat(price).toFixed(4) : '-';
+        const price = record.session_close_price != null ? parseFloat(record.session_close_price) : NaN;
+        return price > 0 ? price.toFixed(4) : '--';
       },
     },
     {
