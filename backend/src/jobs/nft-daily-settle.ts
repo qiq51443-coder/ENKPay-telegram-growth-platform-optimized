@@ -4,7 +4,9 @@ import { TelegramAPI } from '../utils/telegram';
 import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification, buildNFTIncomeDescription, buildNFTPrincipalReturnDescription } from '../i18n/nft-notifications';
 
 let cronJob: cron.ScheduledTask | null = null;
+let maturityCronJob: cron.ScheduledTask | null = null;
 let isRunning = false;
+let isMaturityRunning = false;
 
 /**
  * Send a Telegram message to a user via their bot token.
@@ -407,7 +409,8 @@ async function releaseMatureHoldings(): Promise<void> {
 }
 
 /**
- * Main daily settlement function
+ * Main daily settlement function (income only — no principal release).
+ * Called by the daily cron at 10:05 UTC.
  */
 export async function runNFTDailySettle(): Promise<void> {
   if (isRunning) {
@@ -428,30 +431,64 @@ export async function runNFTDailySettle(): Promise<void> {
 }
 
 /**
- * Start the NFT daily settlement cron job
- * Runs at 10:05 UTC every day
+ * Hourly maturity check — only releases expired principal.
+ * Safe to run frequently; no duplicate income is produced.
  */
-export function startNFTDailySettle(): void {
-  if (cronJob) {
-    console.log('NFT daily settle already started');
+export async function runNFTMaturityCheck(): Promise<void> {
+  if (isMaturityRunning) {
+    console.log('NFT maturity check already running, skipping...');
     return;
   }
-
-  // Runs at 10:05 UTC every day
-  cronJob = cron.schedule('5 10 * * *', async () => {
-    await runNFTDailySettle();
-  });
-
-  console.log('✓ NFT daily settle job started (runs at 10:05 UTC daily)');
+  isMaturityRunning = true;
+  try {
+    console.log('NFT maturity check: starting...');
+    await releaseMatureHoldings();
+    console.log('NFT maturity check: complete');
+  } catch (err: any) {
+    console.error('NFT maturity check error:', err.message);
+  } finally {
+    isMaturityRunning = false;
+  }
 }
 
 /**
- * Stop the NFT daily settlement job
+ * Start the NFT settlement cron jobs:
+ *  - dailyIncomeJob: 10:05 UTC daily  — settles income + releases mature holdings
+ *  - maturityCheckJob: every hour      — releases expired holdings between daily runs
+ *    (compensates for Render free-tier sleep / missed ticks)
+ */
+export function startNFTDailySettle(): void {
+  if (!cronJob) {
+    // Runs at 10:05 UTC every day
+    cronJob = cron.schedule('5 10 * * *', async () => {
+      await runNFTDailySettle();
+    });
+    console.log('✓ NFT daily settle job started (runs at 10:05 UTC daily)');
+  } else {
+    console.log('NFT daily settle already started');
+  }
+
+  if (!maturityCronJob) {
+    // Runs at the top of every hour
+    maturityCronJob = cron.schedule('0 * * * *', async () => {
+      await runNFTMaturityCheck();
+    });
+    console.log('✓ NFT maturity check job started (runs hourly)');
+  }
+}
+
+/**
+ * Stop both NFT settlement jobs.
  */
 export function stopNFTDailySettle(): void {
   if (cronJob) {
     cronJob.stop();
     cronJob = null;
     console.log('NFT daily settle job stopped');
+  }
+  if (maturityCronJob) {
+    maturityCronJob.stop();
+    maturityCronJob = null;
+    console.log('NFT maturity check job stopped');
   }
 }

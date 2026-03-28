@@ -12,6 +12,7 @@ interface Product {
   daily_yield_rate?: number;
   term_days?: number;
   current_holders?: number;
+  total_holders_count?: number;
   max_holders?: number;
   is_purchase_limited?: boolean;
   max_purchases_per_user?: number;
@@ -125,6 +126,8 @@ export const Products: React.FC = () => {
     try {
       await api.post(`/nft/products/${productId}/purchase`, {});
       setPurchaseMsg('✅ ' + t('product_purchase_success'));
+      // Refresh product list so total_holders_count is updated immediately
+      fetchProducts();
       setTimeout(() => {
         setShowPurchase(false);
         setPurchaseMsg('');
@@ -138,7 +141,7 @@ export const Products: React.FC = () => {
   };
 
   if (selectedId && selected) {
-    const holders = selected.current_holders ?? 0;
+    const holders = selected.total_holders_count ?? selected.current_holders ?? 0;
     const maxHolders = selected.max_holders ?? 100;
     const holdersProgress = maxHolders > 0 ? Math.min((holders / maxHolders) * 100, 100) : 0;
     const dailyRate = parseFloat(String(selected.daily_yield_rate ?? 0.005));

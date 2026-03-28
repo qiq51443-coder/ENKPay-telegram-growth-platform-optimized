@@ -16,6 +16,7 @@ import {
   buildNFTPrincipalReturnDescription,
   buildNFTPurchaseSuccessMessage,
 } from '../i18n/nft-notifications';
+import { cloudinary, isCloudinaryConfigured } from '../utils/cloudinary';
 
 const router = express.Router();
 
@@ -23,20 +24,43 @@ const router = express.Router();
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── Image upload setup ───────────────────────────────────────────────────────
+// When CLOUDINARY_CLOUD_NAME is set the upload middleware uses Cloudinary for
+// persistent storage. Otherwise it falls back to the local disk (temporary on
+// Render free/starter tier — suitable for development or self-hosted deploys).
+
 const uploadDir = path.join(__dirname, '../../uploads/nft');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
+// Build the multer storage engine.
+// When Cloudinary env vars are present the uploads are stored in Cloudinary;
+// otherwise the local disk is used (suitable for development or self-hosted
+// deployments — note that Render free/starter tier has an ephemeral filesystem).
+function buildStorage(): multer.StorageEngine {
+  if (isCloudinaryConfigured()) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { CloudinaryStorage } = require('multer-storage-cloudinary');
+    return new CloudinaryStorage({
+      cloudinary,
+      params: {
+        folder: 'nft-products',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+        resource_type: 'image',
+      },
+    });
+  }
+  return multer.diskStorage({
+    destination: (_req: Express.Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, uploadDir),
+    filename: (_req: Express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  });
+}
+
 const upload = multer({
-  storage,
+  storage: buildStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -46,6 +70,23 @@ const upload = multer({
     }
   },
 });
+
+/** Cloudinary augments the uploaded file with these extra fields. */
+interface CloudinaryFile extends Express.Multer.File {
+  path: string; // Cloudinary secure_url
+}
+
+/**
+ * Resolve the public URL for an uploaded file.
+ * Cloudinary storage sets `path` to the secure HTTPS URL.
+ * Local disk storage uses `filename` to build a relative path.
+ */
+function resolveUploadUrl(file: Express.Multer.File): string {
+  if (isCloudinaryConfigured() && (file as CloudinaryFile).path) {
+    return (file as CloudinaryFile).path;
+  }
+  return `/uploads/nft/${file.filename}`;
+}
 
 /**
  * GET /api/nft/categories
@@ -256,16 +297,51 @@ router.get('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await query(
-      `SELECT 
-         p.*,
-         c.name as category_name,
-         c.description as category_description
-       FROM nft_products p
-       LEFT JOIN nft_categories c ON p.category_id = c.id
-       WHERE p.id = $1`,
-      [id]
-    );
+    const fullQuery = `
+      SELECT
+        p.*,
+        c.name as category_name,
+        c.description as category_description,
+        COALESCE(p.display_holders_count, 0)
+        + COALESCE(nh.nft_holders_count, 0)
+        + COALESCE(ph.product_holders_count, 0)
+        AS total_holders_count
+      FROM nft_products p
+      LEFT JOIN nft_categories c ON p.category_id = c.id
+      LEFT JOIN (
+        SELECT product_id, COUNT(*) AS nft_holders_count
+        FROM nft_holdings
+        WHERE status = 'active'
+        GROUP BY product_id
+      ) nh ON nh.product_id = p.id
+      LEFT JOIN (
+        SELECT product_id, COUNT(*) AS product_holders_count
+        FROM product_holdings
+        WHERE status = 'active'
+        GROUP BY product_id
+      ) ph ON ph.product_id = p.id
+      WHERE p.id = $1
+    `;
+
+    let result: any;
+    try {
+      result = await query(fullQuery, [id]);
+    } catch (queryErr: any) {
+      const isSchemaError = (code: string) =>
+        ['42P01', '42703', '42804', '42883', '22P02'].includes(code);
+      if (isSchemaError(queryErr.code)) {
+        result = await query(
+          `SELECT p.*, c.name as category_name, c.description as category_description,
+                  COALESCE(p.display_holders_count, 0) AS total_holders_count
+           FROM nft_products p
+           LEFT JOIN nft_categories c ON p.category_id = c.id
+           WHERE p.id = $1`,
+          [id]
+        );
+      } else {
+        throw queryErr;
+      }
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
@@ -881,8 +957,8 @@ router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: Au
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const relativeUrl = `/uploads/nft/${req.file.filename}`;
-    res.json({ success: true, url: relativeUrl });
+    const url = resolveUploadUrl(req.file);
+    res.json({ success: true, url });
   } catch (error: any) {
     console.error('Image upload error:', error);
     res.status(500).json({ error: error.message });
@@ -899,8 +975,8 @@ router.post('/upload', authenticateAdmin, upload.single('file'), (req: AuthReque
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const relativeUrl = `/uploads/nft/${req.file.filename}`;
-    res.json({ success: true, url: relativeUrl });
+    const url = resolveUploadUrl(req.file);
+    res.json({ success: true, url });
   } catch (error: any) {
     console.error('Image upload error:', error);
     res.status(500).json({ error: error.message });
