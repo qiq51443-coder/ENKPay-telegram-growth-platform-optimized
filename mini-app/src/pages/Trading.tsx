@@ -1547,7 +1547,14 @@ export const Trading: React.FC = () => {
               }
 
               // Active/pending order: render rich card matching the top active order card style
-              const rawEntryPriceActive = o.session_open_price != null ? o.session_open_price : o.entry_price;
+              // FIX: If this order is the currently-tracked active order, prefer the authoritative
+              // session open_price polled from the server (activeOrderEntryPrice), so that this card
+              // shows exactly the same price as the top active order progress card.
+              // This eliminates the price discrepancy between the two active order display bars.
+              const isCurrentActiveOrder = activeOrder?.id === o.id;
+              const rawEntryPriceActive = isCurrentActiveOrder && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
+                ? activeOrderEntryPrice
+                : (o.session_open_price != null ? o.session_open_price : o.entry_price);
               const entryPriceActive = rawEntryPriceActive != null && Number(rawEntryPriceActive) > 0
                 ? `${Number(rawEntryPriceActive).toFixed(2)} USDT`
                 : '--';
