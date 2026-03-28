@@ -1547,11 +1547,10 @@ export const Trading: React.FC = () => {
               }
 
               // Active/pending order: render rich card matching the top active order card style
-              const rawEntryPriceActive = o.session_open_price != null ? o.session_open_price : o.entry_price;
-              const entryPriceActive = rawEntryPriceActive != null && Number(rawEntryPriceActive) > 0
-                ? `${Number(rawEntryPriceActive).toFixed(2)} USDT`
+              const entryPriceActive = o.session_open_price != null && Number(o.session_open_price) > 0
+                ? `${Number(o.session_open_price).toFixed(2)} USDT`
                 : '--';
-              const createdAtLocal = new Date(o.created_at).toLocaleString();
+              const isCurrentActiveOrder = activeOrder != null && o.id === activeOrder.id && countdown !== null;
               return (
                 <div key={o.id} style={{
                   position: 'relative', overflow: 'hidden', borderRadius: '12px',
@@ -1574,11 +1573,8 @@ export const Trading: React.FC = () => {
                       <span style={{ color: theme.textSecondary }}>
                         {t('order_entry_price')} {entryPriceActive}
                       </span>
-                      <span style={{ color: theme.textSecondary }}>
-                        {createdAtLocal}
-                      </span>
-                      <span style={{ color: theme.textSecondary }}>
-                        {Number(o.odds)}x
+                      <span style={{ color: '#f0b90b', fontWeight: 700 }}>
+                        {isCurrentActiveOrder ? `${countdown}s` : `${Number(o.odds)}x`}
                       </span>
                     </div>
                   </div>
