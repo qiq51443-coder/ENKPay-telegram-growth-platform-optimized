@@ -48,6 +48,7 @@ interface Order {
   display_name?: string;
   session_start?: string;
   session_end?: string;
+  settled_at?: string;
   period_label?: string;
   session_open_price?: number | string;
   session_close_price?: number | string;
@@ -269,6 +270,23 @@ export const Trading: React.FC = () => {
     setActiveOrder(active || null);
     if (!active) setActiveOrderEntryPrice(null);
   }, [orders, selectedDuration]);
+
+  // Recover countdown from session_end when returning to the page (countdown lost after tab switch)
+  useEffect(() => {
+    if (activeOrder && countdown === null) {
+      const endMs = activeOrder.session_end
+        ? new Date(activeOrder.session_end).getTime()
+        : null;
+      if (endMs && endMs > Date.now()) {
+        startCountdown(endMs, activeOrder.id);
+      }
+    }
+  // countdown is intentionally omitted from deps: we only want to recover on activeOrder change,
+  // not re-run every second as countdown ticks down. The guard (countdown === null) prevents
+  // re-starting an already-running timer. startCountdown is a stable function defined in the
+  // same component render scope and is not expected to change identity in a meaningful way.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrder]);
 
   // Update period info every second based on selectedDuration
   useEffect(() => {
@@ -750,6 +768,8 @@ export const Trading: React.FC = () => {
       // non-critical, poll will update soon
     }
     await fetchRulesForPair(pair);
+    // Restore active order and result state when user navigates back to this pair
+    await fetchOrderHistory();
   };
 
   const handleDurationSelect = (sec: number) => {
@@ -970,7 +990,7 @@ export const Trading: React.FC = () => {
   };
 
   const fetchResult = async (orderId: string) => {
-    const delays = [1000, 2000, 3000, 5000, 5000];
+    const delays = [2000, 3000, 5000, 5000, 8000, 10000];
     let settled = false;
     for (const delay of delays) {
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1042,17 +1062,11 @@ export const Trading: React.FC = () => {
     }
 
     if (!settled) {
-      try {
-        const checkRes = await api.get('/trading/orders/my', { params: { limit: 50 } });
-        const pendingOrder = checkRes.data?.data?.find(
-          (o: any) => o.id === orderId && (o.status === 'active' || o.status === 'pending')
-        );
-        if (pendingOrder) {
-          setResultMsg({ result: 'lose', profit: 0, settling: true });
-          if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 8000);
-        }
-      } catch {}
+      // Backend settlement may be delayed up to ~30s; show a neutral "processing" message
+      // instead of falsely concluding the user lost.
+      setResultMsg({ result: 'lose', profit: 0, settling: true });
+      if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+      confettiTimerRef.current = setTimeout(() => setResultMsg(null), 10000);
     }
     await fetchOrderHistory();
     await fetchBalance();
@@ -1063,7 +1077,38 @@ export const Trading: React.FC = () => {
       const res = await api.get('/trading/orders/my', {
         params: { limit: 20 },
       });
-      setOrders(res.data?.data || []);
+      const fetchedOrders: Order[] = res.data?.data || [];
+      setOrders(fetchedOrders);
+
+      // If the most recent order settled within the last 60 seconds and resultMsg is null,
+      // restore the result banner so the user sees the outcome after navigating back.
+      // Sort by settled_at descending to ensure we check the truly most recent settled order.
+      const recentSettled = fetchedOrders
+        .filter((o) => o.result != null && o.settled_at != null)
+        .sort((a, b) => new Date(b.settled_at!).getTime() - new Date(a.settled_at!).getTime())[0];
+      if (recentSettled && recentSettled.settled_at) {
+        const settledMs = new Date(recentSettled.settled_at).getTime();
+        if (Date.now() - settledMs < 60000) {
+          setResultMsg((prev) => {
+            if (prev !== null) return prev; // Don't overwrite an already-set result
+            const orderResult = recentSettled.result as 'win' | 'lose' | 'draw';
+            const amountVal = parseFloat(String(recentSettled.amount));
+            let profit: number;
+            if (orderResult === 'draw') {
+              profit = 0;
+            } else if (orderResult === 'win') {
+              const backendProfit = recentSettled.profit != null ? Number(recentSettled.profit) : NaN;
+              profit = !isNaN(backendProfit) ? backendProfit : amountVal * Number(recentSettled.odds);
+            } else {
+              profit = recentSettled.profit != null ? Math.abs(Number(recentSettled.profit)) : amountVal;
+            }
+            return { result: orderResult, profit };
+          });
+          // Auto-clear restored result after 5 seconds
+          if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 5000);
+        }
+      }
     } catch {}
   };
 
@@ -1501,20 +1546,43 @@ export const Trading: React.FC = () => {
                 );
               }
 
+              // Active/pending order: render rich card matching the top active order card style
+              const rawEntryPriceActive = o.session_open_price != null ? o.session_open_price : o.entry_price;
+              const entryPriceActive = rawEntryPriceActive != null && Number(rawEntryPriceActive) > 0
+                ? `${Number(rawEntryPriceActive).toFixed(2)} USDT`
+                : '--';
+              const createdAtLocal = new Date(o.created_at).toLocaleString();
               return (
-              <div key={o.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '12px', border: `1px solid ${theme.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: o.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '600' }}>
-                    {o.direction === 'up' ? t('order_up') : t('order_down')}
-                  </span>
-                  <span style={{ color: o.status === 'won' ? '#26a69a' : o.status === 'lost' ? '#ef5350' : theme.textSecondary, fontSize: '13px' }}>
-                    {o.status === 'won' ? t('order_status_won') : o.status === 'lost' ? t('order_status_lost') : o.status}
-                  </span>
+                <div key={o.id} style={{
+                  position: 'relative', overflow: 'hidden', borderRadius: '12px',
+                  backgroundColor: 'rgba(38,166,154,0.12)', border: '1px solid rgba(38,166,154,0.4)',
+                }}>
+                  <div style={{ position: 'relative', zIndex: 1, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: o.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 600, fontSize: '13px' }}>
+                        {o.direction === 'up' ? '🟢 UP' : '🔴 DOWN'}
+                      </span>
+                      <span style={{ color: theme.text, fontWeight: 700, fontSize: '15px' }}>
+                        {Number(o.amount).toFixed(2)} USDT
+                      </span>
+                      <span style={{ color: '#26a69a', fontSize: '11px', fontWeight: 600 }}>{t('holdings_active')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                      <span style={{ color: theme.textSecondary }}>
+                        {o.display_name ?? o.symbol ?? '--'}
+                      </span>
+                      <span style={{ color: theme.textSecondary }}>
+                        {t('order_entry_price')} {entryPriceActive}
+                      </span>
+                      <span style={{ color: theme.textSecondary }}>
+                        {createdAtLocal}
+                      </span>
+                      <span style={{ color: theme.textSecondary }}>
+                        {Number(o.odds)}x
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '4px' }}>
-                  {t('order_amount_label')}: {o.amount} USDT · {t('order_odds_label')}: {o.odds}x · {new Date(o.created_at).toLocaleString()}
-                </div>
-              </div>
               );
             })}
           </div>
