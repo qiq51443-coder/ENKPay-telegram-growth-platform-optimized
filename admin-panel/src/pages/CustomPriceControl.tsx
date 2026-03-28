@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, InputNumber, message, Select, Space, Table, Input, Popconfirm, Tag, DatePicker, Row, Col, Spin, Empty, Avatar, Tabs } from 'antd';
-import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, Button, message, Space, Table, Popconfirm, Tag, Row, Col, Spin, Empty, Avatar, Tabs } from 'antd';
+import { ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -43,6 +43,9 @@ const DURATION_LABELS: Record<number, string> = {
   600: '10 Min',
 };
 
+const POSITIVE_COLOR = '#52c41a';
+const NEGATIVE_COLOR = '#f5222d';
+
 const DURATIONS = [60, 300, 600];
 
 export const CustomPriceControl: React.FC = () => {
@@ -51,8 +54,6 @@ export const CustomPriceControl: React.FC = () => {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [openPriceMap, setOpenPriceMap] = useState<Record<string, string | null>>({});
   const [presets, setPresets] = useState<PricePreset[]>([]);
-  const [addPointForm] = Form.useForm();
-  const [presetForm] = Form.useForm();
   const [todayResults, setTodayResults] = useState<TodayResult[]>([]);
   const [todayResultsLoading, setTodayResultsLoading] = useState(false);
 
@@ -118,51 +119,6 @@ export const CustomPriceControl: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to fetch current price:', error);
-    }
-  };
-
-  const handleAddPricePoint = async () => {
-    try {
-      const values = await addPointForm.validateFields();
-      
-      // Convert timestamp to ISO string if present
-      if (values.timestamp) {
-        values.timestamp = values.timestamp.toISOString();
-      }
-      
-      await apiClient.addPricePoint(selectedPairId, values);
-      message.success('价格点添加成功');
-      
-      addPointForm.resetFields();
-      fetchCurrentPrice();
-    } catch (error: any) {
-      console.error('Failed to add price point:', error);
-      message.error(error.response?.data?.error || '添加失败');
-    }
-  };
-
-  const handleCreatePreset = async () => {
-    try {
-      const values = await presetForm.validateFields();
-      
-      // Parse price_data as JSON
-      if (values.price_data && typeof values.price_data === 'string') {
-        try {
-          values.price_data = JSON.parse(values.price_data);
-        } catch (e) {
-          message.error('价格数据格式错误，请输入有效的 JSON');
-          return;
-        }
-      }
-      
-      await apiClient.createPricePreset(selectedPairId, values);
-      message.success('预设创建成功');
-      
-      presetForm.resetFields();
-      fetchPresets();
-    } catch (error: any) {
-      console.error('Failed to create preset:', error);
-      message.error(error.response?.data?.error || '创建失败');
     }
   };
 
@@ -329,101 +285,6 @@ export const CustomPriceControl: React.FC = () => {
                 </Card>
               )}
 
-          <Card title="手动添加价格点" style={{ marginBottom: 16 }}>
-            <Form
-              form={addPointForm}
-              layout="inline"
-              onFinish={handleAddPricePoint}
-            >
-              <Form.Item
-                name="price"
-                label="价格"
-                rules={[{ required: true, message: '请输入价格' }]}
-              >
-                <InputNumber
-                  min={0.0001}
-                  step={0.01}
-                  placeholder="0.00"
-                  style={{ width: 150 }}
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="timestamp"
-                label="时间戳"
-                tooltip="留空则使用当前时间"
-              >
-                <DatePicker showTime style={{ width: 200 }} />
-              </Form.Item>
-
-              <Form.Item>
-                <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
-                  添加
-                </Button>
-              </Form.Item>
-            </Form>
-          </Card>
-
-          <Card title="预设走势管理" style={{ marginBottom: 16 }}>
-            <Form
-              form={presetForm}
-              layout="vertical"
-              onFinish={handleCreatePreset}
-            >
-              <Form.Item
-                name="preset_name"
-                label="预设名称"
-                rules={[{ required: true, message: '请输入预设名称' }]}
-              >
-                <Input placeholder="例如：上涨趋势" style={{ width: 300 }} />
-              </Form.Item>
-
-              <Space size="large" align="start">
-                <Form.Item
-                  name="start_price"
-                  label="起始价格"
-                  rules={[{ required: true, message: '请输入起始价格' }]}
-                >
-                  <InputNumber min={0.0001} step={0.01} placeholder="0.00" />
-                </Form.Item>
-
-                <Form.Item
-                  name="end_price"
-                  label="结束价格"
-                  rules={[{ required: true, message: '请输入结束价格' }]}
-                >
-                  <InputNumber min={0.0001} step={0.01} placeholder="0.00" />
-                </Form.Item>
-
-                <Form.Item
-                  name="duration_seconds"
-                  label="持续时间（秒）"
-                  rules={[{ required: true, message: '请输入持续时间' }]}
-                >
-                  <InputNumber min={60} step={60} placeholder="3600" />
-                </Form.Item>
-              </Space>
-
-              <Form.Item
-                name="price_data"
-                label="价格数据 (JSON)"
-                rules={[{ required: true, message: '请输入价格数据' }]}
-                tooltip='格式: [{"timestamp": "2024-01-01T00:00:00Z", "price": 1.23}, ...]'
-              >
-                <Input.TextArea
-                  rows={4}
-                  placeholder='[{"timestamp": "2024-01-01T00:00:00Z", "price": 1.23}]'
-                />
-              </Form.Item>
-
-              <Form.Item>
-                <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
-                  创建预设
-                </Button>
-              </Form.Item>
-            </Form>
-          </Card>
-
           {presets.length > 0 && (
             <Card title="已创建的预设">
               <Table
@@ -482,14 +343,28 @@ export const CustomPriceControl: React.FC = () => {
                       dataIndex: 'result_direction',
                       key: 'result_direction',
                       width: 80,
-                      render: (d: string | null) =>
-                        d ? (
-                          <Tag color={d === 'up' ? '#52c41a' : '#ff4d4f'} style={{ color: '#fff' }}>
-                            {d === 'up' ? '▲ 涨' : '▼ 跌'}
-                          </Tag>
-                        ) : (
-                          <Tag color="default">未结算</Tag>
-                        ),
+                      render: (d: string | null, record: TodayResult) => {
+                        if (d) {
+                          return (
+                            <Tag color={d === 'up' ? POSITIVE_COLOR : NEGATIVE_COLOR} style={{ color: '#fff' }}>
+                              {d === 'up' ? '▲ 涨' : '▼ 跌'}
+                            </Tag>
+                          );
+                        }
+                        if (record.open_price && record.settlement_price) {
+                          const open = parseFloat(record.open_price);
+                          const settle = parseFloat(record.settlement_price);
+                          if (!isNaN(open) && !isNaN(settle) && open > 0) {
+                            const autoDir = settle >= open ? 'up' : 'down';
+                            return (
+                              <Tag color={autoDir === 'up' ? POSITIVE_COLOR : NEGATIVE_COLOR} style={{ color: '#fff', opacity: 0.75 }}>
+                                {autoDir === 'up' ? '▲ 涨*' : '▼ 跌*'}
+                              </Tag>
+                            );
+                          }
+                        }
+                        return <Tag color="default">未结算</Tag>;
+                      },
                     },
                     {
                       title: '买涨人数',
