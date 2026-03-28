@@ -184,6 +184,7 @@ export const Trading: React.FC = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [winMessage, setWinMessage] = useState<{ win: boolean; profit: number; draw?: boolean } | null>(null);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resultMsgRef = useRef<{ result: 'win' | 'lose' | 'draw'; profit: number; settling?: boolean } | null>(null);
 
   // Real-time price updates via WebSocket (replaces HTTP polling)
   const wsPrices = usePriceWebSocket();
@@ -361,6 +362,11 @@ export const Trading: React.FC = () => {
   useEffect(() => {
     pricesRef.current = prices;
   }, [prices]);
+
+  // Keep resultMsgRef in sync so fetchOrderHistory can read the current value synchronously
+  useEffect(() => {
+    resultMsgRef.current = resultMsg;
+  }, [resultMsg]);
 
   // Inject flash-up / flash-down keyframe CSS once on mount
   useEffect(() => {
@@ -1118,9 +1124,11 @@ export const Trading: React.FC = () => {
             }
             return { result: orderResult, profit };
           });
-          // Auto-clear restored result after 15 seconds
-          if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
-          confettiTimerRef.current = setTimeout(() => setResultMsg(null), 15000);
+          // Only start the 15s dismiss timer when resultMsg was null (i.e. we are actually restoring it)
+          if (resultMsgRef.current === null) {
+            if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+            confettiTimerRef.current = setTimeout(() => setResultMsg(null), 15000);
+          }
         }
       }
     } catch {}
@@ -1565,13 +1573,14 @@ export const Trading: React.FC = () => {
               const sessionOpenPriceNum = o.session_open_price != null && Number(o.session_open_price) > 0
                 ? Number(o.session_open_price)
                 : null;
-              // Use activeOrderEntryPrice (most up-to-date from server polling) for the current active order,
-              // otherwise fall back to session_open_price only (NOT entry_price) so period-not-started shows '--'
-              const displayEntryPrice = isCurrentActiveOrder && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
-                ? `${activeOrderEntryPrice.toFixed(2)} USDT`
-                : sessionOpenPriceNum != null
-                ? `${sessionOpenPriceNum.toFixed(2)} USDT`
-                : '--';
+              // For the currently tracked active order: only show price after countdown has started
+              const displayEntryPrice = isCurrentActiveOrder
+                ? (countdown !== null && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
+                    ? `${activeOrderEntryPrice.toFixed(2)} USDT`
+                    : '--')
+                : (sessionOpenPriceNum != null
+                    ? `${sessionOpenPriceNum.toFixed(2)} USDT`
+                    : '--');
               // Use live countdown for the current active order; compute from session_end for others
               const orderCountdown = isCurrentActiveOrder && countdown !== null
                 ? countdown
