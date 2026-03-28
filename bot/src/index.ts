@@ -248,7 +248,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
   bot.on('my_chat_member', async (ctx) => {
     try {
       const chat = ctx.myChatMember.chat;
-      if (chat.type === 'group' || chat.type === 'supergroup') {
+      if (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel') {
         const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
         const newStatus = ctx.myChatMember.new_chat_member.status;
 
@@ -387,7 +387,9 @@ const startBots = async () => {
       const bot = createBotInstance(entry);
 
       if (botMode === 'webhook' && webhookDomain) {
-        await bot.telegram.setWebhook(`${webhookDomain}/webhook/${entry.id}`);
+        await bot.telegram.setWebhook(`${webhookDomain}/webhook/${entry.id}`, {
+          allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'],
+        });
         console.log(`✓ Bot ${entry.id} webhook set to ${webhookDomain}/webhook/${entry.id}`);
       } else {
         await bot.launch({
