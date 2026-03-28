@@ -1001,21 +1001,9 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
 });
 
 // Announcement image upload endpoint
-const announcementUploadDir = path.join(__dirname, '../../uploads/announcement-images');
-if (!fs.existsSync(announcementUploadDir)) fs.mkdirSync(announcementUploadDir, { recursive: true });
-
-const announcementStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, announcementUploadDir),
-  filename: (_req, file, cb) => {
-    const rawExt = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const ext = allowedExts.includes(rawExt) ? rawExt : '.jpg';
-    cb(null, `announcement-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const announcementUpload = multer({
-  storage: announcementStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Only image files are allowed'));
@@ -1024,25 +1012,15 @@ const announcementUpload = multer({
 
 router.post('/upload-announcement-image', adminLimiter, authenticateAdmin, announcementUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ url: `/uploads/announcement-images/${req.file.filename}`, filename: req.file.filename });
+  const base64 = req.file.buffer.toString('base64');
+  const url = `data:${req.file.mimetype};base64,${base64}`;
+  res.json({ url, filename: req.file.originalname });
 });
 
 // Broadcast image upload endpoint
-const broadcastUploadDir = path.join(__dirname, '../../uploads/broadcast-images');
-if (!fs.existsSync(broadcastUploadDir)) fs.mkdirSync(broadcastUploadDir, { recursive: true });
-
-const broadcastStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, broadcastUploadDir),
-  filename: (_req, file, cb) => {
-    const rawExt = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const ext = allowedExts.includes(rawExt) ? rawExt : '.jpg';
-    cb(null, `broadcast-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const broadcastUpload = multer({
-  storage: broadcastStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Only image files are allowed'));
@@ -1051,7 +1029,9 @@ const broadcastUpload = multer({
 
 router.post('/upload-broadcast-image', adminLimiter, authenticateAdmin, broadcastUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ url: `/uploads/broadcast-images/${req.file.filename}`, filename: req.file.filename });
+  const base64 = req.file.buffer.toString('base64');
+  const url = `data:${req.file.mimetype};base64,${base64}`;
+  res.json({ url, filename: req.file.originalname });
 });
 
 // Translate text to multiple languages

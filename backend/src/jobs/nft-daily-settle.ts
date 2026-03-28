@@ -32,8 +32,9 @@ async function sendBotNotification(
 
 /**
  * Settle daily income for all active fixed_term NFT holdings.
+ * Returns the total number of successfully settled income records.
  */
-async function settleDailyIncome(): Promise<void> {
+async function settleDailyIncome(): Promise<number> {
   const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
 
   // Find all active fixed_term holdings that haven't been settled today
@@ -64,79 +65,82 @@ async function settleDailyIncome(): Promise<void> {
     [today]
   );
 
-  if (holdingsResult.rows.length === 0) return;
+  let totalSuccess = 0;
 
-  console.log(`NFT daily settle: processing ${holdingsResult.rows.length} holdings`);
+  if (holdingsResult.rows.length > 0) {
+    console.log(`NFT daily settle: processing ${holdingsResult.rows.length} holdings`);
 
-  let successCount = 0;
-  let errorCount = 0;
+    let successCount = 0;
+    let errorCount = 0;
 
-  for (const holding of holdingsResult.rows) {
-    try {
-      const dailyIncome = parseFloat(holding.purchase_price) * parseFloat(holding.daily_yield_rate);
-      if (dailyIncome <= 0) continue;
+    for (const holding of holdingsResult.rows) {
+      try {
+        const dailyIncome = parseFloat(holding.purchase_price) * parseFloat(holding.daily_yield_rate);
+        if (dailyIncome <= 0) continue;
 
-      const amountStr = dailyIncome.toFixed(8);
+        const amountStr = dailyIncome.toFixed(8);
 
-      // Calculate current day number
-      const startDate = new Date(holding.created_at);
-      const diffMs = Date.now() - startDate.getTime();
-      const currentDay = Math.max(1, Math.floor(diffMs / 86400000) + 1);
-      const termDays = holding.term_days ?? 30;
+        // Calculate current day number
+        const startDate = new Date(holding.created_at);
+        const diffMs = Date.now() - startDate.getTime();
+        const currentDay = Math.max(1, Math.floor(diffMs / 86400000) + 1);
+        const termDays = holding.term_days ?? 30;
 
-      await transaction(async (client) => {
-        // Insert income record (skip if already exists for today)
-        await client.query(
-          `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (holding_id, income_date) DO NOTHING`,
-          [holding.id, holding.user_id, holding.product_id, amountStr, today]
-        );
+        await transaction(async (client) => {
+          // Insert income record (skip if already exists for today)
+          await client.query(
+            `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (holding_id, income_date) DO NOTHING`,
+            [holding.id, holding.user_id, holding.product_id, amountStr, today]
+          );
 
-        // Add income to wallet_balance
-        await client.query(
-          'UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2',
-          [dailyIncome, holding.user_id]
-        );
+          // Add income to wallet_balance
+          await client.query(
+            'UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2',
+            [dailyIncome, holding.user_id]
+          );
 
-        // Update total_income on holding
-        await client.query(
-          'UPDATE nft_holdings SET total_income = COALESCE(total_income, 0) + $1 WHERE id = $2',
-          [dailyIncome, holding.id]
-        );
+          // Update total_income on holding
+          await client.query(
+            'UPDATE nft_holdings SET total_income = COALESCE(total_income, 0) + $1 WHERE id = $2',
+            [dailyIncome, holding.id]
+          );
 
-        // Write transactions record for this income
-        const lang = (holding.language_code || 'en').split('-')[0];
-        const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
-        await client.query(
-          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-           SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
-          [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
-        );
-      });
-
-      // Send bot notification
-      if (holding.telegram_id && holding.bot_id) {
-        const lang = (holding.language_code || 'en').split('-')[0];
-        const text = buildNFTDailyIncomeNotification({
-          lang,
-          amount: parseFloat(amountStr).toFixed(2),
-          product_name: holding.product_name,
-          current_day: currentDay,
-          term_days: termDays,
+          // Write transactions record for this income
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+            [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
+          );
         });
-        await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+
+        // Send bot notification
+        if (holding.telegram_id && holding.bot_id) {
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const text = buildNFTDailyIncomeNotification({
+            lang,
+            amount: parseFloat(amountStr).toFixed(2),
+            product_name: holding.product_name,
+            current_day: currentDay,
+            term_days: termDays,
+          });
+          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+        }
+
+        console.log(`NFT daily settle: holding ${holding.id} credited ${amountStr} USDT`);
+        successCount++;
+      } catch (err: any) {
+        console.error(`NFT daily settle error for holding ${holding.id}:`, err.message);
+        errorCount++;
       }
-
-      console.log(`NFT daily settle: holding ${holding.id} credited ${amountStr} USDT`);
-      successCount++;
-    } catch (err: any) {
-      console.error(`NFT daily settle error for holding ${holding.id}:`, err.message);
-      errorCount++;
     }
-  }
 
-  console.log(`NFT daily settle: completed. Success: ${successCount}, Failed: ${errorCount} out of ${holdingsResult.rows.length} holdings`);
+    console.log(`NFT daily settle: completed. Success: ${successCount}, Failed: ${errorCount} out of ${holdingsResult.rows.length} holdings`);
+    totalSuccess += successCount;
+  }
 
   // ── Part 2: product_holdings (Mini-App purchases) ──────────────────────────
   const phResult = await query(
@@ -237,13 +241,18 @@ async function settleDailyIncome(): Promise<void> {
     }
 
     console.log(`NFT daily settle (product_holdings): completed. Success: ${phSuccess}, Failed: ${phError}`);
+    totalSuccess += phSuccess;
   }
+
+  return totalSuccess;
 }
 
 /**
  * Release matured holdings: return principal from nft_balance to wallet_balance.
+ * Returns the total number of successfully processed principal returns.
+ * Handles both explicit expires_at/end_date and NULL fallback via created_at + term_days.
  */
-async function releaseMatureHoldings(): Promise<void> {
+async function releaseMatureHoldings(): Promise<number> {
   const matureResult = await query(
     `SELECT
        h.id,
@@ -258,74 +267,82 @@ async function releaseMatureHoldings(): Promise<void> {
      JOIN nft_products p ON h.product_id = p.id
      JOIN users u ON h.user_id = u.id
      WHERE h.status = 'active'
-       AND h.expires_at IS NOT NULL
-       AND h.expires_at <= NOW()`,
+       AND p.product_type = 'fixed_term'
+       AND p.term_days IS NOT NULL
+       AND (
+         (h.expires_at IS NOT NULL AND h.expires_at <= NOW())
+         OR
+         (h.expires_at IS NULL AND (h.created_at + (p.term_days || ' days')::interval) <= NOW())
+       )`,
     []
   );
 
-  if (matureResult.rows.length === 0) return;
+  let totalSuccess = 0;
 
-  console.log(`NFT mature release: processing ${matureResult.rows.length} expired holdings`);
+  if (matureResult.rows.length > 0) {
+    console.log(`NFT mature release: processing ${matureResult.rows.length} expired holdings`);
 
-  let successCount = 0;
-  let errorCount = 0;
+    let successCount = 0;
+    let errorCount = 0;
 
-  for (const holding of matureResult.rows) {
-    try {
-      const principal = parseFloat(holding.purchase_price);
+    for (const holding of matureResult.rows) {
+      try {
+        const principal = parseFloat(holding.purchase_price);
 
-      await transaction(async (client) => {
-        // Mark holding as expired
-        await client.query(
-          `UPDATE nft_holdings SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [holding.id]
-        );
+        await transaction(async (client) => {
+          // Mark holding as expired
+          await client.query(
+            `UPDATE nft_holdings SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [holding.id]
+          );
 
-        // Decrease nft_balance and increase wallet_balance
-        await client.query(
-          `UPDATE users
-           SET nft_balance = GREATEST(COALESCE(nft_balance, 0) - $1, 0),
-               wallet_balance = COALESCE(wallet_balance, 0) + $1
-           WHERE id = $2`,
-          [principal, holding.user_id]
-        );
+          // Decrease nft_balance and increase wallet_balance
+          await client.query(
+            `UPDATE users
+             SET nft_balance = GREATEST(COALESCE(nft_balance, 0) - $1, 0),
+                 wallet_balance = COALESCE(wallet_balance, 0) + $1
+             WHERE id = $2`,
+            [principal, holding.user_id]
+          );
 
-        // Decrease current_holders on product
-        await client.query(
-          `UPDATE nft_products SET current_holders = GREATEST(COALESCE(current_holders, 0) - 1, 0) WHERE id = $1`,
-          [holding.product_id]
-        );
+          // Decrease current_holders on product
+          await client.query(
+            `UPDATE nft_products SET current_holders = GREATEST(COALESCE(current_holders, 0) - 1, 0) WHERE id = $1`,
+            [holding.product_id]
+          );
 
-        // Write transactions record for principal return
-        const lang = (holding.language_code || 'en').split('-')[0];
-        const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
-        await client.query(
-          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-           SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
-          [holding.user_id, principal, principalDesc, String(holding.id)]
-        );
-      });
-
-      // Send maturity notification
-      if (holding.telegram_id && holding.bot_id) {
-        const lang = (holding.language_code || 'en').split('-')[0];
-        const text = buildNFTMaturityReturnNotification({
-          lang,
-          amount: principal.toFixed(2),
-          product_name: holding.product_name,
+          // Write transactions record for principal return
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+            [holding.user_id, principal, principalDesc, String(holding.id)]
+          );
         });
-        await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+
+        // Send maturity notification
+        if (holding.telegram_id && holding.bot_id) {
+          const lang = (holding.language_code || 'en').split('-')[0];
+          const text = buildNFTMaturityReturnNotification({
+            lang,
+            amount: principal.toFixed(2),
+            product_name: holding.product_name,
+          });
+          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+        }
+
+        console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned`);
+        successCount++;
+      } catch (err: any) {
+        console.error(`NFT mature release error for holding ${holding.id}:`, err.message);
+        errorCount++;
       }
-
-      console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned`);
-      successCount++;
-    } catch (err: any) {
-      console.error(`NFT mature release error for holding ${holding.id}:`, err.message);
-      errorCount++;
     }
-  }
 
-  console.log(`NFT mature release: completed. Success: ${successCount}, Failed: ${errorCount} out of ${matureResult.rows.length} holdings`);
+    console.log(`NFT mature release: completed. Success: ${successCount}, Failed: ${errorCount} out of ${matureResult.rows.length} holdings`);
+    totalSuccess += successCount;
+  }
 
   // ── Part 2: product_holdings (Mini-App purchases) ──────────────────────────
   const phMatureResult = await query(
@@ -342,8 +359,13 @@ async function releaseMatureHoldings(): Promise<void> {
      JOIN nft_products p ON ph.product_id = p.id
      JOIN users u ON ph.user_id = u.id
      WHERE ph.status = 'active'
-       AND ph.end_date IS NOT NULL
-       AND ph.end_date <= CURRENT_DATE`,
+       AND p.product_type = 'fixed_term'
+       AND p.term_days IS NOT NULL
+       AND (
+         (ph.end_date IS NOT NULL AND ph.end_date <= CURRENT_DATE)
+         OR
+         (ph.end_date IS NULL AND (ph.created_at + (p.term_days || ' days')::interval) <= CURRENT_TIMESTAMP)
+       )`,
     []
   );
 
@@ -405,26 +427,32 @@ async function releaseMatureHoldings(): Promise<void> {
     }
 
     console.log(`NFT mature release (product_holdings): completed. Success: ${phSuccessCount}, Failed: ${phErrorCount} out of ${phMatureResult.rows.length} holdings`);
+    totalSuccess += phSuccessCount;
   }
+
+  return totalSuccess;
 }
 
 /**
- * Main daily settlement function (income only — no principal release).
+ * Main daily settlement function (income + principal release).
  * Called by the daily cron at 10:05 UTC.
+ * Returns a summary of how many income records and principal refunds were processed.
  */
-export async function runNFTDailySettle(): Promise<void> {
+export async function runNFTDailySettle(): Promise<{ income_count: number; refund_count: number }> {
   if (isRunning) {
     console.log('NFT daily settle already running, skipping...');
-    return;
+    return { income_count: 0, refund_count: 0 };
   }
   isRunning = true;
   try {
     console.log('NFT daily settle: starting...');
-    await settleDailyIncome();
-    await releaseMatureHoldings();
-    console.log('NFT daily settle: complete');
+    const income_count = await settleDailyIncome();
+    const refund_count = await releaseMatureHoldings();
+    console.log(`NFT daily settle: complete. Income: ${income_count}, Refunds: ${refund_count}`);
+    return { income_count, refund_count };
   } catch (err: any) {
     console.error('NFT daily settle error:', err.message);
+    return { income_count: 0, refund_count: 0 };
   } finally {
     isRunning = false;
   }

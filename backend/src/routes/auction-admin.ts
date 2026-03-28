@@ -1,30 +1,14 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { drawWinner } from '../services/auction.service';
 
-// Disk storage for auction image uploads
-const auctionUploadDir = path.join(__dirname, '../../uploads/auction-images');
-if (!fs.existsSync(auctionUploadDir)) {
-  fs.mkdirSync(auctionUploadDir, { recursive: true });
-}
-
-const auctionStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, auctionUploadDir),
-  filename: (_req, file, cb) => {
-    const rawExt = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const ext = allowedExts.includes(rawExt) ? rawExt : '.jpg';
-    cb(null, `auction-img-${Date.now()}${ext}`);
-  },
-});
+// Memory storage for auction image uploads (base64 persisted in DB)
 const auctionUpload = multer({
-  storage: auctionStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Only image files are allowed'));
@@ -42,7 +26,9 @@ router.use(adminLimiter);
  */
 router.post('/upload-image', authenticateAdmin, auctionUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ success: true, url: `/uploads/auction-images/${req.file.filename}` });
+  const base64 = req.file.buffer.toString('base64');
+  const url = `data:${req.file.mimetype};base64,${base64}`;
+  res.json({ success: true, url });
 });
 
 /**
