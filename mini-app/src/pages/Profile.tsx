@@ -394,8 +394,8 @@ export const Profile: React.FC = () => {
                     const textColor = isLose ? undefined : goldColor;
                     const rawEntryPrice = matchedOrder.session_open_price != null ? matchedOrder.session_open_price : matchedOrder.entry_price;
                     const rawClosePrice = matchedOrder.session_close_price != null ? matchedOrder.session_close_price : matchedOrder.close_price;
-                    const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(4) : '--';
-                    const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(4) : '--';
+                    const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(2) : '--';
+                    const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(2) : '--';
                     const periodDisplay = matchedOrder.period_label ? matchedOrder.period_label.split('-').pop() ?? matchedOrder.period_label : '-';
                     let resultLabel;
                     if (isWin) {
@@ -572,8 +572,8 @@ export const Profile: React.FC = () => {
                   const textColor = isLose ? undefined : goldColor;
                   const rawEntryPrice = order.session_open_price != null ? order.session_open_price : order.entry_price;
                   const rawClosePrice = order.session_close_price != null ? order.session_close_price : order.close_price;
-                  const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(4) : '--';
-                  const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(4) : '--';
+                  const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(2) : '--';
+                  const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(2) : '--';
                   const periodDisplay = order.period_label ? order.period_label.split('-').pop() ?? order.period_label : '-';
 
                   let resultLabel: string;
