@@ -1,8 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
 import axios from 'axios';
 import { translateToAllLangs } from '../utils/translate';
 import { query, transaction } from '../db';
@@ -23,22 +20,11 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 // ─── Image upload setup ───────────────────────────────────────────────────────
 
-const uploadDir = path.join(__dirname, '../../uploads/nft');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for base64
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -499,20 +485,48 @@ router.put('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => 
 
 /**
  * DELETE /api/nft/products/:id
- * Delete NFT product (admin)
+ * Delete NFT product (admin) — physically deletes if no active holdings exist
  */
 router.delete('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
-    await query(
-      `UPDATE nft_products SET status = 'inactive' WHERE id = $1`,
+    // Check for active holdings before allowing deletion
+    const activeCheck = await query(
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT id FROM nft_holdings WHERE product_id = $1 AND status = 'active'
+         UNION ALL
+         SELECT id FROM product_holdings WHERE product_id = $1 AND status = 'active'
+       ) t`,
       [id]
     );
 
+    const activeCount = parseInt(activeCheck.rows[0].cnt, 10);
+    if (activeCount > 0) {
+      return res.status(400).json({
+        error: `无法删除：该产品还有 ${activeCount} 个活跃持有用户，请等待到期后再删除`,
+      });
+    }
+
+    await transaction(async (client) => {
+      // Delete income records (FK)
+      await client.query(`DELETE FROM nft_income_records WHERE product_id = $1`, [id])
+        .catch(() => {});
+
+      // Delete all holdings (expired / inactive)
+      await client.query(`DELETE FROM nft_holdings WHERE product_id = $1`, [id])
+        .catch(() => {});
+
+      await client.query(`DELETE FROM product_holdings WHERE product_id = $1`, [id])
+        .catch(() => {});
+
+      // Finally delete the product itself
+      await client.query(`DELETE FROM nft_products WHERE id = $1`, [id]);
+    });
+
     res.json({
       success: true,
-      message: 'Product deleted successfully',
+      message: '产品已彻底删除',
     });
   } catch (error: any) {
     console.error('Delete product error:', error);
@@ -910,14 +924,15 @@ router.get('/holdings/my', authenticateMiniApp, async (req: MiniAppAuthRequest, 
 
 /**
  * POST /api/nft/upload-image
- * Upload an NFT product image (admin) — returns a persistent URL (field: image)
+ * Upload an NFT product image (admin) — returns a Base64 Data URL (field: image)
  */
 router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: AuthRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const url = `/uploads/nft/${req.file.filename}`;
+    const base64 = req.file.buffer.toString('base64');
+    const url = `data:${req.file.mimetype};base64,${base64}`;
     res.json({ success: true, url });
   } catch (error: any) {
     console.error('Image upload error:', error);
@@ -927,7 +942,7 @@ router.post('/upload-image', authenticateAdmin, upload.single('image'), (req: Au
 
 /**
  * POST /api/nft/upload
- * Upload an NFT product image (admin) — returns a persistent URL (field: file)
+ * Upload an NFT product image (admin) — returns a Base64 Data URL (field: file)
  * Used by the Ant Design Upload component with action prop
  */
 router.post('/upload', authenticateAdmin, upload.single('file'), (req: AuthRequest, res) => {
@@ -935,7 +950,8 @@ router.post('/upload', authenticateAdmin, upload.single('file'), (req: AuthReque
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
-    const url = `/uploads/nft/${req.file.filename}`;
+    const base64 = req.file.buffer.toString('base64');
+    const url = `data:${req.file.mimetype};base64,${base64}`;
     res.json({ success: true, url });
   } catch (error: any) {
     console.error('Image upload error:', error);
@@ -1063,13 +1079,12 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
 router.post('/admin/settle/trigger', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     console.log(`[NFT Admin] Manual settle triggered by admin ${req.user?.username} (id=${req.user?.id})`);
-    // Run asynchronously so the HTTP response returns immediately
-    runNFTDailySettle().catch((err: any) => {
-      console.error('[NFT Admin] Manual settle error:', err.message);
-    });
+    const result = await runNFTDailySettle();
     res.json({
       success: true,
-      message: 'NFT daily settlement triggered. Check server logs for progress.',
+      message: `结算完成：处理了 ${result.income_count} 笔收益，退回了 ${result.refund_count} 笔本金`,
+      income_count: result.income_count,
+      refund_count: result.refund_count,
     });
   } catch (error: any) {
     console.error('Manual settle trigger error:', error);
