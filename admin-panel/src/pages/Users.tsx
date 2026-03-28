@@ -25,6 +25,18 @@ interface User {
   bot_display_name?: string;
 }
 
+interface Bot {
+  id: string;
+  name: string;
+  username?: string;
+}
+
+interface UserStats {
+  total_users: number;
+  recharged_users: number;
+  total_recharged_amount: number;
+}
+
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
@@ -71,10 +83,47 @@ const UsersPage: React.FC = () => {
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
   const [adjustType, setAdjustType] = useState<'add' | 'subtract'>('add');
   const [adjustReason, setAdjustReason] = useState('');
+  const [bots, setBots] = useState<Bot[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string>('');
+  const [selectedBotName, setSelectedBotName] = useState<string>('');
+  const [stats, setStats] = useState<UserStats | null>(null);
+
+  useEffect(() => {
+    fetchBots();
+  }, []);
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, accountFilter]);
+    fetchStats();
+  }, [currentPage, accountFilter, selectedBotId]);
+
+  const fetchBots = async () => {
+    try {
+      const response = await apiClient.getBots();
+      setBots(response.bots || []);
+    } catch (error) {
+      console.error('Failed to fetch bots:', error);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const params: any = {};
+      if (selectedBotId) params.botId = selectedBotId;
+      const response = await apiClient.get('/users/stats/overview', params);
+      const data = response.data;
+      const totalUsers = parseInt(data.total_users);
+      const rechargedUsers = parseInt(data.recharged_users);
+      const totalRechargedAmount = parseFloat(data.total_recharged_amount);
+      setStats({
+        total_users: Number.isFinite(totalUsers) ? totalUsers : 0,
+        recharged_users: Number.isFinite(rechargedUsers) ? rechargedUsers : 0,
+        total_recharged_amount: Number.isFinite(totalRechargedAmount) ? totalRechargedAmount : 0,
+      });
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -86,6 +135,7 @@ const UsersPage: React.FC = () => {
       
       if (search) params.search = search;
       if (accountFilter) params.account_status = accountFilter;
+      if (selectedBotId) params.botId = selectedBotId;
 
       const response = await apiClient.getUsers(params);
       setUsers(response.users || []);
@@ -103,6 +153,17 @@ const UsersPage: React.FC = () => {
   const handleSearch = () => {
     setCurrentPage(1);
     fetchUsers();
+  };
+
+  const handleBotChange = (value: string) => {
+    setSelectedBotId(value || '');
+    if (value) {
+      const bot = bots.find(b => b.id === value);
+      setSelectedBotName(bot ? (bot.username ? `@${bot.username}` : bot.name) : '');
+    } else {
+      setSelectedBotName('');
+    }
+    setCurrentPage(1);
   };
 
   const handleFreeze = async (userId: string) => {
@@ -278,12 +339,22 @@ const UsersPage: React.FC = () => {
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>用户管理</h2>
         <p style={{ color: '#666', marginTop: 4 }}>查看和管理所有用户</p>
+        {stats && (
+          <div style={{ color: '#52c41a', fontSize: 14, marginTop: 8 }}>
+            用户总数: <strong>{stats.total_users}</strong>
+            &nbsp;&nbsp;&nbsp;充值用户数: <strong>{stats.recharged_users}</strong>
+            &nbsp;&nbsp;&nbsp;充值总额: <strong>${stats.total_recharged_amount.toFixed(2)}</strong>
+            {selectedBotName && (
+              <span style={{ marginLeft: 16 }}>Bot: <strong>{selectedBotName}</strong></span>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8 }}>
         <Space wrap style={{ width: '100%' }}>
           <Search
-            placeholder="搜索用户名、Bot ID..."
+            placeholder="搜索用户名、Bot ID、用户ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onSearch={handleSearch}
@@ -300,6 +371,20 @@ const UsersPage: React.FC = () => {
             <Select.Option value="active">正常</Select.Option>
             <Select.Option value="suspended">暂停</Select.Option>
             <Select.Option value="banned">封禁</Select.Option>
+          </Select>
+          <Select
+            placeholder="全部 Bot"
+            value={selectedBotId || undefined}
+            onChange={handleBotChange}
+            style={{ width: 180 }}
+            allowClear
+            onClear={() => handleBotChange('')}
+          >
+            {bots.map((bot) => (
+              <Select.Option key={bot.id} value={bot.id}>
+                {bot.username ? `@${bot.username}` : bot.name}
+              </Select.Option>
+            ))}
           </Select>
         </Space>
       </div>

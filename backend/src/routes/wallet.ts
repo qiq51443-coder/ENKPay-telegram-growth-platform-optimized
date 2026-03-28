@@ -260,11 +260,14 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
 
     // Get sender's bot_id to restrict recipient search to the same bot
     const senderBotResult = await query(
-      `SELECT bot_id FROM users WHERE id = $1`,
+      `SELECT bot_id, is_frozen FROM users WHERE id = $1`,
       [from_user_id]
     );
     if (senderBotResult.rows.length === 0) {
       return res.status(404).json({ error: 'Sender not found' });
+    }
+    if (senderBotResult.rows[0].is_frozen) {
+      return res.status(400).json({ error: 'Account is frozen. Transfer is not allowed.' });
     }
     const senderBotId = senderBotResult.rows[0].bot_id;
 
@@ -459,6 +462,15 @@ router.post('/withdraw', authenticateBot, async (req: AuthRequest, res) => {
     const withdrawAmount = parseFloat(amount);
     if (withdrawAmount <= 0) {
       return res.status(400).json({ error: 'Invalid withdrawal amount' });
+    }
+
+    // Check if user account is frozen
+    const frozenCheckResult = await query(`SELECT is_frozen FROM users WHERE id = $1`, [user_id]);
+    if (frozenCheckResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (frozenCheckResult.rows[0].is_frozen) {
+      return res.status(400).json({ error: 'Account is frozen. Withdrawal is not allowed.' });
     }
 
     // Validate withdrawal

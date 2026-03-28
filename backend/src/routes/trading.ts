@@ -411,6 +411,12 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
       return res.status(400).json({ error: 'Invalid order amount' });
     }
 
+    // Check if user account is frozen
+    const frozenCheck = await query(`SELECT is_frozen FROM users WHERE id = $1`, [user_id]);
+    if (frozenCheck.rows.length > 0 && frozenCheck.rows[0].is_frozen) {
+      return res.status(400).json({ error: 'Account is frozen. Trading is not allowed.' });
+    }
+
     const result = await transaction(async (client) => {
       // Get session details
       const sessionResult = await client.query(
@@ -753,12 +759,16 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
 
     // Look up the internal database user ID from the Telegram user ID (trusted from middleware)
     const userLookup = await query(
-      `SELECT id FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      `SELECT id, is_frozen FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1`,
       [telegramId]
     );
 
     if (userLookup.rows.length === 0) {
       return res.status(404).json({ error: 'User account not initialized. Please open the app home screen first.' });
+    }
+
+    if (userLookup.rows[0].is_frozen) {
+      return res.status(400).json({ error: 'Account is frozen. Trading is not allowed.' });
     }
 
     const user_id = userLookup.rows[0].id;

@@ -33,7 +33,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     if (search) {
       params.push(`%${search}%`);
-      queryText += ` AND (u.username ILIKE $${params.length} OR u.first_name ILIKE $${params.length} OR u.robot_user_id ILIKE $${params.length})`;
+      queryText += ` AND (u.username ILIKE $${params.length} OR u.first_name ILIKE $${params.length} OR u.robot_user_id ILIKE $${params.length} OR u.unique_id ILIKE $${params.length})`;
     }
 
     if (account_status) {
@@ -60,7 +60,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
     }
     if (search) {
       countParams.push(`%${search}%`);
-      countQuery += ` AND (username ILIKE $${countParams.length} OR first_name ILIKE $${countParams.length} OR robot_user_id ILIKE $${countParams.length})`;
+      countQuery += ` AND (username ILIKE $${countParams.length} OR first_name ILIKE $${countParams.length} OR robot_user_id ILIKE $${countParams.length} OR unique_id ILIKE $${countParams.length})`;
     }
 
     if (account_status) {
@@ -430,7 +430,9 @@ router.get('/stats/overview', authenticateAdmin, async (req: AuthRequest, res) =
         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as new_today,
         COUNT(*) FILTER (WHERE last_active_at > NOW() - INTERVAL '24 hours') as active_today,
         SUM(balance) as total_balance,
-        AVG(balance) as avg_balance
+        AVG(balance) as avg_balance,
+        COUNT(*) FILTER (WHERE total_recharged > 0) as recharged_users,
+        COALESCE(SUM(total_recharged), 0) as total_recharged_amount
       FROM users ${whereClause}
     `, params);
 
@@ -450,6 +452,34 @@ router.post('/:id/freeze', adminLimiter, authenticateAdmin, async (req: AuthRequ
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    // Send freeze notification via Telegram bot
+    try {
+      const frozenUser = result.rows[0];
+      if (frozenUser.bot_id && frozenUser.telegram_id) {
+        const botResult = await query('SELECT token FROM bots WHERE id = $1', [frozenUser.bot_id]);
+        if (botResult.rows.length > 0) {
+          const token = botResult.rows[0].token;
+          const freezeMessages: Record<string, string> = {
+            zh: '您因违反规则账号已被管理员冻结，如需申诉，请联系客服',
+            en: 'Your account has been frozen by the administrator due to a violation of the rules. If you wish to appeal, please contact customer service.',
+            fr: 'Votre compte a été gelé par l\'administrateur en raison d\'une violation des règles. Si vous souhaitez faire appel, veuillez contacter le service client.',
+            es: 'Su cuenta ha sido congelada por el administrador debido a una violación de las reglas. Si desea apelar, comuníquese con el servicio al cliente.',
+            ar: 'تم تجميد حسابك من قبل المسؤول بسبب انتهاك القواعد. إذا كنت ترغب في الاستئناف، يرجى الاتصال بخدمة العملاء.',
+            ja: '規則違反のため、管理者によってアカウントが凍結されました。異議申し立てをご希望の場合は、カスタマーサービスにお問い合わせください。',
+          };
+          const lang = String(frozenUser.language_code || 'en');
+          const msgBody = freezeMessages[lang] ?? freezeMessages['en'];
+          const msgText = `🔒 ${msgBody}`;
+          await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+            chat_id: frozenUser.telegram_id,
+            text: msgText,
+            parse_mode: 'HTML',
+          }).catch((err) => console.debug('Freeze notification failed:', err));
+        }
+      }
+    } catch (err) { console.debug('Freeze notification error:', err); }
+
     res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Freeze user error:', error);
