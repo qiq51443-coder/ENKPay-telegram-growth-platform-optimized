@@ -59,9 +59,14 @@ export async function drawWinner(auctionId: string): Promise<void> {  await tran
     const auction = auctionResult.rows[0];
 
     // Only block if already drawn or explicitly cancelled
-    if (auction.winner_id || auction.status === 'cancelled') {
-      throw new Error(`Auction cannot be drawn: status=${auction.status}, winner=${auction.winner_id}`);
+    if (auction.winner_id) {
+      throw new Error(`Auction has already been drawn`);
     }
+    if (auction.status === 'cancelled') {
+      throw new Error(`Cannot draw a cancelled auction`);
+    }
+    // Allow draw for both 'active' and 'expired' status
+    // (expired auctions that are fully subscribed can still be drawn by admin)
 
     // 2. Get all participants and expand into a weighted pool
     const participantsResult = await client.query(

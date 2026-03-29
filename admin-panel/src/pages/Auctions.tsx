@@ -289,6 +289,9 @@ export const Auctions: React.FC = () => {
                 🏆 {record.winner_unique_id}
               </div>
             )}
+            {status === 'expired' && record.current_participants >= record.participant_count && (
+              <Tag color="blue" style={{ marginTop: 2, fontSize: '11px' }}>满员</Tag>
+            )}
           </div>
         );
       },
@@ -349,7 +352,7 @@ export const Auctions: React.FC = () => {
               </Button>
             </Popconfirm>
           )}
-          {(record.status === 'active' || record.status === 'completed') && !record.winner_unique_id && (
+          {(record.status === 'active' || record.status === 'expired' || record.status === 'completed') && !record.winner_unique_id && (
             <Button
               type="primary"
               size="small"
