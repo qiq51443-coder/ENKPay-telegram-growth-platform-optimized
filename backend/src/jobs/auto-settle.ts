@@ -371,6 +371,35 @@ async function autoSettleSessions(): Promise<void> {
           }
         }
 
+        // -----------------------------------------------------------------------
+        // Price alignment: when a result direction override is applied (pay_more /
+        // pay_less / preset / random scheduled direction), the stored settlement
+        // price MUST be consistent with that direction so that the admin panel
+        // shows the correct "涨/跌" result.
+        //
+        // If closePrice already agrees with the override, nothing changes.
+        // If it disagrees (e.g. override = 'up' but closePrice <= openPrice),
+        // we synthesise a minimal synthetic price that satisfies the direction
+        // while keeping the price movement realistic (±0.1%).
+        // -----------------------------------------------------------------------
+        const PRICE_ADJUSTMENT_UP = 1.001;
+        const PRICE_ADJUSTMENT_DOWN = 0.999;
+        if (resultDirectionOverride && openPrice !== null && openPrice > 0) {
+          if (resultDirectionOverride === 'up' && closePrice <= openPrice) {
+            closePrice = parseFloat((openPrice * PRICE_ADJUSTMENT_UP).toFixed(4));
+            console.log(
+              `[auto-settle] session ${session.id}: synthetic close_price=${closePrice} ` +
+              `(override=up, original closePrice was <= openPrice=${openPrice})`
+            );
+          } else if (resultDirectionOverride === 'down' && closePrice >= openPrice) {
+            closePrice = parseFloat((openPrice * PRICE_ADJUSTMENT_DOWN).toFixed(4));
+            console.log(
+              `[auto-settle] session ${session.id}: synthetic close_price=${closePrice} ` +
+              `(override=down, original closePrice was >= openPrice=${openPrice})`
+            );
+          }
+        }
+
         // Delegate all settlement logic to the unified service function
         const summary = await settleSession(
           session.id,
