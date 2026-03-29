@@ -18,6 +18,7 @@ import { startPriceGenerator } from './services/price-generator.service';
 import { startNFTDailySettle } from './jobs/nft-daily-settle';
 import { startRealPriceSnapshot } from './jobs/real-price-snapshot';
 import { startRealPriceSync, stopRealPriceSync } from './services/real-price-sync.service';
+import { startCharityProgressJob } from './jobs/charity-progress.job';
 import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
@@ -262,6 +263,9 @@ const startServer = async () => {
 
     // Start real price sync job (syncs 24h change for real pairs every 60s)
     startRealPriceSync();
+
+    // Start charity progress auto-increment job
+    startCharityProgressJob();
 
     const server = http.createServer(app);
 
