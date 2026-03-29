@@ -164,7 +164,10 @@ export const Auctions: React.FC = () => {
     if (!selectedAuction) return;
     setDrawing(true);
     try {
-      await apiClient.drawLuckyAuction(selectedAuction.id);
+      const payload = selectedAuction.preset_winner_unique_id
+        ? { preset_winner_unique_id: selectedAuction.preset_winner_unique_id }
+        : {};
+      await apiClient.drawLuckyAuction(selectedAuction.id, payload);
       message.success('开奖成功');
       setDrawModalOpen(false);
       fetchAuctions();
@@ -356,7 +359,7 @@ export const Auctions: React.FC = () => {
               开奖
             </Button>
           )}
-          {record.status === 'expired' && (
+          {(record.status === 'completed' || record.status === 'expired') && (
             <Space size={4}>
               <span style={{ fontSize: '12px', color: '#666' }}>展示开奖结果</span>
               <Switch
