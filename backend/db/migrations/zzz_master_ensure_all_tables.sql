@@ -173,8 +173,11 @@ CREATE TABLE IF NOT EXISTS lucky_auctions (
   drawn_at TIMESTAMPTZ,
   created_by UUID,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  show_in_mini_app BOOLEAN NOT NULL DEFAULT false
 );
+-- Ensure show_in_mini_app column exists on lucky_auctions
+ALTER TABLE lucky_auctions ADD COLUMN IF NOT EXISTS show_in_mini_app BOOLEAN NOT NULL DEFAULT false;
 
 -- lucky_auction_entries (required by lucky auction participation)
 CREATE TABLE IF NOT EXISTS lucky_auction_entries (
