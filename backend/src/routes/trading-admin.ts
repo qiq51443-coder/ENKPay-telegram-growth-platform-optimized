@@ -23,7 +23,7 @@ const iconStorage = multer.diskStorage({
 });
 const iconUpload = multer({
   storage: iconStorage,
-  limits: { fileSize: 200 * 1024 }, // 200 KB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -1015,14 +1015,26 @@ router.post(
         return res.status(400).json({ error: 'No icon file uploaded (field name: icon)' });
       }
       const iconUrl = `/uploads/coin-icons/${req.file.filename}`;
+
+      // Delete old icon file if it was a locally-uploaded one
+      const existing = await query('SELECT icon_url FROM trading_pairs WHERE id = $1', [id]);
+      if (existing.rows.length > 0) {
+        const oldIconUrl: string | null = existing.rows[0].icon_url;
+        if (oldIconUrl && oldIconUrl.startsWith('/uploads/coin-icons/')) {
+          const oldFilename = oldIconUrl.replace('/uploads/coin-icons/', '');
+          const oldFilePath = path.join(iconUploadDir, oldFilename);
+          fs.unlink(oldFilePath, () => { /* ignore errors */ });
+        }
+      }
+
       const result = await query(
-        'UPDATE trading_pairs SET icon_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        'UPDATE trading_pairs SET icon_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING icon_url',
         [iconUrl, id]
       );
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Trading pair not found' });
       }
-      res.json({ success: true, data: result.rows[0], icon_url: iconUrl });
+      res.json({ success: true, data: { icon_url: iconUrl } });
     } catch (error: any) {
       console.error('Upload icon error:', error);
       res.status(500).json({ error: error.message });
@@ -1446,6 +1458,198 @@ router.get('/pairs-with-open-price', adminLimiter, authenticateAdmin, async (req
     res.json({ success: true, data });
   } catch (error: any) {
     console.error('Get pairs with open price error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Result-mode control routes (three-mode settlement system)
+// ---------------------------------------------------------------------------
+
+/**
+ * PUT /api/admin/trading/pairs/:id/result-mode
+ * Set the result control mode for a custom trading pair.
+ */
+router.put('/pairs/:id/result-mode', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { mode, duration_seconds, preset_periods = 50, up_periods = 0, down_periods = 0 } = req.body;
+
+    const validModes = ['random', 'preset', 'pay_more', 'pay_less'];
+    if (!validModes.includes(mode)) {
+      return res.status(400).json({ error: `mode 必须是以下之一: ${validModes.join(', ')}` });
+    }
+    const validDurations = [60, 300, 600];
+    if (!validDurations.includes(Number(duration_seconds))) {
+      return res.status(400).json({ error: 'duration_seconds 必须是 60、300 或 600 之一' });
+    }
+    if (Number(preset_periods) > 300 || Number(preset_periods) < 1) {
+      return res.status(400).json({ error: 'preset_periods 范围为 1~300' });
+    }
+
+    // Mutual-exclusion check
+    const pairRes = await query('SELECT result_mode_locked_duration FROM trading_pairs WHERE id = $1', [id]);
+    if (pairRes.rows.length === 0) return res.status(404).json({ error: 'Trading pair not found' });
+
+    const lockedDuration: number | null = pairRes.rows[0].result_mode_locked_duration;
+    if (lockedDuration != null && lockedDuration !== Number(duration_seconds)) {
+      const mins = Math.floor(lockedDuration / 60);
+      return res.status(400).json({ error: `已有时段 ${mins}min 被锁定，请先清除该时段的设置` });
+    }
+
+    // Delete unconsumed schedule entries for this pair + duration
+    await query(
+      'DELETE FROM pair_result_schedule WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE',
+      [id, duration_seconds]
+    );
+
+    // Generate schedule entries based on mode
+    const directions: ('up' | 'down')[] = [];
+    if (mode === 'random') {
+      for (let i = 0; i < Number(preset_periods); i++) {
+        directions.push(Math.random() < 0.5 ? 'up' : 'down');
+      }
+    } else if (mode === 'preset') {
+      const up = Number(up_periods);
+      const down = Number(down_periods);
+      const total = Number(preset_periods);
+      if (up + down > total) {
+        return res.status(400).json({ error: 'up_periods + down_periods 不能超过 preset_periods' });
+      }
+      const arr: ('up' | 'down')[] = [
+        ...Array(up).fill('up' as const),
+        ...Array(down).fill('down' as const),
+        ...Array(total - up - down).fill('up' as const).map(() => Math.random() < 0.5 ? 'up' as const : 'down' as const),
+      ];
+      // Fisher-Yates shuffle
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      directions.push(...arr);
+    }
+    // pay_more / pay_less: generate 0 records (runtime dynamic)
+
+    // Bulk insert schedule entries
+    if (directions.length > 0) {
+      const values = directions.map((dir, idx) => `($1, $2, ${idx + 1}, '${dir}')`).join(', ');
+      await query(
+        `INSERT INTO pair_result_schedule (pair_id, duration_seconds, seq, direction) VALUES ${values}`,
+        [id, duration_seconds]
+      );
+    }
+
+    // Update trading_pairs
+    const paramsJson = { preset_periods: Number(preset_periods), up_periods: Number(up_periods), down_periods: Number(down_periods) };
+    await query(
+      `UPDATE trading_pairs SET result_mode = $1, result_mode_params = $2, result_mode_locked_duration = $3 WHERE id = $4`,
+      [mode, JSON.stringify(paramsJson), duration_seconds, id]
+    );
+
+    res.json({
+      success: true,
+      mode,
+      locked_duration: Number(duration_seconds),
+      preview: directions,
+    });
+  } catch (error: any) {
+    console.error('Set result mode error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/trading/pairs/:id/result-preview
+ * Get the upcoming result direction schedule for a custom pair.
+ */
+router.get('/pairs/:id/result-preview', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { duration_seconds } = req.query;
+
+    const pairRes = await query(
+      'SELECT result_mode, result_mode_params, result_mode_locked_duration FROM trading_pairs WHERE id = $1',
+      [id]
+    );
+    if (pairRes.rows.length === 0) return res.status(404).json({ error: 'Trading pair not found' });
+
+    const pair = pairRes.rows[0];
+    const effectiveDuration = Number(duration_seconds) || pair.result_mode_locked_duration;
+
+    // Unconsumed upcoming entries
+    const unconsumedRes = await query(
+      `SELECT seq, direction, consumed, period_label FROM pair_result_schedule
+       WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
+       ORDER BY seq ASC`,
+      [id, effectiveDuration]
+    );
+
+    // Most recent 20 consumed entries
+    const consumedRes = await query(
+      `SELECT seq, direction, consumed, period_label FROM pair_result_schedule
+       WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = TRUE
+       ORDER BY seq DESC LIMIT 20`,
+      [id, effectiveDuration]
+    );
+
+    let nextDynamic: string | null = null;
+    if (pair.result_mode === 'pay_more' || pair.result_mode === 'pay_less') {
+      // Determine expected direction from current active session bets
+      const activeBets = await query(
+        `SELECT SUM(CASE WHEN o.direction='up' THEN o.amount ELSE 0 END) AS up_amount,
+                SUM(CASE WHEN o.direction='down' THEN o.amount ELSE 0 END) AS down_amount
+         FROM trading_sessions ts
+         JOIN trading_orders o ON o.session_id = ts.id
+         WHERE ts.pair_id = $1 AND ts.status IN ('active','pending')
+           AND ts.duration_seconds = $2
+           AND o.status IN ('active','pending')`,
+        [id, effectiveDuration]
+      );
+      const upAmt = parseFloat(activeBets.rows[0]?.up_amount ?? '0');
+      const downAmt = parseFloat(activeBets.rows[0]?.down_amount ?? '0');
+      if (pair.result_mode === 'pay_more') {
+        // favor majority (platform pays more to attract users)
+        nextDynamic = upAmt >= downAmt ? 'up' : 'down';
+      } else {
+        // favor minority (platform profits more)
+        nextDynamic = upAmt < downAmt ? 'up' : 'down';
+      }
+    }
+
+    const preview = [
+      ...consumedRes.rows.reverse().map((r: any) => ({ ...r, consumed: true })),
+      ...unconsumedRes.rows.map((r: any) => ({ ...r, consumed: false })),
+    ];
+
+    res.json({
+      success: true,
+      mode: pair.result_mode,
+      locked_duration: pair.result_mode_locked_duration,
+      result_mode_params: pair.result_mode_params,
+      next_dynamic: nextDynamic,
+      preview,
+    });
+  } catch (error: any) {
+    console.error('Get result preview error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/trading/pairs/:id/result-mode
+ * Clear the result mode lock and all unconsumed schedule entries.
+ */
+router.delete('/pairs/:id/result-mode', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await query('DELETE FROM pair_result_schedule WHERE pair_id = $1 AND consumed = FALSE', [id]);
+    await query(
+      `UPDATE trading_pairs SET result_mode = 'random', result_mode_locked_duration = NULL WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Clear result mode error:', error);
     res.status(500).json({ error: error.message });
   }
 });

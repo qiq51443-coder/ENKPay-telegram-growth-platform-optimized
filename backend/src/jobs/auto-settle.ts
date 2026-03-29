@@ -276,8 +276,11 @@ async function autoSettleSessions(): Promise<void> {
          ts.status,
          ts.open_price,
          ts.settlement_price,
+         ts.duration_seconds,
          tp.pair_type,
-         tp.binance_symbol
+         tp.binance_symbol,
+         tp.result_mode,
+         tp.result_mode_locked_duration
        FROM trading_sessions ts
        LEFT JOIN trading_pairs tp ON ts.pair_id = tp.id
        WHERE ts.end_time <= NOW()
@@ -320,11 +323,65 @@ async function autoSettleSessions(): Promise<void> {
         // Resolve open price (pass to service so it doesn't need a second DB look-up)
         const openPrice = await fetchOpenPrice(session);
 
+        // For custom pairs, check if there is a pre-scheduled result direction
+        let resultDirectionOverride: 'up' | 'down' | undefined;
+        if (session.pair_type === 'custom' && session.result_mode && session.result_mode !== 'random') {
+          const effectiveDuration = session.result_mode_locked_duration ?? session.duration_seconds;
+          if (session.result_mode === 'pay_more' || session.result_mode === 'pay_less') {
+            // Dynamic: settle against or in favor of the majority bet
+            const bets = await query(
+              `SELECT SUM(CASE WHEN direction='up' THEN amount ELSE 0 END) AS up_amount,
+                      SUM(CASE WHEN direction='down' THEN amount ELSE 0 END) AS down_amount
+               FROM trading_orders WHERE session_id = $1 AND status IN ('active','pending')`,
+              [session.id]
+            );
+            const upAmt = parseFloat(bets.rows[0]?.up_amount ?? '0');
+            const downAmt = parseFloat(bets.rows[0]?.down_amount ?? '0');
+            if (session.result_mode === 'pay_more') {
+              resultDirectionOverride = upAmt >= downAmt ? 'up' : 'down';
+            } else {
+              resultDirectionOverride = upAmt < downAmt ? 'up' : 'down';
+            }
+          } else if (session.result_mode === 'preset') {
+            // Consume next scheduled direction
+            const schedRes = await query(
+              `UPDATE pair_result_schedule SET consumed = TRUE
+               WHERE id = (
+                 SELECT id FROM pair_result_schedule
+                 WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
+                 ORDER BY seq ASC LIMIT 1
+               )
+               RETURNING direction`,
+              [session.pair_id, effectiveDuration]
+            );
+            if (schedRes.rows.length > 0) {
+              resultDirectionOverride = schedRes.rows[0].direction as 'up' | 'down';
+            }
+          }
+        } else if (session.pair_type === 'custom' && session.result_mode === 'random') {
+          // Consume next scheduled direction (pre-generated random sequence)
+          const effectiveDuration = session.result_mode_locked_duration ?? session.duration_seconds;
+          const schedRes = await query(
+            `UPDATE pair_result_schedule SET consumed = TRUE
+             WHERE id = (
+               SELECT id FROM pair_result_schedule
+               WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
+               ORDER BY seq ASC LIMIT 1
+             )
+             RETURNING direction`,
+            [session.pair_id, effectiveDuration]
+          );
+          if (schedRes.rows.length > 0) {
+            resultDirectionOverride = schedRes.rows[0].direction as 'up' | 'down';
+          }
+        }
+
         // Delegate all settlement logic to the unified service function
         const summary = await settleSession(
           session.id,
           closePrice,
-          openPrice ?? undefined
+          openPrice ?? undefined,
+          resultDirectionOverride
         );
 
         console.log(

@@ -401,7 +401,8 @@ export async function settleOrder(
 export async function settleSession(
   sessionId: string,
   closePrice: number,
-  openPrice?: number
+  openPrice?: number,
+  resultDirectionOverride?: 'up' | 'down'
 ): Promise<SessionSettlementSummary> {
   return await transaction(async (client) => {
     // Acquire row-level lock to prevent concurrent settle / cancel races
@@ -464,8 +465,8 @@ export async function settleSession(
       resolvedOpenPrice = closePrice;
     }
 
-    // Compute result direction from prices
-    const resultDirection = determineResultDirection(resolvedOpenPrice, closePrice);
+    // Compute result direction from prices (or use admin override)
+    const resultDirection = resultDirectionOverride ?? determineResultDirection(resolvedOpenPrice, closePrice);
 
     // Resolve rule odds
     let ruleOdds = 1.85;

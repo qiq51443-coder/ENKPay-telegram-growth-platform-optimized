@@ -744,6 +744,30 @@ class ApiClient {
     return response.data;
   }
 
+  // Result mode control (three-mode settlement system)
+  async setResultMode(id: string, params: {
+    mode: 'random' | 'preset' | 'pay_more' | 'pay_less';
+    duration_seconds: 60 | 300 | 600;
+    preset_periods?: number;
+    up_periods?: number;
+    down_periods?: number;
+  }) {
+    const response = await this.client.put(`/admin/trading/pairs/${id}/result-mode`, params);
+    return response.data;
+  }
+
+  async getResultPreview(id: string, duration_seconds?: number) {
+    const response = await this.client.get(`/admin/trading/pairs/${id}/result-preview`, {
+      params: duration_seconds != null ? { duration_seconds } : {},
+    });
+    return response.data;
+  }
+
+  async clearResultMode(id: string) {
+    const response = await this.client.delete(`/admin/trading/pairs/${id}/result-mode`);
+    return response.data;
+  }
+
   // File upload helper
   getFileUrl(fileId: string, botToken: string): string {
     return `https://api.telegram.org/file/bot${botToken}/${fileId}`;
