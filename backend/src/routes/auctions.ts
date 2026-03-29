@@ -61,13 +61,20 @@ router.get('/results', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await query(
-      `SELECT * FROM lucky_auction_results
-       ORDER BY created_at DESC
+      `SELECT lar.*
+       FROM lucky_auction_results lar
+       JOIN lucky_auctions la ON lar.auction_id = la.id
+       WHERE la.show_in_mini_app = true
+       ORDER BY lar.created_at DESC
        LIMIT $1 OFFSET $2`,
       [Number(limit), offset]
     );
 
-    const countResult = await query(`SELECT COUNT(*) FROM lucky_auction_results`, []);
+    const countResult = await query(
+      `SELECT COUNT(*) FROM lucky_auction_results lar
+       WHERE EXISTS (SELECT 1 FROM lucky_auctions la WHERE la.id = lar.auction_id AND la.show_in_mini_app = true)`,
+      []
+    );
 
     res.json({
       success: true,
