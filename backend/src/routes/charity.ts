@@ -3,6 +3,7 @@ import multer from 'multer';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
+import { translateToAllLangs } from '../utils/translate';
 
 const router = express.Router();
 
@@ -92,6 +93,7 @@ router.delete('/banners/:id', adminLimiter, authenticateAdmin, async (req: AuthR
 router.get('/projects', async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
+    const lang = (req.query.lang as string) || 'zh';
     const offset = (Number(page) - 1) * Number(limit);
 
     let queryText = `
@@ -102,7 +104,8 @@ router.get('/projects', async (req, res) => {
         status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
         ambassador_telegram, is_active, show_in_app,
         progress_override, progress_images,
-        progress_auto_increment, progress_increment_rate, progress_increment_interval
+        progress_auto_increment, progress_increment_rate, progress_increment_interval,
+        title_i18n, description_i18n
       FROM charity_projects
       WHERE 1=1
     `;
@@ -122,6 +125,13 @@ router.get('/projects', async (req, res) => {
     queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
     const result = await query(queryText, params);
+
+    result.rows.forEach(row => {
+      const titleI18n = typeof row.title_i18n === 'string' ? JSON.parse(row.title_i18n) : (row.title_i18n || {});
+      const descI18n = typeof row.description_i18n === 'string' ? JSON.parse(row.description_i18n) : (row.description_i18n || {});
+      if (titleI18n[lang]) row.title = titleI18n[lang];
+      if (descI18n[lang]) row.description = descI18n[lang];
+    });
 
     let countQuery = 'SELECT COUNT(*) FROM charity_projects WHERE 1=1';
     const countParams: any[] = [];
@@ -157,6 +167,7 @@ router.get('/projects', async (req, res) => {
 router.get('/projects/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const lang = (req.query.lang as string) || 'zh';
 
     const result = await query(
       `SELECT * FROM charity_projects WHERE id = $1`,
@@ -167,9 +178,15 @@ router.get('/projects/:id', async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
+    const row = result.rows[0];
+    const titleI18n = typeof row.title_i18n === 'string' ? JSON.parse(row.title_i18n) : (row.title_i18n || {});
+    const descI18n = typeof row.description_i18n === 'string' ? JSON.parse(row.description_i18n) : (row.description_i18n || {});
+    if (titleI18n[lang]) row.title = titleI18n[lang];
+    if (descI18n[lang]) row.description = descI18n[lang];
+
     res.json({
       success: true,
-      data: result.rows[0],
+      data: row,
     });
   } catch (error: any) {
     console.error('Get project error:', error);
@@ -242,11 +259,29 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       ]
     );
 
+    const createdRow = result.rows[0];
     res.json({
       success: true,
-      data: result.rows[0],
+      data: createdRow,
       message: 'Charity project created successfully',
     });
+
+    // Async translation — does not block response
+    setImmediate(async () => {
+      try {
+        const [titleI18n, descI18n] = await Promise.all([
+          title ? translateToAllLangs(title) : Promise.resolve({}),
+          description ? translateToAllLangs(description) : Promise.resolve({}),
+        ]);
+        await query(
+          'UPDATE charity_projects SET title_i18n = $1, description_i18n = $2 WHERE id = $3',
+          [JSON.stringify(titleI18n), JSON.stringify(descI18n), createdRow.id]
+        );
+      } catch (e) {
+        console.error('[charity] async translation failed for project', createdRow.id, e);
+      }
+    });
+    return;
   } catch (error: any) {
     console.error('Create project error:', error);
     res.status(500).json({ error: error.message });
@@ -283,6 +318,8 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       progress_auto_increment: 'progress_auto_increment',
       progress_increment_rate: 'progress_increment_rate',
       progress_increment_interval: 'progress_increment_interval',
+      title_i18n: 'title_i18n',
+      description_i18n: 'description_i18n',
     };
 
     for (const [frontendField, dbField] of Object.entries(fieldMapping)) {
@@ -319,8 +356,62 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       data: result.rows[0],
       message: 'Project updated successfully',
     });
+
+    // Async re-translation when title or description changes
+    const updatedTitle = req.body.title;
+    const updatedDesc = req.body.description;
+    if (updatedTitle !== undefined || updatedDesc !== undefined) {
+      setImmediate(async () => {
+        try {
+          const [newTitleI18n, newDescI18n] = await Promise.all([
+            updatedTitle !== undefined ? translateToAllLangs(updatedTitle || '') : Promise.resolve(null),
+            updatedDesc !== undefined ? translateToAllLangs(updatedDesc || '') : Promise.resolve(null),
+          ]);
+          const updates: string[] = [];
+          const tParams: (string | number)[] = [];
+          if (newTitleI18n !== null) { tParams.push(JSON.stringify(newTitleI18n)); updates.push(`title_i18n = $${tParams.length}`); }
+          if (newDescI18n !== null) { tParams.push(JSON.stringify(newDescI18n)); updates.push(`description_i18n = $${tParams.length}`); }
+          if (updates.length > 0) {
+            tParams.push(id);
+            await query(`UPDATE charity_projects SET ${updates.join(', ')} WHERE id = $${tParams.length}`, tParams);
+          }
+        } catch (e) {
+          console.error('[charity] async re-translation failed for project', id, e);
+        }
+      });
+    }
   } catch (error: any) {
     console.error('Update project error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/charity/projects/:id/translate
+ * Manually trigger re-translation of title and description (admin)
+ */
+router.post('/projects/:id/translate', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const projectResult = await query(
+      'SELECT title, description FROM charity_projects WHERE id = $1',
+      [id]
+    );
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const { title, description } = projectResult.rows[0];
+    const [titleI18n, descI18n] = await Promise.all([
+      title ? translateToAllLangs(title) : Promise.resolve({}),
+      description ? translateToAllLangs(description) : Promise.resolve({}),
+    ]);
+    await query(
+      'UPDATE charity_projects SET title_i18n = $1, description_i18n = $2 WHERE id = $3',
+      [JSON.stringify(titleI18n), JSON.stringify(descI18n), id]
+    );
+    res.json({ success: true, title_i18n: titleI18n, description_i18n: descI18n });
+  } catch (error: any) {
+    console.error('Translate project error:', error);
     res.status(500).json({ error: error.message });
   }
 });

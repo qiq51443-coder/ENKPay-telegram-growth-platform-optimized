@@ -805,6 +805,11 @@ class ApiClient {
     const response = await this.client.delete(`/charity/banners/${id}`);
     return response.data;
   }
+
+  async translateCharityProject(id: string | number) {
+    const response = await this.client.post(`/charity/projects/${id}/translate`);
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();
