@@ -1023,7 +1023,7 @@ router.post(
         if (oldIconUrl && oldIconUrl.startsWith('/uploads/coin-icons/')) {
           const oldFilename = oldIconUrl.replace('/uploads/coin-icons/', '');
           const oldFilePath = path.join(iconUploadDir, oldFilename);
-          fs.unlink(oldFilePath, () => { /* ignore errors */ });
+          fs.unlink(oldFilePath, (err) => { if (err) console.warn('Failed to delete old icon:', err.message); });
         }
       }
 
@@ -1530,12 +1530,13 @@ router.put('/pairs/:id/result-mode', authenticateAdmin, async (req: AuthRequest,
     }
     // pay_more / pay_less: generate 0 records (runtime dynamic)
 
-    // Bulk insert schedule entries
+    // Bulk insert schedule entries using fully parameterized query
     if (directions.length > 0) {
-      const values = directions.map((dir, idx) => `($1, $2, ${idx + 1}, '${dir}')`).join(', ');
+      const paramOffset = 3; // $1=pair_id, $2=duration_seconds, then $3...$N for directions
+      const values = directions.map((_, idx) => `($1, $2, ${idx + 1}, $${paramOffset + idx})`).join(', ');
       await query(
         `INSERT INTO pair_result_schedule (pair_id, duration_seconds, seq, direction) VALUES ${values}`,
-        [id, duration_seconds]
+        [id, duration_seconds, ...directions]
       );
     }
 

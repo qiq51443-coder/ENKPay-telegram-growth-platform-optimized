@@ -259,6 +259,31 @@ async function fetchOpenPrice(session: {
 }
 
 // ---------------------------------------------------------------------------
+// Result-schedule helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Consumes and returns the next pre-scheduled result direction from
+ * pair_result_schedule for a given pair/duration, if one exists.
+ */
+async function consumeNextScheduledDirection(
+  pairId: string,
+  durationSeconds: number
+): Promise<'up' | 'down' | undefined> {
+  const schedRes = await query(
+    `UPDATE pair_result_schedule SET consumed = TRUE
+     WHERE id = (
+       SELECT id FROM pair_result_schedule
+       WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
+       ORDER BY seq ASC LIMIT 1
+     )
+     RETURNING direction`,
+    [pairId, durationSeconds]
+  );
+  return schedRes.rows.length > 0 ? (schedRes.rows[0].direction as 'up' | 'down') : undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Main settlement loop
 // ---------------------------------------------------------------------------
 
@@ -325,10 +350,10 @@ async function autoSettleSessions(): Promise<void> {
 
         // For custom pairs, check if there is a pre-scheduled result direction
         let resultDirectionOverride: 'up' | 'down' | undefined;
-        if (session.pair_type === 'custom' && session.result_mode && session.result_mode !== 'random') {
+        if (session.pair_type === 'custom') {
           const effectiveDuration = session.result_mode_locked_duration ?? session.duration_seconds;
           if (session.result_mode === 'pay_more' || session.result_mode === 'pay_less') {
-            // Dynamic: settle against or in favor of the majority bet
+            // Dynamic: settle in favor of (pay_more) or against (pay_less) the majority bet
             const bets = await query(
               `SELECT SUM(CASE WHEN direction='up' THEN amount ELSE 0 END) AS up_amount,
                       SUM(CASE WHEN direction='down' THEN amount ELSE 0 END) AS down_amount
@@ -337,42 +362,12 @@ async function autoSettleSessions(): Promise<void> {
             );
             const upAmt = parseFloat(bets.rows[0]?.up_amount ?? '0');
             const downAmt = parseFloat(bets.rows[0]?.down_amount ?? '0');
-            if (session.result_mode === 'pay_more') {
-              resultDirectionOverride = upAmt >= downAmt ? 'up' : 'down';
-            } else {
-              resultDirectionOverride = upAmt < downAmt ? 'up' : 'down';
-            }
-          } else if (session.result_mode === 'preset') {
-            // Consume next scheduled direction
-            const schedRes = await query(
-              `UPDATE pair_result_schedule SET consumed = TRUE
-               WHERE id = (
-                 SELECT id FROM pair_result_schedule
-                 WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
-                 ORDER BY seq ASC LIMIT 1
-               )
-               RETURNING direction`,
-              [session.pair_id, effectiveDuration]
-            );
-            if (schedRes.rows.length > 0) {
-              resultDirectionOverride = schedRes.rows[0].direction as 'up' | 'down';
-            }
-          }
-        } else if (session.pair_type === 'custom' && session.result_mode === 'random') {
-          // Consume next scheduled direction (pre-generated random sequence)
-          const effectiveDuration = session.result_mode_locked_duration ?? session.duration_seconds;
-          const schedRes = await query(
-            `UPDATE pair_result_schedule SET consumed = TRUE
-             WHERE id = (
-               SELECT id FROM pair_result_schedule
-               WHERE pair_id = $1 AND duration_seconds = $2 AND consumed = FALSE
-               ORDER BY seq ASC LIMIT 1
-             )
-             RETURNING direction`,
-            [session.pair_id, effectiveDuration]
-          );
-          if (schedRes.rows.length > 0) {
-            resultDirectionOverride = schedRes.rows[0].direction as 'up' | 'down';
+            resultDirectionOverride = session.result_mode === 'pay_more'
+              ? (upAmt >= downAmt ? 'up' : 'down')
+              : (upAmt < downAmt ? 'up' : 'down');
+          } else {
+            // random or preset: consume next pre-generated scheduled direction (if any)
+            resultDirectionOverride = await consumeNextScheduledDirection(session.pair_id, effectiveDuration);
           }
         }
 
