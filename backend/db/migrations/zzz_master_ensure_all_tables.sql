@@ -96,13 +96,6 @@ CREATE TABLE IF NOT EXISTS deposit_networks (
   sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-INSERT INTO deposit_networks (network_name, network_display, chain_name, min_deposit_amount, is_active, sort_order)
-VALUES
-  ('TRC', 'TRC20 (USDT)', 'TRON', 1.0,  true, 1),
-  ('BSC', 'BSC (BEP20)',  'BSC',  1.0,  true, 2),
-  ('ETH', 'ETH (ERC20)',  'ETH',  10.0, true, 3)
-ON CONFLICT (network_name) DO NOTHING;
-
 -- withdrawal_records (referenced by schema indexes and withdrawal API)
 CREATE TABLE IF NOT EXISTS withdrawal_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

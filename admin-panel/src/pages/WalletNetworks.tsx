@@ -481,10 +481,10 @@ export const WalletNetworks: React.FC = () => {
             rules={[{ required: true, message: '请输入链名' }]}
           >
             <Select>
-              <Select.Option value="tron">Tron</Select.Option>
-              <Select.Option value="ethereum">Ethereum</Select.Option>
-              <Select.Option value="bsc">BSC</Select.Option>
-              <Select.Option value="polygon">Polygon</Select.Option>
+              <Select.Option value="TRON">Tron (TRON)</Select.Option>
+              <Select.Option value="ETH">Ethereum (ETH)</Select.Option>
+              <Select.Option value="BSC">BSC</Select.Option>
+              <Select.Option value="POLYGON">Polygon (POLYGON)</Select.Option>
             </Select>
           </Form.Item>
 
@@ -496,8 +496,7 @@ export const WalletNetworks: React.FC = () => {
           >
             <Select placeholder="选择派生路径">
               <Select.Option value="m/44'/195'/0'/0">m/44'/195'/0'/0 (TRON)</Select.Option>
-              <Select.Option value="m/44'/60'/0'/0">m/44'/60'/0'/0 (ETH/BSC)</Select.Option>
-              <Select.Option value="m/44'/966'/0'/0">m/44'/966'/0'/0 (Polygon)</Select.Option>
+              <Select.Option value="m/44'/60'/0'/0">m/44'/60'/0'/0 (ETH/BSC/Polygon)</Select.Option>
             </Select>
           </Form.Item>
 
