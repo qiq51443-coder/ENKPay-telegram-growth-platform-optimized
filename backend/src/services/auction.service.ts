@@ -22,6 +22,16 @@ const WIN_NOTIFICATION: Record<string, (title: string, payout: string) => string
   ar: (title, payout) => `🏆 تهانينا! لقد فزت بـ <b>${title}</b>، قابل للاسترداد بـ <b>${payout} USDT</b>`,
 };
 
+const REFUND_NOTIFICATION: Record<string, (title: string, amount: string) => string> = {
+  zh: (title, amount) => `💰 竞拍 <b>${title}</b> 未满员，已自动退款 <b>${amount} USDT</b>`,
+  en: (title, amount) => `💰 Auction <b>${title}</b> did not fill up and has been automatically refunded <b>${amount} USDT</b>`,
+  ja: (title, amount) => `💰 オークション <b>${title}</b> は満員に達せず、<b>${amount} USDT</b> が自動返金されました`,
+  de: (title, amount) => `💰 Auktion <b>${title}</b> wurde nicht vollständig belegt und <b>${amount} USDT</b> wurde automatisch zurückerstattet`,
+  fr: (title, amount) => `💰 L'enchère <b>${title}</b> n'a pas été remplie et <b>${amount} USDT</b> a été automatiquement remboursé`,
+  es: (title, amount) => `💰 La subasta <b>${title}</b> no se completó y se reembolsó automáticamente <b>${amount} USDT</b>`,
+  ar: (title, amount) => `💰 لم يكتمل المزاد <b>${title}</b> وتم استرداد <b>${amount} USDT</b> تلقائياً`,
+};
+
 function getLangMsg<T extends (...args: any[]) => string>(
   map: Record<string, T>,
   lang: string | null | undefined,
@@ -147,30 +157,38 @@ async function notifyParticipants(
   auction: any,
   winner: { user_id: string; unique_id: string; telegram_id: number }
 ): Promise<void> {
-  // Fetch the first active bot token to send notifications
+  // Fetch fallback bot token (used when a user has no associated bot)
   const botResult = await client.query(
     `SELECT token FROM bots WHERE is_active = true LIMIT 1`
   );
   if (botResult.rows.length === 0) return;
 
-  const token = botResult.rows[0].token;
+  const fallbackToken = botResult.rows[0].token;
   const TelegramAPI = (await import('../utils/telegram')).default;
-  const tg = new TelegramAPI(token);
 
-  // Get all participants' telegram IDs and language preferences
+  // Get all participants' telegram IDs, language preferences, and their associated bot token
   // Language fallback: language (user-set) → language_code (registration) → 'zh'
   const participantsResult = await client.query(
-    `SELECT u.telegram_id, lap.user_id, COALESCE(u.language, u.language_code, 'zh') AS lang
+    `SELECT u.telegram_id, lap.user_id, COALESCE(u.language, u.language_code, 'zh') AS lang,
+            b.token AS bot_token
      FROM lucky_auction_participants lap
      JOIN users u ON lap.user_id = u.id
+     LEFT JOIN bots b ON b.id = u.bot_id AND b.is_active = true
      WHERE lap.auction_id = $1`,
     [auction.id]
   );
 
   const payout = parseFloat(auction.winner_payout).toFixed(2);
+  // Reuse TelegramAPI instances keyed by token to avoid unnecessary object creation
+  const tgCache = new Map<string, InstanceType<typeof TelegramAPI>>();
+  const getTg = (token: string) => {
+    if (!tgCache.has(token)) tgCache.set(token, new TelegramAPI(token));
+    return tgCache.get(token)!;
+  };
 
   for (const p of participantsResult.rows) {
     try {
+      const tg = getTg(p.bot_token || fallbackToken);
       if (p.user_id === winner.user_id) {
         await tg.sendMessage(
           p.telegram_id,
@@ -216,6 +234,17 @@ async function _expireAuctions(): Promise<void> {
 
   for (const auction of expiredResult.rows) {
     try {
+      // If the auction is fully subscribed, draw a winner instead of refunding
+      if (Number(auction.current_participants) >= Number(auction.participant_count)) {
+        await drawWinner(auction.id);
+        // Immediately make results visible in Mini App
+        await query(
+          `UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1`,
+          [auction.id]
+        );
+        continue;
+      }
+
       await transaction(async (client) => {
         // Lock the row
         const lockResult = await client.query(
@@ -230,11 +259,14 @@ async function _expireAuctions(): Promise<void> {
           [auction.id]
         );
 
-        // Refund each participant
+        // Refund each participant (fetch with language and bot token for notifications)
         const participantsResult = await client.query(
-          `SELECT lap.*, u.wallet_balance, u.telegram_id
+          `SELECT lap.*, u.wallet_balance, u.telegram_id,
+                  COALESCE(u.language, u.language_code, 'zh') AS lang,
+                  b.token AS bot_token
            FROM lucky_auction_participants lap
            JOIN users u ON lap.user_id = u.id
+           LEFT JOIN bots b ON b.id = u.bot_id AND b.is_active = true
            WHERE lap.auction_id = $1 AND lap.refunded = false`,
           [auction.id]
         );
@@ -277,20 +309,27 @@ async function _expireAuctions(): Promise<void> {
 }
 
 async function notifyExpiredParticipants(client: any, auction: any, participants: any[]): Promise<void> {
+  // Fetch fallback bot token (used when a user has no associated bot)
   const botResult = await client.query(
     `SELECT token FROM bots WHERE is_active = true LIMIT 1`
   );
   if (botResult.rows.length === 0) return;
 
-  const token = botResult.rows[0].token;
+  const fallbackToken = botResult.rows[0].token;
   const TelegramAPI = (await import('../utils/telegram')).default;
-  const tg = new TelegramAPI(token);
+  // Reuse TelegramAPI instances keyed by token to avoid unnecessary object creation
+  const tgCache = new Map<string, InstanceType<typeof TelegramAPI>>();
+  const getTg = (token: string) => {
+    if (!tgCache.has(token)) tgCache.set(token, new TelegramAPI(token));
+    return tgCache.get(token)!;
+  };
 
   for (const p of participants) {
     try {
+      const tg = getTg(p.bot_token || fallbackToken);
       await tg.sendMessage(
         p.telegram_id,
-        `💰 竞拍 <b>${auction.title}</b> 未满员，已自动退款 <b>${parseFloat(p.amount).toFixed(2)} USDT</b>`
+        getLangMsg(REFUND_NOTIFICATION, p.lang, auction.title, parseFloat(p.amount).toFixed(2))
       );
     } catch {
       // Individual notification failure is non-fatal

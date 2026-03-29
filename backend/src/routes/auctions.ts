@@ -399,6 +399,8 @@ router.post('/:id/draw', adminLimiter, authenticateAdmin, async (req: AuthReques
     }
 
     await drawWinner(id);
+    // Automatically make results visible in Mini App after draw
+    await query(`UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1`, [id]);
 
     res.json({ success: true, message: '开奖完成' });
   } catch (error: any) {
