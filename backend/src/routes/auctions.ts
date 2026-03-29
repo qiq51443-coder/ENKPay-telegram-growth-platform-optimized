@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
               a.participant_count, a.per_person_cost, a.max_purchases_per_user,
               a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
               a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
-              a.created_at, a.updated_at,
+              a.created_at, a.updated_at, a.show_in_mini_app,
               p.name as product_name, p.image_url as product_image
        FROM lucky_auctions a
        LEFT JOIN nft_products p ON a.product_id = p.id
@@ -136,7 +136,7 @@ router.get('/:id', async (req, res) => {
               a.participant_count, a.per_person_cost, a.max_purchases_per_user,
               a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
               a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
-              a.created_at, a.updated_at,
+              a.created_at, a.updated_at, a.show_in_mini_app,
               p.name as product_name, p.image_url as product_image, p.description as product_description
        FROM lucky_auctions a
        LEFT JOIN nft_products p ON a.product_id = p.id
@@ -293,7 +293,9 @@ router.post('/:id/join', authenticateMiniApp, async (req: MiniAppAuthRequest, re
 
     // Trigger draw if fully subscribed (outside the transaction to avoid lock contention)
     if (result.newCount >= result.participantCount) {
-      drawWinner(id).catch(err => console.error(`Auto-draw failed for auction ${id}:`, err));
+      drawWinner(id)
+        .then(() => query(`UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1 AND status = 'completed'`, [id]))
+        .catch(err => console.error(`Auto-draw failed for auction ${id}:`, err));
     }
 
     res.json({ success: true, message: '参与成功' });
@@ -402,7 +404,7 @@ router.post('/:id/draw', adminLimiter, authenticateAdmin, async (req: AuthReques
     // Automatically make results visible in Mini App after draw
     await query(`UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1`, [id]);
 
-    res.json({ success: true, message: '开奖完成' });
+    res.json({ success: true, message: 'Draw completed' });
   } catch (error: any) {
     console.error('Draw winner error:', error);
     res.status(500).json({ error: error.message });

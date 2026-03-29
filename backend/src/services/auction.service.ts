@@ -193,6 +193,9 @@ async function notifyParticipants(
 
   for (const p of participantsResult.rows) {
     try {
+      if (!p.bot_token) {
+        console.warn(`[Notification] User ${p.telegram_id} has no associated bot (bot_id is NULL), using fallback bot for auction ${auction.id}`);
+      }
       const tg = getTg(p.bot_token || fallbackToken);
       if (p.user_id === winner.user_id) {
         await tg.sendMessage(
@@ -241,12 +244,21 @@ async function _expireAuctions(): Promise<void> {
     try {
       // If the auction is fully subscribed, draw a winner instead of refunding
       if (Number(auction.current_participants) >= Number(auction.participant_count)) {
-        await drawWinner(auction.id);
-        // Immediately make results visible in Mini App
+        try {
+          await drawWinner(auction.id);
+        } catch (drawErr: any) {
+          // Concurrent draw (e.g. triggered by the last join) is expected — not a fatal error
+          if (drawErr?.message?.includes('already been drawn')) {
+            console.log(`expireAuctions: auction ${auction.id} was already drawn concurrently, skipping`);
+          } else {
+            console.error(`expireAuctions: draw failed for auction ${auction.id}:`, drawErr);
+          }
+        }
+        // Whether drawn now or by a concurrent path, set show_in_mini_app if completed
         await query(
-          `UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1`,
+          `UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1 AND status = 'completed'`,
           [auction.id]
-        );
+        ).catch(err => console.error(`expireAuctions: failed to set show_in_mini_app for ${auction.id}:`, err));
         continue;
       }
 
@@ -331,6 +343,9 @@ async function notifyExpiredParticipants(client: any, auction: any, participants
 
   for (const p of participants) {
     try {
+      if (!p.bot_token) {
+        console.warn(`[Notification] User ${p.telegram_id} has no associated bot (bot_id is NULL), using fallback bot for refund notification`);
+      }
       const tg = getTg(p.bot_token || fallbackToken);
       await tg.sendMessage(
         p.telegram_id,
