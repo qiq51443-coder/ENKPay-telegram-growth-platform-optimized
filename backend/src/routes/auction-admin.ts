@@ -408,6 +408,8 @@ router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     await drawWinner(id);
+    // Automatically make results visible in Mini App after manual draw
+    await query(`UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1`, [id]);
     res.json({ success: true, message: 'Winner drawn successfully' });
   } catch (error: any) {
     console.error('Manual draw error:', error);
