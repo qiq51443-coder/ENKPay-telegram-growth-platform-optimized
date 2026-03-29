@@ -30,6 +30,7 @@ interface Auction {
   drawn_at?: string;
   expires_at: string;
   product_description?: string;
+  show_in_mini_app?: boolean;
 }
 
 interface AuctionResult {
