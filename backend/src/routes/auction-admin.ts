@@ -372,6 +372,23 @@ router.post('/:id/cancel', authenticateAdmin, async (req: AuthRequest, res) => {
 router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+
+    // Pre-check: verify auction exists and hasn't been drawn yet
+    const auctionResult = await query(
+      `SELECT status, winner_id FROM lucky_auctions WHERE id = $1`,
+      [id]
+    );
+    if (auctionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Auction not found' });
+    }
+    const auction = auctionResult.rows[0];
+    if (auction.winner_id) {
+      return res.status(400).json({ error: 'Auction has already been drawn' });
+    }
+    if (auction.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot draw a cancelled auction' });
+    }
+
     await drawWinner(id);
     res.json({ success: true, message: 'Winner drawn successfully' });
   } catch (error: any) {

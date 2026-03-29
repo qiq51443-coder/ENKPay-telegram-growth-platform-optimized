@@ -48,8 +48,9 @@ export async function drawWinner(auctionId: string): Promise<void> {  await tran
 
     const auction = auctionResult.rows[0];
 
-    if (auction.status !== 'active') {
-      return; // Already drawn or cancelled
+    // Only block if already drawn or explicitly cancelled
+    if (auction.winner_id || auction.status === 'cancelled') {
+      throw new Error(`Auction cannot be drawn: status=${auction.status}, winner=${auction.winner_id}`);
     }
 
     // 2. Get all participants and expand into a weighted pool
