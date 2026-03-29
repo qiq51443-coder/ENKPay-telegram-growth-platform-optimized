@@ -1,31 +1,14 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
-// Disk storage for charity banner uploads
-const charityUploadDir = path.join(__dirname, '../../uploads/charity-banners');
-if (!fs.existsSync(charityUploadDir)) {
-  fs.mkdirSync(charityUploadDir, { recursive: true });
-}
-
-const charityStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, charityUploadDir),
-  filename: (_req, file, cb) => {
-    const rawExt = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const ext = allowedExts.includes(rawExt) ? rawExt : '.png';
-    cb(null, `charity-banner-${Date.now()}${ext}`);
-  },
-});
-
+// Memory storage for charity image uploads (base64 persisted in DB)
 const charityUpload = multer({
-  storage: charityStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -38,14 +21,15 @@ const charityUpload = multer({
 
 /**
  * POST /api/charity/upload
- * Upload an image and return a persistent relative URL
+ * Upload an image and return a Base64 Data URL
  */
 router.post('/upload', adminLimiter, authenticateAdmin, charityUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const relativeUrl = `/uploads/charity-banners/${req.file.filename}`;
-  res.json({ success: true, url: relativeUrl });
+  const base64 = req.file.buffer.toString('base64');
+  const url = `data:${req.file.mimetype};base64,${base64}`;
+  res.json({ success: true, url });
 });
 
 /**
@@ -117,7 +101,8 @@ router.get('/projects', async (req, res) => {
         organization, website_url,
         status, start_at AS start_date, end_at AS end_date, created_at, updated_at,
         ambassador_telegram, is_active, show_in_app,
-        progress_override, progress_images
+        progress_override, progress_images,
+        progress_auto_increment, progress_increment_rate, progress_increment_interval
       FROM charity_projects
       WHERE 1=1
     `;
@@ -213,6 +198,9 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       show_in_app,
       progress_override,
       progress_images,
+      progress_auto_increment,
+      progress_increment_rate,
+      progress_increment_interval,
     } = req.body;
 
     if (!title || !goal_amount) {
@@ -223,13 +211,15 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
       `INSERT INTO charity_projects 
        (title, description, image_url, target_amount, start_at, end_at,
         organization, website_url, ambassador_telegram, is_active, status, show_in_app,
-        progress_override, progress_images)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        progress_override, progress_images,
+        progress_auto_increment, progress_increment_rate, progress_increment_interval)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING id, title, description, image_url,
          target_amount AS goal_amount, raised_amount,
          organization, website_url, ambassador_telegram, is_active, status, show_in_app,
          start_at AS start_date, end_at AS end_date,
          progress_override, progress_images,
+         progress_auto_increment, progress_increment_rate, progress_increment_interval,
          created_at, updated_at`,
       [
         title,
@@ -246,6 +236,9 @@ router.post('/projects', authenticateAdmin, async (req: AuthRequest, res) => {
         show_in_app !== undefined ? show_in_app : true,
         progress_override != null ? (() => { const v = parseFloat(progress_override); return isNaN(v) ? null : Math.min(100, Math.max(0, v)); })() : null,
         progress_images || [],
+        progress_auto_increment !== undefined ? progress_auto_increment : false,
+        progress_increment_rate != null ? parseFloat(progress_increment_rate) : 0.5,
+        progress_increment_interval != null ? parseInt(progress_increment_interval) : 60,
       ]
     );
 
@@ -287,6 +280,9 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       show_in_app: 'show_in_app',
       progress_override: 'progress_override',
       progress_images: 'progress_images',
+      progress_auto_increment: 'progress_auto_increment',
+      progress_increment_rate: 'progress_increment_rate',
+      progress_increment_interval: 'progress_increment_interval',
     };
 
     for (const [frontendField, dbField] of Object.entries(fieldMapping)) {

@@ -21,6 +21,9 @@ interface CharityProject {
   show_in_app?: boolean;
   progress_override?: number | null;
   progress_images?: string[];
+  progress_auto_increment?: boolean;
+  progress_increment_rate?: number;
+  progress_increment_interval?: number;
   created_at: string;
 }
 
@@ -48,6 +51,9 @@ export const CharityProjects: React.FC = () => {
   const [newBannerTitle, setNewBannerTitle] = useState('');
   const [bannerLoading, setBannerLoading] = useState(false);
   const [bannerFileList, setBannerFileList] = useState<UploadFile[]>([]);
+  const [progressCorrespondingAmount, setProgressCorrespondingAmount] = useState<number | null>(null);
+
+  const watchedGoalAmount = Form.useWatch('goal_amount', form);
 
   useEffect(() => {
     fetchProjects();
@@ -504,9 +510,53 @@ export const CharityProjects: React.FC = () => {
           <Form.Item
             name="progress_override"
             label="进度百分比预设"
-            extra="留空=自动计算，0-100=手动指定进度百分比，项目已完结时自动显示100%"
+            extra={
+              progressCorrespondingAmount !== null && watchedGoalAmount
+                ? `对应金额：${progressCorrespondingAmount.toFixed(2)} USDT（目标：${Number(watchedGoalAmount).toFixed(2)} USDT）`
+                : '留空=自动计算，0-100=手动指定进度百分比，项目已完结时自动显示100%'
+            }
           >
-            <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} placeholder="留空则自动计算" />
+            <InputNumber
+              min={0}
+              max={100}
+              step={0.1}
+              style={{ width: '100%' }}
+              placeholder="留空则自动计算"
+              onChange={(value) => {
+                if (value != null && watchedGoalAmount) {
+                  setProgressCorrespondingAmount((Number(value) / 100) * Number(watchedGoalAmount));
+                } else {
+                  setProgressCorrespondingAmount(null);
+                }
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="progress_auto_increment"
+            label="自动增加进度"
+            valuePropName="checked"
+            tooltip="开启后将按设定速率定时自动提升进度百分比，同步更新已筹金额"
+          >
+            <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+          </Form.Item>
+
+          <Form.Item
+            name="progress_increment_rate"
+            label="每次增加百分比"
+            extra="每次自动执行时增加的进度百分比（如 0.5 = 增加 0.5%）"
+            initialValue={0.5}
+          >
+            <InputNumber min={0.01} max={100} step={0.1} style={{ width: '100%' }} addonAfter="%" />
+          </Form.Item>
+
+          <Form.Item
+            name="progress_increment_interval"
+            label="增加间隔（分钟）"
+            extra="每隔多少分钟自动执行一次进度增加"
+            initialValue={60}
+          >
+            <InputNumber min={1} step={1} style={{ width: '100%' }} addonAfter="分钟" />
           </Form.Item>
 
           <Form.Item label="进度图片（最多9张）">
