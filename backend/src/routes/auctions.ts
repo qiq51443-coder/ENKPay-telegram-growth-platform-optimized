@@ -390,9 +390,10 @@ router.post('/:id/draw', adminLimiter, authenticateAdmin, async (req: AuthReques
       if (participantCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Specified user is not a participant' });
       }
-      // Override the auction winner
+      // Set preset_winner_unique_id so drawWinner() picks the correct winner,
+      // and reset winner_unique_id / winner_id so drawWinner's guard check doesn't abort early
       await query(
-        `UPDATE lucky_auctions SET winner_unique_id = $1, status = 'active' WHERE id = $2`,
+        `UPDATE lucky_auctions SET preset_winner_unique_id = $1, winner_unique_id = NULL, winner_id = NULL, status = 'active' WHERE id = $2`,
         [winner_unique_id, id]
       );
     }

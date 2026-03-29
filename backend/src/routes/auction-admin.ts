@@ -372,6 +372,7 @@ router.post('/:id/cancel', authenticateAdmin, async (req: AuthRequest, res) => {
 router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const { preset_winner_unique_id } = req.body;
 
     // Pre-check: verify auction exists and hasn't been drawn yet
     const auctionResult = await query(
@@ -387,6 +388,23 @@ router.post('/:id/draw', authenticateAdmin, async (req: AuthRequest, res) => {
     }
     if (auction.status === 'cancelled') {
       return res.status(400).json({ error: 'Cannot draw a cancelled auction' });
+    }
+
+    // If a manual winner is specified, validate they are a participant and set preset_winner_unique_id
+    if (preset_winner_unique_id) {
+      const participantCheck = await query(
+        `SELECT lap.id FROM lucky_auction_participants lap
+         JOIN users u ON lap.user_id = u.id
+         WHERE lap.auction_id = $1 AND u.unique_id = $2`,
+        [id, preset_winner_unique_id]
+      );
+      if (participantCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Specified user is not a participant' });
+      }
+      await query(
+        `UPDATE lucky_auctions SET preset_winner_unique_id = $1, winner_unique_id = NULL, winner_id = NULL WHERE id = $2`,
+        [preset_winner_unique_id, id]
+      );
     }
 
     await drawWinner(id);

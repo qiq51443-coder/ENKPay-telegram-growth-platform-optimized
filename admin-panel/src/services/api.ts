@@ -495,8 +495,8 @@ class ApiClient {
     return response.data;
   }
 
-  async drawLuckyAuction(id: string) {
-    const response = await this.client.post(`/admin/auctions/${id}/draw`);
+  async drawLuckyAuction(id: string, data?: { preset_winner_unique_id?: string }) {
+    const response = await this.client.post(`/admin/auctions/${id}/draw`, data || {});
     return response.data;
   }
 
