@@ -230,7 +230,7 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
     const {
       title, description, image_url, max_purchases_per_user, expires_at, notify_channels,
-      preset_winner_unique_id,
+      preset_winner_unique_id, show_in_mini_app,
     } = req.body;
 
     const auctionResult = await query(
@@ -239,22 +239,23 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     );
     if (auctionResult.rows.length === 0) return res.status(404).json({ error: 'Auction not found' });
     const status = auctionResult.rows[0].status;
-    if (!['active', 'completed'].includes(status)) {
-      return res.status(400).json({ error: 'Only active or completed auctions can be edited' });
+    if (!['active', 'completed', 'expired'].includes(status)) {
+      return res.status(400).json({ error: 'Only active, completed, or expired auctions can be edited' });
     }
 
     let result;
-    if (status === 'completed') {
-      // Completed auctions: only allow editing display fields
+    if (status === 'completed' || status === 'expired') {
+      // Completed/expired auctions: only allow editing display fields
       result = await query(
         `UPDATE lucky_auctions
          SET title = COALESCE($1, title),
              description = COALESCE($2, description),
              image_url = COALESCE($3, image_url),
+             show_in_mini_app = COALESCE($4, show_in_mini_app),
              updated_at = NOW()
-         WHERE id = $4
+         WHERE id = $5
          RETURNING *`,
-        [title, description, image_url, id]
+        [title, description, image_url, show_in_mini_app, id]
       );
     } else {
       result = await query(
@@ -295,9 +296,13 @@ router.delete('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     );
     if (auctionResult.rows.length === 0) return res.status(404).json({ error: 'Auction not found' });
     const auction = auctionResult.rows[0];
-    if (auction.status !== 'active') return res.status(400).json({ error: 'Only active auctions can be deleted' });
-    if (auction.current_participants > 0) {
-      return res.status(400).json({ error: 'Cannot delete auction with participants' });
+
+    if (auction.status === 'active') {
+      if (auction.current_participants > 0) {
+        return res.status(400).json({ error: 'Cannot delete active auction with participants. Please cancel it first.' });
+      }
+    } else if (auction.status !== 'expired') {
+      return res.status(400).json({ error: 'Only active (no participants) or expired auctions can be deleted' });
     }
 
     await query(`DELETE FROM lucky_auctions WHERE id = $1`, [id]);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker,
-  Upload, Tabs, Popconfirm,
+  Upload, Tabs, Popconfirm, Switch,
 } from 'antd';
 import type { FormInstance } from 'antd';
 import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined, EditOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons';
@@ -24,6 +24,7 @@ interface Auction {
   winner_unique_id?: string;
   drawn_at?: string;
   preset_winner_unique_id?: string;
+  show_in_mini_app?: boolean;
   created_at: string;
 }
 
@@ -186,6 +187,16 @@ export const Auctions: React.FC = () => {
     }
   };
 
+  const handleToggleMiniAppDisplay = async (id: string, show: boolean) => {
+    try {
+      await apiClient.updateLuckyAuction(id, { show_in_mini_app: show });
+      message.success(show ? '已设置展示开奖结果' : '已关闭展示开奖结果');
+      fetchAuctions();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '操作失败');
+    }
+  };
+
   const handlePriceChange = () => {
     const productValue = form.getFieldValue('product_value');
     const participantCount = form.getFieldValue('participant_count');
@@ -301,7 +312,7 @@ export const Auctions: React.FC = () => {
           >
             查看参与者
           </Button>
-          {(record.status === 'active' || record.status === 'completed') && (
+          {(['active', 'completed', 'expired'] as string[]).includes(record.status) && (
             <Button
               type="link"
               size="small"
@@ -311,7 +322,7 @@ export const Auctions: React.FC = () => {
               编辑
             </Button>
           )}
-          {record.status === 'active' && record.current_participants === 0 && (
+          {((record.status === 'active' && record.current_participants === 0) || record.status === 'expired') && (
             <Popconfirm
               title="确认删除该夺宝活动？"
               onConfirm={() => handleDelete(record)}
@@ -344,6 +355,16 @@ export const Auctions: React.FC = () => {
             >
               开奖
             </Button>
+          )}
+          {record.status === 'expired' && (
+            <Space size={4}>
+              <span style={{ fontSize: '12px', color: '#666' }}>展示开奖结果</span>
+              <Switch
+                size="small"
+                checked={!!record.show_in_mini_app}
+                onChange={(checked) => handleToggleMiniAppDisplay(record.id, checked)}
+              />
+            </Space>
           )}
         </Space>
       ),
@@ -388,7 +409,7 @@ export const Auctions: React.FC = () => {
     },
     beforeUpload: (file: File) => {
       if (!file.type.startsWith('image/')) { message.error('只能上传图片文件'); return false; }
-      if (file.size / 1024 / 1024 > 10) { message.error('图片大小不能超过10MB'); return false; }
+      if (file.size / 1024 / 1024 > 5) { message.error('图片大小不能超过5MB'); return false; }
       return true;
     },
   });
@@ -498,7 +519,7 @@ export const Auctions: React.FC = () => {
           <Form.Item name="image_url" label="藏品图片 URL">
             <Input placeholder="https://example.com/image.jpg" />
           </Form.Item>
-          {selectedAuction?.status !== 'completed' && (
+          {selectedAuction?.status !== 'completed' && selectedAuction?.status !== 'expired' && (
             <>
               <Form.Item name="max_purchases_per_user" label="每人限购份数">
                 <InputNumber min={1} style={{ width: '100%' }} />
