@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm, Upload, Collapse } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, Tag, Space, Popconfirm, Upload, Collapse, Switch } from 'antd';
 import { PlusOutlined, SendOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
@@ -7,12 +7,23 @@ import TranslateButton from '../components/TranslateButton';
 
 const { TextArea } = Input;
 
+const LANG_LABELS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
+
 interface Broadcast {
   id: string;
   bot_id: string;
   title: string;
   content: string;
   target_type: string;
+  target_users?: string;
   status: string;
   sent_count?: number;
   failed_count?: number;
@@ -21,6 +32,7 @@ interface Broadcast {
   media_url?: string;
   content_translations?: Record<string, string>;
   title_translations?: Record<string, string>;
+  pin_message?: boolean;
 }
 
 interface Bot {
@@ -37,6 +49,9 @@ export const Broadcasts: React.FC = () => {
   const [form] = Form.useForm();
   const [mediaUrl, setMediaUrl] = useState<string>('');
   const [targetType, setTargetType] = useState<string>('all');
+  const [pinMessage, setPinMessage] = useState<boolean>(false);
+  const [contentTranslations, setContentTranslations] = useState<Record<string, string> | null>(null);
+  const [titleTranslations, setTitleTranslations] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
     fetchBroadcasts();
@@ -65,15 +80,28 @@ export const Broadcasts: React.FC = () => {
     }
   };
 
+  const resetModal = () => {
+    setModalOpen(false);
+    form.resetFields();
+    setMediaUrl('');
+    setTargetType('all');
+    setPinMessage(false);
+    setContentTranslations(null);
+    setTitleTranslations(null);
+  };
+
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await apiClient.createBroadcast({ ...values, media_url: mediaUrl || undefined });
+      await apiClient.createBroadcast({
+        ...values,
+        media_url: mediaUrl || undefined,
+        pin_message: pinMessage,
+        content_translations: contentTranslations || undefined,
+        title_translations: titleTranslations || undefined,
+      });
       message.success('广播创建成功');
-      setModalOpen(false);
-      form.resetFields();
-      setMediaUrl('');
-      setTargetType('all');
+      resetModal();
       fetchBroadcasts();
     } catch (error: any) {
       console.error('Failed to create broadcast:', error);
@@ -142,8 +170,7 @@ export const Broadcasts: React.FC = () => {
         const targetMap: Record<string, string> = {
           all: '全部用户',
           active: '活跃用户',
-          bound: '已绑定',
-          unbound: '未绑定',
+          specific: '指定用户',
         };
         return targetMap[target_type] || target_type;
       },
@@ -252,12 +279,7 @@ export const Broadcasts: React.FC = () => {
         title="创建广播"
         open={modalOpen}
         onOk={handleCreate}
-        onCancel={() => {
-          setModalOpen(false);
-          form.resetFields();
-          setMediaUrl('');
-          setTargetType('all');
-        }}
+        onCancel={resetModal}
         okText="创建"
         cancelText="取消"
         width={600}
@@ -285,6 +307,15 @@ export const Broadcasts: React.FC = () => {
             <Input placeholder="广播标题" />
           </Form.Item>
 
+          <Form.Item label="标题翻译" colon={false}>
+            <TranslateButton
+              text={form.getFieldValue('title') || ''}
+              onTranslated={(t) => {
+                setTitleTranslations(t);
+              }}
+            />
+          </Form.Item>
+
           <Form.Item
             name="content"
             label="内容"
@@ -293,18 +324,41 @@ export const Broadcasts: React.FC = () => {
             <TextArea rows={5} placeholder="输入广播内容..." />
           </Form.Item>
 
-          {targetType === 'all' && (
-            <Form.Item label="翻译" colon={false}>
-              <TranslateButton
-                text={form.getFieldValue('content') || ''}
-                onTranslated={(t) => {
-                  const lang = Object.keys(t)[0];
-                  if (lang && t[lang]) {
-                    form.setFieldValue('content', t[lang]);
-                  }
-                }}
-              />
-            </Form.Item>
+          <Form.Item label="内容翻译" colon={false}>
+            <TranslateButton
+              text={form.getFieldValue('content') || ''}
+              onTranslated={(t) => {
+                setContentTranslations(t);
+              }}
+            />
+          </Form.Item>
+
+          {contentTranslations && Object.keys(contentTranslations).length > 0 && (
+            <Collapse
+              size="small"
+              style={{ marginBottom: 16 }}
+              items={[{
+                key: 'translations',
+                label: (
+                  <span>
+                    🌐 翻译预览
+                    <Tag color="cyan" style={{ marginLeft: 8, fontSize: 10 }}>已翻译 {Object.keys(contentTranslations).length} 种语言</Tag>
+                  </span>
+                ),
+                children: (
+                  <div>
+                    {Object.entries(contentTranslations).map(([lang, text]) => (
+                      <div key={lang} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <Tag style={{ width: 80, textAlign: 'center', flexShrink: 0, marginTop: 2 }}>
+                          {LANG_LABELS[lang] || lang}
+                        </Tag>
+                        <div style={{ flex: 1, fontSize: 12, color: '#555', paddingLeft: 8 }}>{text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ),
+              }]}
+            />
           )}
 
           <Form.Item
@@ -316,10 +370,23 @@ export const Broadcasts: React.FC = () => {
             <Select onChange={(val) => setTargetType(val)}>
               <Select.Option value="all">全部用户</Select.Option>
               <Select.Option value="active">活跃用户</Select.Option>
-              <Select.Option value="bound">已绑定用户</Select.Option>
-              <Select.Option value="unbound">未绑定用户</Select.Option>
+              <Select.Option value="specific">指定用户</Select.Option>
             </Select>
           </Form.Item>
+
+          {targetType === 'specific' && (
+            <Form.Item
+              name="target_users"
+              label="指定用户标识"
+              rules={[{ required: true, message: '请输入至少一个用户标识' }]}
+              extra="支持 Telegram 数字ID、@用户名、平台用户名/unique_id，多个用户以逗号或换行分隔"
+            >
+              <TextArea
+                rows={4}
+                placeholder={"示例：123456789, @username\nanother_user"}
+              />
+            </Form.Item>
+          )}
 
           <Form.Item label="媒体（图片/GIF）" extra="支持 JPG/PNG/GIF，最大 10MB">
             <Upload
@@ -363,6 +430,16 @@ export const Broadcasts: React.FC = () => {
                 ),
               }]}
             />
+          </Form.Item>
+
+          <Form.Item label="置顶消息">
+            <Switch
+              checked={pinMessage}
+              onChange={(checked) => setPinMessage(checked)}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+            />
+            <span style={{ marginLeft: 8, color: '#999', fontSize: 12 }}>发送后自动置顶消息（需要 Bot 有置顶权限）</span>
           </Form.Item>
         </Form>
       </Modal>
