@@ -48,7 +48,7 @@ const getDisplayPercent = (project: CharityProject): number => {
 };
 
 export const Charity: React.FC = () => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [projects, setProjects] = useState<CharityProject[]>([]);
   const [banners, setBanners] = useState<CharityBanner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,8 +60,8 @@ export const Charity: React.FC = () => {
   const selected = projects.find(p => p.id === selectedId) || null;
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(lang);
+  }, [lang]);
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -73,10 +73,10 @@ export const Charity: React.FC = () => {
     };
   }, [banners.length]);
 
-  const fetchData = async () => {
+  const fetchData = async (currentLang: string) => {
     try {
       const [projRes, bannerRes] = await Promise.allSettled([
-        api.get('/charity/projects'),
+        api.get('/charity/projects', { params: { lang: currentLang } }),
         api.get('/charity/banners'),
       ]);
       if (projRes.status === 'fulfilled') {
