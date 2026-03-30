@@ -101,6 +101,14 @@ export const CharityProjects: React.FC = () => {
       form.setFieldsValue(formValues);
       setTitleI18nEdits(project.title_i18n || {});
       setDescI18nEdits(project.description_i18n || {});
+      // Initialize progressCorrespondingAmount when editing a project with progress_override set
+      if (project.progress_override != null && project.goal_amount) {
+        const amt = parseFloat(((Number(project.progress_override) / 100) * Number(project.goal_amount)).toFixed(2));
+        setProgressCorrespondingAmount(amt);
+        form.setFieldValue('raised_amount', amt);
+      } else {
+        setProgressCorrespondingAmount(null);
+      }
       // Show existing image in upload list
       if (project.image_url) {
         setImageFileList([{
@@ -564,7 +572,21 @@ export const CharityProjects: React.FC = () => {
             label="目标金额 (USDT)"
             rules={[{ required: true, message: '请输入目标金额' }]}
           >
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            <InputNumber
+              min={0}
+              step={0.01}
+              style={{ width: '100%' }}
+              onChange={(newGoal) => {
+                if (newGoal != null) {
+                  const currentOverride = form.getFieldValue('progress_override');
+                  if (currentOverride != null) {
+                    const amt = parseFloat(((Number(currentOverride) / 100) * Number(newGoal)).toFixed(2));
+                    setProgressCorrespondingAmount(amt);
+                    form.setFieldValue('raised_amount', amt);
+                  }
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
