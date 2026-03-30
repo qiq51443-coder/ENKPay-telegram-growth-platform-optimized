@@ -314,6 +314,7 @@ router.put('/projects/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       is_active: 'is_active',
       show_in_app: 'show_in_app',
       progress_override: 'progress_override',
+      raised_amount: 'raised_amount',
       progress_images: 'progress_images',
       progress_auto_increment: 'progress_auto_increment',
       progress_increment_rate: 'progress_increment_rate',

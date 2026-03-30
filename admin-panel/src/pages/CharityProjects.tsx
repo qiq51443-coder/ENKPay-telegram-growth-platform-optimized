@@ -96,6 +96,7 @@ export const CharityProjects: React.FC = () => {
         start_date: project.start_date ? dayjs(project.start_date) : undefined,
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
         show_in_app: project.show_in_app !== false,
+        raised_amount: Number(project.raised_amount) || 0,
       };
       form.setFieldsValue(formValues);
       setTitleI18nEdits(project.title_i18n || {});
@@ -567,6 +568,15 @@ export const CharityProjects: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            name="raised_amount"
+            label="已筹金额 (USDT)"
+            initialValue={0}
+            extra="可手动设置已筹金额；设置进度百分比预设后将自动联动更新"
+          >
+            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
             name="start_date"
             label="开始时间"
           >
@@ -637,7 +647,9 @@ export const CharityProjects: React.FC = () => {
               placeholder="留空则自动计算"
               onChange={(value) => {
                 if (value != null && watchedGoalAmount) {
-                  setProgressCorrespondingAmount((Number(value) / 100) * Number(watchedGoalAmount));
+                  const amt = parseFloat(((Number(value) / 100) * Number(watchedGoalAmount)).toFixed(2));
+                  setProgressCorrespondingAmount(amt);
+                  form.setFieldValue('raised_amount', amt);
                 } else {
                   setProgressCorrespondingAmount(null);
                 }
