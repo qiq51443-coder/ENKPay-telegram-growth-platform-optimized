@@ -31,6 +31,8 @@ interface Announcement {
   title: string;
   content: string;
   images?: string[];
+  content_translations?: Record<string, string>;
+  title_translations?: Record<string, string>;
 }
 
 /** Read a single query-param from the current URL without depending on any framework. */
@@ -93,7 +95,18 @@ function AppContent() {
       getAnnouncements(true)
         .then(data => {
           const list: Announcement[] = data?.announcements || data?.data || [];
-          if (list.length > 0) setAnnouncement(list[0]);
+          if (list.length > 0) {
+            const raw = list[0];
+            const resolvedTitle =
+              (raw.title_translations && lang && raw.title_translations[lang])
+              || raw.title_translations?.['en']
+              || raw.title;
+            const resolvedContent =
+              (raw.content_translations && lang && raw.content_translations[lang])
+              || raw.content_translations?.['en']
+              || raw.content;
+            setAnnouncement({ ...raw, title: resolvedTitle, content: resolvedContent });
+          }
         })
         .catch(() => {/* non-critical */});
     }, 200);
@@ -317,6 +330,7 @@ function AppContent() {
             title={announcement.title}
             content={announcement.content}
             images={announcement.images}
+            lang={lang}
             onClose={() => setAnnouncement(null)}
           />
         )}

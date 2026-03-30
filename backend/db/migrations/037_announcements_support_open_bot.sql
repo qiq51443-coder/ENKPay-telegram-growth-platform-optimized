@@ -1,0 +1,3 @@
+ALTER TABLE announcements
+  ADD COLUMN IF NOT EXISTS support_telegram VARCHAR(64) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS show_open_bot_button BOOLEAN DEFAULT FALSE;
