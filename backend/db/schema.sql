@@ -543,3 +543,8 @@ ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEF
 -- Migration: add target_users and pin_message to broadcasts
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS target_users TEXT;
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS pin_message BOOLEAN DEFAULT false;
+
+-- Migration: add media_url, content_translations, title_translations to broadcasts
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS media_url TEXT;
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS content_translations JSONB DEFAULT '{}';
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS title_translations JSONB DEFAULT '{}';
