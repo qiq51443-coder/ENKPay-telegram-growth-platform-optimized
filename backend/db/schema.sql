@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT,
   last_name TEXT,
   language_code VARCHAR(10) DEFAULT 'en',
+  language VARCHAR(10),
   robot_user_id TEXT UNIQUE, -- Permanent Bot ID
   invite_code TEXT UNIQUE,
   invited_by UUID REFERENCES users(id),
@@ -144,7 +145,7 @@ CREATE TABLE IF NOT EXISTS earnings_screenshots (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Broadcasts table (NEW)
+-- Broadcasts table
 CREATE TABLE IF NOT EXISTS broadcasts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
@@ -157,7 +158,12 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   sent_count INT DEFAULT 0,
   failed_count INT DEFAULT 0,
   created_by UUID,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  media_url TEXT,
+  target_users TEXT,
+  pin_message BOOLEAN DEFAULT false,
+  content_translations JSONB DEFAULT '{}',
+  title_translations JSONB DEFAULT '{}'
 );
 
 -- Exchanges table (NEW)
@@ -539,12 +545,3 @@ ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(
 
 -- Migration: add progress_images to charity_projects
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
-
--- Migration: add target_users and pin_message to broadcasts
-ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS target_users TEXT;
-ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS pin_message BOOLEAN DEFAULT false;
-
--- Migration: add media_url, content_translations, title_translations to broadcasts
-ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS media_url TEXT;
-ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS content_translations JSONB DEFAULT '{}';
-ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS title_translations JSONB DEFAULT '{}';

@@ -60,9 +60,9 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         console.error('Background translate for broadcast failed:', err);
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create broadcast error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -96,9 +96,9 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
     res.json({ broadcasts: result.rows });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get broadcasts error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
