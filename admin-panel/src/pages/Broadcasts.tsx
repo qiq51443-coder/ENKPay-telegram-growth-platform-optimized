@@ -236,7 +236,9 @@ export const Broadcasts: React.FC = () => {
             </Popconfirm>
           )}
           <Popconfirm
-            title="确定要删除这条广播吗？"
+            title={record.status === 'sent' 
+              ? "确定要删除这条广播吗？已发送的 Telegram 消息将被撤回（仅限 48 小时内有效）" 
+              : "确定要删除这条广播吗？"}
             onConfirm={() => handleDelete(record.id)}
             okText="确定"
             cancelText="取消"
