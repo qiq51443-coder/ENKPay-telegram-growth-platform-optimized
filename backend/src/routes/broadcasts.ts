@@ -7,6 +7,10 @@ import { translateToAllLangs } from '../utils/translate';
 
 const router = express.Router();
 
+// Telegram send/delete batch configuration
+const TELEGRAM_BATCH_SIZE = 25;
+const TELEGRAM_BATCH_DELAY_MS = 1100;
+
 // Store scheduled tasks
 const scheduledTasks = new Map<string, cron.ScheduledTask>();
 
@@ -204,9 +208,6 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    const BATCH_SIZE = 25;
-    const BATCH_DELAY_MS = 1100;
-
     // Detect base64 media and decode to Buffer once
     let mediaBuffer: Buffer | null = null;
     let mediaMimeType: string = '';
@@ -225,8 +226,8 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       mediaMimeType === 'image/gif'
     );
 
-    for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
-      const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < usersResult.rows.length; i += TELEGRAM_BATCH_SIZE) {
+      const batch = usersResult.rows.slice(i, i + TELEGRAM_BATCH_SIZE);
       const sendPromises = batch.map(async (user) => {
         try {
           const text = getLocalizedText(user.language_code);
@@ -266,14 +267,23 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
 
           // Pin message if requested (ignore errors to avoid affecting delivery stats)
           // Telegram sendPhoto/sendAnimation/sendMessage all return { ok: true, result: { message_id, ... } }
-          if (broadcast.pin_message) {
-            const msgId = (result?.result as { message_id?: number } | undefined)?.message_id;
-            if (msgId) {
+          const msgId = (result?.result as { message_id?: number } | undefined)?.message_id;
+          if (msgId) {
+            if (broadcast.pin_message) {
               try {
                 await telegram.pinChatMessage(user.telegram_id, msgId, { disable_notification: true });
               } catch {
                 // Pin failure is non-fatal
               }
+            }
+            try {
+              await query(
+                'INSERT INTO broadcast_messages (broadcast_id, telegram_id, message_id) VALUES ($1, $2, $3)',
+                [id, user.telegram_id, msgId]
+              );
+            } catch (err) {
+              // non-fatal: just log
+              console.warn(`Failed to record message_id for telegram_id=${user.telegram_id}:`, err);
             }
           }
         } catch (err: any) {
@@ -285,8 +295,8 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       await Promise.all(sendPromises);
 
       // Wait between batches to respect rate limits
-      if (i + BATCH_SIZE < usersResult.rows.length) {
-        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      if (i + TELEGRAM_BATCH_SIZE < usersResult.rows.length) {
+        await new Promise(resolve => setTimeout(resolve, TELEGRAM_BATCH_DELAY_MS));
       }
     }
 
@@ -343,18 +353,66 @@ router.post('/:id/schedule', authenticateAdmin, async (req: AuthRequest, res) =>
   }
 });
 
-// Delete broadcast
+// Delete broadcast (and recall Telegram messages best-effort)
 router.delete('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
-    const result = await query(
-      'DELETE FROM broadcasts WHERE id = $1 RETURNING *',
+    // 1. Fetch broadcast to get bot_id and status before deletion
+    const broadcastResult = await query(
+      'SELECT id, bot_id, status FROM broadcasts WHERE id = $1',
       [id]
     );
-
-    if (result.rows.length === 0) {
+    if (broadcastResult.rows.length === 0) {
       return res.status(404).json({ error: 'Broadcast not found' });
+    }
+    const broadcast = broadcastResult.rows[0];
+
+    // 2. Fetch message records before deletion (CASCADE will remove them on DELETE)
+    const messagesResult = await query(
+      'SELECT telegram_id, message_id FROM broadcast_messages WHERE broadcast_id = $1',
+      [id]
+    );
+    const messageRows = messagesResult.rows;
+
+    // 3. Delete from DB (ON DELETE CASCADE removes broadcast_messages rows too)
+    await query('DELETE FROM broadcasts WHERE id = $1', [id]);
+
+    // 4. Best-effort: recall Telegram messages if any were recorded
+    //    Only possible within 48 hours of sending (Telegram limitation).
+    if (broadcast.status === 'sent' && broadcast.bot_id && messageRows.length > 0) {
+      setImmediate(async () => {
+        try {
+          const botResult = await query(
+            'SELECT token FROM bots WHERE id = $1',
+            [broadcast.bot_id]
+          );
+          if (botResult.rows.length === 0) return;
+
+          const telegram = new TelegramAPI(botResult.rows[0].token);
+
+          const TELEGRAM_BATCH_SIZE = 25;
+          const TELEGRAM_BATCH_DELAY_MS = 1100;
+
+          for (let i = 0; i < messageRows.length; i += TELEGRAM_BATCH_SIZE) {
+            const batch = messageRows.slice(i, i + TELEGRAM_BATCH_SIZE);
+            await Promise.all(batch.map(async (msg) => {
+              try {
+                await telegram.deleteMessage(msg.telegram_id, msg.message_id);
+              } catch {
+                // Individual delete failure is non-fatal (message may be >48h old)
+              }
+            }));
+            if (i + TELEGRAM_BATCH_SIZE < messageRows.length) {
+              await new Promise(resolve => setTimeout(resolve, TELEGRAM_BATCH_DELAY_MS));
+            }
+          }
+
+          console.log(`[Broadcast ${id}] Recalled ${messageRows.length} Telegram messages`);
+        } catch (err) {
+          console.error(`[Broadcast ${id}] Failed to recall Telegram messages:`, err);
+        }
+      });
     }
 
     res.json({ success: true });
