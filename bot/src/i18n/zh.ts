@@ -232,4 +232,10 @@ export const zh = {
   withdraw_pending_info: '审核通过后将收到通知',
   withdraw_balance_hint: '当前余额：{balance} USDT',
   withdraw_fee_hint: '手续费：{fee} USDT（{fee_rate}%），实际到账：{actual} USDT',
+
+  // Group not registered
+  group_not_registered: '您还没有注册，请点击 <a href="https://t.me/{bot_username}">私信机器人</a> 开始使用。',
+
+  // Auto-registered new user red packet claim notification
+  redpacket_auto_registered_and_claimed: '🎉 欢迎加入！您已自动注册并成功领取红包，获得 {amount} USDT！\n📊 完成 {multiplier} 倍交易流水即可提现',
 };

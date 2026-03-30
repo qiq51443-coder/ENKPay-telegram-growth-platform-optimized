@@ -221,4 +221,10 @@ export const de: Record<string, string> = {
   withdraw_pending_info: 'Sie werden benachrichtigt, sobald die Überprüfung abgeschlossen ist',
   withdraw_balance_hint: 'Aktuelles Guthaben: {balance} USDT',
   withdraw_fee_hint: 'Gebühr: {fee} USDT ({fee_rate}%), tatsächlich erhalten: {actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'Sie sind noch nicht registriert. Klicken Sie <a href="https://t.me/{bot_username}">hier</a>, um dem Bot zu schreiben.',
+
+  // Auto-registered new user red packet claim notification
+  redpacket_auto_registered_and_claimed: '🎉 Willkommen! Sie wurden automatisch registriert und haben das rote Paket erhalten, {amount} USDT!\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten',
 };

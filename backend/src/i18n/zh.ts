@@ -253,4 +253,7 @@ export const zh = {
   withdraw_pending_info: '审核通过后将收到通知',
   withdraw_balance_hint: '当前余额：{balance} USDT',
   withdraw_fee_hint: '手续费：{fee} USDT（{fee_rate}%），实际到账：{actual} USDT',
+
+  // Group not registered
+  group_not_registered: '您还没有注册，请点击 <a href="https://t.me/{bot_username}">私信机器人</a> 开始使用。',
 };

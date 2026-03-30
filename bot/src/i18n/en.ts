@@ -238,4 +238,10 @@ export const en = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ New charity activity: {name}. Join us!',
+
+  // Group not registered
+  group_not_registered: 'You haven\'t registered yet. Click <a href="https://t.me/{bot_username}">message the bot</a> to get started.',
+
+  // Auto-registered new user red packet claim notification
+  redpacket_auto_registered_and_claimed: '🎉 Welcome! You\'ve been auto-registered and claimed the red packet, receiving {amount} USDT!\n📊 Complete {multiplier}x trading volume to unlock withdrawal',
 };

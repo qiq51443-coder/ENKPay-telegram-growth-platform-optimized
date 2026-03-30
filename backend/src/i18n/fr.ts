@@ -241,4 +241,7 @@ export const fr: Record<string, string> = {
   withdraw_pending_info: 'Vous serez notifié une fois la vérification terminée',
   withdraw_balance_hint: 'Solde actuel : {balance} USDT',
   withdraw_fee_hint: 'Frais : {fee} USDT ({fee_rate}%), montant réel reçu : {actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'Vous n\'êtes pas encore inscrit. Cliquez <a href="https://t.me/{bot_username}">ici</a> pour envoyer un message au bot.',
 };

@@ -233,4 +233,10 @@ export const es: Record<string, string> = {
   withdraw_pending_info: 'Recibirás una notificación una vez que se complete la revisión',
   withdraw_balance_hint: 'Saldo actual: {balance} USDT',
   withdraw_fee_hint: 'Tarifa: {fee} USDT ({fee_rate}%), monto real recibido: {actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'Aún no te has registrado. Haz clic <a href="https://t.me/{bot_username}">aquí</a> para escribir al bot.',
+
+  // Auto-registered new user red packet claim notification
+  redpacket_auto_registered_and_claimed: '🎉 ¡Bienvenido! Te has registrado automáticamente y reclamado el sobre rojo, recibiendo {amount} USDT!\n📊 Completa {multiplier}x de volumen de trading para desbloquear el retiro',
 };

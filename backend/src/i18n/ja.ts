@@ -241,4 +241,7 @@ export const ja: Record<string, string> = {
   withdraw_pending_info: 'レビューが完了次第、通知が届きます',
   withdraw_balance_hint: '現在の残高：{balance} USDT',
   withdraw_fee_hint: '手数料：{fee} USDT（{fee_rate}%）、実際の受取金額：{actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'まだ登録されていません。<a href="https://t.me/{bot_username}">ここをクリック</a>してボットにメッセージを送ってください。',
 };

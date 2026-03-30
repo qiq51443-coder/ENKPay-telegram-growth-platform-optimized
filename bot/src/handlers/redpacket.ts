@@ -3,7 +3,7 @@ import { User, getUserLanguage } from '../services/user';
 import { getRedPacket, claimRedPacket } from '../services/api';
 import { t, tClaimConditionNotMet } from '../i18n';
 
-export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string) => {
+export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string, options?: { isNew?: boolean; defaultLanguage?: string }) => {
   const lang = getUserLanguage(user);
   const resolvedBotId = botId || (ctx as any).botId || '';
 
@@ -35,6 +35,18 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
         });
       }
       await ctx.telegram.sendMessage(ctx.from!.id, notifText, { parse_mode: 'HTML' }).catch(() => {});
+
+      // Send extra notification for newly auto-registered users
+      if (options?.isNew) {
+        try {
+          const notifLang = options.defaultLanguage || lang;
+          const newUserText = t(notifLang, 'redpacket_auto_registered_and_claimed', {
+            amount: amountStr,
+            multiplier: String(wagMultiplier ?? 2),
+          });
+          await ctx.telegram.sendMessage(ctx.from!.id, newUserText, { parse_mode: 'HTML' }).catch(() => {});
+        } catch (_) {}
+      }
     } catch (_) {}
 
     // Try to update the message with progress info — optional, must not block claim

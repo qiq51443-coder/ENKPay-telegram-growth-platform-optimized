@@ -331,8 +331,11 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         }
 
         if (condition === 'first_follow') {
-          const txCount = await client.query('SELECT COUNT(*) FROM transactions WHERE user_id = $1', [user_id]);
-          if (parseInt(txCount.rows[0].count) > 0) {
+          const claimHistory = await client.query(
+            'SELECT COUNT(*) FROM red_packet_claims WHERE user_id = $1',
+            [user_id]
+          );
+          if (parseInt(claimHistory.rows[0].count) > 0) {
             throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition: 'first_follow' });
           }
         }

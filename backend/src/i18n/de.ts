@@ -241,4 +241,7 @@ export const de: Record<string, string> = {
   withdraw_pending_info: 'Sie werden benachrichtigt, sobald die Überprüfung abgeschlossen ist',
   withdraw_balance_hint: 'Aktuelles Guthaben: {balance} USDT',
   withdraw_fee_hint: 'Gebühr: {fee} USDT ({fee_rate}%), tatsächlich erhalten: {actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'Sie sind noch nicht registriert. Klicken Sie <a href="https://t.me/{bot_username}">hier</a>, um dem Bot zu schreiben.',
 };

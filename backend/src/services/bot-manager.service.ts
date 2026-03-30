@@ -678,7 +678,13 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       const replyExtra = messageId ? { reply_parameters: { message_id: messageId } } : {};
 
       if (userResult.rows.length === 0) {
-        await ctx.reply('您还没有注册，请私信机器人开始使用。', replyExtra as any);
+        let botUsernameForMsg = 'your_bot';
+        try {
+          const botRow = await query('SELECT username FROM bots WHERE id = $1', [botId]);
+          botUsernameForMsg = botRow.rows[0]?.username || 'your_bot';
+        } catch {}
+        const notRegMsg = t(defaultLanguage, 'group_not_registered', { bot_username: botUsernameForMsg });
+        await ctx.replyWithHTML(notRegMsg, replyExtra as any);
         return;
       }
 
@@ -908,9 +914,17 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
   // ── Callback query handler ─────────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
     try {
+      // Pre-check: detect if user is new before auto-registration (for claim_redpacket notification)
+      const cbData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+      let isNewUserRegistration = false;
+      if (cbData.startsWith('claim_redpacket:') && ctx.from) {
+        const existCheck = await query('SELECT 1 FROM users WHERE telegram_id = $1', [ctx.from.id]);
+        isNewUserRegistration = existCheck.rows.length === 0;
+      }
+
       const user = await getOrCreateUser(ctx, botId);
       const lang = resolveUserLang(user, defaultLanguage);
-      const data = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+      const data = cbData;
 
       // ── Language selection ──────────────────────────────────────────────────
       if (data.startsWith('lang_')) {
@@ -1417,6 +1431,15 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               expiryHours: expiryHours || null,
             });
             await ctx.telegram.sendMessage(user.telegram_id, notifText, { parse_mode: 'HTML' }).catch(() => {});
+
+            // Send extra notification for newly auto-registered users
+            if (isNewUserRegistration) {
+              const newUserText = t(defaultLanguage, 'redpacket_auto_registered_and_claimed', {
+                amount: amountStr,
+                multiplier: String(wagMultiplier ?? 2),
+              });
+              await ctx.telegram.sendMessage(user.telegram_id, newUserText, { parse_mode: 'HTML' }).catch(() => {});
+            }
           } catch (_) {}
 
           // Try to update the group message with claim progress — non-blocking
