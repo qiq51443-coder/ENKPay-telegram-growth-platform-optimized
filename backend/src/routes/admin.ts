@@ -1058,7 +1058,7 @@ router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthReque
           translations[lang] = translated;
         } catch (err) {
           console.error(`Translation failed for lang ${lang}:`, err);
-          translations[lang] = '';
+          translations[lang] = text;
         }
       })
     );
