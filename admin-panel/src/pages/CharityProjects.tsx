@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch, Upload } from 'antd';
-import { PlusOutlined, EditOutlined, PictureOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch, Upload, Collapse } from 'antd';
+import { PlusOutlined, EditOutlined, PictureOutlined, UploadOutlined, TranslationOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -24,6 +24,8 @@ interface CharityProject {
   progress_auto_increment?: boolean;
   progress_increment_rate?: number;
   progress_increment_interval?: number;
+  title_i18n?: Record<string, string>;
+  description_i18n?: Record<string, string>;
   created_at: string;
 }
 
@@ -36,6 +38,17 @@ const resolveAdminImageUrl = (url: string | null | undefined): string => {
   }
   return `${window.location.origin}${url}`;
 };
+
+const LANG_LABELS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
+const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
 
 export const CharityProjects: React.FC = () => {
   const [projects, setProjects] = useState<CharityProject[]>([]);
@@ -52,6 +65,9 @@ export const CharityProjects: React.FC = () => {
   const [bannerLoading, setBannerLoading] = useState(false);
   const [bannerFileList, setBannerFileList] = useState<UploadFile[]>([]);
   const [progressCorrespondingAmount, setProgressCorrespondingAmount] = useState<number | null>(null);
+  const [titleI18nEdits, setTitleI18nEdits] = useState<Record<string, string>>({});
+  const [descI18nEdits, setDescI18nEdits] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState(false);
 
   const watchedGoalAmount = Form.useWatch('goal_amount', form);
 
@@ -82,6 +98,8 @@ export const CharityProjects: React.FC = () => {
         show_in_app: project.show_in_app !== false,
       };
       form.setFieldsValue(formValues);
+      setTitleI18nEdits(project.title_i18n || {});
+      setDescI18nEdits(project.description_i18n || {});
       // Show existing image in upload list
       if (project.image_url) {
         setImageFileList([{
@@ -110,6 +128,8 @@ export const CharityProjects: React.FC = () => {
       form.resetFields();
       setImageFileList([]);
       setProgressImageFileList([]);
+      setTitleI18nEdits({});
+      setDescI18nEdits({});
     }
     setModalOpen(true);
   };
@@ -131,6 +151,10 @@ export const CharityProjects: React.FC = () => {
         .filter(f => f.status === 'done')
         .map(f => f.response?.url || f.url || '')
         .filter(Boolean);
+
+      // Attach i18n translation edits if present
+      if (Object.keys(titleI18nEdits).length > 0) values.title_i18n = titleI18nEdits;
+      if (Object.keys(descI18nEdits).length > 0) values.description_i18n = descI18nEdits;
       
       if (editingProject) {
         await apiClient.updateCharityProject(editingProject.id, values);
@@ -144,6 +168,8 @@ export const CharityProjects: React.FC = () => {
       form.resetFields();
       setEditingProject(null);
       setProgressImageFileList([]);
+      setTitleI18nEdits({});
+      setDescI18nEdits({});
       fetchProjects();
     } catch (error: any) {
       console.error('Failed to save project:', error);
@@ -159,6 +185,21 @@ export const CharityProjects: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to update status:', error);
       message.error(error.response?.data?.error || '更新失败');
+    }
+  };
+
+  const handleRetranslate = async () => {
+    if (!editingProject) return;
+    setTranslating(true);
+    try {
+      const result = await apiClient.translateCharityProject(editingProject.id);
+      if (result.title_i18n) setTitleI18nEdits(result.title_i18n);
+      if (result.description_i18n) setDescI18nEdits(result.description_i18n);
+      message.success('重新翻译成功');
+    } catch {
+      message.error('翻译失败，请稍后重试');
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -225,6 +266,14 @@ export const CharityProjects: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: 200,
+      render: (title: string, record: CharityProject) => (
+        <span>
+          {title}
+          {record.title_i18n && Object.keys(record.title_i18n).length > 0 && (
+            <Tag color="cyan" style={{ marginLeft: 4, fontSize: 10 }}>已翻译</Tag>
+          )}
+        </span>
+      ),
     },
     {
       title: '组织',
@@ -381,10 +430,12 @@ export const CharityProjects: React.FC = () => {
           form.resetFields();
           setEditingProject(null);
           setProgressImageFileList([]);
+          setTitleI18nEdits({});
+          setDescI18nEdits({});
         }}
         okText="保存"
         cancelText="取消"
-        width={600}
+        width={700}
       >
         <Form
           form={form}
@@ -405,6 +456,68 @@ export const CharityProjects: React.FC = () => {
           >
             <Input.TextArea rows={4} placeholder="详细描述项目内容和目标" />
           </Form.Item>
+
+          <Collapse
+            size="small"
+            style={{ marginBottom: 16 }}
+            items={[{
+              key: 'i18n',
+              label: (
+                <span>
+                  🌐 多语言翻译预览/编辑
+                  {Object.keys(titleI18nEdits).length > 0 && (
+                    <Tag color="cyan" style={{ marginLeft: 8, fontSize: 10 }}>已翻译 {Object.keys(titleI18nEdits).length} 种语言</Tag>
+                  )}
+                </span>
+              ),
+              children: (
+                <div>
+                  {editingProject && (
+                    <div style={{ marginBottom: 12 }}>
+                      <Button
+                        size="small"
+                        icon={<TranslationOutlined />}
+                        loading={translating}
+                        onClick={handleRetranslate}
+                      >
+                        重新翻译
+                      </Button>
+                      <span style={{ marginLeft: 8, color: '#999', fontSize: 12 }}>
+                        将从数据库原始标题/描述重新翻译到所有语言
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: 8, fontWeight: 500, color: '#666' }}>标题翻译：</div>
+                  {SUPPORTED_LANGS.map(lang => (
+                    <div key={`title-${lang}`} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                      <Tag style={{ width: 80, textAlign: 'center', flexShrink: 0 }}>{LANG_LABELS[lang]}</Tag>
+                      <Input
+                        size="small"
+                        placeholder={`${LANG_LABELS[lang]} 标题翻译`}
+                        value={titleI18nEdits[lang] || ''}
+                        onChange={e => setTitleI18nEdits(prev => ({ ...prev, [lang]: e.target.value }))}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ marginBottom: 8, marginTop: 16, fontWeight: 500, color: '#666' }}>描述翻译：</div>
+                  {SUPPORTED_LANGS.map(lang => (
+                    <div key={`desc-${lang}`} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <Tag style={{ width: 80, textAlign: 'center', flexShrink: 0, marginTop: 4 }}>{LANG_LABELS[lang]}</Tag>
+                      <Input.TextArea
+                        size="small"
+                        rows={2}
+                        placeholder={`${LANG_LABELS[lang]} 描述翻译`}
+                        value={descI18nEdits[lang] || ''}
+                        onChange={e => setDescI18nEdits(prev => ({ ...prev, [lang]: e.target.value }))}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ),
+            }]}
+          />
 
           <Form.Item label="封面图">
             <Upload

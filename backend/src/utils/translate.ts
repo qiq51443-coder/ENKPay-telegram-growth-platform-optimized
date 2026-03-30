@@ -4,21 +4,29 @@ export const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as con
 export type SupportedLang = typeof SUPPORTED_LANGS[number];
 
 /**
- * Translate text to a single target language using Google Translate free API.
- * Returns the original text on failure.
+ * Translate text to a single target language using LibreTranslate.
+ * Falls back to the original text on error.
+ * Configure via env vars: LIBRETRANSLATE_URL, LIBRETRANSLATE_API_KEY
  */
 export async function translateText(text: string, targetLang: string): Promise<string> {
   if (!text || !text.trim()) return text;
+  const libreUrl = process.env.LIBRETRANSLATE_URL || 'http://localhost:5000';
+  const apiKey = process.env.LIBRETRANSLATE_API_KEY || '';
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
-    const response = await axios.get(url, { timeout: 8000 });
-    const data = response.data;
-    if (Array.isArray(data) && Array.isArray(data[0])) {
-      return (data[0] as any[]).map((segment: any) => segment[0] || '').join('');
-    }
-    return text;
+    const response = await axios.post(
+      `${libreUrl}/translate`,
+      {
+        q: text,
+        source: 'auto',
+        target: targetLang,
+        format: 'text',
+        api_key: apiKey,
+      },
+      { timeout: 15000 }
+    );
+    return (response.data?.translatedText as string) || text;
   } catch (err) {
-    console.error(`translateText failed for lang=${targetLang}:`, err);
+    console.error(`LibreTranslate failed for lang=${targetLang}:`, err);
     return text;
   }
 }
