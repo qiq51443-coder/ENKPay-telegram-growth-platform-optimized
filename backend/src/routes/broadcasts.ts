@@ -13,26 +13,36 @@ const scheduledTasks = new Map<string, cron.ScheduledTask>();
 // Create broadcast
 router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { bot_id, title, content, target_type, scheduled_at, media_url } = req.body;
+    const { bot_id, title, content, target_type, scheduled_at, media_url, target_users, pin_message,
+      content_translations: clientContentTranslations, title_translations: clientTitleTranslations } = req.body;
 
     if (!bot_id || !content) {
       return res.status(400).json({ error: 'Bot ID and content required' });
     }
 
     const result = await query(
-      `INSERT INTO broadcasts (bot_id, title, content, target_type, scheduled_at, created_by, status, media_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO broadcasts (bot_id, title, content, target_type, scheduled_at, created_by, status, media_url, target_users, pin_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [bot_id, title, content, target_type || 'all', scheduled_at, req.user?.id, 'draft', media_url || null]
+      [bot_id, title, content, target_type || 'all', scheduled_at, req.user?.id, 'draft', media_url || null,
+        target_users || null, pin_message ? true : false]
     );
 
     const broadcast = result.rows[0];
 
-    // Auto-translate content and title in the background, then update DB
-    const [contentTranslations, titleTranslations] = await Promise.all([
-      translateToAllLangs(content),
-      translateToAllLangs(title || ''),
-    ]);
+    // Use client-provided translations if available, otherwise auto-translate
+    let contentTranslations: Record<string, string>;
+    let titleTranslations: Record<string, string>;
+
+    if (clientContentTranslations && Object.keys(clientContentTranslations).length > 0) {
+      contentTranslations = clientContentTranslations;
+      titleTranslations = clientTitleTranslations || {};
+    } else {
+      [contentTranslations, titleTranslations] = await Promise.all([
+        translateToAllLangs(content),
+        translateToAllLangs(title || ''),
+      ]);
+    }
 
     await query(
       'UPDATE broadcasts SET content_translations = $1, title_translations = $2 WHERE id = $3',
@@ -113,18 +123,50 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     );
 
     // Get target users
-    let userQuery = 'SELECT telegram_id, language_code FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL';
-    const params = [broadcast.bot_id];
+    let usersResult;
+    if (broadcast.target_type === 'specific') {
+      // Parse target_users field: comma or newline separated identifiers (telegram_id / @username / unique_id)
+      const raw: string = broadcast.target_users || '';
+      const identifiers = raw.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+      if (identifiers.length === 0) {
+        await query('UPDATE broadcasts SET status = $1 WHERE id = $2', ['failed', id]);
+        return res.status(400).json({ error: 'No target users specified' });
+      }
 
-    if (broadcast.target_type === 'active') {
-      userQuery += " AND last_active_at > NOW() - INTERVAL '7 days'";
-    } else if (broadcast.target_type === 'bound') {
-      userQuery += ' AND platform_bound = true';
-    } else if (broadcast.target_type === 'unbound') {
-      userQuery += ' AND platform_bound = false';
+      const userRows: any[] = [];
+      for (const identifier of identifiers) {
+        // Numeric: treat as telegram_id
+        const numericId = /^\d+$/.test(identifier) ? parseInt(identifier, 10) : null;
+        // @username or plain username
+        const usernameClean = identifier.startsWith('@') ? identifier.slice(1) : identifier;
+        const found = await query(
+          `SELECT telegram_id, language_code FROM users
+           WHERE bot_id = $1 AND telegram_id IS NOT NULL
+             AND (
+               ($2::bigint IS NOT NULL AND telegram_id = $2::bigint)
+               OR LOWER(username) = LOWER($3)
+               OR LOWER(unique_id) = LOWER($3)
+             )
+           LIMIT 1`,
+          [broadcast.bot_id, numericId, usernameClean]
+        );
+        if (found.rows.length > 0) {
+          userRows.push(found.rows[0]);
+        } else {
+          console.warn(`Broadcast specific target not found: ${identifier}`);
+        }
+      }
+      usersResult = { rows: userRows };
+    } else {
+      let userQuery = 'SELECT telegram_id, language_code FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL';
+      const params = [broadcast.bot_id];
+
+      if (broadcast.target_type === 'active') {
+        userQuery += " AND last_active_at > NOW() - INTERVAL '7 days'";
+      }
+
+      usersResult = await query(userQuery, params);
     }
-
-    const usersResult = await query(userQuery, params);
 
     // Get bot token
     const botResult = await query('SELECT token FROM bots WHERE id = $1', [broadcast.bot_id]);
@@ -158,30 +200,75 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     const BATCH_SIZE = 25;
     const BATCH_DELAY_MS = 1100;
 
-    const isGif = broadcast.media_url &&
-      (/\.gif(\?.*)?$/i.test(broadcast.media_url) || broadcast.media_url.includes('animation'));
+    // Detect base64 media and decode to Buffer once
+    let mediaBuffer: Buffer | null = null;
+    let mediaMimeType: string = '';
+    const isBase64Media = broadcast.media_url && broadcast.media_url.startsWith('data:');
+    if (isBase64Media) {
+      const match = (broadcast.media_url as string).match(/^data:([^;\n]+);base64,(.+)$/);
+      if (match) {
+        mediaMimeType = match[1];
+        mediaBuffer = Buffer.from(match[2], 'base64');
+      }
+    }
+
+    const isGif = broadcast.media_url && (
+      /\.gif(\?.*)?$/i.test(broadcast.media_url) ||
+      broadcast.media_url.includes('animation') ||
+      mediaMimeType === 'image/gif'
+    );
 
     for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
       const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
       const sendPromises = batch.map(async (user) => {
         try {
           const text = getLocalizedText(user.language_code);
+          let result: any;
           if (broadcast.media_url) {
-            if (isGif) {
-              await telegram.sendAnimation(user.telegram_id, broadcast.media_url, {
-                caption: text,
-                parse_mode: 'HTML',
-              });
+            if (mediaBuffer) {
+              // base64 encoded media — use Buffer upload
+              if (isGif) {
+                result = await telegram.sendAnimationBuffer(user.telegram_id, mediaBuffer, mediaMimeType, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                });
+              } else {
+                result = await telegram.sendPhotoBuffer(user.telegram_id, mediaBuffer, mediaMimeType, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                });
+              }
             } else {
-              await telegram.sendPhoto(user.telegram_id, broadcast.media_url, {
-                caption: text,
-                parse_mode: 'HTML',
-              });
+              // URL-based media
+              if (isGif) {
+                result = await telegram.sendAnimation(user.telegram_id, broadcast.media_url, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                });
+              } else {
+                result = await telegram.sendPhoto(user.telegram_id, broadcast.media_url, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                });
+              }
             }
           } else {
-            await telegram.sendMessage(user.telegram_id, text, { parse_mode: 'HTML' });
+            result = await telegram.sendMessage(user.telegram_id, text, { parse_mode: 'HTML' });
           }
           sentCount++;
+
+          // Pin message if requested (ignore errors to avoid affecting delivery stats)
+          // Telegram sendPhoto/sendAnimation/sendMessage all return { ok: true, result: { message_id, ... } }
+          if (broadcast.pin_message) {
+            const msgId = (result?.result as { message_id?: number } | undefined)?.message_id;
+            if (msgId) {
+              try {
+                await telegram.pinChatMessage(user.telegram_id, msgId, { disable_notification: true });
+              } catch {
+                // Pin failure is non-fatal
+              }
+            }
+          }
         } catch (err: any) {
           console.error(`Failed to send broadcast to telegram_id=${user.telegram_id}:`, err?.response?.data || err?.message);
           failedCount++;
@@ -255,12 +342,12 @@ router.delete('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     const { id } = req.params;
 
     const result = await query(
-      'DELETE FROM broadcasts WHERE id = $1 AND status IN ($2, $3) RETURNING *',
-      [id, 'draft', 'failed']
+      'DELETE FROM broadcasts WHERE id = $1 RETURNING *',
+      [id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Cannot delete sent or sending broadcasts' });
+      return res.status(404).json({ error: 'Broadcast not found' });
     }
 
     res.json({ success: true });

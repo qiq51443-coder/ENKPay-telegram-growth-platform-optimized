@@ -223,6 +223,70 @@ export class TelegramAPI {
       throw error;
     }
   }
+
+  async sendPhotoBuffer(chatId: number | string, buffer: Buffer, mimeType: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    const ext = mimeType.split('/')[1] || 'jpg';
+    form.append('photo', buffer, { filename: `photo.${ext}`, contentType: mimeType });
+    if (options?.caption) form.append('caption', options.caption);
+    if (options?.parse_mode) form.append('parse_mode', options.parse_mode);
+    if (options?.reply_markup) form.append('reply_markup', JSON.stringify(options.reply_markup));
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendPhoto`, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Telegram sendPhotoBuffer error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async sendAnimationBuffer(chatId: number | string, buffer: Buffer, mimeType: string, options?: {
+    caption?: string;
+    parse_mode?: string;
+    reply_markup?: any;
+  }): Promise<any> {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    const ext = mimeType.split('/')[1] || 'gif';
+    form.append('animation', buffer, { filename: `animation.${ext}`, contentType: mimeType });
+    if (options?.caption) form.append('caption', options.caption);
+    if (options?.parse_mode) form.append('parse_mode', options.parse_mode);
+    if (options?.reply_markup) form.append('reply_markup', JSON.stringify(options.reply_markup));
+    try {
+      const response = await axios.post(`${this.baseUrl}/sendAnimation`, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Telegram sendAnimationBuffer error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async pinChatMessage(chatId: number | string, messageId: number, options?: { disable_notification?: boolean }): Promise<any> {
+    try {
+      const response = await axios.post(`${this.baseUrl}/pinChatMessage`, {
+        chat_id: chatId,
+        message_id: messageId,
+        disable_notification: options?.disable_notification ?? true,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Telegram pinChatMessage error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
 }
 
 export default TelegramAPI;

@@ -539,3 +539,7 @@ ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(
 
 -- Migration: add progress_images to charity_projects
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
+
+-- Migration: add target_users and pin_message to broadcasts
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS target_users TEXT;
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS pin_message BOOLEAN DEFAULT false;
