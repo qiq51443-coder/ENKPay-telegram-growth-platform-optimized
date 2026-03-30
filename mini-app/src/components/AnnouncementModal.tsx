@@ -1,16 +1,29 @@
 import React from 'react';
 import { theme } from '../theme';
 
+const CLOSE_BUTTON_LABELS: Record<string, string> = {
+  zh: '知道了',
+  en: 'Got it',
+  fr: "J'ai compris",
+  de: 'Verstanden',
+  es: 'Entendido',
+  ar: 'فهمت',
+  ja: 'わかりました',
+};
+
 interface AnnouncementModalProps {
   title: string;
   content: string;
   images?: string[];
+  lang?: string;
   onClose: () => void;
 }
 
 export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
-  title, content, images, onClose,
+  title, content, images, lang, onClose,
 }) => {
+  const closeLabel = (lang && CLOSE_BUTTON_LABELS[lang]) || CLOSE_BUTTON_LABELS['en'];
+
   return (
     <div style={{
       position: 'fixed',
@@ -34,7 +47,10 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         {images && images.length > 0 && images.map((img, i) => (
           <img key={i} src={img} alt="announcement" style={{ width: '100%', borderRadius: '8px', marginBottom: '12px' }} />
         ))}
-        <p style={{ color: theme.textSecondary, lineHeight: '1.6', marginBottom: '16px' }}>{content}</p>
+        <p
+          style={{ color: theme.textSecondary, lineHeight: '1.6', marginBottom: '16px' }}
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
         <button
           onClick={onClose}
           style={{
@@ -48,7 +64,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             fontSize: '16px',
           }}
         >
-          知道了
+          {closeLabel}
         </button>
       </div>
     </div>

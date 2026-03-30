@@ -26,6 +26,9 @@ interface Announcement {
   target_group_ids?: string[];
   content_translations?: Record<string, string>;
   title_translations?: Record<string, string>;
+  sent_message_ids?: Record<string, number>;
+  support_telegram?: string;
+  show_open_bot_button?: boolean;
 }
 
 interface Bot {
@@ -115,6 +118,8 @@ export const Announcements: React.FC = () => {
         show_on_app_launch: announcement.show_on_app_launch,
         announcement_bot_id: announcement.announcement_bot_id || undefined,
         target_group_ids: announcement.target_group_ids || [],
+        support_telegram: announcement.support_telegram || '',
+        show_open_bot_button: announcement.show_open_bot_button || false,
       });
       if (announcement.announcement_bot_id) {
         fetchGroupsForBot(announcement.announcement_bot_id);
@@ -182,6 +187,17 @@ export const Announcements: React.FC = () => {
     }
   };
 
+  const handleDeleteMessages = async (id: string) => {
+    try {
+      const response = await axios.delete(`/api/announcements/${id}/messages`, { headers: authHeaders() });
+      message.success(`已删除 ${response.data.deleted_count} 条消息`);
+      fetchAnnouncements();
+    } catch (error: any) {
+      console.error('Failed to delete announcement messages:', error);
+      message.error(error.response?.data?.error || '删除消息失败');
+    }
+  };
+
   const statusMap: Record<string, { text: string; color: string }> = {
     draft: { text: '草稿', color: 'default' },
     scheduled: { text: '定时', color: 'processing' },
@@ -241,6 +257,18 @@ export const Announcements: React.FC = () => {
       render: (v: boolean) => v ? <Tag color="blue">是</Tag> : '-',
     },
     {
+      title: '客服',
+      dataIndex: 'support_telegram',
+      key: 'support_telegram',
+      render: (v: string) => v ? `@${v}` : '-',
+    },
+    {
+      title: '打开Bot按钮',
+      dataIndex: 'show_open_bot_button',
+      key: 'show_open_bot_button',
+      render: (v: boolean) => v ? <Tag color="cyan">是</Tag> : '-',
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -265,6 +293,18 @@ export const Announcements: React.FC = () => {
             >
               <Button type="text" size="small" icon={<SendOutlined />}>
                 发送
+              </Button>
+            </Popconfirm>
+          )}
+          {record.sent_message_ids && typeof record.sent_message_ids === 'object' && Object.keys(record.sent_message_ids).length > 0 && (
+            <Popconfirm
+              title="确定要删除所有已发送的 Telegram 消息吗？"
+              onConfirm={() => handleDeleteMessages(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button type="text" size="small" danger>
+                删除已发消息
               </Button>
             </Popconfirm>
           )}
@@ -453,7 +493,31 @@ export const Announcements: React.FC = () => {
             <Switch />
           </Form.Item>
 
-          <Form.Item name="show_on_app_launch" label="App 启动时显示" valuePropName="checked" initialValue={false}>
+          <Form.Item
+            name="show_on_app_launch"
+            label="App 启动时显示"
+            valuePropName="checked"
+            initialValue={false}
+            extra={!selectedTargets.includes('app') ? '仅限发送目标包含"App"时有效' : undefined}
+          >
+            <Switch disabled={!selectedTargets.includes('app')} />
+          </Form.Item>
+
+          <Form.Item
+            name="support_telegram"
+            label="客服 Telegram（可选）"
+            extra="填写不含@的用户名，用户点击后直接打开聊天。不填则不显示按钮。"
+          >
+            <Input addonBefore="@" placeholder="例如：support_bot" />
+          </Form.Item>
+
+          <Form.Item
+            name="show_open_bot_button"
+            label='显示"打开Bot"按钮'
+            valuePropName="checked"
+            initialValue={false}
+            extra="仅对群组/频道公告有效，用户点击可直接打开Bot（未注册用户可借此注册）"
+          >
             <Switch />
           </Form.Item>
         </Form>
