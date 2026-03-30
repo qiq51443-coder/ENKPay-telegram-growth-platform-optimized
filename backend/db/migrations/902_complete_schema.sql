@@ -61,19 +61,6 @@ ALTER TABLE bots ADD COLUMN IF NOT EXISTS username VARCHAR(100);
 ALTER TABLE bots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 5. Deposit networks – ensure default networks exist
--- ─────────────────────────────────────────────────────────────────────────────
--- The main schema creates deposit_networks; we just ensure default rows exist.
--- On conflict (duplicate network_name) we do nothing.
-INSERT INTO deposit_networks
-  (network_name, network_display, chain_name, min_deposit_amount, is_active, sort_order)
-VALUES
-  ('TRC', 'TRC20 (USDT)', 'TRON', 1.0,  true, 1),
-  ('BSC', 'BSC (BEP20)',  'BSC',  1.0,  true, 2),
-  ('ETH', 'ETH (ERC20)',  'ETH',  10.0, true, 3)
-ON CONFLICT (network_name) DO NOTHING;
-
--- ─────────────────────────────────────────────────────────────────────────────
 -- 6. user_deposit_addresses – ensure table and index exist
 --    (the main schema already creates this; kept here for safety)
 -- ─────────────────────────────────────────────────────────────────────────────

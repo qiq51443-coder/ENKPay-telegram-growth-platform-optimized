@@ -386,14 +386,6 @@ CREATE TABLE IF NOT EXISTS deposit_networks (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default deposit networks
-INSERT INTO deposit_networks (network_name, network_display, chain_name, hd_derivation_path, explorer_url, sort_order)
-VALUES 
-  ('TRC20', 'Tron (TRC20)', 'TRON', 'm/44''/195''/0''/0/', 'https://tronscan.org/#/transaction/', 1),
-  ('ERC20', 'Ethereum (ERC20)', 'ETH', 'm/44''/60''/0''/0/', 'https://etherscan.io/tx/', 2),
-  ('BEP20', 'BSC (BEP20)', 'BSC', 'm/44''/60''/0''/0/', 'https://bscscan.com/tx/', 3)
-ON CONFLICT (network_name) DO NOTHING;
-
 -- ============================================================================
 -- 19. User Deposit Addresses Table
 -- ============================================================================

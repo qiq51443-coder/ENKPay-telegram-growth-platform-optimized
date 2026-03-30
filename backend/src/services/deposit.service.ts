@@ -283,7 +283,7 @@ export async function generateUserDepositAddress(
     let derivedAddress: string;
     try {
       const chainUpper = network.chain_name?.toUpperCase();
-      if (chainUpper === 'TRON' || chainUpper === 'TRC20') {
+      if (chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC') {
         derivedAddress = await deriveTronAddress(mnemonic, network.hd_derivation_path, hdIndex);
       } else if (chainUpper === 'ETH' || chainUpper === 'ETHEREUM' || chainUpper === 'ERC20') {
         derivedAddress = await deriveEthAddress(mnemonic, network.hd_derivation_path, hdIndex);
