@@ -30,29 +30,36 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const broadcast = result.rows[0];
 
-    // Use client-provided translations if available, otherwise auto-translate
-    let contentTranslations: Record<string, string>;
-    let titleTranslations: Record<string, string>;
-
+    // If front-end already provided translations, use them directly and respond immediately
     if (clientContentTranslations && Object.keys(clientContentTranslations).length > 0) {
-      contentTranslations = clientContentTranslations;
-      titleTranslations = clientTitleTranslations || {};
-    } else {
-      [contentTranslations, titleTranslations] = await Promise.all([
-        translateToAllLangs(content),
-        translateToAllLangs(title || ''),
-      ]);
+      await query(
+        'UPDATE broadcasts SET content_translations = $1, title_translations = $2 WHERE id = $3',
+        [JSON.stringify(clientContentTranslations), JSON.stringify(clientTitleTranslations || {}), broadcast.id]
+      );
+      broadcast.content_translations = clientContentTranslations;
+      broadcast.title_translations = clientTitleTranslations || {};
+      return res.json({ broadcast });
     }
 
-    await query(
-      'UPDATE broadcasts SET content_translations = $1, title_translations = $2 WHERE id = $3',
-      [JSON.stringify(contentTranslations), JSON.stringify(titleTranslations), broadcast.id]
-    );
-
-    broadcast.content_translations = contentTranslations;
-    broadcast.title_translations = titleTranslations;
-
+    // Respond immediately, then translate in background to avoid blocking / timeout
+    broadcast.content_translations = {};
+    broadcast.title_translations = {};
     res.json({ broadcast });
+
+    setImmediate(async () => {
+      try {
+        const [ct, tt] = await Promise.all([
+          translateToAllLangs(content),
+          translateToAllLangs(title || ''),
+        ]);
+        await query(
+          'UPDATE broadcasts SET content_translations = $1, title_translations = $2 WHERE id = $3',
+          [JSON.stringify(ct), JSON.stringify(tt), broadcast.id]
+        );
+      } catch (err) {
+        console.error('Background translate for broadcast failed:', err);
+      }
+    });
   } catch (error) {
     console.error('Create broadcast error:', error);
     res.status(500).json({ error: 'Internal server error' });
