@@ -508,20 +508,20 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
 
       const entryPrice = parseFloat(priceResult.rows[0].price);
 
-      // Deduct from wallet_balance first, then red_packet_balance for the remainder
-      const fromWallet = Math.min(walletBal, orderAmount);
-      const fromRedPacket = orderAmount - fromWallet;
+      // Deduct from red_packet_balance first, then wallet_balance for the remainder
+      const fromRedPacket = Math.min(redPacketBal, orderAmount);
+      const fromWallet = orderAmount - fromRedPacket;
+      if (fromRedPacket > 0) {
+        await client.query(
+          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3 AND red_packet_balance >= $1',
+          [fromRedPacket, orderAmount, user_id]
+        );
+      }
       if (fromWallet > 0) {
         await client.query(
           `UPDATE users SET wallet_balance = wallet_balance - $1
            WHERE id = $2 AND wallet_balance >= $1`,
           [fromWallet, user_id]
-        );
-      }
-      if (fromRedPacket > 0) {
-        await client.query(
-          'UPDATE users SET red_packet_balance = red_packet_balance - $1, red_packet_wagered = COALESCE(red_packet_wagered, 0) + $2 WHERE id = $3',
-          [fromRedPacket, orderAmount, user_id]
         );
       }
 
@@ -1070,21 +1070,11 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         throw new Error('You already have an order for this trading period. Please wait for the next period.');
       }
 
-      // Deduct from wallet_balance first, then red_packet_balance for the remainder.
+      // Deduct from red_packet_balance first, then wallet_balance for the remainder.
       // Each deduction uses an atomic SQL UPDATE with a balance guard (wallet >= amount)
       // to prevent over-spending under concurrent requests.
-      const fromWallet = Math.min(walletBal, orderAmount);
-      const fromRedPacketQS = orderAmount - fromWallet;
-      if (fromWallet > 0) {
-        const deductWallet = await client.query(
-          `UPDATE users SET wallet_balance = wallet_balance - $1
-           WHERE id = $2 AND wallet_balance >= $1 RETURNING id`,
-          [fromWallet, user_id]
-        );
-        if (deductWallet.rows.length === 0) {
-          throw Object.assign(new Error('Insufficient wallet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
-        }
-      }
+      const fromRedPacketQS = Math.min(redPacketBal, orderAmount);
+      const fromWallet = orderAmount - fromRedPacketQS;
       if (fromRedPacketQS > 0) {
         const deductRP = await client.query(
           `UPDATE users SET red_packet_balance = red_packet_balance - $1,
@@ -1094,6 +1084,16 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
         );
         if (deductRP.rows.length === 0) {
           throw Object.assign(new Error('Insufficient red packet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
+        }
+      }
+      if (fromWallet > 0) {
+        const deductWallet = await client.query(
+          `UPDATE users SET wallet_balance = wallet_balance - $1
+           WHERE id = $2 AND wallet_balance >= $1 RETURNING id`,
+          [fromWallet, user_id]
+        );
+        if (deductWallet.rows.length === 0) {
+          throw Object.assign(new Error('Insufficient wallet balance'), { statusCode: 402, current_balance: totalAvailable, required: orderAmount });
         }
       }
 

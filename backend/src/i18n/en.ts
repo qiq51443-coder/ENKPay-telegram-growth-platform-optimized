@@ -259,4 +259,7 @@ export const en = {
 
   // Charity ambassador
   charity_ambassador_msg: '❤️ New charity activity: {name}. Join us!',
+
+  // Group not registered
+  group_not_registered: 'You haven\'t registered yet. Click <a href="https://t.me/{bot_username}">message the bot</a> to get started.',
 };

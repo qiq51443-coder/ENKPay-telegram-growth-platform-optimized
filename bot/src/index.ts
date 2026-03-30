@@ -5,6 +5,7 @@ import axios from 'axios';
 import { connectRedis as connectStateRedis } from './utils/state';
 import { connectRedis as connectSettingsRedis, subscribeToSettingsUpdates } from './services/settings';
 import { getOrCreateUser, getUserLanguage } from './services/user';
+import { getUser as getUserAPI } from './services/api';
 import { getUserState, clearUserState } from './utils/state';
 
 // Import handlers
@@ -106,9 +107,17 @@ function createBotInstance(entry: BotEntry): Telegraf {
   // Callback query handlers
   bot.on('callback_query', async (ctx) => {
     try {
+      // Pre-check: detect if user is new before auto-registration (for claim_redpacket notification)
+      const cbData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+      let isNewUserRegistration = false;
+      if (cbData.startsWith('claim_redpacket:') && ctx.from) {
+        const existingUser = await getUserAPI(BOT_ID, ctx.from.id).catch(() => null);
+        isNewUserRegistration = !existingUser;
+      }
+
       const user = await getOrCreateUser(ctx, BOT_ID);
       const lang = getUserLanguage(user);
-      const data = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
+      const data = cbData;
 
       if (data.startsWith('lang_')) {
         const langCode = data.split('_')[1];
@@ -123,7 +132,7 @@ function createBotInstance(entry: BotEntry): Telegraf {
 
       if (data.startsWith('claim_redpacket:')) {
         const redPacketId = data.split(':')[1];
-        await handleRedPacketClaim(ctx, user, redPacketId, BOT_ID);
+        await handleRedPacketClaim(ctx, user, redPacketId, BOT_ID, { isNew: isNewUserRegistration, defaultLanguage: entry.default_language });
         return;
       }
 

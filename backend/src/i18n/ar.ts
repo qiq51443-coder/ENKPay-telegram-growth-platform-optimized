@@ -247,4 +247,7 @@ export const ar: Record<string, string> = {
   withdraw_pending_info: 'ستتلقى إشعاراً بعد اكتمال المراجعة',
   withdraw_balance_hint: 'الرصيد الحالي: {balance} USDT',
   withdraw_fee_hint: 'الرسوم: {fee} USDT ({fee_rate}%)، المبلغ الفعلي المستلم: {actual} USDT',
+
+  // Group not registered
+  group_not_registered: 'لم تقم بالتسجيل بعد. انقر <a href="https://t.me/{bot_username}">هنا</a> لمراسلة البوت.',
 };
