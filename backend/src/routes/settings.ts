@@ -136,7 +136,9 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     if (updates.length === 0) {
-      return res.status(400).json({ error: 'No updates provided' });
+      // Nothing to update — return current settings without error
+      const current = await query('SELECT * FROM bot_settings WHERE bot_id = $1', [botId]);
+      return res.json({ settings: current.rows[0] || {} });
     }
 
     // Check if settings exist
