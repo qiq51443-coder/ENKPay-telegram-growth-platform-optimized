@@ -13,24 +13,15 @@ interface Bot {
 }
 
 interface BotSettingsData {
-  platform_name?: string;
-  platform_url?: string;
-  register_url?: string;
-  webapp_url?: string;
   welcome_message?: string;
   follow_reward?: number;
-  bind_reward?: number;
   invite_reward?: number;
-  new_user_credits?: number;
   support_telegram?: string;
   wallet_tip_message?: string;
   transfer_min_amount?: number;
   withdraw_min_amount?: number;
   withdraw_fee_rate?: number;
   deposit_confirm_blocks?: number;
-  required_channel_id?: string;
-  required_group_id?: string;
-  screenshot_group_id?: string;
 }
 
 export const BotSettings: React.FC = () => {
@@ -131,24 +122,7 @@ export const BotSettings: React.FC = () => {
 
       <Spin spinning={loading}>
         <Form form={form} layout="vertical">
-          <Tabs defaultActiveKey="basic">
-            <TabPane tab="基础设置" key="basic">
-              <Card>
-                <Form.Item name="platform_name" label="平台名称">
-                  <Input placeholder="平台名称" />
-                </Form.Item>
-                <Form.Item name="platform_url" label="平台URL">
-                  <Input placeholder="https://..." />
-                </Form.Item>
-                <Form.Item name="register_url" label="注册URL">
-                  <Input placeholder="https://..." />
-                </Form.Item>
-                <Form.Item name="webapp_url" label="WebApp URL">
-                  <Input placeholder="https://..." />
-                </Form.Item>
-              </Card>
-            </TabPane>
-
+          <Tabs defaultActiveKey="welcome">
             <TabPane tab="欢迎语" key="welcome">
               <Card>
                 <Form.Item name="welcome_message" label="欢迎语（支持 Markdown）">
@@ -162,14 +136,8 @@ export const BotSettings: React.FC = () => {
                 <Form.Item name="follow_reward" label="关注奖励 (USDT)">
                   <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
                 </Form.Item>
-                <Form.Item name="bind_reward" label="绑定奖励 (USDT)">
-                  <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                </Form.Item>
                 <Form.Item name="invite_reward" label="邀请奖励 (USDT)">
                   <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                </Form.Item>
-                <Form.Item name="new_user_credits" label="新用户赠送积分">
-                  <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Card>
             </TabPane>
@@ -198,20 +166,6 @@ export const BotSettings: React.FC = () => {
               <Card>
                 <Form.Item name="deposit_confirm_blocks" label="充值确认块数">
                   <InputNumber min={1} style={{ width: '100%' }} />
-                </Form.Item>
-              </Card>
-            </TabPane>
-
-            <TabPane tab="群组设置" key="groups">
-              <Card>
-                <Form.Item name="required_channel_id" label="必须关注频道 ID">
-                  <Input placeholder="-100xxxxxxxxxx" />
-                </Form.Item>
-                <Form.Item name="required_group_id" label="必须加入群组 ID">
-                  <Input placeholder="-100xxxxxxxxxx" />
-                </Form.Item>
-                <Form.Item name="screenshot_group_id" label="截图上传群组 ID">
-                  <Input placeholder="-100xxxxxxxxxx" />
                 </Form.Item>
               </Card>
             </TabPane>

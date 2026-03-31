@@ -53,17 +53,8 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { botId } = req.params;
     const {
-      platform_name,
-      platform_url,
-      platform_register_url,
-      required_channel_id,
-      required_group_id,
-      screenshot_group_id,
       follow_reward,
-      bind_reward,
       invite_reward,
-      new_user_credits,
-      screenshot_reward_credits,
       welcome_message,
       // Wallet settings
       support_telegram,
@@ -77,49 +68,13 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
     const updates: string[] = [];
     const params: any[] = [];
 
-    if (platform_name !== undefined) {
-      params.push(platform_name);
-      updates.push(`platform_name = $${params.length}`);
-    }
-    if (platform_url !== undefined) {
-      params.push(platform_url);
-      updates.push(`platform_url = $${params.length}`);
-    }
-    if (platform_register_url !== undefined) {
-      params.push(platform_register_url);
-      updates.push(`platform_register_url = $${params.length}`);
-    }
-    if (required_channel_id !== undefined) {
-      params.push(required_channel_id);
-      updates.push(`required_channel_id = $${params.length}`);
-    }
-    if (required_group_id !== undefined) {
-      params.push(required_group_id);
-      updates.push(`required_group_id = $${params.length}`);
-    }
-    if (screenshot_group_id !== undefined) {
-      params.push(screenshot_group_id);
-      updates.push(`screenshot_group_id = $${params.length}`);
-    }
     if (follow_reward !== undefined) {
       params.push(follow_reward);
       updates.push(`follow_reward = $${params.length}`);
     }
-    if (bind_reward !== undefined) {
-      params.push(bind_reward);
-      updates.push(`bind_reward = $${params.length}`);
-    }
     if (invite_reward !== undefined) {
       params.push(invite_reward);
       updates.push(`invite_reward = $${params.length}`);
-    }
-    if (new_user_credits !== undefined) {
-      params.push(new_user_credits);
-      updates.push(`new_user_credits = $${params.length}`);
-    }
-    if (screenshot_reward_credits !== undefined) {
-      params.push(screenshot_reward_credits);
-      updates.push(`screenshot_reward_credits = $${params.length}`);
     }
     if (welcome_message !== undefined) {
       params.push(JSON.stringify(welcome_message));
