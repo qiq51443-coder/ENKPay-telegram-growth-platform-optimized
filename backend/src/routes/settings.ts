@@ -44,7 +44,8 @@ router.get('/:botId', async (req, res) => {
     res.json({ settings: result.rows[0] });
   } catch (error) {
     console.error('Get settings error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: '获取设置失败', detail: process.env.NODE_ENV !== 'production' ? message : undefined });
   }
 });
 
@@ -153,7 +154,8 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
     res.json({ settings: result.rows[0] });
   } catch (error) {
     console.error('Update settings error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: '保存设置失败', detail: process.env.NODE_ENV !== 'production' ? message : undefined });
   }
 });
 

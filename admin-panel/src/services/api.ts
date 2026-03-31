@@ -35,6 +35,8 @@ class ApiClient {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.href = '/admin/login';
+        } else {
+          console.error('[API Error]', error.config?.method?.toUpperCase(), error.config?.url, error.response?.status, error.response?.data);
         }
         return Promise.reject(error);
       }
@@ -252,6 +254,15 @@ class ApiClient {
 
   async updateSettings(botId: string, data: any) {
     const response = await this.client.put(`/settings/${botId}`, data);
+    return response.data;
+  }
+
+  async uploadBotWelcomeImage(file: File): Promise<{ url: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post<{ url: string; filename: string }>('/admin/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   }
 
