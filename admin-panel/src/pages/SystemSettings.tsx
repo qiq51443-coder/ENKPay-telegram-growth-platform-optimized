@@ -12,12 +12,24 @@ import {
   Spin,
   Divider,
   Typography,
+  Collapse,
 } from 'antd';
 import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
+import { TranslateButton } from '../components/TranslateButton';
 
 const { TextArea } = Input;
 const { Text } = Typography;
+
+const AGREEMENT_LANGUAGES: { code: string; label: string }[] = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'es', label: 'Español' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'ja', label: '日本語' },
+];
 
 interface SystemSetting {
   key: string;
@@ -34,6 +46,11 @@ export const SystemSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [savingCategory, setSavingCategory] = useState<string | null>(null);
   const [form] = Form.useForm();
+
+  // User agreement state
+  const [agreementText, setAgreementText] = useState('');
+  const [agreementTranslations, setAgreementTranslations] = useState<Record<string, string> | null>(null);
+  const [agreementSaving, setAgreementSaving] = useState(false);
 
   // QR code state
   const [qrInput, setQrInput] = useState('');
@@ -173,6 +190,68 @@ export const SystemSettings: React.FC = () => {
     );
   };
 
+  const handleSaveAgreement = async () => {
+    if (!agreementText.trim()) {
+      message.warning('请先输入用户协议内容');
+      return;
+    }
+    setAgreementSaving(true);
+    try {
+      const response = await apiClient.translateAndSaveUserAgreement(agreementText);
+      setAgreementTranslations(response.translations || null);
+      message.success(response.message || '用户协议翻译并保存成功');
+    } catch (error: any) {
+      console.error('Failed to save user agreement:', error);
+      message.error(error.response?.data?.error || '保存失败');
+    } finally {
+      setAgreementSaving(false);
+    }
+  };
+
+  const renderAgreementCard = () => {
+    const collapseItems = agreementTranslations
+      ? AGREEMENT_LANGUAGES.filter((l) => agreementTranslations[l.code]).map((l) => ({
+          key: l.code,
+          label: <Text strong>{l.label}</Text>,
+          children: <Text style={{ whiteSpace: 'pre-wrap' }}>{agreementTranslations[l.code]}</Text>,
+        }))
+      : [];
+
+    return (
+      <Card title="用户协议管理" style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <TextArea
+            rows={8}
+            value={agreementText}
+            onChange={(e) => setAgreementText(e.target.value)}
+            placeholder="请输入用户协议（中文或英文均可，系统将自动翻译）"
+          />
+          <TranslateButton
+            text={agreementText}
+            onTranslated={(translations) => {
+              setAgreementTranslations((prev) => ({ ...(prev ?? {}), ...translations }));
+            }}
+          />
+          {agreementTranslations && collapseItems.length > 0 && (
+            <Collapse
+              size="small"
+              items={collapseItems}
+              style={{ background: '#fafafa' }}
+            />
+          )}
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={agreementSaving}
+            onClick={handleSaveAgreement}
+          >
+            翻译并保存
+          </Button>
+        </Space>
+      </Card>
+    );
+  };
+
   const renderCategorySettings = (categoryKey: string) => {
     const categorySettings = settings.filter((s) => s.category === categoryKey);
 
@@ -258,7 +337,12 @@ export const SystemSettings: React.FC = () => {
     ...staticCategories.map((category) => ({
       key: category.key,
       label: category.label,
-      children: renderCategorySettings(category.key),
+      children: category.key === 'general' ? (
+        <>
+          {renderAgreementCard()}
+          {renderCategorySettings(category.key)}
+        </>
+      ) : renderCategorySettings(category.key),
     })),
     {
       key: 'qrcode',

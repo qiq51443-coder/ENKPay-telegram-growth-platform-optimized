@@ -3,6 +3,7 @@ import { query } from '../db';
 import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth';
 import { logAuditAction, AuditActions } from '../utils/audit';
 import { adminLimiter } from '../middleware/rateLimiter';
+import { translateToAllLangs } from '../utils/translate';
 
 const router = express.Router();
 
@@ -306,6 +307,75 @@ router.post('/bulk-update', authenticateAdmin, requireRoles(['super_admin', 'adm
     });
   } catch (error) {
     console.error('Bulk update system settings error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /admin/system-settings/user-agreement/translate-and-save
+ * Translate user agreement text to all supported languages and save to system_settings
+ */
+const AGREEMENT_LANG_DESCRIPTIONS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
+
+router.post('/user-agreement/translate-and-save', authenticateAdmin, requireRoles(['super_admin', 'admin']), async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const translations = await translateToAllLangs(String(text));
+
+    const savedKeys: string[] = [];
+
+    for (const [lang, translated] of Object.entries(translations)) {
+      const settingKey = `user_agreement_${lang}`;
+      const description = AGREEMENT_LANG_DESCRIPTIONS[lang] || lang;
+
+      await query(
+        `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+         VALUES ($1, $2, $3, 'general', true, $4, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+           value = EXCLUDED.value,
+           description = EXCLUDED.description,
+           category = EXCLUDED.category,
+           is_public = EXCLUDED.is_public,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [settingKey, translated, description, req.user?.id]
+      );
+
+      savedKeys.push(settingKey);
+    }
+
+    await logAuditAction({
+      adminUserId: req.user!.id,
+      action: AuditActions.UPDATE_SETTINGS,
+      resourceType: 'system_setting',
+      details: {
+        keys: savedKeys,
+        source_text_length: String(text).length,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      translations,
+      saved_keys: savedKeys,
+      message: '用户协议翻译并保存成功',
+    });
+  } catch (error) {
+    console.error('Translate and save user agreement error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
