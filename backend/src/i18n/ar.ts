@@ -254,4 +254,5 @@ export const ar: Record<string, string> = {
   // Official links buttons
   btn_official_group: 'المجموعة الرسمية',
   btn_official_channel: 'القناة الرسمية',
+  official_links_prompt: '👇 انقر على الأزرار أدناه للانضمام إلى مجموعاتنا',
 };

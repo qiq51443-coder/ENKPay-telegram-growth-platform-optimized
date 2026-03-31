@@ -248,4 +248,5 @@ export const ja: Record<string, string> = {
   // Official links buttons
   btn_official_group: '公式グループ',
   btn_official_channel: '公式チャンネル',
+  official_links_prompt: '👇 下のボタンをクリックしてグループに参加してください',
 };

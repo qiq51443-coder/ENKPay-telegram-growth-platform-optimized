@@ -254,4 +254,5 @@ export const es: Record<string, string> = {
   // Official links buttons
   btn_official_group: 'Grupo Oficial',
   btn_official_channel: 'Canal Oficial',
+  official_links_prompt: '👇 Haz clic en los botones de abajo para unirte a nuestros grupos',
 };
