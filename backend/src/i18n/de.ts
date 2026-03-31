@@ -248,4 +248,5 @@ export const de: Record<string, string> = {
   // Official links buttons
   btn_official_group: 'Offizielle Gruppe',
   btn_official_channel: 'Offizieller Kanal',
+  official_links_prompt: '👇 Klicke auf die Schaltflächen unten, um unseren Gruppen beizutreten',
 };

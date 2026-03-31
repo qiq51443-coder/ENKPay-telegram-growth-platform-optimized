@@ -266,4 +266,5 @@ export const en = {
   // Official links buttons
   btn_official_group: 'Official Group',
   btn_official_channel: 'Official Channel',
+  official_links_prompt: '👇 Click the buttons below to join our groups',
 };

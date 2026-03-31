@@ -188,7 +188,10 @@ export const handleStart = async (ctx: Context) => {
       await ctx.replyWithHTML(welcomeText, replyKeyboard);
     }
     if (officialKeyboard) {
-      await ctx.replyWithHTML('\u200B', officialKeyboard);
+      await ctx.replyWithHTML(
+        t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
+        officialKeyboard
+      );
     }
   } catch (error) {
     console.error('Start handler error:', error);

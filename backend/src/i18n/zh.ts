@@ -260,4 +260,5 @@ export const zh = {
   // Official links buttons
   btn_official_group: '官方群组',
   btn_official_channel: '官方频道',
+  official_links_prompt: '👇 请点击下方按钮关注群组',
 };

@@ -409,9 +409,12 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
     await ctx.replyWithHTML(welcomeText, replyKeyboard);
   }
 
-  // If official links are configured, send them as an inline keyboard follow-up (no visible prefix text)
+  // If official links are configured, send them as an inline keyboard follow-up
   if (officialKeyboard) {
-    await ctx.replyWithHTML('\u200B', officialKeyboard);
+    await ctx.replyWithHTML(
+      t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
+      officialKeyboard
+    );
   }
 }
 
