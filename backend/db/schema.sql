@@ -545,3 +545,14 @@ ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(
 
 -- Migration: add progress_images to charity_projects
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
+
+-- Migration: add missing bot_settings columns
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS welcome_image_url TEXT;
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS official_group_url TEXT;
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS official_channel_url TEXT;
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS support_telegram TEXT;
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS wallet_tip_message TEXT;
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS transfer_min_amount DECIMAL(10,2);
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS withdraw_min_amount DECIMAL(10,2);
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS withdraw_fee_rate DECIMAL(6,5);
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS deposit_confirm_blocks INT;
