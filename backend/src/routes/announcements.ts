@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
@@ -297,6 +298,40 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
             parse_mode: 'HTML',
             ...(reply_markup ? { reply_markup } : {}),
           });
+        }
+      } else if (imageUrl && imageUrl.startsWith('/uploads/')) {
+        // Relative path from disk storage — read file and send as multipart upload
+        const uploadsDir = path.join(__dirname, '../../uploads');
+        const filePath = path.resolve(uploadsDir, path.basename(imageUrl));
+        // Ensure the resolved path is within the uploads directory (guard against path traversal)
+        if (!filePath.startsWith(uploadsDir + path.sep) && filePath !== uploadsDir) {
+          response = await telegram.sendMessage(chatId, text, {
+            parse_mode: 'HTML',
+            ...(reply_markup ? { reply_markup } : {}),
+          });
+        } else {
+          try {
+            if (isGif) {
+              response = await telegram.sendAnimationFile(chatId, filePath, {
+                caption: text,
+                parse_mode: 'HTML',
+                ...(reply_markup ? { reply_markup } : {}),
+              });
+            } else {
+              response = await telegram.sendPhotoFile(chatId, filePath, {
+                caption: text,
+                parse_mode: 'HTML',
+                ...(reply_markup ? { reply_markup } : {}),
+              });
+            }
+          } catch (fileErr: any) {
+            // File not accessible — fall back to text-only message
+            console.warn('Announcement image file not accessible, sending text only:', filePath, fileErr?.message);
+            response = await telegram.sendMessage(chatId, text, {
+              parse_mode: 'HTML',
+              ...(reply_markup ? { reply_markup } : {}),
+            });
+          }
         }
       } else if (imageUrl && isGif) {
         response = await telegram.sendAnimation(chatId, imageUrl, {
