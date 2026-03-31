@@ -380,9 +380,7 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
 
   if (imageUrl) {
     // ── Has welcome image ─────────────────────────────────────────────────
-    // Telegram only allows one type of reply_markup per message.
-    // If officialKeyboard exists, attach it to the photo (inline keyboard with group buttons).
-    // The persistent bottom keyboard (replyKeyboard) must be sent in a separate message.
+    // Use officialKeyboard when available, otherwise fall back to replyKeyboard.
     const photoReplyMarkup = officialKeyboard
       ? officialKeyboard.reply_markup
       : replyKeyboard.reply_markup;
@@ -419,28 +417,9 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
     }
   }
 
-  if (photoSent) {
-    // Photo was sent with officialKeyboard attached — send a separate message to activate the persistent bottom keyboard
-    if (officialKeyboard) {
-      await ctx.replyWithHTML(
-        t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
-        replyKeyboard
-      );
-    }
-  } else {
+  if (!photoSent) {
     // ── No photo (either no imageUrl configured, or imageUrl was invalid) ──
-    if (officialKeyboard) {
-      // Merge: welcome text + official links inline keyboard in ONE message
-      await ctx.replyWithHTML(welcomeText, officialKeyboard);
-      // Persistent bottom keyboard must be a separate message (Telegram limitation)
-      await ctx.replyWithHTML(
-        t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
-        replyKeyboard
-      );
-    } else {
-      // No official links — normal welcome message with bottom keyboard
-      await ctx.replyWithHTML(welcomeText, replyKeyboard);
-    }
+    await ctx.replyWithHTML(welcomeText, officialKeyboard || replyKeyboard);
   }
 }
 
