@@ -250,4 +250,8 @@ export const ar: Record<string, string> = {
 
   // Group not registered
   group_not_registered: 'لم تقم بالتسجيل بعد. انقر <a href="https://t.me/{bot_username}">هنا</a> لمراسلة البوت.',
+
+  // Official links buttons
+  btn_official_group: 'المجموعة الرسمية',
+  btn_official_channel: 'القناة الرسمية',
 };

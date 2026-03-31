@@ -229,6 +229,6 @@ export const de: Record<string, string> = {
   redpacket_auto_registered_and_claimed: '🎉 Willkommen! Sie wurden automatisch registriert und haben das rote Paket erhalten, {amount} USDT!\n📊 Schließen Sie das {multiplier}fache Handelsvolumen ab, um die Auszahlung freizuschalten',
 
   // Official links
-  btn_official_group: 'ENKpay Offizielle Gruppe',
-  btn_official_channel: 'ENKpay Offizieller Kanal',
+  btn_official_group: 'Offizielle Gruppe',
+  btn_official_channel: 'Offizieller Kanal',
 };

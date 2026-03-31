@@ -229,6 +229,6 @@ export const ja: Record<string, string> = {
   redpacket_auto_registered_and_claimed: '🎉 ようこそ！自動登録され、紅包を受け取りました。{amount} USDT 獲得！\n📊 出金解除のために{multiplier}倍の取引量を達成してください',
 
   // Official links
-  btn_official_group: 'ENKpay公式グループ',
-  btn_official_channel: 'ENKpay公式チャンネル',
+  btn_official_group: '公式グループ',
+  btn_official_channel: '公式チャンネル',
 };

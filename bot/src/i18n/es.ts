@@ -241,6 +241,6 @@ export const es: Record<string, string> = {
   redpacket_auto_registered_and_claimed: '🎉 ¡Bienvenido! Te has registrado automáticamente y reclamado el sobre rojo, recibiendo {amount} USDT!\n📊 Completa {multiplier}x de volumen de trading para desbloquear el retiro',
 
   // Official links
-  btn_official_group: 'Grupo Oficial ENKpay',
-  btn_official_channel: 'Canal Oficial ENKpay',
+  btn_official_group: 'Grupo Oficial',
+  btn_official_channel: 'Canal Oficial',
 };

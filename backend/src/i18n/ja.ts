@@ -244,4 +244,8 @@ export const ja: Record<string, string> = {
 
   // Group not registered
   group_not_registered: 'まだ登録されていません。<a href="https://t.me/{bot_username}">ここをクリック</a>してボットにメッセージを送ってください。',
+
+  // Official links buttons
+  btn_official_group: '公式グループ',
+  btn_official_channel: '公式チャンネル',
 };

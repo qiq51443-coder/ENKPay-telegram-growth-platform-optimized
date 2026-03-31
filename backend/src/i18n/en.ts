@@ -262,4 +262,8 @@ export const en = {
 
   // Group not registered
   group_not_registered: 'You haven\'t registered yet. Click <a href="https://t.me/{bot_username}">message the bot</a> to get started.',
+
+  // Official links buttons
+  btn_official_group: 'Official Group',
+  btn_official_channel: 'Official Channel',
 };

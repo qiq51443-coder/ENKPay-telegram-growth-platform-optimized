@@ -250,4 +250,8 @@ export const es: Record<string, string> = {
 
   // Group not registered
   group_not_registered: 'Aún no te has registrado. Haz clic <a href="https://t.me/{bot_username}">aquí</a> para escribir al bot.',
+
+  // Official links buttons
+  btn_official_group: 'Grupo Oficial',
+  btn_official_channel: 'Canal Oficial',
 };

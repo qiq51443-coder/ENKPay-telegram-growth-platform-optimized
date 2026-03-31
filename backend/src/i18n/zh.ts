@@ -256,4 +256,8 @@ export const zh = {
 
   // Group not registered
   group_not_registered: '您还没有注册，请点击 <a href="https://t.me/{bot_username}">私信机器人</a> 开始使用。',
+
+  // Official links buttons
+  btn_official_group: '官方群组',
+  btn_official_channel: '官方频道',
 };

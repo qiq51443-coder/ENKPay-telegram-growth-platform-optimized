@@ -246,6 +246,6 @@ export const en = {
   redpacket_auto_registered_and_claimed: '🎉 Welcome! You\'ve been auto-registered and claimed the red packet, receiving {amount} USDT!\n📊 Complete {multiplier}x trading volume to unlock withdrawal',
 
   // Official links
-  btn_official_group: 'ENKpay Official Group',
-  btn_official_channel: 'ENKpay Official Channel',
+  btn_official_group: 'Official Group',
+  btn_official_channel: 'Official Channel',
 };

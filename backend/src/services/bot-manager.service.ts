@@ -362,11 +362,8 @@ function buildOfficialLinksKeyboard(lang: string, settings: Record<string, any>)
   });
 
   if (buttons.length === 0) return undefined;
-  // Arrange buttons in rows of 2
-  const rows: ReturnType<typeof Markup.button.url>[][] = [];
-  for (let i = 0; i < buttons.length; i += 2) {
-    rows.push(buttons.slice(i, i + 2));
-  }
+  // Each button on its own row (vertical layout)
+  const rows = buttons.map(btn => [btn]);
   return Markup.inlineKeyboard(rows);
 }
 
@@ -412,9 +409,9 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
     await ctx.replyWithHTML(welcomeText, replyKeyboard);
   }
 
-  // If official links are configured, send them as an inline keyboard follow-up
+  // If official links are configured, send them as an inline keyboard follow-up (no visible prefix text)
   if (officialKeyboard) {
-    await ctx.replyWithHTML('🔗', officialKeyboard);
+    await ctx.replyWithHTML('\u200B', officialKeyboard);
   }
 }
 
