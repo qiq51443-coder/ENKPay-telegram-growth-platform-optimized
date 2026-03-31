@@ -541,7 +541,7 @@ router.post('/sessions/:id/order', authenticateBot, async (req: AuthRequest, res
     });
 
     // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
-    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+    autoUnlockRewardBalance(user_id).catch((err: any) =>
       console.error('[trading] autoUnlockRewardBalance failed:', err)
     );
     autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
@@ -1144,7 +1144,7 @@ router.post('/quick-session', authenticateMiniApp, async (req: MiniAppAuthReques
     });
 
     // Fire-and-forget: check if reward/red-packet balances can be auto-unlocked after this trade
-    autoUnlockRewardBalance(Number(user_id)).catch((err: any) =>
+    autoUnlockRewardBalance(user_id).catch((err: any) =>
       console.error('[trading] autoUnlockRewardBalance failed:', err)
     );
     autoUnlockRedPacketBalance(String(user_id)).catch((err: any) =>
