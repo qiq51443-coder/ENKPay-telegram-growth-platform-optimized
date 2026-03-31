@@ -244,4 +244,8 @@ export const de: Record<string, string> = {
 
   // Group not registered
   group_not_registered: 'Sie sind noch nicht registriert. Klicken Sie <a href="https://t.me/{bot_username}">hier</a>, um dem Bot zu schreiben.',
+
+  // Official links buttons
+  btn_official_group: 'Offizielle Gruppe',
+  btn_official_channel: 'Offizieller Kanal',
 };

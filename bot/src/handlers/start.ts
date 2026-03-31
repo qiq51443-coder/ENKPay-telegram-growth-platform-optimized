@@ -119,14 +119,34 @@ export const handleStart = async (ctx: Context) => {
 
     // Build official links inline keyboard (if configured)
     const officialLinkButtons: ReturnType<typeof Markup.button.url>[] = [];
-    if ((settings as any).official_group_url) {
-      officialLinkButtons.push(Markup.button.url(t(lang, 'btn_official_group'), (settings as any).official_group_url));
-    }
-    if ((settings as any).official_channel_url) {
-      officialLinkButtons.push(Markup.button.url(t(lang, 'btn_official_channel'), (settings as any).official_channel_url));
-    }
+
+    // Support multi-URL arrays with fallback to legacy single-URL fields
+    const groupUrls: string[] =
+      Array.isArray((settings as any).official_group_urls) && (settings as any).official_group_urls.length > 0
+        ? (settings as any).official_group_urls
+        : (settings as any).official_group_url
+        ? [(settings as any).official_group_url]
+        : [];
+    const channelUrls: string[] =
+      Array.isArray((settings as any).official_channel_urls) && (settings as any).official_channel_urls.length > 0
+        ? (settings as any).official_channel_urls
+        : (settings as any).official_channel_url
+        ? [(settings as any).official_channel_url]
+        : [];
+
+    const makeLabel = (base: string, arr: string[], idx: number) =>
+      arr.length === 1 ? base : `${base} ${idx + 1}`;
+
+    groupUrls.forEach((url, idx) => {
+      officialLinkButtons.push(Markup.button.url(makeLabel(t(lang, 'btn_official_group'), groupUrls, idx), url));
+    });
+    channelUrls.forEach((url, idx) => {
+      officialLinkButtons.push(Markup.button.url(makeLabel(t(lang, 'btn_official_channel'), channelUrls, idx), url));
+    });
+
+    // Each button on its own row (vertical layout)
     const officialKeyboard = officialLinkButtons.length > 0
-      ? Markup.inlineKeyboard([officialLinkButtons])
+      ? Markup.inlineKeyboard(officialLinkButtons.map(btn => [btn]))
       : undefined;
 
     const replyKeyboard = Markup.keyboard([
@@ -168,7 +188,7 @@ export const handleStart = async (ctx: Context) => {
       await ctx.replyWithHTML(welcomeText, replyKeyboard);
     }
     if (officialKeyboard) {
-      await ctx.replyWithHTML('🔗', officialKeyboard);
+      await ctx.replyWithHTML('\u200B', officialKeyboard);
     }
   } catch (error) {
     console.error('Start handler error:', error);
