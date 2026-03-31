@@ -274,15 +274,38 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       const reply_markup = buttons.length > 0 ? { inline_keyboard: [buttons] } : undefined;
 
       let response: any;
-      const isGif = images.length > 0 && /\.gif(\?|$)/i.test(images[0]);
-      if (images.length > 0 && isGif) {
-        response = await telegram.sendAnimation(chatId, images[0], {
+      const imageUrl = images.length > 0 ? images[0] : null;
+      const base64Match = imageUrl ? imageUrl.match(/^data:([^;]+);base64,(.+)$/) : null;
+      let isGif = false;
+      if (base64Match) {
+        isGif = base64Match[1] === 'image/gif';
+      } else if (imageUrl) {
+        isGif = /\.gif(\?|$)/i.test(imageUrl);
+      }
+      if (imageUrl && base64Match) {
+        const mimeType = base64Match[1];
+        const buffer = Buffer.from(base64Match[2], 'base64');
+        if (isGif) {
+          response = await telegram.sendAnimationBuffer(chatId, buffer, mimeType, {
+            caption: text,
+            parse_mode: 'HTML',
+            ...(reply_markup ? { reply_markup } : {}),
+          });
+        } else {
+          response = await telegram.sendPhotoBuffer(chatId, buffer, mimeType, {
+            caption: text,
+            parse_mode: 'HTML',
+            ...(reply_markup ? { reply_markup } : {}),
+          });
+        }
+      } else if (imageUrl && isGif) {
+        response = await telegram.sendAnimation(chatId, imageUrl, {
           caption: text,
           parse_mode: 'HTML',
           ...(reply_markup ? { reply_markup } : {}),
         });
-      } else if (images.length > 0) {
-        response = await telegram.sendPhoto(chatId, images[0], {
+      } else if (imageUrl) {
+        response = await telegram.sendPhoto(chatId, imageUrl, {
           caption: text,
           parse_mode: 'HTML',
           ...(reply_markup ? { reply_markup } : {}),
@@ -413,7 +436,7 @@ router.delete('/:id/messages', authenticateAdmin, async (req: AuthRequest, res) 
 
     for (const [chatId, messageId] of Object.entries(sentMessageIds)) {
       try {
-        await telegram.deleteMessage(chatId, messageId as number);
+        await telegram.deleteMessage(chatId, Number(messageId));
         deletedCount++;
       } catch (err: any) {
         console.error('Failed to delete message in chat:', chatId, messageId, err?.response?.data || err?.message);

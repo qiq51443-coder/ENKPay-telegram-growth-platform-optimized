@@ -1000,20 +1000,23 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
   }
 });
 
-// Announcement image upload endpoint
+// Announcement image upload endpoint — uses disk storage so the URL is publicly accessible
 const announcementUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(path.extname(file.originalname).toLowerCase()) && file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
   },
 });
 
 router.post('/upload-announcement-image', adminLimiter, authenticateAdmin, announcementUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const base64 = req.file.buffer.toString('base64');
-  const url = `data:${req.file.mimetype};base64,${base64}`;
+  const url = `/uploads/${req.file.filename}`;
   res.json({ url, filename: req.file.originalname });
 });
 
