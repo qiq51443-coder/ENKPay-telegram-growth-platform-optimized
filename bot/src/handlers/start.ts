@@ -133,9 +133,21 @@ export const handleStart = async (ctx: Context) => {
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
     ]).resize();
 
+    // Resolve relative image URL to a full HTTP URL for Telegram's sendPhoto API
+    let imageUrl: string | undefined = (settings as any).welcome_image_url;
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      const resolvedBackendUrl = (backendUrl || '').replace(/\/$/, '');
+      if (resolvedBackendUrl) {
+        imageUrl = `${resolvedBackendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      } else {
+        console.warn('[handleStart] welcome_image_url is a relative path but BACKEND_URL is not set; falling back to text.');
+        imageUrl = undefined;
+      }
+    }
+
     // Send welcome content (photo or text) with reply keyboard, then optional official links
-    if ((settings as any).welcome_image_url) {
-      await ctx.replyWithPhoto((settings as any).welcome_image_url, {
+    if (imageUrl) {
+      await ctx.replyWithPhoto(imageUrl, {
         caption: welcomeText,
         parse_mode: 'HTML',
         reply_markup: replyKeyboard.reply_markup,

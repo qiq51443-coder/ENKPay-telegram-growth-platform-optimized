@@ -376,9 +376,21 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
   ]).resize();
   const officialKeyboard = buildOfficialLinksKeyboard(lang, settings);
 
+  // Resolve relative image URL to a full HTTP URL for Telegram's sendPhoto API
+  let imageUrl: string | undefined = settings.welcome_image_url;
+  if (imageUrl && !imageUrl.startsWith('http')) {
+    const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+    if (backendUrl) {
+      imageUrl = `${backendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+    } else {
+      console.warn('[sendWelcomeMessage] welcome_image_url is a relative path but BACKEND_URL is not set; falling back to text.');
+      imageUrl = undefined;
+    }
+  }
+
   // Send main welcome content with reply keyboard
-  if (settings.welcome_image_url) {
-    await ctx.replyWithPhoto(settings.welcome_image_url, {
+  if (imageUrl) {
+    await ctx.replyWithPhoto(imageUrl, {
       caption: welcomeText,
       parse_mode: 'HTML',
       reply_markup: replyKeyboard.reply_markup,

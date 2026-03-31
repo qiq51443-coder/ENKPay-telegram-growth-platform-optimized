@@ -992,7 +992,9 @@ router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (
       res.status(400).json({ error: 'No file uploaded. Please use field name "file"' });
       return;
     }
-    const url = `/uploads/${req.file.filename}`;
+    const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+    const relativePath = `/uploads/${req.file.filename}`;
+    const url = backendUrl ? `${backendUrl}${relativePath}` : relativePath;
     res.json({ url, filename: req.file.filename });
   } catch (error: any) {
     console.error('Upload error:', error);
@@ -1016,7 +1018,9 @@ const announcementUpload = multer({
 
 router.post('/upload-announcement-image', adminLimiter, authenticateAdmin, announcementUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const url = `/uploads/${req.file.filename}`;
+  const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+  const relativePath = `/uploads/${req.file.filename}`;
+  const url = backendUrl ? `${backendUrl}${relativePath}` : relativePath;
   res.json({ url, filename: req.file.originalname });
 });
 
