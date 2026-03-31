@@ -239,4 +239,8 @@ export const ar: Record<string, string> = {
 
   // Auto-registered new user red packet claim notification
   redpacket_auto_registered_and_claimed: '🎉 مرحباً! تم تسجيلك تلقائياً وتلقّيت المغلف الأحمر، حصلت على {amount} USDT!\n📊 أكمل حجم تداول {multiplier}x لإلغاء قفل السحب',
+
+  // Official links
+  btn_official_group: 'مجموعة ENKpay الرسمية',
+  btn_official_channel: 'قناة ENKpay الرسمية',
 };

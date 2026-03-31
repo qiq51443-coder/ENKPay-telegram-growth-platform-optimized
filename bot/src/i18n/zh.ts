@@ -238,4 +238,8 @@ export const zh = {
 
   // Auto-registered new user red packet claim notification
   redpacket_auto_registered_and_claimed: '🎉 欢迎加入！您已自动注册并成功领取红包，获得 {amount} USDT！\n📊 完成 {multiplier} 倍交易流水即可提现',
+
+  // Official links
+  btn_official_group: 'ENKpay官方群组',
+  btn_official_channel: 'ENKpay官方频道',
 };

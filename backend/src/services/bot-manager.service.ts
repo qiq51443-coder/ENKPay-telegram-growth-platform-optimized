@@ -307,22 +307,66 @@ function resolveUserLang(user: User, defaultLanguage: string): string {
 }
 
 async function buildWelcomeText(user: User, lang: string, settings: Record<string, any>): Promise<string> {
-  if (settings.welcome_message) {
-    if (typeof settings.welcome_message === 'object') {
-      const msg = settings.welcome_message[lang]
-        || settings.welcome_message['en']
-        || settings.welcome_message[Object.keys(settings.welcome_message)[0]];
-      if (msg) return msg;
-    } else if (typeof settings.welcome_message === 'string' && settings.welcome_message.trim()) {
-      return settings.welcome_message;
-    }
-  }
   const displayId = await getPrimaryUniqueId(user.telegram_id) || user.unique_id || user.robot_user_id || 'N/A';
   const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
-  return `${t(lang, 'welcome_title')}\n\n` +
-    `🆔 ${t(lang, 'your_unique_id')}: <b>${displayId}</b>\n` +
-    `💰 ${t(lang, 'your_balance')}: <b>${balance} USDT</b>\n\n` +
-    t(lang, 'welcome_description');
+
+  // Fixed header — always shown, cannot be overridden by admin welcome message
+  let text = `🎉 ${t(lang, 'welcome_title')}\n\n` +
+    `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
+    `💰 ${t(lang, 'your_balance')}: <b>${balance} USDT</b>`;
+
+  // Admin custom welcome message — appended below the fixed header
+  if (settings.welcome_message) {
+    let customMsg = '';
+    if (typeof settings.welcome_message === 'object') {
+      customMsg = settings.welcome_message[lang]
+        || settings.welcome_message['en']
+        || settings.welcome_message[Object.keys(settings.welcome_message)[0]]
+        || '';
+    } else if (typeof settings.welcome_message === 'string') {
+      customMsg = settings.welcome_message.trim();
+    }
+    if (customMsg) {
+      text += `\n\n${customMsg}`;
+    }
+  }
+
+  return text;
+}
+
+function buildOfficialLinksKeyboard(lang: string, settings: Record<string, any>) {
+  const buttons: ReturnType<typeof Markup.button.url>[] = [];
+  if (settings.official_group_url) {
+    buttons.push(Markup.button.url(t(lang, 'btn_official_group'), settings.official_group_url));
+  }
+  if (settings.official_channel_url) {
+    buttons.push(Markup.button.url(t(lang, 'btn_official_channel'), settings.official_channel_url));
+  }
+  if (buttons.length === 0) return undefined;
+  return Markup.inlineKeyboard([buttons]);
+}
+
+async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, settings: Record<string, any>) {
+  const replyKeyboard = Markup.keyboard([
+    [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+  ]).resize();
+  const officialKeyboard = buildOfficialLinksKeyboard(lang, settings);
+
+  // Send main welcome content with reply keyboard
+  if (settings.welcome_image_url) {
+    await ctx.replyWithPhoto(settings.welcome_image_url, {
+      caption: welcomeText,
+      parse_mode: 'HTML',
+      reply_markup: replyKeyboard.reply_markup,
+    });
+  } else {
+    await ctx.replyWithHTML(welcomeText, replyKeyboard);
+  }
+
+  // If official links are configured, send them as an inline keyboard follow-up
+  if (officialKeyboard) {
+    await ctx.replyWithHTML('🔗', officialKeyboard);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -640,15 +684,8 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         }
       }
 
-      // ── Send welcome message with reply keyboard (wallet + invite buttons) ─
-      // The "Open App" WebApp button is now in the wallet card inline keyboard,
-      // where it properly injects initData AND includes a fresh ?jt= token.
-      await ctx.replyWithHTML(
-        welcomeText,
-        Markup.keyboard([
-          [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-        ]).resize()
-      );
+      // ── Send welcome message ────────────────────────────────────────────────
+      await sendWelcomeMessage(ctx, welcomeText, lang, settings);
     } catch (error) {
       console.error(`[bot ${botId}] Start handler error:`, error);
       try { await ctx.reply('An error occurred. Please try again.'); } catch {}
@@ -939,9 +976,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         const updatedUser = { ...user, language_code: newLang };
         const settings = await getBotSettings(botId);
         const welcomeText = await buildWelcomeText(updatedUser, newLang, settings);
-        await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-          [Markup.button.text(t(newLang, 'btn_my_wallet')), Markup.button.text(t(newLang, 'btn_invite'))],
-        ]).resize());
+        await sendWelcomeMessage(ctx, welcomeText, newLang, settings);
         return;
       }
 
@@ -1385,12 +1420,25 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data === 'wallet_support') {
         await ctx.answerCbQuery();
         try { await ctx.deleteMessage(); } catch {}
-        await ctx.replyWithHTML(
-          `🎧 <b>${t(lang, 'help_title')}</b>\n\n${t(lang, 'help_description')}`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
-          ])
-        );
+        const supportSettings = await getBotSettings(botId);
+        const supportUsername = supportSettings.support_telegram;
+        if (supportUsername) {
+          const cleanUsername = supportUsername.replace(/^@/, '');
+          await ctx.replyWithHTML(
+            `🎧 <b>${t(lang, 'help_title')}</b>\n\n${t(lang, 'help_contact')}`,
+            Markup.inlineKeyboard([
+              [Markup.button.url(t(lang, 'btn_contact_support'), `https://t.me/${cleanUsername}`)],
+              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+            ])
+          );
+        } else {
+          await ctx.replyWithHTML(
+            `🎧 <b>${t(lang, 'help_title')}</b>\n\n${t(lang, 'help_description')}`,
+            Markup.inlineKeyboard([
+              [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
+            ])
+          );
+        }
         return;
       }
 
@@ -1509,9 +1557,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         try { await ctx.deleteMessage(); } catch {}
         const settings = await getBotSettings(botId);
         const welcomeText = await buildWelcomeText(user, lang, settings);
-        await ctx.replyWithHTML(welcomeText, Markup.keyboard([
-          [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-        ]).resize());
+        await sendWelcomeMessage(ctx, welcomeText, lang, settings);
         return;
       }
 
