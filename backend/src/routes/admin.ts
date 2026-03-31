@@ -985,15 +985,30 @@ router.get('/sweep/history', adminLimiter, authenticateAdmin, async (req: AuthRe
   }
 });
 
+// Welcome image upload endpoint — uses memory storage so the image is stored as base64 in the DB
+const welcomeImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(path.extname(file.originalname).toLowerCase()) && file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
 // File upload endpoint
-router.post('/upload', adminLimiter, authenticateAdmin, upload.single('file'), (req: AuthRequest, res) => {
+router.post('/upload', adminLimiter, authenticateAdmin, welcomeImageUpload.single('file'), (req: AuthRequest, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded. Please use field name "file"' });
       return;
     }
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, filename: req.file.filename });
+    const base64 = req.file.buffer.toString('base64');
+    const url = `data:${req.file.mimetype};base64,${base64}`;
+    res.json({ url, filename: req.file.originalname });
   } catch (error: any) {
     console.error('Upload error:', error);
     res.status(500).json({ error: error.message || 'Upload failed' });
