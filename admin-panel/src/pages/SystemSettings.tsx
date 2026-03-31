@@ -12,9 +12,8 @@ import {
   Spin,
   Divider,
   Typography,
-  Modal,
 } from 'antd';
-import { SaveOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 const { TextArea } = Input;
@@ -33,78 +32,21 @@ interface SystemSetting {
 export const SystemSettings: React.FC = () => {
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingCategory, setSavingCategory] = useState<string | null>(null);
   const [form] = Form.useForm();
-  const [newSettingModalOpen, setNewSettingModalOpen] = useState(false);
-  const [newSettingForm] = Form.useForm();
-  const [agreementText, setAgreementText] = useState('');
-  const [agreementSaving, setAgreementSaving] = useState(false);
-  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
 
-  const categoryLabels: Record<string, string> = {
-    general: '通用设置',
-    rewards: '奖励设置',
-    withdrawals: '提现设置',
-    messages: '消息设置',
-    notifications: '通知设置',
-    security: '安全设置',
-    sweep: '归集设置',
-  };
+  // QR code state
+  const [qrInput, setQrInput] = useState('');
+  const [qrUrl, setQrUrl] = useState('');
 
   const staticCategories = [
     { key: 'general', label: '通用设置' },
-    { key: 'rewards', label: '奖励设置' },
-    { key: 'withdrawals', label: '提现设置' },
-    { key: 'messages', label: '消息设置' },
-    { key: 'notifications', label: '通知设置' },
     { key: 'security', label: '安全设置' },
-  ];
-
-  // Merge static + dynamic categories, deduplicating by key
-  const categories = [
-    ...staticCategories,
-    ...dynamicCategories
-      .filter((c) => !staticCategories.find((sc) => sc.key === c))
-      .map((c) => ({ key: c, label: categoryLabels[c] || c })),
   ];
 
   useEffect(() => {
     fetchSettings();
-    fetchAgreement();
-    fetchCategories();
   }, []);
-
-  const fetchAgreement = async () => {
-    try {
-      const response = await apiClient.getSystemSettings();
-      const settingsList = response?.settings || [];
-      const agreementSetting = settingsList.find((s: SystemSetting) => s.key === 'user_agreement');
-      if (agreementSetting) setAgreementText(String(agreementSetting.value || ''));
-    } catch {
-      // ignore
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await apiClient.getSystemSettingCategories();
-      setDynamicCategories(response?.categories || []);
-    } catch {
-      // ignore — fall back to static categories
-    }
-  };
-
-  const handleSaveAgreement = async () => {
-    setAgreementSaving(true);
-    try {
-      await apiClient.updateSystemSetting('user_agreement', { value: agreementText });
-      message.success('用户协议保存成功');
-    } catch (error: any) {
-      message.error(error.response?.data?.error || '保存失败');
-    } finally {
-      setAgreementSaving(false);
-    }
-  };
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -147,16 +89,17 @@ export const SystemSettings: React.FC = () => {
     return value;
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleSaveCategory = async (categoryKey: string) => {
+    setSavingCategory(categoryKey);
     try {
       const values = form.getFieldsValue();
-      
-      // Prepare settings for bulk update
-      const settingsToUpdate = Object.keys(values).map((key) => ({
-        key,
-        value: values[key],
-      }));
+      const categorySettingKeys = settings
+        .filter((s) => s.category === categoryKey)
+        .map((s) => s.key);
+
+      const settingsToUpdate = categorySettingKeys
+        .filter((key) => key in values)
+        .map((key) => ({ key, value: values[key] }));
 
       const response = await apiClient.bulkUpdateSystemSettings(settingsToUpdate);
 
@@ -164,34 +107,15 @@ export const SystemSettings: React.FC = () => {
         message.warning(`更新完成，但有 ${response.errors.length} 个设置失败`);
         console.error('Failed settings:', response.errors);
       } else {
-        message.success('系统设置保存成功');
+        message.success('该分类设置保存成功');
       }
 
       fetchSettings();
     } catch (error: any) {
-      console.error('Failed to save system settings:', error);
+      console.error('Failed to save category settings:', error);
       message.error(error.response?.data?.error || '保存失败');
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCreateSetting = async () => {
-    try {
-      const values = await newSettingForm.validateFields();
-
-      await apiClient.createSystemSetting({
-        ...values,
-        value: values.value.toString(),
-      });
-
-      message.success('设置创建成功');
-      setNewSettingModalOpen(false);
-      newSettingForm.resetFields();
-      fetchSettings();
-    } catch (error: any) {
-      console.error('Failed to create setting:', error);
-      message.error(error.response?.data?.error || '创建失败');
+      setSavingCategory(null);
     }
   };
 
@@ -252,56 +176,104 @@ export const SystemSettings: React.FC = () => {
   const renderCategorySettings = (categoryKey: string) => {
     const categorySettings = settings.filter((s) => s.category === categoryKey);
 
-    if (categorySettings.length === 0) {
-      return (
-        <Card>
-          <Text type="secondary">此类别暂无设置项</Text>
-        </Card>
-      );
-    }
-
     return (
       <Card>
-        {categorySettings.map((setting, index) => (
-          <div key={setting.key}>
-            {renderSettingField(setting)}
-            {setting.updated_at && (
-              <Text type="secondary" style={{ fontSize: '12px', marginTop: -16, display: 'block' }}>
-                最后更新: {new Date(setting.updated_at).toLocaleString('zh-CN')}
-                {setting.updated_by_username && ` 由 ${setting.updated_by_username}`}
-              </Text>
-            )}
-            {index < categorySettings.length - 1 && <Divider />}
-          </div>
-        ))}
+        {categorySettings.length === 0 ? (
+          <Text type="secondary">此类别暂无设置项</Text>
+        ) : (
+          categorySettings.map((setting, index) => (
+            <div key={setting.key}>
+              {renderSettingField(setting)}
+              {setting.updated_at && (
+                <Text type="secondary" style={{ fontSize: '12px', marginTop: -16, display: 'block' }}>
+                  最后更新: {new Date(setting.updated_at).toLocaleString('zh-CN')}
+                  {setting.updated_by_username && ` 由 ${setting.updated_by_username}`}
+                </Text>
+              )}
+              {index < categorySettings.length - 1 && <Divider />}
+            </div>
+          ))
+        )}
+        <Divider />
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          loading={savingCategory === categoryKey}
+          onClick={() => handleSaveCategory(categoryKey)}
+        >
+          保存本页设置
+        </Button>
       </Card>
     );
   };
 
-  const tabItems = categories.map((category) => ({
-    key: category.key,
-    label: category.label,
-    children: renderCategorySettings(category.key),
-  }));
+  const handleGenerateQr = () => {
+    if (!qrInput.trim()) {
+      message.warning('请先输入要生成二维码的内容');
+      return;
+    }
+    const encoded = encodeURIComponent(qrInput.trim());
+    setQrUrl(`https://chart.googleapis.com/chart?cht=qr&chs=256x256&chl=${encoded}`);
+  };
+
+  const handleDownloadQr = async () => {
+    if (!qrUrl) return;
+    try {
+      const res = await fetch(qrUrl);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `qrcode_${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      message.error('下载失败，请重试');
+    }
+  };
+
+  const qrCodeTab = (
+    <Card title="二维码生成工具">
+      <Space direction="vertical" style={{ width: '100%' }}>
+        <Input
+          value={qrInput}
+          onChange={(e) => setQrInput(e.target.value)}
+          placeholder="请输入链接或文字内容..."
+          onPressEnter={handleGenerateQr}
+        />
+        <Button type="primary" onClick={handleGenerateQr}>
+          生成二维码
+        </Button>
+        {qrUrl && (
+          <>
+            <img src={qrUrl} alt="QR Code" width={256} height={256} />
+            <Button onClick={handleDownloadQr}>下载二维码</Button>
+          </>
+        )}
+      </Space>
+    </Card>
+  );
+
+  const tabItems = [
+    ...staticCategories.map((category) => ({
+      key: category.key,
+      label: category.label,
+      children: renderCategorySettings(category.key),
+    })),
+    {
+      key: 'qrcode',
+      label: '二维码生成',
+      children: qrCodeTab,
+    },
+  ];
 
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>系统设置</h2>
         <Space>
-          <Button icon={<PlusOutlined />} onClick={() => setNewSettingModalOpen(true)}>
-            新增设置
-          </Button>
           <Button icon={<ReloadOutlined />} onClick={fetchSettings}>
             刷新
-          </Button>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={handleSave}
-            loading={saving}
-          >
-            保存所有设置
           </Button>
         </Space>
       </div>
@@ -311,72 +283,6 @@ export const SystemSettings: React.FC = () => {
           <Tabs items={tabItems} />
         </Form>
       </Spin>
-
-      {/* User Agreement Section */}
-      <Card style={{ marginTop: 16 }} title="用户协议">
-        <Form.Item label="协议内容">
-          <TextArea
-            rows={10}
-            value={agreementText}
-            onChange={e => setAgreementText(e.target.value)}
-            placeholder="请输入用户协议内容..."
-          />
-        </Form.Item>
-        <Button
-          type="primary"
-          icon={<SaveOutlined />}
-          onClick={handleSaveAgreement}
-          loading={agreementSaving}
-        >
-          保存协议
-        </Button>
-      </Card>
-
-      {/* New Setting Modal */}
-      <Modal
-        title="新增设置"
-        open={newSettingModalOpen}
-        onOk={handleCreateSetting}
-        onCancel={() => setNewSettingModalOpen(false)}
-        width={600}
-      >
-        <Form form={newSettingForm} layout="vertical">
-          <Form.Item
-            name="key"
-            label="设置键"
-            rules={[
-              { required: true, message: '请输入设置键' },
-              { pattern: /^[a-z_]+$/, message: '只能使用小写字母和下划线' },
-            ]}
-          >
-            <Input placeholder="例如: new_feature_enabled" />
-          </Form.Item>
-
-          <Form.Item
-            name="value"
-            label="设置值"
-            rules={[{ required: true, message: '请输入设置值' }]}
-          >
-            <Input placeholder="例如: true, 100, 或文本值" />
-          </Form.Item>
-
-          <Form.Item name="description" label="描述">
-            <Input placeholder="设置的描述信息" />
-          </Form.Item>
-
-          <Form.Item
-            name="category"
-            label="分类"
-            rules={[{ required: true, message: '请输入分类' }]}
-          >
-            <Input placeholder="例如: general, rewards, security" />
-          </Form.Item>
-
-          <Form.Item name="is_public" label="公开可见" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };
