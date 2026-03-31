@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Select, InputNumber, message, Tabs, Spin, Upload, Divider, Space } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
+import type { RcFile } from 'antd/es/upload/interface';
 import { SaveOutlined, UploadOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -126,38 +127,31 @@ export const BotSettings: React.FC = () => {
         message.error('只能上传图片文件（JPEG/PNG/GIF/WebP）');
         return Upload.LIST_IGNORE;
       }
-      const isLt10M = file.size / 1024 / 1024 < 10;
-      if (!isLt10M) {
+      if (file.size / 1024 / 1024 > 10) {
         message.error('图片大小不能超过 10MB');
         return Upload.LIST_IGNORE;
       }
-      return false;
+      return true;
     },
-    onChange: async ({ file, fileList: newFileList }) => {
-      if (file.status === 'removed') {
-        setFileList([]);
-        welcomeForm.setFieldValue('welcome_image_url', '');
-        return;
-      }
-      const rawFile = file.originFileObj;
-      if (!rawFile) return;
-      setFileList([{ ...file, status: 'uploading' }]);
+    customRequest: async ({ file, onSuccess, onError }) => {
+      const rcFile = file as RcFile;
+      setFileList([{ uid: rcFile.uid, name: rcFile.name, status: 'uploading' }]);
       try {
-        const result = await apiClient.uploadBotWelcomeImage(rawFile);
+        const result = await apiClient.uploadBotWelcomeImage(rcFile);
         const url = result.url;
         welcomeForm.setFieldValue('welcome_image_url', url);
-        setFileList([
-          {
-            uid: file.uid,
-            name: file.name,
-            status: 'done',
-            url,
-          },
-        ]);
+        setFileList([{
+          uid: rcFile.uid,
+          name: rcFile.name,
+          status: 'done',
+          url,
+        }]);
         message.success('图片上传成功');
+        onSuccess?.(result);
       } catch (err: any) {
         message.error(err?.response?.data?.error || err?.message || '图片上传失败');
-        setFileList([{ ...file, status: 'error' }]);
+        setFileList([]);
+        onError?.(err);
       }
     },
     onRemove: () => {
@@ -173,8 +167,12 @@ export const BotSettings: React.FC = () => {
     }
     setSavingTab(tabKey);
     try {
-      const values = await form.validateFields();
-      const payload = extraTransform ? extraTransform(values) : values;
+      let values = await form.validateFields();
+      if (extraTransform) values = extraTransform(values);
+      // Filter out undefined values so the backend doesn't receive empty updates
+      const payload = Object.fromEntries(
+        Object.entries(values).filter(([, v]) => v !== undefined)
+      );
       await apiClient.updateSettings(selectedBotId, payload);
       message.success('设置保存成功');
       // Keep support_telegram in sync between welcome and wallet tabs
