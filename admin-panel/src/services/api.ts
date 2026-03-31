@@ -355,6 +355,11 @@ class ApiClient {
     return response.data;
   }
 
+  async translateAndSaveUserAgreement(text: string) {
+    const response = await this.client.post('/admin/system-settings/user-agreement/translate-and-save', { text });
+    return response.data;
+  }
+
   async deleteSystemSetting(key: string) {
     const response = await this.client.delete(`/admin/system-settings/${key}`);
     return response.data;
