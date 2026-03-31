@@ -56,6 +56,9 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       follow_reward,
       invite_reward,
       welcome_message,
+      welcome_image_url,
+      official_group_url,
+      official_channel_url,
       // Wallet settings
       support_telegram,
       wallet_tip_message,
@@ -79,6 +82,18 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
     if (welcome_message !== undefined) {
       params.push(JSON.stringify(welcome_message));
       updates.push(`welcome_message = $${params.length}`);
+    }
+    if (welcome_image_url !== undefined) {
+      params.push(welcome_image_url);
+      updates.push(`welcome_image_url = $${params.length}`);
+    }
+    if (official_group_url !== undefined) {
+      params.push(official_group_url);
+      updates.push(`official_group_url = $${params.length}`);
+    }
+    if (official_channel_url !== undefined) {
+      params.push(official_channel_url);
+      updates.push(`official_channel_url = $${params.length}`);
     }
     if (support_telegram !== undefined) {
       params.push(support_telegram);

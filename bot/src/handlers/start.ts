@@ -50,21 +50,33 @@ export const handleStart = async (ctx: Context) => {
     // Get bot settings (welcome message + webapp url)
     const settings = await getSettings(botId);
 
-    // Build welcome message
-    const welcomeText = settings.welcome_message ||
-      `🎉 ${t(lang, 'welcome_title')}\n\n` +
-      `🆔 ${t(lang, 'your_unique_id')}: <b>${user.unique_id || user.robot_user_id || 'N/A'}</b>\n` +
-      `💰 ${t(lang, 'your_balance')}: <b>${((user as any).wallet_balance ?? user.balance ?? 0).toFixed(2)}</b>\n\n` +
-      t(lang, 'welcome_description');
+    // Build welcome message — fixed header always shown, admin message appended below
+    const displayId = (user as any).unique_id || (user as any).robot_user_id || 'N/A';
+    const balance = ((user as any).wallet_balance ?? (user as any).balance ?? 0).toFixed(2);
+    let welcomeText = `🎉 ${t(lang, 'welcome_title')}\n\n` +
+      `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
+      `💰 ${t(lang, 'your_balance')}: <b>${balance} USDT</b>`;
 
-    const webAppUrl = settings.webapp_url || process.env.WEBAPP_URL || 'https://example.com';
+    if (settings.welcome_message) {
+      let customMsg = '';
+      if (typeof settings.welcome_message === 'object') {
+        customMsg = (settings.welcome_message as any)[lang]
+          || (settings.welcome_message as any)['en']
+          || (settings.welcome_message as any)[Object.keys(settings.welcome_message as any)[0]]
+          || '';
+      } else if (typeof settings.welcome_message === 'string') {
+        customMsg = (settings.welcome_message as string).trim();
+      }
+      if (customMsg) {
+        welcomeText += `\n\n${customMsg}`;
+      }
+    }
+
+    const webAppUrl = (settings as any).webapp_url || process.env.WEBAPP_URL || 'https://example.com';
 
     // ── Steps 1 & 2: Pre-register user + generate one-time jt token (parallel) ─
-    // Running both requests concurrently reduces Bot response latency.
-    // Generate the jt token upfront so we can build the WebApp URL after the call.
     const jtToken = crypto.randomBytes(32).toString('hex');
     const [preregResult, jtStoreResult] = await Promise.allSettled([
-      // Step 1: Pre-register / refresh user info (fire-and-forget)
       axios.post(
         `${backendUrl}/api/miniapp/preregister`,
         {
@@ -75,9 +87,6 @@ export const handleStart = async (ctx: Context) => {
         },
         { headers: { 'X-Bot-Id': botId }, timeout: 8000 }
       ),
-      // Step 2: Store jt token in backend Redis so Mini App can exchange it for a session.
-      // This bypasses Telegram initData HMAC entirely — the Mini App reads ?jt=
-      // from the URL on mount (no SDK needed) and exchanges it for a session.
       axios.post(
         `${backendUrl}/api/miniapp/jt-store`,
         {
@@ -100,25 +109,43 @@ export const handleStart = async (ctx: Context) => {
 
     let finalWebAppUrl = webAppUrl;
     if (jtStoreResult.status === 'fulfilled') {
-      // Append ?jt= to WebApp URL so Mini App can read it on mount
       const separator = webAppUrl.includes('?') ? '&' : '?';
       finalWebAppUrl = `${webAppUrl}${separator}jt=${jtToken}`;
     } else {
       const err = (jtStoreResult as PromiseRejectedResult).reason;
       const status = err?.response?.status;
       console.warn(`[bot ${botId}] Failed to store jt token (status=${status ?? 'network'}):`, err?.message);
-      // Graceful degradation: Mini App falls back to initData auth
     }
 
-    // Send welcome text with reply keyboard (wallet + invite buttons only).
-    // The "Open App" WebApp button is now in the wallet card inline keyboard,
-    // where it properly injects initData AND includes a fresh ?jt= token.
-    await ctx.replyWithHTML(
-      welcomeText,
-      Markup.keyboard([
-        [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-      ]).resize()
-    );
+    // Build official links inline keyboard (if configured)
+    const officialLinkButtons: ReturnType<typeof Markup.button.url>[] = [];
+    if ((settings as any).official_group_url) {
+      officialLinkButtons.push(Markup.button.url(t(lang, 'btn_official_group'), (settings as any).official_group_url));
+    }
+    if ((settings as any).official_channel_url) {
+      officialLinkButtons.push(Markup.button.url(t(lang, 'btn_official_channel'), (settings as any).official_channel_url));
+    }
+    const officialKeyboard = officialLinkButtons.length > 0
+      ? Markup.inlineKeyboard([officialLinkButtons])
+      : undefined;
+
+    const replyKeyboard = Markup.keyboard([
+      [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
+    ]).resize();
+
+    // Send welcome content (photo or text) with reply keyboard, then optional official links
+    if ((settings as any).welcome_image_url) {
+      await ctx.replyWithPhoto((settings as any).welcome_image_url, {
+        caption: welcomeText,
+        parse_mode: 'HTML',
+        reply_markup: replyKeyboard.reply_markup,
+      });
+    } else {
+      await ctx.replyWithHTML(welcomeText, replyKeyboard);
+    }
+    if (officialKeyboard) {
+      await ctx.replyWithHTML('🔗', officialKeyboard);
+    }
   } catch (error) {
     console.error('Start handler error:', error);
     await ctx.reply(t('en', 'error'));

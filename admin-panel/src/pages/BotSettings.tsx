@@ -14,6 +14,9 @@ interface Bot {
 
 interface BotSettingsData {
   welcome_message?: string;
+  welcome_image_url?: string;
+  official_group_url?: string;
+  official_channel_url?: string;
   follow_reward?: number;
   invite_reward?: number;
   support_telegram?: string;
@@ -125,8 +128,17 @@ export const BotSettings: React.FC = () => {
           <Tabs defaultActiveKey="welcome">
             <TabPane tab="欢迎语" key="welcome">
               <Card>
-                <Form.Item name="welcome_message" label="欢迎语（支持 Markdown）">
+                <Form.Item name="welcome_message" label="欢迎语文字（Markdown 支持，显示在固定信息下方）">
                   <Input.TextArea rows={8} placeholder="欢迎来到平台..." />
+                </Form.Item>
+                <Form.Item name="welcome_image_url" label="欢迎图片 URL（留空则不发图）">
+                  <Input placeholder="https://...（图片 URL）" />
+                </Form.Item>
+                <Form.Item name="official_group_url" label="官方群组链接（添加后自动显示群组按钮）">
+                  <Input placeholder="https://t.me/xxxxx" />
+                </Form.Item>
+                <Form.Item name="official_channel_url" label="官方频道链接（添加后自动显示频道按钮）">
+                  <Input placeholder="https://t.me/xxxxx" />
                 </Form.Item>
               </Card>
             </TabPane>
