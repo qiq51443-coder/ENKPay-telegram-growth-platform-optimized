@@ -546,6 +546,8 @@ ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_override DECIMAL(
 -- Migration: add progress_images to charity_projects
 ALTER TABLE charity_projects ADD COLUMN IF NOT EXISTS progress_images TEXT[] DEFAULT '{}';
 
+-- NOTE: The following ALTER TABLEs are only effective on brand-new databases.
+-- For existing deployments, use migration 1024_ensure_bot_settings_support_columns.sql.
 -- Migration: add missing bot_settings columns
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS welcome_image_url TEXT;
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS official_group_url TEXT;
