@@ -85,7 +85,23 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       updates.push(`invite_reward = $${params.length}`);
     }
     if (welcome_message !== undefined) {
-      params.push(typeof welcome_message === 'string' ? welcome_message : JSON.stringify(welcome_message));
+      // welcome_message is a JSONB column — always serialize to valid JSON.
+      // If it's already a plain string (e.g. a single-language message), wrap it
+      // as a JSON string so PostgreSQL can accept it as JSONB.
+      let welcomeValue: string;
+      if (typeof welcome_message === 'string') {
+        // Try to parse: if it's already a serialized JSON object/array keep it as-is,
+        // otherwise wrap the plain text as a JSON string literal.
+        try {
+          JSON.parse(welcome_message); // validate — throws if invalid JSON
+          welcomeValue = welcome_message; // already valid JSON, pass through
+        } catch {
+          welcomeValue = JSON.stringify(welcome_message); // plain text → JSON string
+        }
+      } else {
+        welcomeValue = JSON.stringify(welcome_message);
+      }
+      params.push(welcomeValue);
       updates.push(`welcome_message = $${params.length}`);
     }
     if (welcome_image_url !== undefined) {
