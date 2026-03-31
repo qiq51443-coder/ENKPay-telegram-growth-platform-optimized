@@ -375,7 +375,18 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
 
   const imageUrl: string | undefined = settings.welcome_image_url || undefined;
 
+  // Track whether a photo was successfully sent so we know whether to send the follow-up
+  let photoSent = false;
+
   if (imageUrl) {
+    // ── Has welcome image ─────────────────────────────────────────────────
+    // Telegram only allows one type of reply_markup per message.
+    // If officialKeyboard exists, attach it to the photo (inline keyboard with group buttons).
+    // The persistent bottom keyboard (replyKeyboard) must be sent in a separate message.
+    const photoReplyMarkup = officialKeyboard
+      ? officialKeyboard.reply_markup
+      : replyKeyboard.reply_markup;
+
     if (imageUrl.startsWith('data:')) {
       // base64 Data URL → decode to Buffer → multipart upload to Telegram
       const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
@@ -386,35 +397,50 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
           {
             caption: welcomeText,
             parse_mode: 'HTML',
-            reply_markup: replyKeyboard.reply_markup,
+            reply_markup: photoReplyMarkup,
           }
         );
+        photoSent = true;
       } else {
-        // Malformed base64, fall back to text
-        await ctx.replyWithHTML(welcomeText, replyKeyboard);
+        // Malformed base64, fall back to text (handled below as no-image case)
+        console.warn('[sendWelcomeMessage] Malformed base64 welcome_image_url, falling back to text.');
       }
     } else if (imageUrl.startsWith('http')) {
       // Full HTTP URL (legacy support)
       await ctx.replyWithPhoto(imageUrl, {
         caption: welcomeText,
         parse_mode: 'HTML',
-        reply_markup: replyKeyboard.reply_markup,
+        reply_markup: photoReplyMarkup,
       });
+      photoSent = true;
     } else {
-      // Relative path or unknown format, fall back to text
+      // Relative path or unknown format, fall back to text (handled below as no-image case)
       console.warn('[sendWelcomeMessage] welcome_image_url is not a valid URL or base64, falling back to text.');
-      await ctx.replyWithHTML(welcomeText, replyKeyboard);
     }
-  } else {
-    await ctx.replyWithHTML(welcomeText, replyKeyboard);
   }
 
-  // If official links are configured, send them as an inline keyboard follow-up
-  if (officialKeyboard) {
-    await ctx.replyWithHTML(
-      t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
-      officialKeyboard
-    );
+  if (photoSent) {
+    // Photo was sent with officialKeyboard attached — send a separate message to activate the persistent bottom keyboard
+    if (officialKeyboard) {
+      await ctx.replyWithHTML(
+        t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
+        replyKeyboard
+      );
+    }
+  } else {
+    // ── No photo (either no imageUrl configured, or imageUrl was invalid) ──
+    if (officialKeyboard) {
+      // Merge: welcome text + official links inline keyboard in ONE message
+      await ctx.replyWithHTML(welcomeText, officialKeyboard);
+      // Persistent bottom keyboard must be a separate message (Telegram limitation)
+      await ctx.replyWithHTML(
+        t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
+        replyKeyboard
+      );
+    } else {
+      // No official links — normal welcome message with bottom keyboard
+      await ctx.replyWithHTML(welcomeText, replyKeyboard);
+    }
   }
 }
 
