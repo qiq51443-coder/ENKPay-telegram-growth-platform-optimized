@@ -260,11 +260,11 @@ export async function getPlatformConfig(key: string): Promise<any> {
  *
  * Returns the unlocked amount (0 if nothing was unlocked).
  */
-export async function autoUnlockRewardBalance(userId: number): Promise<number> {
+export async function autoUnlockRewardBalance(userId: string | number): Promise<number> {
   // Fetch user reward fields
   const userResult = await query(
     `SELECT reward_balance, reward_unlock_traded FROM users WHERE id = $1`,
-    [userId]
+    [String(userId)]
   );
   if (userResult.rows.length === 0) return 0;
 
@@ -290,7 +290,7 @@ export async function autoUnlockRewardBalance(userId: number): Promise<number> {
          reward_balance = 0,
          reward_unlock_traded = 0
      WHERE id = $1`,
-    [userId]
+    [String(userId)]
   );
 
   return rewardBalance;
