@@ -134,12 +134,36 @@ export const handleStart = async (ctx: Context) => {
     ]).resize();
 
     // Send welcome content (photo or text) with reply keyboard, then optional official links
-    if ((settings as any).welcome_image_url) {
-      await ctx.replyWithPhoto((settings as any).welcome_image_url, {
-        caption: welcomeText,
-        parse_mode: 'HTML',
-        reply_markup: replyKeyboard.reply_markup,
-      });
+    const imageUrl: string | undefined = (settings as any).welcome_image_url || undefined;
+    if (imageUrl) {
+      if (imageUrl.startsWith('data:')) {
+        // base64 Data URL → decode to Buffer → multipart upload to Telegram
+        const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const buffer = Buffer.from(matches[2], 'base64');
+          await ctx.replyWithPhoto(
+            { source: buffer },
+            {
+              caption: welcomeText,
+              parse_mode: 'HTML',
+              reply_markup: replyKeyboard.reply_markup,
+            }
+          );
+        } else {
+          await ctx.replyWithHTML(welcomeText, replyKeyboard);
+        }
+      } else if (imageUrl.startsWith('http')) {
+        // Full HTTP URL (legacy)
+        await ctx.replyWithPhoto(imageUrl, {
+          caption: welcomeText,
+          parse_mode: 'HTML',
+          reply_markup: replyKeyboard.reply_markup,
+        });
+      } else {
+        // Relative path or unknown format, fall back to text
+        console.warn('[startHandler] welcome_image_url is not a valid URL or base64, falling back to text.');
+        await ctx.replyWithHTML(welcomeText, replyKeyboard);
+      }
     } else {
       await ctx.replyWithHTML(welcomeText, replyKeyboard);
     }
