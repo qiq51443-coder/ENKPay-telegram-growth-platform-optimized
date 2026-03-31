@@ -58,8 +58,12 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       invite_reward,
       welcome_message,
       welcome_image_url,
+      // Legacy single-URL fields (kept for backward compat)
       official_group_url,
       official_channel_url,
+      // New multi-URL array fields
+      official_group_urls,
+      official_channel_urls,
       // Wallet settings
       support_telegram,
       wallet_tip_message,
@@ -81,7 +85,7 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
       updates.push(`invite_reward = $${params.length}`);
     }
     if (welcome_message !== undefined) {
-      params.push(JSON.stringify(welcome_message));
+      params.push(typeof welcome_message === 'string' ? welcome_message : JSON.stringify(welcome_message));
       updates.push(`welcome_message = $${params.length}`);
     }
     if (welcome_image_url !== undefined) {
@@ -95,6 +99,16 @@ router.put('/:botId', authenticateAdmin, async (req: AuthRequest, res) => {
     if (official_channel_url !== undefined) {
       params.push(official_channel_url);
       updates.push(`official_channel_url = $${params.length}`);
+    }
+    if (official_group_urls !== undefined) {
+      const groupUrls = Array.isArray(official_group_urls) ? official_group_urls.filter(Boolean) : [];
+      params.push(groupUrls);
+      updates.push(`official_group_urls = $${params.length}`);
+    }
+    if (official_channel_urls !== undefined) {
+      const channelUrls = Array.isArray(official_channel_urls) ? official_channel_urls.filter(Boolean) : [];
+      params.push(channelUrls);
+      updates.push(`official_channel_urls = $${params.length}`);
     }
     if (support_telegram !== undefined) {
       params.push(support_telegram);

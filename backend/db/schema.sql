@@ -556,3 +556,7 @@ ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS transfer_min_amount DECIMAL(10
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS withdraw_min_amount DECIMAL(10,2);
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS withdraw_fee_rate DECIMAL(6,5);
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS deposit_confirm_blocks INT;
+
+-- Migration: add multi-URL array columns (keep legacy single-URL columns for backward compat)
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS official_group_urls TEXT[] DEFAULT '{}';
+ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS official_channel_urls TEXT[] DEFAULT '{}';

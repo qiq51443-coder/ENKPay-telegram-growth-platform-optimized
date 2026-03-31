@@ -336,14 +336,38 @@ async function buildWelcomeText(user: User, lang: string, settings: Record<strin
 
 function buildOfficialLinksKeyboard(lang: string, settings: Record<string, any>) {
   const buttons: ReturnType<typeof Markup.button.url>[] = [];
-  if (settings.official_group_url) {
-    buttons.push(Markup.button.url(t(lang, 'btn_official_group'), settings.official_group_url));
-  }
-  if (settings.official_channel_url) {
-    buttons.push(Markup.button.url(t(lang, 'btn_official_channel'), settings.official_channel_url));
-  }
+
+  // Support new multi-URL arrays; fall back to legacy single-URL fields
+  const groupUrls: string[] =
+    Array.isArray(settings.official_group_urls) && settings.official_group_urls.length > 0
+      ? settings.official_group_urls
+      : settings.official_group_url
+      ? [settings.official_group_url]
+      : [];
+  const channelUrls: string[] =
+    Array.isArray(settings.official_channel_urls) && settings.official_channel_urls.length > 0
+      ? settings.official_channel_urls
+      : settings.official_channel_url
+      ? [settings.official_channel_url]
+      : [];
+
+  const makeLabel = (base: string, arr: string[], idx: number) =>
+    arr.length === 1 ? base : `${base} ${idx + 1}`;
+
+  groupUrls.forEach((url, idx) => {
+    buttons.push(Markup.button.url(makeLabel(t(lang, 'btn_official_group'), groupUrls, idx), url));
+  });
+  channelUrls.forEach((url, idx) => {
+    buttons.push(Markup.button.url(makeLabel(t(lang, 'btn_official_channel'), channelUrls, idx), url));
+  });
+
   if (buttons.length === 0) return undefined;
-  return Markup.inlineKeyboard([buttons]);
+  // Arrange buttons in rows of 2
+  const rows: ReturnType<typeof Markup.button.url>[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
+  return Markup.inlineKeyboard(rows);
 }
 
 async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, settings: Record<string, any>) {
