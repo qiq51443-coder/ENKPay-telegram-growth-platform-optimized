@@ -473,4 +473,32 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
   }
 });
 
+/**
+ * GET /api/miniapp/user-agreement?lang=zh
+ * Returns the user agreement text for the requested language.
+ * Falls back to the English version if the requested language is unavailable.
+ */
+const SUPPORTED_AGREEMENT_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja', 'ru'];
+
+router.get('/user-agreement', async (req, res) => {
+  try {
+    const rawLang = typeof req.query.lang === 'string' ? req.query.lang.split('-')[0] : 'en';
+    const effectiveLang = SUPPORTED_AGREEMENT_LANGS.includes(rawLang) ? rawLang : 'en';
+
+    const result = await query(
+      `SELECT value FROM system_settings
+       WHERE key = $1 OR key = 'user_agreement_en'
+       ORDER BY CASE WHEN key = $1 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [`user_agreement_${effectiveLang}`]
+    );
+
+    const text = result.rows[0]?.value || '';
+    res.json({ success: true, text, lang: effectiveLang });
+  } catch (error: any) {
+    console.error('Get user agreement error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
