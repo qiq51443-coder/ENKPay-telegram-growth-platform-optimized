@@ -1,4 +1,4 @@
--- 为 deposit_networks 添加监听模式字段
+-- 为 deposit_networks 添加监听模式字段（Moralis Streams / TronGrid Webhook 双模式支持）
 ALTER TABLE deposit_networks
   ADD COLUMN IF NOT EXISTS listener_mode VARCHAR(20) NOT NULL DEFAULT 'polling',
   ADD COLUMN IF NOT EXISTS moralis_stream_id VARCHAR(100),
