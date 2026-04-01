@@ -126,6 +126,19 @@ CREATE TABLE IF NOT EXISTS deposit_records (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- admin_users (required by admin panel login and referenced by system_settings)
+CREATE TABLE IF NOT EXISTS admin_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  email TEXT,
+  role VARCHAR(20) DEFAULT 'admin',
+  is_active BOOLEAN DEFAULT true,
+  last_login_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- system_settings (required by admin login and platform configuration)
 CREATE TABLE IF NOT EXISTS system_settings (
   key VARCHAR(100) PRIMARY KEY,
@@ -136,18 +149,8 @@ CREATE TABLE IF NOT EXISTS system_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   updated_by UUID REFERENCES admin_users(id) ON DELETE SET NULL
 );
-
--- admin_users (required by admin panel login)
-CREATE TABLE IF NOT EXISTS admin_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  email TEXT,
-  role VARCHAR(20) DEFAULT 'admin',
-  is_active BOOLEAN DEFAULT true,
-  last_login_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Ensure updated_by column exists (idempotent patch for existing tables)
+ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS updated_by UUID REFERENCES admin_users(id) ON DELETE SET NULL;
 
 -- lucky_auctions (required by lucky auction feature)
 CREATE TABLE IF NOT EXISTS lucky_auctions (

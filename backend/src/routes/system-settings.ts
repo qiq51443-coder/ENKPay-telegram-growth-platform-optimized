@@ -36,18 +36,18 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT 
-        key, 
-        value, 
-        description, 
-        category, 
-        is_public, 
-        updated_at,
-        updated_by,
+        ss.key, 
+        ss.value, 
+        ss.description, 
+        ss.category, 
+        ss.is_public, 
+        ss.updated_at,
+        ss.updated_by,
         au.username as updated_by_username
        FROM system_settings ss
        LEFT JOIN admin_users au ON ss.updated_by = au.id
        ${whereClause}
-       ORDER BY category, key`,
+       ORDER BY ss.category, ss.key`,
       params
     );
 
@@ -92,17 +92,17 @@ router.get('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT 
-        key, 
-        value, 
-        description, 
-        category, 
-        is_public, 
-        updated_at,
-        updated_by,
+        ss.key, 
+        ss.value, 
+        ss.description, 
+        ss.category, 
+        ss.is_public, 
+        ss.updated_at,
+        ss.updated_by,
         au.username as updated_by_username
        FROM system_settings ss
        LEFT JOIN admin_users au ON ss.updated_by = au.id
-       WHERE key = $1`,
+       WHERE ss.key = $1`,
       [key]
     );
 
