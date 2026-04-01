@@ -157,6 +157,17 @@ export const WalletNetworks: React.FC = () => {
     }
   };
 
+  const handleClearDerivedAddresses = async (networkId: string | 'all') => {
+    try {
+      const result = await apiClient.clearNetworkDerivedAddresses(networkId);
+      message.success(result.message);
+      fetchDerivedAddresses();
+    } catch (error: any) {
+      console.error('Failed to clear derived addresses:', error);
+      message.error(error.response?.data?.error || '重置失败');
+    }
+  };
+
   const handleToggleStatus = async (id: string, isActive: boolean) => {
     try {
       await apiClient.updateWalletNetwork(id, { is_active: !isActive });
@@ -266,7 +277,7 @@ export const WalletNetworks: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 250,
+      width: 320,
       render: (_: any, record: WalletNetwork) => (
         <Space>
           <Button
@@ -285,6 +296,24 @@ export const WalletNetworks: React.FC = () => {
           >
             {record.is_active ? '禁用' : '启用'}
           </Button>
+          <Popconfirm
+            title={
+              <div>
+                <div>确定要重置该网络的所有派生地址吗？</div>
+                <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: 4 }}>
+                  旧地址将被删除，用户下次充值时自动生成新地址
+                </div>
+              </div>
+            }
+            onConfirm={() => handleClearDerivedAddresses(record.id)}
+            okText="确定重置"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="link" size="small" danger icon={<ReloadOutlined />}>
+              重置地址
+            </Button>
+          </Popconfirm>
           <Popconfirm
             title="确定要删除这个网络吗？"
             onConfirm={() => handleDelete(record.id)}
@@ -307,9 +336,29 @@ export const WalletNetworks: React.FC = () => {
           <h2 style={{ margin: 0 }}>充值网络管理</h2>
           <p style={{ color: '#666', marginTop: 4 }}>管理支持的区块链充值网络</p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          添加网络
-        </Button>
+        <Space>
+          <Popconfirm
+            title={
+              <div>
+                <div>确定要重置所有网络的派生地址吗？</div>
+                <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: 4 }}>
+                  所有用户的 HD 派生地址将被删除，下次充值时自动重新派生
+                </div>
+              </div>
+            }
+            onConfirm={() => handleClearDerivedAddresses('all')}
+            okText="确定重置全部"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger icon={<ReloadOutlined />}>
+              重置全部派生地址
+            </Button>
+          </Popconfirm>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
+            添加网络
+          </Button>
+        </Space>
       </div>
 
       <Tabs
