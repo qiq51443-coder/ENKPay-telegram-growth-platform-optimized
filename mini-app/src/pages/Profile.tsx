@@ -229,16 +229,21 @@ export const Profile: React.FC = () => {
 
   const openAgreement = async () => {
     setView('agreement');
-    if (!agreementText) {
-      setAgreementLoading(true);
-      try {
-        const res = await api.get('/settings/public/user_agreement');
-        setAgreementText(res.data?.value || t('no_agreement'));
-      } catch {
-        setAgreementText(t('no_agreement'));
-      } finally {
-        setAgreementLoading(false);
+    setAgreementLoading(true);
+    setAgreementText('');
+    try {
+      const res = await api.get('/miniapp/user-agreement', { params: { lang } });
+      // Backend returns `text` field; `value` is kept as a fallback for the legacy endpoint shape
+      const raw = res.data?.text || res.data?.value || '';
+      let content = raw;
+      if (typeof raw === 'string' && raw.startsWith('"') && raw.endsWith('"')) {
+        try { content = JSON.parse(raw); } catch { /* keep as-is */ }
       }
+      setAgreementText(content || t('no_agreement'));
+    } catch {
+      setAgreementText(t('no_agreement'));
+    } finally {
+      setAgreementLoading(false);
     }
   };
 
