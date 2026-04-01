@@ -2,6 +2,8 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt, addManualDepositAddress, clearMnemonicCache } from '../services/deposit.service';
+import { createMoralisStream, addAddressToStream, deleteStream } from '../services/moralis-stream.service';
+import { resolveChainType, MORALIS_CHAIN_IDS } from '../utils/chain';
 import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
 import { getNotifyTemplate, formatNotification } from '../utils/notify';
@@ -24,6 +26,7 @@ router.get('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
          dn.scan_interval_seconds, dn.min_deposit_amount, dn.max_deposit_amount, dn.deposit_fee,
          dn.contract_address, dn.decimals,
          dn.is_active, dn.sort_order, dn.explorer_url, dn.created_at, dn.updated_at,
+         dn.listener_mode, dn.moralis_stream_id,
          COALESCE(
            (SELECT json_agg(bdn.bot_id)
             FROM bot_deposit_networks bdn
@@ -823,6 +826,213 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('Get transfers error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/wallet/networks/:id/stream/setup
+ * Configure Moralis Streams (EVM) or TronGrid Webhook (TRC) for a network.
+ * Body: { moralis_api_key?: string, trongrid_api_key?: string, webhook_url: string }
+ */
+router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { moralis_api_key, trongrid_api_key, webhook_url } = req.body;
+
+    if (!webhook_url) {
+      return res.status(400).json({ error: 'webhook_url is required' });
+    }
+
+    const networkResult = await query(
+      `SELECT id, network_name, chain_name FROM deposit_networks WHERE id = $1`,
+      [id]
+    );
+    if (networkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Network not found' });
+    }
+    const network = networkResult.rows[0];
+    const chainType = resolveChainType(network.chain_name);
+
+    if (chainType !== 'TRON') {
+      // EVM chain — use Moralis Streams
+      if (!moralis_api_key) {
+        return res.status(400).json({ error: 'moralis_api_key is required for EVM chains' });
+      }
+
+      const moralisChain = MORALIS_CHAIN_IDS[chainType] || '0x1';
+
+      const { id: streamId } = await createMoralisStream(
+        moralis_api_key,
+        webhook_url,
+        `${network.network_name}-deposit`,
+        [moralisChain]
+      );
+
+      const encryptedApiKey = encrypt(moralis_api_key);
+
+      await query(
+        `UPDATE deposit_networks
+         SET listener_mode = 'stream',
+             moralis_stream_id = $1,
+             webhook_api_key_encrypted = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [streamId, encryptedApiKey, id]
+      );
+
+      // Sync all existing active addresses to the new stream
+      const addressesResult = await query(
+        `SELECT address FROM user_deposit_addresses WHERE network_id = $1 AND is_active = true`,
+        [id]
+      );
+      const syncErrors: string[] = [];
+      for (const row of addressesResult.rows) {
+        try {
+          await addAddressToStream(moralis_api_key, streamId, row.address);
+        } catch (err: any) {
+          syncErrors.push(row.address);
+          console.error(`Failed to add address ${row.address} to Moralis Stream:`, err.message);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: `Moralis Stream created (${streamId}). Synced ${addressesResult.rows.length - syncErrors.length}/${addressesResult.rows.length} addresses.`,
+        stream_id: streamId,
+        sync_errors: syncErrors.length > 0 ? syncErrors : undefined,
+      });
+    } else {
+      // TRC chain — store TronGrid API key only (no programmatic address subscription)
+      if (!trongrid_api_key) {
+        return res.status(400).json({ error: 'trongrid_api_key is required for TRC chains' });
+      }
+
+      const encryptedApiKey = encrypt(trongrid_api_key);
+
+      await query(
+        `UPDATE deposit_networks
+         SET listener_mode = 'stream',
+             webhook_api_key_encrypted = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [encryptedApiKey, id]
+      );
+
+      return res.json({
+        success: true,
+        message: 'TronGrid API key saved. Please manually configure the webhook URL in TronGrid Dashboard.',
+        webhook_url,
+      });
+    }
+  } catch (error: any) {
+    console.error('Stream setup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/wallet/networks/:id/stream/sync
+ * Batch sync all active addresses for this network to Moralis Stream.
+ */
+router.post('/networks/:id/stream/sync', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const networkResult = await query(
+      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode
+       FROM deposit_networks WHERE id = $1`,
+      [id]
+    );
+    if (networkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Network not found' });
+    }
+    const network = networkResult.rows[0];
+
+    if (network.listener_mode !== 'stream') {
+      return res.status(400).json({ error: 'Network is not in stream mode' });
+    }
+
+    const chainType = resolveChainType(network.chain_name);
+    if (chainType === 'TRON') {
+      return res.status(400).json({ error: 'TronGrid does not support programmatic address sync' });
+    }
+
+    if (!network.moralis_stream_id || !network.webhook_api_key_encrypted) {
+      return res.status(400).json({ error: 'Moralis stream not configured. Please run setup first.' });
+    }
+
+    const apiKey = decrypt(network.webhook_api_key_encrypted);
+    const addressesResult = await query(
+      `SELECT address FROM user_deposit_addresses WHERE network_id = $1 AND is_active = true`,
+      [id]
+    );
+
+    const syncErrors: string[] = [];
+    for (const row of addressesResult.rows) {
+      try {
+        await addAddressToStream(apiKey, network.moralis_stream_id, row.address);
+      } catch (err: any) {
+        syncErrors.push(row.address);
+        console.error(`Failed to sync address ${row.address}:`, err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Synced ${addressesResult.rows.length - syncErrors.length}/${addressesResult.rows.length} addresses to Moralis Stream.`,
+      sync_errors: syncErrors.length > 0 ? syncErrors : undefined,
+    });
+  } catch (error: any) {
+    console.error('Stream sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/wallet/networks/:id/stream
+ * Delete Moralis Stream and switch network back to polling mode.
+ */
+router.delete('/networks/:id/stream', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const networkResult = await query(
+      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode
+       FROM deposit_networks WHERE id = $1`,
+      [id]
+    );
+    if (networkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Network not found' });
+    }
+    const network = networkResult.rows[0];
+
+    const chainType = resolveChainType(network.chain_name);
+    if (chainType !== 'TRON' && network.moralis_stream_id && network.webhook_api_key_encrypted) {
+      try {
+        const apiKey = decrypt(network.webhook_api_key_encrypted);
+        await deleteStream(apiKey, network.moralis_stream_id);
+      } catch (err: any) {
+        console.error('Failed to delete Moralis Stream (continuing):', err.message);
+      }
+    }
+
+    await query(
+      `UPDATE deposit_networks
+       SET listener_mode = 'polling',
+           moralis_stream_id = NULL,
+           webhook_api_key_encrypted = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Stream deleted. Network switched back to polling mode.',
+    });
+  } catch (error: any) {
+    console.error('Stream delete error:', error);
     res.status(500).json({ error: error.message });
   }
 });

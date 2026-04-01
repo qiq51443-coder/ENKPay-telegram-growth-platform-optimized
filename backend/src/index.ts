@@ -74,7 +74,14 @@ app.use(cors({
   origin: corsOrigin,
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res, buf) => {
+    // Preserve the raw request body for webhook signature verification
+    // (e.g. Moralis Streams uses sha3(rawBody + secret))
+    req.rawBody = buf.toString('utf8');
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
