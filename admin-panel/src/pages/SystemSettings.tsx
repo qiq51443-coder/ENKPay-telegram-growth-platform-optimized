@@ -12,11 +12,9 @@ import {
   Spin,
   Divider,
   Typography,
-  Collapse,
 } from 'antd';
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SaveOutlined, ReloadOutlined, TranslationOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
-import { TranslateButton } from '../components/TranslateButton';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -40,6 +38,42 @@ interface SystemSetting {
   updated_at?: string;
   updated_by_username?: string;
 }
+
+const AgreementLangItem: React.FC<{
+  code: string;
+  label: string;
+  value: string;
+  onSave: (lang: string, text: string) => Promise<void>;
+}> = ({ code, label, value, onSave }) => {
+  const [localValue, setLocalValue] = React.useState(value);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  return (
+    <Form.Item label={label}>
+      <TextArea
+        rows={3}
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+      />
+      <Button
+        size="small"
+        style={{ marginTop: 4 }}
+        loading={saving}
+        onClick={async () => {
+          setSaving(true);
+          await onSave(code, localValue);
+          setSaving(false);
+        }}
+      >
+        保存 {label}
+      </Button>
+    </Form.Item>
+  );
+};
 
 export const SystemSettings: React.FC = () => {
   const [settings, setSettings] = useState<SystemSetting[]>([]);
@@ -78,6 +112,12 @@ export const SystemSettings: React.FC = () => {
         formValues[setting.key] = parseSettingValue(setting.value);
       });
       form.setFieldsValue(formValues);
+
+      // Pre-fill agreement text from stored zh version (only if user hasn't typed anything)
+      const zhAgreement = settingsData.find((s: SystemSetting) => s.key === 'user_agreement_zh');
+      if (zhAgreement?.value && !agreementText) {
+        setAgreementText(String(zhAgreement.value));
+      }
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
       const detail = error?.response?.data?.error || error?.message || '未知错误';
@@ -192,64 +232,75 @@ export const SystemSettings: React.FC = () => {
     );
   };
 
-  const handleSaveAgreement = async () => {
+  const handleAgreementTranslateAndSave = async () => {
     if (!agreementText.trim()) {
       message.warning('请先输入用户协议内容');
       return;
     }
     setAgreementSaving(true);
     try {
-      const response = await apiClient.translateAndSaveUserAgreement(agreementText);
-      setAgreementTranslations(response.translations || null);
-      message.success(response.message || '用户协议翻译并保存成功');
+      const result = await apiClient.translateAndSaveUserAgreement(agreementText);
+      setAgreementTranslations(result.translations);
+      message.success(`用户协议已翻译并保存 ${result.saved_keys?.length || 0} 个语言版本`);
+      await fetchSettings();
     } catch (error: any) {
       console.error('Failed to save user agreement:', error);
-      message.error(error.response?.data?.error || '保存失败');
+      message.error(error?.response?.data?.error || '翻译保存失败');
     } finally {
       setAgreementSaving(false);
     }
   };
 
-  const renderAgreementCard = () => {
-    const collapseItems = agreementTranslations
-      ? AGREEMENT_LANGUAGES.filter((l) => agreementTranslations[l.code]).map((l) => ({
-          key: l.code,
-          label: <Text strong>{l.label}</Text>,
-          children: <Text style={{ whiteSpace: 'pre-wrap' }}>{agreementTranslations[l.code]}</Text>,
-        }))
-      : [];
+  const handleAgreementLangSave = async (lang: string, text: string) => {
+    try {
+      await apiClient.updateSystemSetting(`user_agreement_${lang}`, { value: text });
+      message.success(`${AGREEMENT_LANGUAGES.find((l) => l.code === lang)?.label} 版本已保存`);
+    } catch (error: any) {
+      console.error('Failed to save agreement language:', error);
+      message.error('保存失败');
+    }
+  };
 
+  const renderAgreementCard = () => {
     return (
       <Card title="用户协议管理" style={{ marginBottom: 16 }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Form.Item label="协议原文">
           <TextArea
-            rows={8}
+            rows={6}
+            placeholder="请输入用户协议内容（建议用中文或英文输入，系统将自动翻译为多种语言）"
             value={agreementText}
             onChange={(e) => setAgreementText(e.target.value)}
-            placeholder="请输入用户协议（中文或英文均可，系统将自动翻译）"
           />
-          <TranslateButton
-            text={agreementText}
-            onTranslated={(translations) => {
-              setAgreementTranslations((prev) => ({ ...(prev ?? {}), ...translations }));
-            }}
-          />
-          {agreementTranslations && collapseItems.length > 0 && (
-            <Collapse
-              size="small"
-              items={collapseItems}
-              style={{ background: '#fafafa' }}
+          <Space style={{ marginTop: 8 }}>
+            <Button
+              type="primary"
+              icon={<TranslationOutlined />}
+              loading={agreementSaving}
+              onClick={handleAgreementTranslateAndSave}
+              disabled={!agreementText.trim()}
+            >
+              翻译并保存（{AGREEMENT_LANGUAGES.length} 种语言）
+            </Button>
+          </Space>
+        </Form.Item>
+
+        <Divider orientation="left">各语言版本</Divider>
+
+        {AGREEMENT_LANGUAGES.map(({ code, label }) => {
+          const existingSetting = settings.find((s) => s.key === `user_agreement_${code}`);
+          const displayText =
+            (agreementTranslations && agreementTranslations[code]) ||
+            (existingSetting?.value ? String(existingSetting.value) : '');
+          return (
+            <AgreementLangItem
+              key={code}
+              code={code}
+              label={label}
+              value={displayText}
+              onSave={handleAgreementLangSave}
             />
-          )}
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={agreementSaving}
-            onClick={handleSaveAgreement}
-          >
-            翻译并保存
-          </Button>
-        </Space>
+          );
+        })}
       </Card>
     );
   };

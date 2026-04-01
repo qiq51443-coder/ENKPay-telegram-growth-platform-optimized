@@ -128,14 +128,13 @@ CREATE TABLE IF NOT EXISTS deposit_records (
 
 -- system_settings (required by admin login and platform configuration)
 CREATE TABLE IF NOT EXISTS system_settings (
-  id SERIAL PRIMARY KEY,
-  key VARCHAR(100) NOT NULL UNIQUE,
-  value TEXT,
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT '',
   description TEXT,
   category VARCHAR(50) DEFAULT 'general',
   is_public BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES admin_users(id) ON DELETE SET NULL
 );
 
 -- admin_users (required by admin panel login)
