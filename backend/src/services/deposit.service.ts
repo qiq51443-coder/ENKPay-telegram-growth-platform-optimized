@@ -5,10 +5,28 @@ import { generateOrderId } from '../utils/orderId';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
-// Validate encryption key
+// Validate encryption key presence at startup
 const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || '';
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
-  console.warn(`WARNING: WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ${ENCRYPTION_KEY?.length ?? 0}). Wallet features will be disabled.`);
+if (!ENCRYPTION_KEY) {
+  console.warn('WARNING: WALLET_ENCRYPTION_KEY is not set. Calling encrypt() or decrypt() will throw an error.');
+}
+
+/**
+ * Derive a fixed 32-byte AES key from WALLET_ENCRYPTION_KEY using SHA-256.
+ * This allows keys of any length to be used safely with AES-256-CBC.
+ *
+ * NOTE: This is backward-incompatible with data encrypted using a key that was
+ * exactly 32 bytes long (previously used directly without hashing).
+ * If you have existing encrypted mnemonics stored with a 32-byte key, you will
+ * need to re-encrypt them after this change.
+ * For keys that were NOT exactly 32 bytes (e.g., 44-byte base64 keys),
+ * this is the first successful encryption — no migration needed.
+ */
+function getEncryptionKeyBuffer(): Buffer {
+  if (!ENCRYPTION_KEY) {
+    throw new Error('WALLET_ENCRYPTION_KEY is not configured. Please set it in environment variables.');
+  }
+  return crypto.createHash('sha256').update(ENCRYPTION_KEY, 'utf8').digest();
 }
 
 // In-memory mnemonic cache: networkId → decrypted mnemonic
@@ -54,10 +72,7 @@ try {
  * Encrypt sensitive data (private keys, mnemonics)
  */
 export function encrypt(text: string): string {
-  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ' + (ENCRYPTION_KEY?.length ?? 0) + ')');
-  }
-  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
+  const key = getEncryptionKeyBuffer();
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
   
@@ -71,10 +86,7 @@ export function encrypt(text: string): string {
  * Decrypt sensitive data
  */
 export function decrypt(encryptedText: string): string {
-  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
-    throw new Error('WALLET_ENCRYPTION_KEY must be exactly 32 bytes (current length: ' + (ENCRYPTION_KEY?.length ?? 0) + ')');
-  }
-  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
+  const key = getEncryptionKeyBuffer();
   const parts = encryptedText.split(':');
   const iv = Buffer.from(parts[0], 'hex');
   const encrypted = parts[1];

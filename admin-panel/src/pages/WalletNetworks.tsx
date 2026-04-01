@@ -137,7 +137,12 @@ export const WalletNetworks: React.FC = () => {
       fetchNetworks();
     } catch (error: any) {
       console.error('Failed to save network:', error);
-      message.error(error.response?.data?.error || '操作失败');
+      const errMsg = error.response?.data?.error || error.message || '';
+      if (errMsg.includes('WALLET_ENCRYPTION_KEY')) {
+        message.error('服务端加密密钥配置错误，请联系运维检查 WALLET_ENCRYPTION_KEY 环境变量');
+      } else {
+        message.error(errMsg || '操作失败');
+      }
     }
   };
 
@@ -503,6 +508,7 @@ export const WalletNetworks: React.FC = () => {
           <Form.Item
             name="master_address"
             label="主地址"
+            tooltip="平台归集热钱包地址（接收用户扫链归集资金），与加密密钥无关"
             rules={[{ required: true, message: '请输入主地址' }]}
           >
             <Input placeholder="0x..." />
