@@ -63,6 +63,26 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 /**
+ * GET /admin/system-settings/categories/list
+ * Get list of all categories
+ */
+router.get('/categories/list', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT DISTINCT category 
+       FROM system_settings 
+       WHERE category IS NOT NULL
+       ORDER BY category`
+    );
+
+    res.json({ categories: result.rows.map(row => row.category) });
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /admin/system-settings/:key
  * Get a specific system setting by key
  */
@@ -415,26 +435,6 @@ router.delete('/:key', authenticateAdmin, requireRoles(['super_admin']), async (
     });
   } catch (error) {
     console.error('Delete system setting error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * GET /admin/system-settings/categories/list
- * Get list of all categories
- */
-router.get('/categories/list', authenticateAdmin, async (req: AuthRequest, res) => {
-  try {
-    const result = await query(
-      `SELECT DISTINCT category 
-       FROM system_settings 
-       WHERE category IS NOT NULL
-       ORDER BY category`
-    );
-
-    res.json({ categories: result.rows.map(row => row.category) });
-  } catch (error) {
-    console.error('Get categories error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
