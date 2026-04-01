@@ -642,6 +642,11 @@ class ApiClient {
     return response.data;
   }
 
+  async clearNetworkDerivedAddresses(networkId: string | 'all') {
+    const response = await this.client.delete(`/admin/wallet/networks/${networkId}/derived-addresses`);
+    return response.data;
+  }
+
   async updateWalletNetworkBots(id: string, bot_ids: string[]) {
     const response = await this.client.put(`/admin/wallet/networks/${id}/bots`, { bot_ids });
     return response.data;

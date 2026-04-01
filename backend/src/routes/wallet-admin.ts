@@ -247,6 +247,38 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
 });
 
 /**
+ * DELETE /api/admin/wallet/networks/:id/derived-addresses
+ * Clear all hd_derived addresses for a specific network (or all networks if id = 'all')
+ * so the correct algorithm re-derives fresh addresses on next request.
+ */
+router.delete('/networks/:id/derived-addresses', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    let result;
+    if (id === 'all') {
+      result = await query(
+        `DELETE FROM user_deposit_addresses WHERE source = 'hd_derived' RETURNING id`
+      );
+      clearMnemonicCache();
+    } else {
+      result = await query(
+        `DELETE FROM user_deposit_addresses WHERE source = 'hd_derived' AND network_id = $1 RETURNING id`,
+        [id]
+      );
+      clearMnemonicCache(Number(id));
+    }
+    res.json({
+      success: true,
+      deleted_count: result.rows.length,
+      message: `已清除 ${result.rows.length} 条派生地址，下次用户请求充值时将自动重新派生正确地址`,
+    });
+  } catch (error: any) {
+    console.error('Clear derived addresses error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * DELETE /api/admin/wallet/networks/:id
  * Delete deposit network
  */
