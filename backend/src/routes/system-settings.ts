@@ -11,6 +11,23 @@ const router = express.Router();
 router.use(adminLimiter);
 
 /**
+ * Ensure a value is always stored as a valid JSON string in the database.
+ * The system_settings.value column may be JSONB or TEXT; in either case we
+ * must never write a bare empty string, as PostgreSQL JSONB cannot parse it.
+ */
+function toJsonValue(value: any): string {
+  if (value === undefined || value === null) return '""';
+  if (typeof value === 'string') {
+    if (value === '') return '""';
+    // Already valid JSON – pass through unchanged
+    try { JSON.parse(value); return value; } catch {}
+    // Plain string – wrap as a JSON string literal
+    return JSON.stringify(value);
+  }
+  return JSON.stringify(value);
+}
+
+/**
  * GET /admin/system-settings
  * Get all system settings or filter by category
  */
@@ -146,7 +163,7 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
     let paramIndex = 1;
 
     if (value !== undefined) {
-      params.push(typeof value === 'string' ? value : JSON.stringify(value));
+      params.push(toJsonValue(value));
       updates.push(`value = $${paramIndex++}`);
     }
 
@@ -234,7 +251,7 @@ router.post('/', authenticateAdmin, requireRoles(['super_admin']), async (req: A
        RETURNING *`,
       [
         key,
-        typeof value === 'string' ? value : JSON.stringify(value),
+        toJsonValue(value),
         description,
         category,
         is_public,
@@ -293,7 +310,7 @@ router.post('/bulk-update', authenticateAdmin, requireRoles(['super_admin', 'adm
            SET value = $1, updated_by = $2, updated_at = NOW()
            WHERE key = $3
            RETURNING *`,
-          [typeof value === 'string' ? value : JSON.stringify(value), req.user?.id, key]
+          [toJsonValue(value), req.user?.id, key]
         );
 
         if (result.rows.length === 0) {
@@ -371,11 +388,21 @@ router.post('/user-agreement/translate-and-save', authenticateAdmin, requireRole
            is_public = EXCLUDED.is_public,
            updated_by = EXCLUDED.updated_by,
            updated_at = NOW()`,
-        [settingKey, translated, description, req.user?.id]
+        [settingKey, toJsonValue(translated), description, req.user?.id]
       );
 
       savedKeys.push(settingKey);
     }
+
+    // Extra write: save bare 'user_agreement' key for backward compatibility
+    // (Mini App reads /settings/public/user_agreement without a lang suffix)
+    const defaultText = (translations as Record<string, string>)['en'] || (translations as Record<string, string>)['zh'] || String(text);
+    await query(
+      `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+       VALUES ('user_agreement', $1, '用户协议内容（默认）', 'general', true, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+      [toJsonValue(defaultText), req.user?.id]
+    );
 
     await logAuditAction({
       adminUserId: req.user!.id,
