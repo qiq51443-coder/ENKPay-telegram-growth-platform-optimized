@@ -80,7 +80,9 @@ export const SystemSettings: React.FC = () => {
       form.setFieldsValue(formValues);
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
-      message.error('加载设置失败');
+      const detail = error?.response?.data?.error || error?.message || '未知错误';
+      message.error(`加载设置失败: ${detail}`);
+      setSettings([]);
     } finally {
       setLoading(false);
     }
