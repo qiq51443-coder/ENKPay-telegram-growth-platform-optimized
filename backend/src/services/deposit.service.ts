@@ -128,15 +128,14 @@ export async function deriveEthAddress(
  * This implementation follows the exact same algorithm used by TronLink and
  * other standard Tron wallets (BIP44, coin_type=195):
  *
- *   1. Derive secp256k1 private key at path m/44'/195'/0'/0/{index}
- *   2. Get the uncompressed public key (65 bytes, 0x04 prefix)
- *   3. Strip the 0x04 prefix → 64 bytes
- *   4. Keccak256 hash of the 64 bytes → 32 bytes
- *   5. Take the last 20 bytes
- *   6. Prepend Tron mainnet byte 0x41 → 21 bytes
- *   7. Compute double-SHA256 checksum → take first 4 bytes
- *   8. Append checksum → 25 bytes total
- *   9. Base58 encode → Tron address (always starts with 'T')
+ *   1. Derive HD wallet at path m/44'/195'/0'/0/{index} — ethers.js computes
+ *      Keccak256(uncompressed_public_key) and takes the last 20 bytes internally,
+ *      exposing it as wallet.address (standard Ethereum address format).
+ *   2. Strip the '0x' prefix → 40 hex chars (20 bytes)
+ *   3. Prepend Tron mainnet byte 0x41 → 21 bytes
+ *   4. Compute double-SHA256 checksum → take first 4 bytes
+ *   5. Append checksum → 25 bytes total
+ *   6. Base58 encode → Tron address (always starts with 'T')
  *
  * NOTE: We do NOT use tronweb.address.fromPrivateKey() here because tronweb v5.x
  * requires a valid fullHost to initialise, which causes unpredictable behaviour
@@ -157,35 +156,31 @@ export async function deriveTronAddress(
     const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
     const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
 
-    // Steps 2-4: uncompressed public key → Keccak256
-    // wallet.signingKey.publicKey returns the COMPRESSED key (0x02/0x03 + 32 bytes).
-    // TRON (like Ethereum) requires the UNCOMPRESSED key (0x04 + 64 bytes) as input to Keccak256.
-    const compressedKey = wallet.signingKey.publicKey;
-    const publicKeyUncompressed = ethers.SigningKey.computePublicKey(compressedKey, false); // 0x04 + 64 bytes
-    const pubBytes = ethers.getBytes(publicKeyUncompressed).slice(1); // remove 0x04 prefix → 64 bytes
-    const addressHash = ethers.keccak256(pubBytes); // 32-byte hex
+    // TRON address = Ethereum address with 0x41 network prefix instead of 0x00.
+    // wallet.address is already the correct Keccak256-derived 20-byte address
+    // (standard Ethereum format). We only need to replace the network prefix
+    // and re-encode with Base58Check — no manual Keccak256 needed here.
+    const ethAddressHex = wallet.address.slice(2); // remove 0x prefix → 40 hex chars (20 bytes)
+    const addressBytes = ethers.getBytes('0x' + ethAddressHex); // 20 bytes
 
-    // Step 5: last 20 bytes of the hash
-    const last20Bytes = ethers.getBytes(addressHash).slice(12);
-
-    // Step 6: prepend Tron mainnet prefix 0x41
+    // Prepend Tron mainnet prefix 0x41
     const tronAddressBytes = new Uint8Array(21);
     tronAddressBytes[0] = 0x41;
-    tronAddressBytes.set(last20Bytes, 1);
+    tronAddressBytes.set(addressBytes, 1);
 
-    // Step 7: double SHA256 checksum
+    // Double SHA256 checksum
     const hash1 = ethers.getBytes(ethers.sha256(tronAddressBytes));
     const hash2 = ethers.getBytes(ethers.sha256(hash1));
     const checksum = hash2.slice(0, 4);
 
-    // Step 8: full 25-byte payload
+    // Full 25-byte payload
     const fullBytes = new Uint8Array(25);
     fullBytes.set(tronAddressBytes, 0);
     fullBytes.set(checksum, 21);
 
-    // Step 9: Base58 encode
+    // Base58 encode
     const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let num = BigInt('0x' + Buffer.from(fullBytes).toString('hex'));
+    let num = BigInt('0x' + ethers.hexlify(fullBytes).slice(2));
     let encoded = '';
     while (num > 0n) {
       const remainder = num % 58n;
