@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import axios from 'axios';
 import { query, transaction } from '../db';
 import { generateOrderId } from '../utils/orderId';
+import { resolveChainType } from '../utils/chain';
+import { addAddressToStream } from './moralis-stream.service';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
@@ -320,6 +322,31 @@ export async function generateUserDepositAddress(
 
     return derivedAddress;
   });
+
+  // After a new address is generated, auto-sync to Moralis Stream if the network is in stream mode
+  try {
+    const streamInfoResult = await query(
+      `SELECT listener_mode, moralis_stream_id, webhook_api_key_encrypted, chain_name
+       FROM deposit_networks WHERE id = $1`,
+      [networkId]
+    );
+    const streamInfo = streamInfoResult.rows[0];
+    if (
+      streamInfo?.listener_mode === 'stream' &&
+      streamInfo?.moralis_stream_id &&
+      streamInfo?.webhook_api_key_encrypted
+    ) {
+      const chainType = resolveChainType(streamInfo.chain_name);
+      if (chainType !== 'TRON') {
+        const apiKey = decrypt(streamInfo.webhook_api_key_encrypted);
+        addAddressToStream(apiKey, streamInfo.moralis_stream_id, address).catch((err: any) =>
+          console.error('Failed to add address to Moralis Stream:', err.message)
+        );
+      }
+    }
+  } catch (streamErr: any) {
+    console.error('Failed to check stream mode for new address sync:', streamErr.message);
+  }
 
   return address;
 }

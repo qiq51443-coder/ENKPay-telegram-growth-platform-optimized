@@ -652,6 +652,21 @@ class ApiClient {
     return response.data;
   }
 
+  async setupNetworkStream(id: string, data: { moralis_api_key?: string; trongrid_api_key?: string; webhook_url: string }) {
+    const response = await this.client.post(`/admin/wallet/networks/${id}/stream/setup`, data);
+    return response.data;
+  }
+
+  async syncNetworkStream(id: string) {
+    const response = await this.client.post(`/admin/wallet/networks/${id}/stream/sync`);
+    return response.data;
+  }
+
+  async deleteNetworkStream(id: string) {
+    const response = await this.client.delete(`/admin/wallet/networks/${id}/stream`);
+    return response.data;
+  }
+
   async getDepositAddresses(params?: any) {
     const response = await this.client.get('/admin/wallet/deposit-addresses', { params });
     return response.data;

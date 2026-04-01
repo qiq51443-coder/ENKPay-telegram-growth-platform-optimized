@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import express from 'express';
 import { query } from '../db';
 import { processDeposit } from '../services/deposit.service';
+import { verifyMoralisSignature } from '../services/moralis-stream.service';
 
 const router = express.Router();
 
@@ -42,9 +43,116 @@ function verifyWebhookSignature(req: express.Request, res: express.Response): bo
 }
 
 /**
- * POST /webhook/deposit/tron
- * Receives TronGrid webhook notifications
+ * POST /webhook/deposit/moralis
+ * Receives Moralis Streams EVM chain callbacks (ETH/BSC/Polygon unified entry point).
+ * Verification: x-moralis-signature header (sha3(body + MORALIS_STREAMS_SECRET)).
+ * Moralis requires a 200 response, otherwise it will retry.
  */
+router.post('/moralis', async (req, res) => {
+  try {
+    const moralisSecret = process.env.MORALIS_STREAMS_SECRET;
+    if (moralisSecret) {
+      const signature = req.headers['x-moralis-signature'] as string | undefined;
+      if (!signature) {
+        return res.status(401).json({ error: 'Missing x-moralis-signature header' });
+      }
+      // Use raw body for signature verification — re-serializing req.body would produce
+      // a different string if the original payload had different field ordering/whitespace.
+      const rawBody = (req as any).rawBody as string | undefined;
+      if (!rawBody) {
+        console.warn('[moralis-webhook] rawBody not available; falling back to JSON.stringify');
+      }
+      const bodyString = rawBody ?? JSON.stringify(req.body);
+      if (!verifyMoralisSignature(bodyString, moralisSecret, signature)) {
+        return res.status(401).json({ error: 'Invalid Moralis signature' });
+      }
+    } else {
+      console.warn('[webhook-deposit] MORALIS_STREAMS_SECRET not set — Moralis signature verification disabled');
+    }
+
+    const { streamId, confirmed, erc20Transfers, block } = req.body;
+
+    // Moralis always calls even for unconfirmed; only process confirmed transactions
+    if (!confirmed) {
+      return res.status(200).json({ message: 'Unconfirmed transaction ignored' });
+    }
+
+    if (!streamId || !Array.isArray(erc20Transfers) || erc20Transfers.length === 0) {
+      return res.status(200).json({ message: 'No transfers to process' });
+    }
+
+    // Resolve network by moralis_stream_id
+    const networkResult = await query(
+      `SELECT id, min_confirmations, decimals
+       FROM deposit_networks
+       WHERE moralis_stream_id = $1 AND is_active = true`,
+      [streamId]
+    );
+
+    if (networkResult.rows.length === 0) {
+      // Unknown stream — acknowledge to avoid Moralis retries
+      return res.status(200).json({ message: 'Stream not associated with any network' });
+    }
+
+    const { id: networkId, min_confirmations, decimals } = networkResult.rows[0];
+    const tokenDecimals = decimals != null ? Number(decimals) : 18;
+    const blockNumber = block?.number ? parseInt(block.number, 10) : 0;
+    const blockTimestamp = block?.timestamp
+      ? new Date(parseInt(block.timestamp, 10) * 1000)
+      : new Date();
+
+    for (const transfer of erc20Transfers) {
+      try {
+        const toAddress: string = transfer.to || '';
+        const fromAddress: string = transfer.from || '';
+        const txHash: string = transfer.transactionHash || '';
+
+        if (!toAddress || !txHash) continue;
+
+        const effectiveDecimals = transfer.tokenDecimals != null
+          ? Number(transfer.tokenDecimals)
+          : tokenDecimals;
+        const rawValue = BigInt(transfer.value || '0');
+        const amount = Number(rawValue) / 10 ** effectiveDecimals;
+
+        // Find user owning this address
+        const addrResult = await query(
+          `SELECT user_id FROM user_deposit_addresses
+           WHERE address = $1 AND network_id = $2 AND is_active = true`,
+          [toAddress, networkId]
+        );
+        if (addrResult.rows.length === 0) continue;
+        const userId = addrResult.rows[0].user_id;
+
+        // Moralis confirmed = true means the tx has passed the required confirmations
+        await processDeposit(
+          userId,
+          networkId,
+          txHash,
+          fromAddress,
+          toAddress,
+          amount,
+          min_confirmations, // treat as fully confirmed
+          min_confirmations,
+          blockNumber,
+          blockTimestamp
+        );
+      } catch (transferErr: any) {
+        console.error('[moralis-webhook] Error processing transfer:', transferErr.message);
+        // Continue processing remaining transfers
+      }
+    }
+
+    // Always return 200 so Moralis does not retry
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('Moralis webhook error:', error);
+    // Still return 200 to avoid Moralis retry storms
+    res.status(200).json({ error: error.message });
+  }
+});
+
+
 router.post('/tron', async (req, res) => {
   try {
     if (!verifyWebhookSignature(req, res)) return;

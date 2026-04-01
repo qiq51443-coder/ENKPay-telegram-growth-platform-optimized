@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import axios from 'axios';
 import { query, transaction } from '../db';
 import { decrypt, processDeposit, creditDeposit } from '../services/deposit.service';
+import { resolveChainType } from '../utils/chain';
 
 let isRunning = false;
 let cronJob: cron.ScheduledTask | null = null;
@@ -40,20 +41,6 @@ async function updateScanState(
      WHERE network_id = $1 AND address = $2`,
     [networkId, address, lastScannedBlock]
   );
-}
-
-/**
- * Determine which deposit-check handler to use based on chain_name.
- * Accepts common chain name aliases (e.g. ERC20 → ETH, BEP20 → BSC, TRC20 → TRON).
- * Returns 'TRON', 'BSC', 'POLYGON', or 'ETH'.
- */
-function resolveChainType(chainName: string): 'TRON' | 'BSC' | 'POLYGON' | 'ETH' {
-  const c = (chainName || '').toUpperCase();
-  if (c === 'TRON' || c === 'TRC20') return 'TRON';
-  if (c === 'BSC' || c === 'BNB' || c === 'BEP20') return 'BSC';
-  if (c === 'POLYGON' || c === 'MATIC') return 'POLYGON';
-  // ETH / ETHEREUM / ERC20 and anything else EVM-compatible
-  return 'ETH';
 }
 
 /**
@@ -289,14 +276,14 @@ export async function checkDeposits(): Promise<void> {
   isRunning = true;
 
   try {
-    // Get all active networks (include contract_address and decimals for scanning)
+    // Get all active networks in polling mode (stream-mode networks receive push callbacks instead)
     const networksResult = await query(
       `SELECT 
          id, network_name, chain_name, min_confirmations, 
          scan_interval_seconds, min_deposit_amount,
          contract_address, decimals
        FROM deposit_networks
-       WHERE is_active = true`
+       WHERE is_active = true AND (listener_mode = 'polling' OR listener_mode IS NULL)`
     );
 
     for (const network of networksResult.rows) {

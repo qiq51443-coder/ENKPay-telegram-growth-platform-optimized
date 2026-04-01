@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, Tabs } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, Tabs, Radio, Alert } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, ReloadOutlined, CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 interface WalletNetwork {
@@ -19,6 +19,8 @@ interface WalletNetwork {
   is_active: boolean;
   created_at: string;
   bot_bindings?: string[];
+  listener_mode?: 'polling' | 'stream';
+  moralis_stream_id?: string;
 }
 
 interface Bot {
@@ -53,6 +55,23 @@ export const WalletNetworks: React.FC = () => {
   const [derivedAddresses, setDerivedAddresses] = useState<DerivedAddress[]>([]);
   const [derivedLoading, setDerivedLoading] = useState(false);
   const [derivedNetworkFilter, setDerivedNetworkFilter] = useState<string>('');
+  const [listenerMode, setListenerMode] = useState<'polling' | 'stream'>('polling');
+  const [streamSetupLoading, setStreamSetupLoading] = useState(false);
+  const [streamSyncLoading, setStreamSyncLoading] = useState(false);
+  const [streamDeleteLoading, setStreamDeleteLoading] = useState(false);
+
+  // When switching to stream mode on an EVM network, pre-fill the webhook_url field
+  const handleListenerModeChange = (mode: 'polling' | 'stream') => {
+    setListenerMode(mode);
+    if (mode === 'stream' && editingNetwork) {
+      const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
+      const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
+      if (!isTron) {
+        const webhookUrl = `${window.location.origin}/webhook/deposit/moralis`;
+        form.setFieldsValue({ webhook_url: webhookUrl });
+      }
+    }
+  };
 
   useEffect(() => {
     fetchNetworks();
@@ -103,9 +122,11 @@ export const WalletNetworks: React.FC = () => {
       const { hd_mnemonic, bot_bindings, ...formValues } = network;
       // Map deposit_fee to form field deposit_fee_percent for display
       form.setFieldsValue({ ...formValues, deposit_fee_percent: network.deposit_fee, bot_ids: bot_bindings || [] });
+      setListenerMode(network.listener_mode || 'polling');
     } else {
       setEditingNetwork(null);
       form.resetFields();
+      setListenerMode('polling');
     }
     setModalOpen(true);
   };
@@ -114,7 +135,8 @@ export const WalletNetworks: React.FC = () => {
     try {
       const values = await form.validateFields();
       // Map form field deposit_fee_percent to backend field deposit_fee
-      const { deposit_fee_percent, hd_mnemonic, bot_ids, ...rest } = values;
+      // Exclude stream-specific fields — those are handled separately via stream setup endpoints
+      const { deposit_fee_percent, hd_mnemonic, bot_ids, moralis_api_key, trongrid_api_key, webhook_url, ...rest } = values;
       const submitData: any = { ...rest, deposit_fee: deposit_fee_percent, bot_ids: bot_ids || [] };
 
       // Only include hd_mnemonic if the user actually typed something
@@ -176,6 +198,71 @@ export const WalletNetworks: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to toggle status:', error);
       message.error(error.response?.data?.error || '操作失败');
+    }
+  };
+
+  const handleStreamSetup = async () => {
+    if (!editingNetwork) return;
+    const values = form.getFieldsValue(['moralis_api_key', 'trongrid_api_key', 'webhook_url']);
+    if (!values.webhook_url) {
+      message.error('请输入 Webhook URL');
+      return;
+    }
+    const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
+    const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
+    if (isTron && !values.trongrid_api_key) {
+      message.error('请输入 TronGrid Pro API Key');
+      return;
+    }
+    if (!isTron && !values.moralis_api_key) {
+      message.error('请输入 Moralis API Key');
+      return;
+    }
+    // Use form value for webhook_url, or fall back to the derived URL
+    const defaultWebhookUrl = isTron
+      ? `${window.location.origin}/webhook/deposit/tron`
+      : `${window.location.origin}/webhook/deposit/moralis`;
+    setStreamSetupLoading(true);
+    try {
+      const result = await apiClient.setupNetworkStream(editingNetwork.id, {
+        moralis_api_key: values.moralis_api_key,
+        trongrid_api_key: values.trongrid_api_key,
+        webhook_url: values.webhook_url || defaultWebhookUrl,
+      });
+      message.success(result.message || '配置成功');
+      fetchNetworks();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '配置失败');
+    } finally {
+      setStreamSetupLoading(false);
+    }
+  };
+
+  const handleStreamSync = async () => {
+    if (!editingNetwork) return;
+    setStreamSyncLoading(true);
+    try {
+      const result = await apiClient.syncNetworkStream(editingNetwork.id);
+      message.success(result.message || '同步完成');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '同步失败');
+    } finally {
+      setStreamSyncLoading(false);
+    }
+  };
+
+  const handleStreamDelete = async () => {
+    if (!editingNetwork) return;
+    setStreamDeleteLoading(true);
+    try {
+      const result = await apiClient.deleteNetworkStream(editingNetwork.id);
+      message.success(result.message || '已删除 Stream，切回轮询模式');
+      setListenerMode('polling');
+      fetchNetworks();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '删除失败');
+    } finally {
+      setStreamDeleteLoading(false);
     }
   };
 
@@ -254,6 +341,17 @@ export const WalletNetworks: React.FC = () => {
           </Space>
         );
       },
+    },
+    {
+      title: '监听模式',
+      dataIndex: 'listener_mode',
+      key: 'listener_mode',
+      width: 100,
+      render: (mode: string) => (
+        <Tag color={mode === 'stream' ? 'purple' : 'default'}>
+          {mode === 'stream' ? 'Stream 回调' : '轮询'}
+        </Tag>
+      ),
     },
     {
       title: '状态',
@@ -643,6 +741,126 @@ export const WalletNetworks: React.FC = () => {
               ))}
             </Select>
           </Form.Item>
+
+          {editingNetwork && (
+            <>
+              <Form.Item label="监听模式" tooltip="轮询：定时扫链；Stream 回调：接收链上推送（延迟更低，API 消耗更少）">
+                <Radio.Group
+                  value={listenerMode}
+                  onChange={(e) => handleListenerModeChange(e.target.value)}
+                >
+                  <Radio value="polling">轮询（默认）</Radio>
+                  <Radio value="stream">Stream 回调</Radio>
+                </Radio.Group>
+              </Form.Item>
+
+              {listenerMode === 'stream' && (() => {
+                const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
+                const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
+                const baseUrl = window.location.origin;
+                const webhookUrl = isTron
+                  ? `${baseUrl}/webhook/deposit/tron`
+                  : `${baseUrl}/webhook/deposit/moralis`;
+
+                return (
+                  <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 6, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 12 }}>
+                      {isTron ? 'TronGrid Webhook 配置' : 'Moralis Streams 配置'}
+                    </div>
+
+                    {editingNetwork.listener_mode === 'stream' && editingNetwork.moralis_stream_id && (
+                      <Alert
+                        type="success"
+                        style={{ marginBottom: 12 }}
+                        message={`Stream 已激活：${editingNetwork.moralis_stream_id}`}
+                        showIcon
+                      />
+                    )}
+
+                    <Form.Item label="Webhook URL（只读）" style={{ marginBottom: 8 }}>
+                      <Input
+                        value={webhookUrl}
+                        readOnly
+                        addonAfter={
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => { navigator.clipboard.writeText(webhookUrl); message.success('已复制'); }}
+                          />
+                        }
+                      />
+                    </Form.Item>
+
+                    {isTron ? (
+                      <>
+                        <Form.Item name="trongrid_api_key" label="TronGrid Pro API Key" style={{ marginBottom: 8 }}>
+                          <Input.Password placeholder="输入 TronGrid Pro API Key" visibilityToggle />
+                        </Form.Item>
+                        <Alert
+                          type="info"
+                          style={{ marginBottom: 8 }}
+                          message="TronGrid 不支持程序化地址订阅，请在 TronGrid Dashboard 中手动添加上方 Webhook URL，并将用户地址逐一加入订阅。"
+                          showIcon
+                        />
+                        <Button
+                          type="primary"
+                          icon={<ThunderboltOutlined />}
+                          loading={streamSetupLoading}
+                          onClick={handleStreamSetup}
+                        >
+                          保存配置并切换为 Stream 模式
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Form.Item name="moralis_api_key" label="Moralis API Key" style={{ marginBottom: 8 }}>
+                          <Input.Password placeholder="输入 Moralis API Key" visibilityToggle />
+                        </Form.Item>
+                        <Form.Item name="webhook_url" label="Webhook URL（确认/修改）" style={{ marginBottom: 8 }}>
+                          <Input placeholder={webhookUrl} />
+                        </Form.Item>
+                        <Space wrap>
+                          <Button
+                            type="primary"
+                            icon={<ThunderboltOutlined />}
+                            loading={streamSetupLoading}
+                            onClick={handleStreamSetup}
+                          >
+                            一键配置 Stream
+                          </Button>
+                          <Button
+                            icon={<ReloadOutlined />}
+                            loading={streamSyncLoading}
+                            disabled={editingNetwork.listener_mode !== 'stream'}
+                            onClick={handleStreamSync}
+                          >
+                            同步地址
+                          </Button>
+                          <Popconfirm
+                            title="确定要删除 Stream 并切回轮询模式吗？"
+                            onConfirm={handleStreamDelete}
+                            okText="确定"
+                            cancelText="取消"
+                            okButtonProps={{ danger: true }}
+                          >
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              loading={streamDeleteLoading}
+                              disabled={editingNetwork.listener_mode !== 'stream'}
+                            >
+                              删除 Stream
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </Form>
       </Modal>
     </div>
