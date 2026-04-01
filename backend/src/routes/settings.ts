@@ -12,15 +12,49 @@ const router = express.Router();
 router.get('/public/:key', async (req, res) => {
   try {
     const { key } = req.params;
+    const lang = (req.query.lang as string) || 'en';
     const allowed = ['user_agreement', 'announcement'];
     if (!allowed.includes(key)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+
+    if (key === 'user_agreement') {
+      // Validate lang against supported language codes to prevent unexpected behavior
+      const supportedLangs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
+      const safeLang = supportedLangs.includes(lang) ? lang : 'en';
+      // Try lang-specific key first, then fallback chain
+      const fallbackOrder = [safeLang, 'en', 'zh'];
+      const tried = new Set<string>();
+      for (const l of fallbackOrder) {
+        if (tried.has(l)) continue;
+        tried.add(l);
+        const r = await query(
+          `SELECT value FROM system_settings WHERE key = $1 LIMIT 1`,
+          [`user_agreement_${l}`]
+        );
+        if (r.rows[0]?.value && r.rows[0].value !== '""' && r.rows[0].value !== '') {
+          let v: string = r.rows[0].value;
+          // Unwrap JSON-encoded string (e.g. '"text"' → 'text'); ignore if not JSON
+          try { const parsed = JSON.parse(v); if (typeof parsed === 'string') v = parsed; } catch {}
+          return res.json({ value: v });
+        }
+      }
+      // Final fallback: bare 'user_agreement' key
+      const r = await query(`SELECT value FROM system_settings WHERE key = 'user_agreement' LIMIT 1`);
+      let v: string = r.rows[0]?.value || '';
+      // Unwrap JSON-encoded string; ignore parse errors for plain-text values
+      try { const parsed = JSON.parse(v); if (typeof parsed === 'string') v = parsed; } catch {}
+      return res.json({ value: v });
+    }
+
     const result = await query(
       `SELECT value FROM system_settings WHERE key = $1 LIMIT 1`,
       [key]
     );
-    res.json({ value: result.rows[0]?.value || '' });
+    let v: string = result.rows[0]?.value || '';
+    // Unwrap JSON-encoded string; ignore parse errors for plain-text values
+    try { const parsed = JSON.parse(v); if (typeof parsed === 'string') v = parsed; } catch {}
+    res.json({ value: v });
   } catch (error) {
     console.error('Get public setting error:', error);
     res.status(500).json({ error: 'Internal server error' });
