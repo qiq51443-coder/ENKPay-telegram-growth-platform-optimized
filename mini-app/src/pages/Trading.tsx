@@ -295,11 +295,17 @@ export const Trading: React.FC = () => {
     if (!activeOrder) return;
     setActiveOrderEntryPrice((prev) => {
       if (prev != null && prev > 0) return prev; // Already set from server polling, keep it
+      // Only restore from session_open_price if the session has already started
+      const sessionStartMs = activeOrder.session_start
+        ? new Date(activeOrder.session_start).getTime()
+        : null;
+      const sessionHasStarted = sessionStartMs != null && sessionStartMs <= Date.now();
+      if (!sessionHasStarted) return null; // Period not yet started, keep showing '--'
       const sessionOpenPrice = activeOrder.session_open_price;
       if (sessionOpenPrice != null && Number(sessionOpenPrice) > 0) {
         return Number(sessionOpenPrice);
       }
-      return null; // Session not yet started, keep showing '--'
+      return null;
     });
   }, [activeOrder]);
 
@@ -1570,12 +1576,14 @@ export const Trading: React.FC = () => {
 
               // Active/pending order: render rich card matching the top active order card style
               const isCurrentActiveOrder = activeOrder != null && o.id === activeOrder.id;
-              const sessionOpenPriceNum = o.session_open_price != null && Number(o.session_open_price) > 0
+              const sessionStartMs = o.session_start ? new Date(o.session_start).getTime() : null;
+              const sessionHasStarted = sessionStartMs != null && sessionStartMs <= Date.now();
+              const sessionOpenPriceNum = sessionHasStarted && o.session_open_price != null && Number(o.session_open_price) > 0
                 ? Number(o.session_open_price)
                 : null;
-              // For the currently tracked active order: only show price after countdown has started
+              // For the currently tracked active order: only show price after session has started AND entry price is synced
               const displayEntryPrice = isCurrentActiveOrder
-                ? (countdown !== null && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
+                ? (sessionHasStarted && activeOrderEntryPrice != null && activeOrderEntryPrice > 0
                     ? `${activeOrderEntryPrice.toFixed(2)} USDT`
                     : '--')
                 : (sessionOpenPriceNum != null
