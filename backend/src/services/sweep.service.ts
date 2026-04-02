@@ -62,7 +62,7 @@ export async function deriveEthPrivateKey(
 ): Promise<string> {
   if (!ethers) throw new Error('ethers library required for ETH private key derivation');
   const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
-  const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+  const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic.trim().replace(/\s+/g, ' '), '', path);
   return wallet.privateKey; // includes 0x prefix
 }
 
@@ -76,7 +76,7 @@ export async function deriveTronPrivateKey(
 ): Promise<string> {
   if (!ethers) throw new Error('ethers library required for Tron private key derivation');
   const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
-  const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+  const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic.trim().replace(/\s+/g, ' '), '', path);
   return wallet.privateKey.slice(2); // strip 0x for TronWeb
 }
 
