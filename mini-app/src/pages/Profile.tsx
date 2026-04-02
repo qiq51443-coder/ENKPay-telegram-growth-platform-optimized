@@ -132,6 +132,7 @@ export const Profile: React.FC = () => {
   const [agreementText, setAgreementText] = useState('');
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [tradingOrders, setTradingOrders] = useState<TradingOrder[]>([]);
+  const [allTradingOrders, setAllTradingOrders] = useState<TradingOrder[]>([]);
   const [tradingOrdersLoading, setTradingOrdersLoading] = useState(false);
   const [tradingOrdersPage, setTradingOrdersPage] = useState(1);
   const [tradingOrdersHasMore, setTradingOrdersHasMore] = useState(false);
@@ -198,11 +199,22 @@ export const Profile: React.FC = () => {
     }
   };
 
+  const fetchAllTradingOrdersForMatch = async () => {
+    try {
+      const res = await api.get('/trading/orders/my', { params: { limit: 100, offset: 0 } });
+      const list: TradingOrder[] = res.data?.data || [];
+      setAllTradingOrders(list);
+    } catch {
+      setAllTradingOrders([]);
+    }
+  };
+
   const openOrders = async () => {
     setView('orders');
     setTxFilter('all');
     fetchTransactions();
-    fetchTradingOrders(1);
+    fetchAllTradingOrdersForMatch();  // 用于 trade_win/trade_loss 匹配
+    fetchTradingOrders(1);            // 用于 trading_orders 子页面
   };
 
   const fetchTradingOrders = async (page = 1, append = false) => {
@@ -385,7 +397,7 @@ export const Profile: React.FC = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {(() => {
-                const tradingOrderMap = new Map(tradingOrders.map(o => [o.id, o]));
+                const tradingOrderMap = new Map(allTradingOrders.map(o => [o.id, o]));
                 return filteredTransactions.map(tx => {
                 // Enhanced display for trade_win / trade_loss using matched trading order data
                 if (tx.type === 'trade_win' || tx.type === 'trade_loss') {
