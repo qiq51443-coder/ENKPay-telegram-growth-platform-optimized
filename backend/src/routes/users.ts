@@ -230,7 +230,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
            SELECT id::text,
                   CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
                   CASE WHEN profit >= 0 THEN (amount * odds)::numeric ELSE amount::numeric END AS amount,
-                  status, created_at, pair_id::text AS description, NULL AS order_id
+                  status, created_at, pair_id::text AS description, id::text AS order_id
            FROM trading_orders WHERE user_id = $1
          ) AS combined
          ORDER BY created_at DESC LIMIT 100`,

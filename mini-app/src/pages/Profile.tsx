@@ -127,6 +127,7 @@ export const Profile: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedTradingOrder, setSelectedTradingOrder] = useState<TradingOrder | null>(null);
   const [txLoading, setTxLoading] = useState(false);
   const [annLoading, setAnnLoading] = useState(false);
   const [agreementText, setAgreementText] = useState('');
@@ -430,7 +431,7 @@ export const Profile: React.FC = () => {
                     resultLabel = `${t('order_lose_label')} -${loseAmt} USDT`;
                   }
                   return (
-                    <div key={tx.id} style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '14px', border: `1px solid ${borderColor}` }}>
+                    <div key={tx.id} onClick={() => matchedOrder && setSelectedTradingOrder(matchedOrder)} style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '14px', border: `1px solid ${borderColor}`, cursor: matchedOrder ? 'pointer' : 'default' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: direction === 'up' ? '#26a69a' : direction === 'down' ? '#ef5350' : theme.textSecondary, fontWeight: '600', fontSize: '13px' }}>
                           {direction === 'up' ? t('order_up') : direction === 'down' ? t('order_down') : '--'}
@@ -552,6 +553,116 @@ export const Profile: React.FC = () => {
                       </span>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Trading Order Detail Modal */}
+        {selectedTradingOrder && (() => {
+          const order = selectedTradingOrder;
+          const safeFixed = (v: any, d = 2) => { const n = Number(v); return isNaN(n) ? '--' : n.toFixed(d); };
+          const isWin = order.result === 'win';
+          const isLose = order.result === 'lose';
+          const isDraw = order.result === 'draw';
+          const goldColor = '#F0B90B';
+          const resultColor = isLose ? '#ef4444' : goldColor;
+          const rawEntry = order.session_open_price != null ? order.session_open_price : order.entry_price;
+          const rawClose = order.session_close_price != null ? order.session_close_price : order.close_price;
+          const entryStr = rawEntry != null ? `${safeFixed(rawEntry)} USDT` : '--';
+          const closeStr = rawClose != null ? `${safeFixed(rawClose)} USDT` : '--';
+          const displayName = order.display_name ?? order.symbol ?? '--';
+          const periodDisplay = order.period_label ? order.period_label.split('-').pop() ?? order.period_label : '--';
+          let resultLabel: string;
+          if (isWin) {
+            resultLabel = `🎉 ${t('order_win_label')} +${safeFixed(Number(order.amount) * Number(order.odds), 1)} USDT`;
+          } else if (isDraw) {
+            resultLabel = `${t('order_draw_label')} +${safeFixed(order.amount, 1)} USDT`;
+          } else {
+            resultLabel = `${t('order_lose_label')} -${safeFixed(order.amount, 1)} USDT`;
+          }
+          return (
+            <div
+              onClick={() => setSelectedTradingOrder(null)}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: theme.bgCard, borderRadius: '16px 16px 0 0', padding: '20px', width: '100%', maxWidth: '480px', maxHeight: '80vh', overflowY: 'auto' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '22px' }}>{isLose ? '📉' : '📈'}</span>
+                    <span style={{ color: resultColor, fontWeight: '700', fontSize: '16px' }}>{resultLabel}</span>
+                  </div>
+                  <button onClick={() => setSelectedTradingOrder(null)} style={{ background: 'none', border: 'none', color: theme.textSecondary, fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_pair')}</span>
+                    <span style={{ color: theme.text, fontWeight: '600' }}>{displayName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_direction')}</span>
+                    <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: '700' }}>
+                      {order.direction === 'up' ? t('order_up') : t('order_down')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>结果</span>
+                    <span style={{ color: resultColor, fontWeight: '700' }}>
+                      {isWin ? t('order_win_label') : isDraw ? t('order_draw_label') : t('order_lose_label')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_amount')}</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace' }}>{safeFixed(order.amount)} USDT</span>
+                  </div>
+                  {(isWin || isDraw) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>收益</span>
+                      <span style={{ color: goldColor, fontFamily: 'monospace', fontWeight: '700' }}>
+                        +{isWin ? safeFixed(Number(order.amount) * Number(order.odds)) : safeFixed(order.amount)} USDT
+                      </span>
+                    </div>
+                  )}
+                  {isLose && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>亏损</span>
+                      <span style={{ color: '#ef4444', fontFamily: 'monospace', fontWeight: '700' }}>-{safeFixed(order.amount)} USDT</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_entry_price')}</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace' }}>{entryStr}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_close_price')}</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace' }}>{closeStr}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_odds_label')}</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace' }}>{safeFixed(order.odds)}x</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>{t('order_period')}</span>
+                    <span style={{ color: theme.text }}>{periodDisplay}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: theme.textSecondary }}>下单时间</span>
+                    <span style={{ color: theme.text }}>{new Date(order.created_at).toLocaleString('zh-CN')}</span>
+                  </div>
+                  {order.settled_at && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: theme.textSecondary }}>结算时间</span>
+                      <span style={{ color: theme.text }}>{new Date(order.settled_at).toLocaleString('zh-CN')}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <span style={{ color: theme.textSecondary, flexShrink: 0 }}>订单号</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{order.id}</span>
+                  </div>
                 </div>
               </div>
             </div>
