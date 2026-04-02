@@ -1,6 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
-import { api } from '../services/api';
+import { api, getSettings } from '../services/api';
 import { t } from '../i18n';
 
 // Simple in-memory cache for the networks list to avoid a backend round-trip on every address display
@@ -165,12 +165,20 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
       return;
     }
 
+    let botSettings: Record<string, any> = {};
+    try {
+      botSettings = await getSettings(botId) || {};
+    } catch (err) {
+      console.warn('[deposit] Failed to fetch bot settings:', err);
+    }
+    const copyHint = botSettings.wallet_tip_message || t(lang, 'deposit_copy_hint');
+
     const message =
       `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
       `🌐 ${networkLabel}${minDeposit}\n\n` +
       `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
       `<code>${address}</code>\n\n` +
-      `${t(lang, 'deposit_copy_hint')}`;
+      `${copyHint}`;
 
     await editOrReply(message, Markup.inlineKeyboard([
       [Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit')],

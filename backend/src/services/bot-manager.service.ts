@@ -1151,6 +1151,9 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             ? `\n💡 Min: <b>${parseFloat(String(network.min_deposit_amount)).toFixed(2)} USDT</b>`
             : '';
 
+          const depositSettings = await getBotSettings(botId).catch(() => ({} as Record<string, any>));
+          const copyHint = depositSettings.wallet_tip_message || t(lang, 'deposit_copy_hint');
+
           if (!address) {
             await editOrReply(
               `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
@@ -1170,7 +1173,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               `🌐 ${networkLabel}${minDeposit}\n\n` +
               `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
               `<code>${address}</code>\n\n` +
-              `${t(lang, 'deposit_copy_hint')}`,
+              `${copyHint}`,
               Markup.inlineKeyboard([
                 [Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit')],
                 [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],

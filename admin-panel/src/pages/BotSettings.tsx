@@ -337,8 +337,12 @@ export const BotSettings: React.FC = () => {
                 >
                   <Input placeholder="例如：@your_support_bot 或 your_support_username" />
                 </Form.Item>
-                <Form.Item name="wallet_tip_message" label="钱包提示语">
-                  <Input.TextArea rows={3} placeholder="充值提示..." />
+                <Form.Item
+                  name="wallet_tip_message"
+                  label="充值页提示语（显示在 Bot 充值地址消息底部）"
+                  extra="用户在 Bot 查看充值地址时，该提示语会显示在地址下方，例如：请复制地址并向该地址转账，转账完成后大约1-3分钟系统将自动确认"
+                >
+                  <Input.TextArea rows={3} placeholder="请复制地址并向该地址转账，转账完成后大约1-3分钟系统将自动确认" />
                 </Form.Item>
                 <Form.Item name="transfer_min_amount" label="最小转账金额 (USDT)">
                   <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
