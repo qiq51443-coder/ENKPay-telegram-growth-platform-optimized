@@ -399,8 +399,8 @@ export const Profile: React.FC = () => {
                     const textColor = isLose ? undefined : goldColor;
                     const rawEntryPrice = matchedOrder.session_open_price != null ? matchedOrder.session_open_price : matchedOrder.entry_price;
                     const rawClosePrice = matchedOrder.session_close_price != null ? matchedOrder.session_close_price : matchedOrder.close_price;
-                    const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(2) : '--';
-                    const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(2) : '--';
+                    const entryPrice = rawEntryPrice != null ? `${Number(rawEntryPrice).toFixed(2)} USDT` : '--';
+                    const closePrice = rawClosePrice != null ? `${Number(rawClosePrice).toFixed(2)} USDT` : '--';
                     const periodDisplay = matchedOrder.period_label ? matchedOrder.period_label.split('-').pop() ?? matchedOrder.period_label : '-';
                     let resultLabel;
                     if (isWin) {
@@ -577,8 +577,8 @@ export const Profile: React.FC = () => {
                   const textColor = isLose ? undefined : goldColor;
                   const rawEntryPrice = order.session_open_price != null ? order.session_open_price : order.entry_price;
                   const rawClosePrice = order.session_close_price != null ? order.session_close_price : order.close_price;
-                  const entryPrice = rawEntryPrice != null ? Number(rawEntryPrice).toFixed(2) : '--';
-                  const closePrice = rawClosePrice != null ? Number(rawClosePrice).toFixed(2) : '--';
+                  const entryPrice = rawEntryPrice != null ? `${Number(rawEntryPrice).toFixed(2)} USDT` : '--';
+                  const closePrice = rawClosePrice != null ? `${Number(rawClosePrice).toFixed(2)} USDT` : '--';
                   const periodDisplay = order.period_label ? order.period_label.split('-').pop() ?? order.period_label : '-';
 
                   let resultLabel: string;
@@ -618,40 +618,42 @@ export const Profile: React.FC = () => {
                   );
                 }
 
-                const dateStr = new Date(order.created_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })
-                  + ' ' + new Date(order.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                const sessionOpenPriceNum = order.session_open_price != null && Number(order.session_open_price) > 0
+                  ? Number(order.session_open_price) : null;
+                const displayEntryPrice = sessionOpenPriceNum != null
+                  ? `${sessionOpenPriceNum.toFixed(2)} USDT`
+                  : (order.entry_price != null && Number(order.entry_price) > 0
+                    ? `${Number(order.entry_price).toFixed(2)} USDT`
+                    : '--');
+                const orderCountdown = order.session_end
+                  ? Math.max(0, Math.floor((new Date(order.session_end).getTime() - Date.now()) / 1000))
+                  : null;
                 return (
                   <div key={order.id} style={{
-                    backgroundColor: theme.bgCard,
-                    borderRadius: '12px', padding: '14px',
-                    border: `1px solid ${isActive ? '#f0b90b' : theme.border}`,
+                    position: 'relative', overflow: 'hidden', borderRadius: '12px',
+                    backgroundColor: 'rgba(38,166,154,0.12)', border: '1px solid rgba(38,166,154,0.4)',
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 700, fontSize: '15px' }}>
+                    <div style={{ position: 'relative', zIndex: 1, padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: order.direction === 'up' ? '#26a69a' : '#ef5350', fontWeight: 600, fontSize: '13px' }}>
                           {order.direction === 'up' ? t('order_up') : t('order_down')}
                         </span>
-                        {order.display_name && (
-                          <span style={{ color: theme.textSecondary, fontSize: '12px' }}>{order.display_name}</span>
+                        <span style={{ color: theme.text, fontWeight: 700, fontSize: '15px' }}>
+                          {Number(order.amount).toFixed(2)} USDT
+                        </span>
+                        <span style={{ color: '#26a69a', fontSize: '11px', fontWeight: 600 }}>{t('holdings_active')}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '12px' }}>
+                        <span style={{ color: theme.textSecondary }}>
+                          {order.display_name ?? order.symbol ?? '--'}
+                        </span>
+                        <span style={{ color: theme.textSecondary }}>
+                          {t('order_entry_price')} {displayEntryPrice}
+                        </span>
+                        {orderCountdown !== null && orderCountdown > 0 && (
+                          <span style={{ color: '#f0b90b', fontWeight: 700 }}>{orderCountdown}s</span>
                         )}
                       </div>
-                      <span style={{
-                        fontSize: '12px', fontWeight: 600,
-                        color: isActive ? '#f0b90b' : theme.textSecondary,
-                      }}>
-                        {isActive ? '进行中 🕐' : order.status}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: '12px', color: theme.textSecondary }}>
-                      <div>金额: <span style={{ color: theme.text }}>{safeFixed(order.amount)} USDT</span></div>
-                      <div>赔率: <span style={{ color: theme.text }}>{safeFixed(order.odds)}x</span></div>
-                      {order.entry_price != null && (
-                        <div>入场价: <span style={{ color: theme.text }}>{safeFixed(order.entry_price, 4)}</span></div>
-                      )}
-                      {order.close_price != null && (
-                        <div>结算价: <span style={{ color: theme.text }}>{safeFixed(order.close_price, 4)}</span></div>
-                      )}
-                      <div style={{ gridColumn: '1 / -1' }}>下单时间: {dateStr}</div>
                     </div>
                   </div>
                 );
