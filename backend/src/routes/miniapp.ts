@@ -257,14 +257,25 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          UNION ALL
 
-         -- Trading orders (instant trades)
+         -- Trading orders (instant trades – settled only)
          SELECT id::text,
-                CASE WHEN profit >= 0 THEN 'trade_win' ELSE 'trade_loss' END AS type,
-                CASE WHEN profit >= 0 THEN (amount * odds)::numeric ELSE amount::numeric END AS amount,
+                CASE WHEN result = 'win'  THEN 'trade_win'
+                     WHEN result = 'lose' THEN 'trade_loss'
+                     ELSE 'trade_win'  -- draw: stake refunded, front-end detects draw via matchedOrder.result
+                END AS type,
+                CASE WHEN result = 'win'
+                     -- profit stores the full payout (amount × odds) set at settlement time;
+                     -- fall back to computing it when profit is unexpectedly NULL
+                     THEN COALESCE(profit, amount * COALESCE(NULLIF(odds, 0), 1.85))::numeric
+                     ELSE amount::numeric  -- lose/draw: show the original stake
+                END AS amount,
                 status,
-                created_at, pair_id::text AS description, NULL AS order_id
+                COALESCE(settled_at, created_at) AS created_at,
+                pair_id::text AS description,
+                id::text AS order_id
          FROM trading_orders
          WHERE user_id = $1
+           AND status = 'settled'
 
          UNION ALL
 
