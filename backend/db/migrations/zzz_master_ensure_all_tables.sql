@@ -229,3 +229,6 @@ VALUES
   ('ETHUSDT', 'ETH/USDT', 'ETH', 'USDT', true, 2, 'binance'),
   ('BNBUSDT', 'BNB/USDT', 'BNB', 'USDT', true, 3, 'binance')
 ON CONFLICT (symbol) DO NOTHING;
+
+-- Ensure send_to_all_users column exists on announcements (added in migration 038)
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS send_to_all_users BOOLEAN NOT NULL DEFAULT FALSE;
