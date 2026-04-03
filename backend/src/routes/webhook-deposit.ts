@@ -169,7 +169,7 @@ router.post('/tron', async (req, res) => {
       `SELECT uda.user_id, uda.network_id, dn.min_confirmations, COALESCE(dn.decimals, 6) AS decimals
        FROM user_deposit_addresses uda
        JOIN deposit_networks dn ON uda.network_id = dn.id
-       WHERE uda.address = $1 AND uda.is_active = true AND dn.chain_name = 'TRON'`,
+       WHERE uda.address = $1 AND uda.is_active = true AND UPPER(dn.chain_name) IN ('TRON','TRC20','TRC')`,
       [to_address]
     );
 
@@ -180,15 +180,16 @@ router.post('/tron', async (req, res) => {
 
     const { user_id, network_id, min_confirmations, decimals } = addressResult.rows[0];
 
-    // Convert value from smallest unit using the network's actual decimals
-    const amount = parseFloat(value) / Math.pow(10, decimals);
+    // Convert value from smallest unit using the network's actual decimals.
+    // Use BigInt arithmetic to avoid floating-point precision loss on large values.
+    const amount = Number(BigInt(value) * 10000n / BigInt(Math.pow(10, decimals))) / 10000;
 
     // TronGrid webhooks push already-confirmed transactions; treat them as fully confirmed
     await processDeposit(
       user_id,
       network_id,
       transaction_id,
-      from_address,
+      from_address || '',
       to_address,
       amount,
       min_confirmations, // treat as confirmed — TronGrid only pushes confirmed txns
@@ -200,7 +201,7 @@ router.post('/tron', async (req, res) => {
     res.json({ success: true, message: 'Deposit processed' });
   } catch (error: any) {
     console.error('Tron webhook error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 });
 
@@ -248,13 +249,13 @@ router.post('/eth', async (req, res) => {
       confirmations || 0,
       min_confirmations,
       parseInt(blockNumber) || 0,
-      new Date(parseInt(timeStamp) * 1000 || Date.now())
+      new Date(timeStamp ? parseInt(timeStamp) * 1000 : Date.now())
     );
 
     res.json({ success: true, message: 'Deposit processed' });
   } catch (error: any) {
     console.error('ETH webhook error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 });
 
@@ -302,13 +303,13 @@ router.post('/bsc', async (req, res) => {
       confirmations || 0,
       min_confirmations,
       parseInt(blockNumber) || 0,
-      new Date(parseInt(timeStamp) * 1000 || Date.now())
+      new Date(timeStamp ? parseInt(timeStamp) * 1000 : Date.now())
     );
 
     res.json({ success: true, message: 'Deposit processed' });
   } catch (error: any) {
     console.error('BSC webhook error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 });
 

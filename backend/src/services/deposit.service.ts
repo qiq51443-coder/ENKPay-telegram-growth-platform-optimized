@@ -117,7 +117,8 @@ export async function deriveEthAddress(
 
   try {
     const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
-    const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+    const normalizedMnemonic = mnemonic.trim().replace(/\s+/g, ' ');
+    const wallet = ethers.HDNodeWallet.fromPhrase(normalizedMnemonic, '', path);
     return wallet.address;
   } catch (error: any) {
     throw new Error(`Failed to derive ETH address: ${error.message}`);
@@ -156,13 +157,14 @@ export async function deriveTronAddress(
 
   try {
     const path = `${derivationPath.replace(/\/+$/, '')}/${index}`;
-    const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, path);
+    const normalizedMnemonic = mnemonic.trim().replace(/\s+/g, ' ');
+    const wallet = ethers.HDNodeWallet.fromPhrase(normalizedMnemonic, '', path);
 
     // TRON address = Ethereum address with 0x41 network prefix instead of 0x00.
     // wallet.address is already the correct Keccak256-derived 20-byte address
     // (standard Ethereum format). We only need to replace the network prefix
     // and re-encode with Base58Check — no manual Keccak256 needed here.
-    const ethAddressHex = wallet.address.slice(2); // remove 0x prefix → 40 hex chars (20 bytes)
+    const ethAddressHex = wallet.address.slice(2).toLowerCase(); // remove 0x prefix → 40 lowercase hex chars (20 bytes)
     const addressBytes = ethers.getBytes('0x' + ethAddressHex); // 20 bytes
 
     // Prepend Tron mainnet prefix 0x41
