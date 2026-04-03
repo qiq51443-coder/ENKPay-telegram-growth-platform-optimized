@@ -978,7 +978,7 @@ export const NFTProducts: React.FC = () => {
               rowKey="id"
               columns={[
                 { title: '产品', dataIndex: 'product_name', key: 'product_name' },
-                { title: '用户', dataIndex: 'username', key: 'username' },
+                { title: '用户', key: 'user', render: (_: any, record: any) => record.display_name || record.username || '-' },
                 { title: '金额 (USDT)', dataIndex: 'amount', key: 'amount', render: (v: any) => `+${parseFloat(v).toFixed(4)}` },
                 { title: '收益日期', dataIndex: 'income_date', key: 'income_date' },
                 { title: '结算时间', dataIndex: 'created_at', key: 'created_at', render: (d: string) => new Date(d).toLocaleString('zh-CN') },
