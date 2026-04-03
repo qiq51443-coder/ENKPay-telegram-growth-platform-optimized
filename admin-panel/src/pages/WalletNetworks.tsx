@@ -800,7 +800,7 @@ export const WalletNetworks: React.FC = () => {
                         <Alert
                           type="info"
                           style={{ marginBottom: 8 }}
-                          message="TronGrid 回调配置步骤：① 登录 TronGrid Dashboard → Webhooks → 新建 Webhook，将上方 Webhook URL 填入，事件类型选择 TRC20 Transfer，保存。② 回到此处填写 TronGrid Pro API Key 并点击"保存配置"。TronGrid 不支持程序化地址订阅，新用户充值地址需在 TronGrid Dashboard 中手动加入订阅。"
+                          message={`TronGrid 回调配置步骤：① 登录 TronGrid Dashboard → Webhooks → 新建 Webhook，将上方 Webhook URL 填入，事件类型选择 TRC20 Transfer，保存。② 回到此处填写 TronGrid Pro API Key 并点击"保存配置"。TronGrid 不支持程序化地址订阅，新用户充值地址需在 TronGrid Dashboard 中手动加入订阅。`}
                           showIcon
                         />
                         <Button
