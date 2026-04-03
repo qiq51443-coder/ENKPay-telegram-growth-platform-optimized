@@ -1120,7 +1120,12 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
     );
 
     const todayUTC = new Date().toISOString().slice(0, 10);
-    const todayCount = result.rows.filter((r: any) => r.income_date === todayUTC).length;
+    const todayCount = result.rows.filter((r: any) => {
+      const incomeDate = typeof r.income_date === 'string'
+        ? r.income_date.slice(0, 10)
+        : new Date(r.income_date).toISOString().slice(0, 10);
+      return incomeDate === todayUTC;
+    }).length;
 
     // Build today's distinct settled user list (username or 7-digit UID)
     const todayUsersResult = await query(
@@ -1130,23 +1135,28 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
          u.telegram_id
        FROM nft_income_records ir
        JOIN users u ON ir.user_id = u.id
-       WHERE ir.income_date = $1
+       WHERE ir.income_date::date = $1::date
        ORDER BY ir.user_id`,
       [todayUTC]
     );
     const todayUsers = todayUsersResult.rows.map((u: any) => {
       const displayName = u.username
         ? u.username
-        : String(u.user_id).padStart(7, '0');
+        : String(u.telegram_id || u.user_id || '').slice(-7).padStart(7, '0');
       return { user_id: u.user_id, displayName };
     });
+
+    const recentRecords = result.rows.map((r: any) => ({
+      ...r,
+      display_name: r.username || String(r.telegram_id || r.user_id || '').slice(-7).padStart(7, '0'),
+    }));
 
     res.json({
       success: true,
       today_utc: todayUTC,
       today_settled_count: todayCount,
       today_users: todayUsers,
-      recent_records: result.rows,
+      recent_records: recentRecords,
     });
   } catch (error: any) {
     console.error('Settle status error:', error);
