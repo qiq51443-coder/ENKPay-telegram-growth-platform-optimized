@@ -3,8 +3,10 @@ import { query, transaction } from '../db';
 import { TelegramAPI } from '../utils/telegram';
 import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification, buildNFTIncomeDescription, buildNFTPrincipalReturnDescription } from '../i18n/nft-notifications';
 
+let incomeJob: cron.ScheduledTask | null = null;
 let cronJob: cron.ScheduledTask | null = null;
 let maturityCronJob: cron.ScheduledTask | null = null;
+let isIncomeRunning = false;
 let isRunning = false;
 let isMaturityRunning = false;
 
@@ -60,7 +62,7 @@ async function settleDailyIncome(): Promise<number> {
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
          SELECT 1 FROM nft_income_records ir
-         WHERE ir.holding_id = h.id AND ir.income_date = $1
+         WHERE ir.user_id = h.user_id AND ir.product_id = h.product_id AND ir.income_date = $1
        )`,
     [today]
   );
@@ -165,7 +167,7 @@ async function settleDailyIncome(): Promise<number> {
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
          SELECT 1 FROM nft_income_records ir
-         WHERE ir.holding_id = ph.id AND ir.income_date = $1
+         WHERE ir.user_id = ph.user_id AND ir.product_id = ph.product_id AND ir.income_date = $1
        )`,
     [today]
   );
@@ -434,8 +436,31 @@ async function releaseMatureHoldings(): Promise<number> {
 }
 
 /**
+ * Income-only settlement function.
+ * Called by the daily cron at UTC 10:00.
+ */
+export async function runNFTDailyIncome(): Promise<{ income_count: number }> {
+  if (isIncomeRunning) {
+    console.log('NFT daily income already running, skipping...');
+    return { income_count: 0 };
+  }
+  isIncomeRunning = true;
+  try {
+    console.log('NFT daily income: starting...');
+    const income_count = await settleDailyIncome();
+    console.log(`NFT daily income: complete. Income: ${income_count}`);
+    return { income_count };
+  } catch (err: any) {
+    console.error('NFT daily income error:', err.message);
+    return { income_count: 0 };
+  } finally {
+    isIncomeRunning = false;
+  }
+}
+
+/**
  * Main daily settlement function (income + principal release).
- * Called by the daily cron at 10:05 UTC.
+ * Called manually or by the admin trigger endpoint.
  * Returns a summary of how many income records and principal refunds were processed.
  */
 export async function runNFTDailySettle(): Promise<{ income_count: number; refund_count: number }> {
@@ -481,19 +506,30 @@ export async function runNFTMaturityCheck(): Promise<void> {
 
 /**
  * Start the NFT settlement cron jobs:
- *  - dailyIncomeJob: 10:05 UTC daily  — settles income + releases mature holdings
- *  - maturityCheckJob: every hour      — releases expired holdings between daily runs
+ *  - incomeJob:        UTC 10:00 daily — settles daily income for all active holdings
+ *  - cronJob:          UTC 10:05 daily — releases matured principal after income is settled
+ *  - maturityCronJob:  every hour      — releases expired holdings between daily runs
  *    (compensates for Render free-tier sleep / missed ticks)
  */
 export function startNFTDailySettle(): void {
-  if (!cronJob) {
-    // Runs at 10:05 UTC every day
-    cronJob = cron.schedule('5 10 * * *', async () => {
-      await runNFTDailySettle();
+  if (!incomeJob) {
+    // Runs at 10:00 UTC every day — income settlement only
+    incomeJob = cron.schedule('0 10 * * *', async () => {
+      await runNFTDailyIncome();
     });
-    console.log('✓ NFT daily settle job started (runs at 10:05 UTC daily)');
+    console.log('✓ NFT daily income job started (runs at 10:00 UTC daily)');
   } else {
-    console.log('NFT daily settle already started');
+    console.log('NFT daily income job already started');
+  }
+
+  if (!cronJob) {
+    // Runs at 10:05 UTC every day — principal release only
+    cronJob = cron.schedule('5 10 * * *', async () => {
+      await releaseMatureHoldings();
+    });
+    console.log('✓ NFT principal release job started (runs at 10:05 UTC daily)');
+  } else {
+    console.log('NFT principal release job already started');
   }
 
   if (!maturityCronJob) {
@@ -506,13 +542,18 @@ export function startNFTDailySettle(): void {
 }
 
 /**
- * Stop both NFT settlement jobs.
+ * Stop all NFT settlement jobs.
  */
 export function stopNFTDailySettle(): void {
+  if (incomeJob) {
+    incomeJob.stop();
+    incomeJob = null;
+    console.log('NFT daily income job stopped');
+  }
   if (cronJob) {
     cronJob.stop();
     cronJob = null;
-    console.log('NFT daily settle job stopped');
+    console.log('NFT principal release job stopped');
   }
   if (maturityCronJob) {
     maturityCronJob.stop();
