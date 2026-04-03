@@ -1095,7 +1095,8 @@ router.post('/admin/settle/trigger', authenticateAdmin, async (req: AuthRequest,
 /**
  * GET /api/nft/admin/settle/status
  * Query the last settlement records (admin only)
- * Returns the most recent 50 income records across all holdings.
+ * Returns the most recent 50 income records across all holdings,
+ * plus the list of distinct users settled today.
  */
 router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -1121,10 +1122,30 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
     const todayUTC = new Date().toISOString().slice(0, 10);
     const todayCount = result.rows.filter((r: any) => r.income_date === todayUTC).length;
 
+    // Build today's distinct settled user list (username or 7-digit UID)
+    const todayUsersResult = await query(
+      `SELECT DISTINCT ON (ir.user_id)
+         ir.user_id,
+         u.username,
+         u.telegram_id
+       FROM nft_income_records ir
+       JOIN users u ON ir.user_id = u.id
+       WHERE ir.income_date = $1
+       ORDER BY ir.user_id`,
+      [todayUTC]
+    );
+    const todayUsers = todayUsersResult.rows.map((u: any) => {
+      const displayName = u.username
+        ? u.username
+        : String(u.user_id).padStart(7, '0');
+      return { user_id: u.user_id, displayName };
+    });
+
     res.json({
       success: true,
       today_utc: todayUTC,
       today_settled_count: todayCount,
+      today_users: todayUsers,
       recent_records: result.rows,
     });
   } catch (error: any) {

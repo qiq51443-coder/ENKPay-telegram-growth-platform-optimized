@@ -949,6 +949,28 @@ export const NFTProducts: React.FC = () => {
                 <div style={{ color: '#666', fontSize: 12 }}>当前 UTC 日期</div>
               </div>
             </div>
+            {settleStatus.today_users && settleStatus.today_users.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 8, color: '#333' }}>今日结算用户</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {settleStatus.today_users.map((u: { user_id: string | number; displayName: string }) => (
+                    <span
+                      key={u.user_id}
+                      style={{
+                        background: '#f0f5ff',
+                        border: '1px solid #adc6ff',
+                        borderRadius: 4,
+                        padding: '2px 10px',
+                        fontSize: 13,
+                        color: '#2f54eb',
+                      }}
+                    >
+                      {u.displayName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <Table
               size="small"
               pagination={{ pageSize: 10 }}
