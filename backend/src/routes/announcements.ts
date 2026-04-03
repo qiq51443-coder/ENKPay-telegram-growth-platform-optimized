@@ -55,6 +55,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       target_group_ids,
       support_telegram,
       show_open_bot_button,
+      send_to_all_users,
     } = req.body;
 
     if (!title && !content && (!images || images.length === 0)) {
@@ -66,8 +67,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `INSERT INTO announcements
-         (title, content, images, targets, scheduled_at, expires_at, is_pinned, show_on_app_launch, status, announcement_bot_id, target_group_ids, support_telegram, show_open_bot_button)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12)
+         (title, content, images, targets, scheduled_at, expires_at, is_pinned, show_on_app_launch, status, announcement_bot_id, target_group_ids, support_telegram, show_open_bot_button, send_to_all_users)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         title || '',
@@ -82,6 +83,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
         target_group_ids || [],
         support_telegram || null,
         show_open_bot_button || false,
+        send_to_all_users || false,
       ]
     );
 
@@ -129,6 +131,7 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       target_group_ids,
       support_telegram,
       show_open_bot_button,
+      send_to_all_users,
     } = req.body;
 
     const updates: string[] = [];
@@ -155,6 +158,7 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (target_group_ids !== undefined) { params.push(target_group_ids); updates.push(`target_group_ids = $${params.length}`); }
     if (support_telegram !== undefined) { params.push(support_telegram || null); updates.push(`support_telegram = $${params.length}`); }
     if (show_open_bot_button !== undefined) { params.push(show_open_bot_button || false); updates.push(`show_open_bot_button = $${params.length}`); }
+    if (send_to_all_users !== undefined) { params.push(send_to_all_users || false); updates.push(`send_to_all_users = $${params.length}`); }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No updates provided' });
@@ -391,29 +395,68 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       }
     }
 
-    // Send to users (via the same announcement_bot_id)
-    if (targets.includes('users') && announcement.announcement_bot_id) {
-      const botResult = await query('SELECT token FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
-      if (botResult.rows.length > 0) {
-        const telegram = new TelegramAPI(botResult.rows[0].token);
-        const usersResult = await query(
-          'SELECT telegram_id, language_code FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL',
-          [announcement.announcement_bot_id]
-        );
-        for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
-          const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map(async (user) => {
-            try {
-              const result = await sendToChat(telegram, user.telegram_id, user.language_code, false);
-              if (result) sentMessageIds[String(user.telegram_id)] = result.message_id;
-              sentCount++;
-            } catch (err: any) {
-              console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
-              failedCount++;
+    // Send to users
+    if (targets.includes('users')) {
+      if (announcement.send_to_all_users) {
+        // Send to ALL users across ALL active bots
+        const allBotsResult = await query('SELECT id, token FROM bots WHERE is_active = true');
+        const sentTelegramIds = new Set<string>();
+        for (const bot of allBotsResult.rows) {
+          const telegram = new TelegramAPI(bot.token);
+          // DISTINCT ON telegram_id to avoid duplicate sends if user has multiple records
+          const usersResult = await query(
+            `SELECT DISTINCT ON (telegram_id) telegram_id, language_code
+             FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL
+             ORDER BY telegram_id, created_at ASC`,
+            [bot.id]
+          );
+          for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
+            // Pre-filter duplicates before parallel processing to avoid race conditions
+            const batch = usersResult.rows.slice(i, i + BATCH_SIZE).filter((user) => {
+              const id = String(user.telegram_id);
+              if (sentTelegramIds.has(id)) return false;
+              sentTelegramIds.add(id);
+              return true;
+            });
+            await Promise.all(batch.map(async (user) => {
+              try {
+                const result = await sendToChat(telegram, user.telegram_id, user.language_code, false);
+                if (result) sentMessageIds[String(user.telegram_id)] = result.message_id;
+                sentCount++;
+              } catch (err: any) {
+                console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
+                failedCount++;
+              }
+            }));
+            if (i + BATCH_SIZE < usersResult.rows.length) {
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
             }
-          }));
-          if (i + BATCH_SIZE < usersResult.rows.length) {
-            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+          }
+        }
+      } else if (announcement.announcement_bot_id) {
+        // Send to users of the specific selected bot only (existing logic)
+        const botResult = await query('SELECT token FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
+        if (botResult.rows.length > 0) {
+          const telegram = new TelegramAPI(botResult.rows[0].token);
+          const usersResult = await query(
+            'SELECT telegram_id, language_code FROM users WHERE bot_id = $1 AND telegram_id IS NOT NULL',
+            [announcement.announcement_bot_id]
+          );
+          for (let i = 0; i < usersResult.rows.length; i += BATCH_SIZE) {
+            const batch = usersResult.rows.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (user) => {
+              try {
+                const result = await sendToChat(telegram, user.telegram_id, user.language_code, false);
+                if (result) sentMessageIds[String(user.telegram_id)] = result.message_id;
+                sentCount++;
+              } catch (err: any) {
+                console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
+                failedCount++;
+              }
+            }));
+            if (i + BATCH_SIZE < usersResult.rows.length) {
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+            }
           }
         }
       }

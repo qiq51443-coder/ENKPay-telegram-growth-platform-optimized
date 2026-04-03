@@ -30,6 +30,7 @@ interface Announcement {
   sent_message_ids?: Record<string, number>;
   support_telegram?: string;
   show_open_bot_button?: boolean;
+  send_to_all_users?: boolean;
 }
 
 interface Bot {
@@ -74,6 +75,7 @@ export const Announcements: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [groups, setGroups] = useState<AuthorizedGroup[]>([]);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [sendToAllUsers, setSendToAllUsers] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string>('');
   const [contentTranslations, setContentTranslations] = useState<Record<string, string> | null>(null);
   const [titleTranslations, setTitleTranslations] = useState<Record<string, string> | null>(null);
@@ -123,6 +125,8 @@ export const Announcements: React.FC = () => {
       const targets = announcement.targets || [];
       setSelectedTargets(targets);
       setMediaUrl(announcement.images?.[0] || '');
+      const allUsers = announcement.send_to_all_users || false;
+      setSendToAllUsers(allUsers);
       form.setFieldsValue({
         title: announcement.title,
         content: announcement.content,
@@ -133,6 +137,7 @@ export const Announcements: React.FC = () => {
         target_group_ids: announcement.target_group_ids || [],
         support_telegram: announcement.support_telegram || '',
         show_open_bot_button: announcement.show_open_bot_button || false,
+        send_to_all_users: allUsers,
       });
       if (announcement.announcement_bot_id) {
         fetchGroupsForBot(announcement.announcement_bot_id);
@@ -140,6 +145,7 @@ export const Announcements: React.FC = () => {
     } else {
       setEditingAnnouncement(null);
       setSelectedTargets([]);
+      setSendToAllUsers(false);
       setMediaUrl('');
       setGroups([]);
       setContentTranslations(null);
@@ -373,6 +379,7 @@ export const Announcements: React.FC = () => {
           setMediaUrl('');
           setGroups([]);
           setSelectedTargets([]);
+          setSendToAllUsers(false);
           setContentTranslations(null);
           setTitleTranslations(null);
         }}
@@ -473,11 +480,26 @@ export const Announcements: React.FC = () => {
             </Select>
           </Form.Item>
 
-          {(selectedTargets.includes('groups') || selectedTargets.includes('users')) && (
+          {selectedTargets.includes('users') && (
+            <Form.Item
+              name="send_to_all_users"
+              label="用户发送范围"
+              valuePropName="checked"
+              initialValue={false}
+            >
+              <Switch
+                checkedChildren="所有Bot的全部用户"
+                unCheckedChildren="指定Bot的用户"
+                onChange={(checked) => setSendToAllUsers(checked)}
+              />
+            </Form.Item>
+          )}
+
+          {(selectedTargets.includes('groups') || (selectedTargets.includes('users') && !sendToAllUsers)) && (
             <Form.Item
               name="announcement_bot_id"
               label="目标 Bot"
-              rules={[{ required: true, message: '请选择用于发送的 Bot' }]}
+              rules={[{ required: selectedTargets.includes('groups') || (selectedTargets.includes('users') && !sendToAllUsers), message: '请选择用于发送的 Bot' }]}
             >
               <Select
                 placeholder="请选择 Bot..."
