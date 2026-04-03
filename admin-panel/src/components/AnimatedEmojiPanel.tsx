@@ -34,7 +34,9 @@ const loadSaved = (): CustomEmoji[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch (err) {
+    console.warn('Failed to load emoji list from localStorage, using defaults:', err);
+  }
   return DEFAULT_EMOJIS;
 };
 
@@ -133,7 +135,7 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       {
         id: manualId.trim(),
         fallback: manualFallback.trim() || '⭐',
-        label: manualLabel.trim() || `自定义-${Date.now()}`,
+        label: manualLabel.trim() || `自定义表情 #${emojis.length + 1}`,
       },
     ]);
     setManualId('');
@@ -273,7 +275,7 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
                 placeholder="替代字符"
                 value={manualFallback}
                 onChange={(e) => setManualFallback(e.target.value)}
-                maxLength={2}
+                maxLength={10}
               />
               <Input
                 style={{ width: '30%' }}

@@ -1106,6 +1106,10 @@ router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: Au
     }
 
     const token = botResult.rows[0].token;
+    // Validate token format to prevent URL manipulation (bot tokens are numeric:alphanumeric)
+    if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+      return res.status(500).json({ error: '无效的 Bot Token 格式' });
+    }
     const telegramUrl = `https://api.telegram.org/bot${token}/getStickerSet?name=${encodeURIComponent(name)}`;
 
     const response = await axios.get(telegramUrl, { timeout: 10000 });
