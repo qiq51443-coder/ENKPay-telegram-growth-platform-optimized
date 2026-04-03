@@ -20,8 +20,8 @@ interface Transaction {
 
 interface Announcement {
   id: string;
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   created_at: string;
 }
 

@@ -153,6 +153,12 @@ export const Announcements: React.FC = () => {
     try {
       const values = await form.validateFields();
       const images = mediaUrl ? [mediaUrl] : (editingAnnouncement?.images || []);
+
+      if (!values.title && !values.content && images.length === 0) {
+        message.error('请至少填写标题、内容或上传图片之一');
+        return;
+      }
+
       const payload = {
         ...values,
         images,
@@ -378,7 +384,6 @@ export const Announcements: React.FC = () => {
           <Form.Item
             name="title"
             label="标题"
-            rules={[{ required: true, message: '请输入标题' }]}
           >
             <Input placeholder="公告标题" />
           </Form.Item>
@@ -405,7 +410,6 @@ export const Announcements: React.FC = () => {
           <Form.Item
             name="content"
             label="内容"
-            rules={[{ required: true, message: '请输入内容' }]}
           >
             <TextArea rows={5} placeholder="公告内容（支持 HTML 格式）" />
           </Form.Item>

@@ -12,8 +12,8 @@ const CLOSE_BUTTON_LABELS: Record<string, string> = {
 };
 
 interface AnnouncementModalProps {
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   images?: string[];
   lang?: string;
   onClose: () => void;
@@ -43,14 +43,16 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         width: '100%',
         border: `1px solid ${theme.border}`,
       }}>
-        <h2 style={{ color: theme.text, marginBottom: '12px', fontSize: '18px' }}>{title}</h2>
+        {title && <h2 style={{ color: theme.text, marginBottom: '12px', fontSize: '18px' }}>{title}</h2>}
         {images && images.length > 0 && images.map((img, i) => (
           <img key={i} src={img} alt="announcement" style={{ width: '100%', borderRadius: '8px', marginBottom: '12px' }} />
         ))}
-        <p
-          style={{ color: theme.textSecondary, lineHeight: '1.6', marginBottom: '16px' }}
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
+        {content && (
+          <p
+            style={{ color: theme.textSecondary, lineHeight: '1.6', marginBottom: '16px' }}
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        )}
         <button
           onClick={onClose}
           style={{
