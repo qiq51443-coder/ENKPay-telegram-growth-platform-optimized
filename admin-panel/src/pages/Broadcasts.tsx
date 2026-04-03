@@ -320,6 +320,18 @@ export const Broadcasts: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            label="标题动态表情"
+            extra="点击插入动态表情到标题末尾"
+          >
+            <AnimatedEmojiPanel
+              onInsert={(tag) => {
+                const current = form.getFieldValue('title') || '';
+                form.setFieldValue('title', current + tag);
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
             name="content"
             label="内容"
             rules={[{ required: true, message: '请输入广播内容' }]}
@@ -365,8 +377,8 @@ export const Broadcasts: React.FC = () => {
           )}
 
           <Form.Item
-            label="动态表情（Telegram Premium）"
-            extra="点击插入动态表情标签；需要 Bot 所有者账号为 Telegram Premium 会员"
+            label="内容动态表情"
+            extra="点击插入动态表情到内容末尾"
           >
             <AnimatedEmojiPanel
               onInsert={(tag) => {
