@@ -43,10 +43,56 @@ async function updateScanState(
   );
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch TronGrid TRC20 transactions with automatic exponential back-off on HTTP 429.
+ * Respects the Retry-After header when present.
+ *
+ * @param url      - Full TronGrid endpoint URL
+ * @param headers  - Request headers (including optional TRON-PRO-API-KEY)
+ * @param params   - Query parameters
+ * @param maxRetries - Maximum number of retry attempts (default 4)
+ */
+async function fetchWithBackoff(
+  url: string,
+  headers: Record<string, string>,
+  params: Record<string, any>,
+  maxRetries = 4
+): Promise<any> {
+  let attempt = 0;
+  while (true) {
+    try {
+      const response = await axios.get(url, { headers, params, timeout: 10000 });
+      return response;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 429 && attempt < maxRetries) {
+        // Respect Retry-After header (value is in seconds), or use exponential back-off
+        const retryAfterHeader = err?.response?.headers?.['retry-after'];
+        const retryAfterMs = retryAfterHeader
+          ? parseInt(retryAfterHeader, 10) * 1000
+          : Math.min(1000 * 2 ** attempt + Math.random() * 500, 30000); // cap at 30 s
+        console.warn(
+          `TronGrid 429 for request (attempt ${attempt + 1}/${maxRetries}). ` +
+          `Retrying in ${Math.round(retryAfterMs / 1000)}s...`
+        );
+        await sleep(retryAfterMs);
+        attempt++;
+      } else {
+        throw err; // non-429 or exhausted retries — let caller handle
+      }
+    }
+  }
+}
+
 /**
  * Check deposits for TRC20 (Tron) network using TronGrid API.
  * Env vars used:
- *   TRONGRID_API_KEY — optional TRON-PRO-API-KEY header for higher rate limits
+ *   TRONGRID_API_KEY           — optional TRON-PRO-API-KEY header for higher rate limits
+ *   TRONGRID_REQUEST_DELAY_MS  — ms to wait between per-address requests (default: 800)
  */
 async function checkTronDeposits(network: any, addresses: string[]): Promise<void> {
   console.log(`Checking Tron deposits for ${addresses.length} addresses on network ${network.network_name}...`);
@@ -55,6 +101,9 @@ async function checkTronDeposits(network: any, addresses: string[]): Promise<voi
   const contractAddress = network.contract_address;
   const decimals = network.decimals != null ? Number(network.decimals) : 6;
   const minDeposit = Number(network.min_deposit_amount) || 0;
+  // Throttle requests to stay within TronGrid rate limits.
+  // Set TRONGRID_REQUEST_DELAY_MS=0 to disable (e.g. when using a paid API key with high limits).
+  const delayMs = parseInt(process.env.TRONGRID_REQUEST_DELAY_MS ?? '800', 10);
 
   for (const address of addresses) {
     try {
@@ -79,9 +128,10 @@ async function checkTronDeposits(network: any, addresses: string[]): Promise<voi
         params.min_timestamp = minTimestamp;
       }
 
-      const response = await axios.get(
+      const response = await fetchWithBackoff(
         `https://api.trongrid.io/v1/accounts/${address}/transactions/trc20`,
-        { headers, params, timeout: 10000 }
+        headers,
+        params
       );
 
       const transfers: any[] = response.data?.data || [];
@@ -142,6 +192,7 @@ async function checkTronDeposits(network: any, addresses: string[]): Promise<voi
       console.error(`Error checking Tron deposits for address ${address}:`, err.message);
       // Continue with next address; do not let one failure abort the entire scan
     }
+    await sleep(delayMs);
   }
 }
 
