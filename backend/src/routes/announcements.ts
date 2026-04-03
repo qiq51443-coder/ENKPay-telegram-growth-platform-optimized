@@ -70,8 +70,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12)
        RETURNING *`,
       [
-        title,
-        content,
+        title || '',
+        content || '',
         images || [],
         targets || [],
         scheduled_at || null,
@@ -89,7 +89,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     // Auto-translate content and title, then update DB
     const [contentTranslations, titleTranslations] = await Promise.all([
-      translateToAllLangs(content),
+      translateToAllLangs(content || ''),
       translateToAllLangs(title || ''),
     ]);
 
