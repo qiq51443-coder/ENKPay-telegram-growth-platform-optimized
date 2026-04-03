@@ -994,6 +994,7 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
       `SELECT
          ph.id AS holding_id,
          ph.user_id,
+         u.unique_id,
          u.username,
          u.first_name,
          u.telegram_id,
@@ -1022,6 +1023,7 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
       `SELECT
          h.id AS holding_id,
          h.user_id,
+         u.unique_id,
          u.username,
          u.first_name,
          u.telegram_id,
@@ -1043,7 +1045,7 @@ router.get('/products/:id/holders', authenticateAdmin, async (req: AuthRequest, 
     const mapRow = (row: any) => ({
       holding_id: row.holding_id,
       user_id: row.user_id,
-      username: row.username || row.first_name || `User ${row.telegram_id}`,
+      username: row.unique_id || row.username || row.first_name || `User ${row.telegram_id}`,
       purchase_price: parseFloat(row.purchase_price),
       purchase_date: row.purchase_date,
       purchase_date_ms: new Date(row.purchase_date).getTime(),
@@ -1110,6 +1112,7 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
          ir.income_date,
          ir.created_at,
          p.name AS product_name,
+         u.unique_id,
          u.username,
          u.telegram_id
        FROM nft_income_records ir
@@ -1131,6 +1134,7 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
     const todayUsersResult = await query(
       `SELECT DISTINCT ON (ir.user_id)
          ir.user_id,
+         u.unique_id,
          u.username,
          u.telegram_id
        FROM nft_income_records ir
@@ -1140,15 +1144,15 @@ router.get('/admin/settle/status', authenticateAdmin, async (req: AuthRequest, r
       [todayUTC]
     );
     const todayUsers = todayUsersResult.rows.map((u: any) => {
-      const displayName = u.username
-        ? u.username
-        : String(u.telegram_id || u.user_id || '').slice(-7).padStart(7, '0');
+      const displayName = u.unique_id
+        || u.username
+        || String(u.telegram_id || u.user_id || '').slice(-7).padStart(7, '0');
       return { user_id: u.user_id, displayName };
     });
 
     const recentRecords = result.rows.map((r: any) => ({
       ...r,
-      display_name: r.username || String(r.telegram_id || r.user_id || '').slice(-7).padStart(7, '0'),
+      display_name: r.unique_id || r.username || String(r.telegram_id || r.user_id || '').slice(-7).padStart(7, '0'),
     }));
 
     res.json({
