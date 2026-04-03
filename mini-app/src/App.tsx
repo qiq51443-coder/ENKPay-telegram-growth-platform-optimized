@@ -28,8 +28,8 @@ type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile';
 
 interface Announcement {
   id: string;
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   images?: string[];
   content_translations?: Record<string, string>;
   title_translations?: Record<string, string>;
@@ -97,15 +97,19 @@ function AppContent() {
           const list: Announcement[] = data?.announcements || data?.data || [];
           if (list.length > 0) {
             const raw = list[0];
-            const resolvedTitle =
+            const resolvedTitle: string =
               (raw.title_translations && lang && raw.title_translations[lang])
               || raw.title_translations?.['en']
-              || raw.title;
-            const resolvedContent =
+              || raw.title
+              || '';
+            const resolvedContent: string =
               (raw.content_translations && lang && raw.content_translations[lang])
               || raw.content_translations?.['en']
-              || raw.content;
-            setAnnouncement({ ...raw, title: resolvedTitle, content: resolvedContent });
+              || raw.content
+              || '';
+            if (resolvedTitle || resolvedContent || (raw.images && raw.images.length > 0)) {
+              setAnnouncement({ ...raw, title: resolvedTitle, content: resolvedContent });
+            }
           }
         })
         .catch(() => {/* non-critical */});

@@ -57,8 +57,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       show_open_bot_button,
     } = req.body;
 
-    if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required' });
+    if (!title && !content && (!images || images.length === 0)) {
+      return res.status(400).json({ error: '请至少填写标题、内容或上传图片之一' });
     }
 
     // If targets don't include 'app', force show_on_app_launch to false
@@ -244,7 +244,9 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       const safeLang = lang && contentTranslations[lang] ? lang : (contentTranslations['en'] ? 'en' : null);
       const title = (safeLang ? titleTranslations[safeLang] : null) || announcement.title || '';
       const content = (safeLang ? contentTranslations[safeLang] : null) || announcement.content || '';
-      return title ? `<b>${title}</b>\n\n${content}` : content;
+      if (title && content) return `<b>${title}</b>\n\n${content}`;
+      if (title) return `<b>${title}</b>`;
+      return content;
     };
 
     // Helper to send a single message to one chatId with optional language
@@ -283,19 +285,26 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       } else if (imageUrl) {
         isGif = /\.gif(\?|$)/i.test(imageUrl);
       }
+
+      // Skip sending if there is nothing to send (no text and no image)
+      if (!text && !imageUrl) {
+        return null;
+      }
+
+      // Only include caption when text is non-empty (empty string caption is rejected by some Telegram clients)
+      const captionOpts = text ? { caption: text, parse_mode: 'HTML' as const } : {};
+
       if (imageUrl && base64Match) {
         const mimeType = base64Match[1];
         const buffer = Buffer.from(base64Match[2], 'base64');
         if (isGif) {
           response = await telegram.sendAnimationBuffer(chatId, buffer, mimeType, {
-            caption: text,
-            parse_mode: 'HTML',
+            ...captionOpts,
             ...(reply_markup ? { reply_markup } : {}),
           });
         } else {
           response = await telegram.sendPhotoBuffer(chatId, buffer, mimeType, {
-            caption: text,
-            parse_mode: 'HTML',
+            ...captionOpts,
             ...(reply_markup ? { reply_markup } : {}),
           });
         }
@@ -313,36 +322,36 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
           try {
             if (isGif) {
               response = await telegram.sendAnimationFile(chatId, filePath, {
-                caption: text,
-                parse_mode: 'HTML',
+                ...captionOpts,
                 ...(reply_markup ? { reply_markup } : {}),
               });
             } else {
               response = await telegram.sendPhotoFile(chatId, filePath, {
-                caption: text,
-                parse_mode: 'HTML',
+                ...captionOpts,
                 ...(reply_markup ? { reply_markup } : {}),
               });
             }
           } catch (fileErr: any) {
-            // File not accessible — fall back to text-only message
+            // File not accessible — fall back to text-only message (only if there is text)
             console.warn('Announcement image file not accessible, sending text only:', filePath, fileErr?.message);
-            response = await telegram.sendMessage(chatId, text, {
-              parse_mode: 'HTML',
-              ...(reply_markup ? { reply_markup } : {}),
-            });
+            if (text) {
+              response = await telegram.sendMessage(chatId, text, {
+                parse_mode: 'HTML',
+                ...(reply_markup ? { reply_markup } : {}),
+              });
+            } else {
+              return null;
+            }
           }
         }
       } else if (imageUrl && isGif) {
         response = await telegram.sendAnimation(chatId, imageUrl, {
-          caption: text,
-          parse_mode: 'HTML',
+          ...captionOpts,
           ...(reply_markup ? { reply_markup } : {}),
         });
       } else if (imageUrl) {
         response = await telegram.sendPhoto(chatId, imageUrl, {
-          caption: text,
-          parse_mode: 'HTML',
+          ...captionOpts,
           ...(reply_markup ? { reply_markup } : {}),
         });
       } else {
