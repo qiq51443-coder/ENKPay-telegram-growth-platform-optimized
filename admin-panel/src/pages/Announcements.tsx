@@ -473,43 +473,43 @@ export const Announcements: React.FC = () => {
             </Select>
           </Form.Item>
 
-          {selectedTargets.includes('groups') && (
-            <>
-              <Form.Item
-                name="announcement_bot_id"
-                label="目标 Bot"
-                rules={[{ required: true, message: '请选择用于发送的 Bot' }]}
+          {(selectedTargets.includes('groups') || selectedTargets.includes('users')) && (
+            <Form.Item
+              name="announcement_bot_id"
+              label="目标 Bot"
+              rules={[{ required: true, message: '请选择用于发送的 Bot' }]}
+            >
+              <Select
+                placeholder="请选择 Bot..."
+                onChange={(val: string) => {
+                  form.setFieldValue('target_group_ids', []);
+                  fetchGroupsForBot(val);
+                }}
               >
-                <Select
-                  placeholder="请选择 Bot..."
-                  onChange={(val: string) => {
-                    form.setFieldValue('target_group_ids', []);
-                    fetchGroupsForBot(val);
-                  }}
-                >
-                  {bots.map((bot) => (
-                    <Select.Option key={bot.id} value={bot.id}>
-                      {bot.username ? `@${bot.username}` : bot.name}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
+                {bots.map((bot) => (
+                  <Select.Option key={bot.id} value={bot.id}>
+                    {bot.username ? `@${bot.username}` : bot.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
 
-              <Form.Item
-                name="target_group_ids"
-                label="目标群组/频道"
-                rules={[{ required: true, message: '请选择至少一个群组或频道' }]}
-              >
-                <Select
-                  mode="multiple"
-                  placeholder={groups.length > 0 ? '请选择群组/频道...' : '暂无群组，请先选择 Bot'}
-                  options={groups.map((g) => ({
-                    value: String(g.chat_id),
-                    label: g.chat_title ? `${g.chat_title} (${g.chat_id})` : String(g.chat_id),
-                  }))}
-                />
-              </Form.Item>
-            </>
+          {selectedTargets.includes('groups') && (
+            <Form.Item
+              name="target_group_ids"
+              label="目标群组/频道"
+              rules={[{ required: true, message: '请选择至少一个群组或频道' }]}
+            >
+              <Select
+                mode="multiple"
+                placeholder={groups.length > 0 ? '请选择群组/频道...' : '暂无群组，请先选择 Bot'}
+                options={groups.map((g) => ({
+                  value: String(g.chat_id),
+                  label: g.chat_title ? `${g.chat_title} (${g.chat_id})` : String(g.chat_id),
+                }))}
+              />
+            </Form.Item>
           )}
 
           <Form.Item label="媒体（图片/GIF）" extra="支持 JPG/PNG/GIF，最大 10MB">

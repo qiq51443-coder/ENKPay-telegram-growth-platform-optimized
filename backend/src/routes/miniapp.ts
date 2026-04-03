@@ -320,7 +320,7 @@ router.get('/announcements', async (req, res) => {
 
     let queryText = `SELECT id, title, content, images, is_pinned, show_on_app_launch,
                             content_translations, title_translations, created_at
-                     FROM announcements WHERE status = 'sent' AND targets @> ARRAY['app']`;
+                     FROM announcements WHERE status = 'sent' AND 'app' = ANY(targets)`;
     const params: any[] = [];
 
     if (show_on_app_launch === 'true') {
