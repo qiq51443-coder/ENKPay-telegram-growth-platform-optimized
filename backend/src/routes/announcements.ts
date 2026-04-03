@@ -218,8 +218,22 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     const targets: string[] = announcement.targets || [];
     const images: string[] = announcement.images || [];
     const targetGroupIds: string[] = announcement.target_group_ids || [];
-    const contentTranslations: Record<string, string> = announcement.content_translations || {};
-    const titleTranslations: Record<string, string> = announcement.title_translations || {};
+    // Parse JSONB field that may arrive as a string
+    const parseJsonbField = (val: any): Record<string, string> => {
+      if (!val) return {};
+      if (typeof val === 'string') { try { return JSON.parse(val); } catch { return {}; } }
+      return val as Record<string, string>;
+    };
+    // Normalise BCP-47 language_code to 2-letter translation key
+    // "zh-hans"→"zh", "fr-FR"→"fr", "zh-CN"→"zh", "en-US"→"en"
+    const normaliseLang = (raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const lower = raw.toLowerCase();
+      if (lower.startsWith('zh')) return 'zh';
+      return lower.slice(0, 2) || null;
+    };
+    const contentTranslations: Record<string, string> = parseJsonbField(announcement.content_translations);
+    const titleTranslations: Record<string, string> = parseJsonbField(announcement.title_translations);
 
     let sentCount = 0;
     let failedCount = 0;
@@ -245,7 +259,8 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     const getLocalizedMessage = (lang: string | null): string => {
-      const safeLang = lang && contentTranslations[lang] ? lang : (contentTranslations['en'] ? 'en' : null);
+      const normLang = normaliseLang(lang);
+      const safeLang = normLang && contentTranslations[normLang] ? normLang : (contentTranslations['en'] ? 'en' : null);
       const title = (safeLang ? titleTranslations[safeLang] : null) || announcement.title || '';
       const content = (safeLang ? contentTranslations[safeLang] : null) || announcement.content || '';
       if (title && content) return `<b>${title}</b>\n\n${content}`;
@@ -262,7 +277,8 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       isGroupTarget: boolean = false,
     ): Promise<{ message_id: number } | null> => {
       const text = getLocalizedMessage(lang ?? null);
-      const safeLang = lang && CONTACT_SUPPORT_LABELS[lang] ? lang : 'en';
+      const normLang = normaliseLang(lang ?? null);
+      const safeLang = normLang && CONTACT_SUPPORT_LABELS[normLang] ? normLang : 'en';
 
       // Build inline keyboard buttons
       const buttons: any[] = [];
