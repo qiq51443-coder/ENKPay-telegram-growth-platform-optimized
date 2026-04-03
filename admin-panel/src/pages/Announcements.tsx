@@ -50,6 +50,29 @@ const TARGET_OPTIONS = [
   { label: 'App', value: 'app' },
 ];
 
+const LANG_LABELS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
+
+const ANIMATED_EMOJIS = [
+  { id: '5368324170671202286', fallback: '🎆', label: '🎆 烟花' },
+  { id: '5471952986970267163', fallback: '🔥', label: '🔥 火焰' },
+  { id: '5449767077127979601', fallback: '⭐', label: '⭐ 星星' },
+  { id: '5357419756283924461', fallback: '👑', label: '👑 皇冠' },
+  { id: '5461151367724015569', fallback: '💎', label: '💎 钻石' },
+  { id: '5440539497383087970', fallback: '🎉', label: '🎉 庆祝' },
+  { id: '5388823707011509811', fallback: '💰', label: '💰 金钱' },
+  { id: '5346026631252222062', fallback: '🚀', label: '🚀 火箭' },
+  { id: '5312536423851630001', fallback: '💯', label: '💯 百分百' },
+  { id: '5350336525463818766', fallback: '🏆', label: '🏆 奖杯' },
+];
+
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`,
 });
@@ -64,6 +87,8 @@ export const Announcements: React.FC = () => {
   const [groups, setGroups] = useState<AuthorizedGroup[]>([]);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
   const [mediaUrl, setMediaUrl] = useState<string>('');
+  const [contentTranslations, setContentTranslations] = useState<Record<string, string> | null>(null);
+  const [titleTranslations, setTitleTranslations] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
     fetchAnnouncements();
@@ -129,6 +154,8 @@ export const Announcements: React.FC = () => {
       setSelectedTargets([]);
       setMediaUrl('');
       setGroups([]);
+      setContentTranslations(null);
+      setTitleTranslations(null);
       form.resetFields();
     }
     setModalOpen(true);
@@ -145,6 +172,8 @@ export const Announcements: React.FC = () => {
         expires_at: values.expires_at?.toISOString?.() || values.expires_at || null,
         announcement_bot_id: values.announcement_bot_id || null,
         target_group_ids: values.target_group_ids || [],
+        content_translations: contentTranslations || undefined,
+        title_translations: titleTranslations || undefined,
       };
 
       if (editingAnnouncement) {
@@ -350,6 +379,8 @@ export const Announcements: React.FC = () => {
           setMediaUrl('');
           setGroups([]);
           setSelectedTargets([]);
+          setContentTranslations(null);
+          setTitleTranslations(null);
         }}
         okText="保存"
         cancelText="取消"
@@ -364,6 +395,13 @@ export const Announcements: React.FC = () => {
             <Input placeholder="公告标题" />
           </Form.Item>
 
+          <Form.Item label="标题翻译" colon={false}>
+            <TranslateButton
+              text={form.getFieldValue('title') || ''}
+              onTranslated={(t) => setTitleTranslations(t)}
+            />
+          </Form.Item>
+
           <Form.Item
             name="content"
             label="内容"
@@ -372,19 +410,61 @@ export const Announcements: React.FC = () => {
             <TextArea rows={5} placeholder="公告内容（支持 HTML 格式）" />
           </Form.Item>
 
-          {selectedTargets.includes('app') && (
-            <Form.Item label="翻译" colon={false}>
-              <TranslateButton
-                text={form.getFieldValue('content') || ''}
-                onTranslated={(t) => {
-                  const lang = Object.keys(t)[0];
-                  if (lang && t[lang]) {
-                    form.setFieldValue('content', t[lang]);
-                  }
-                }}
-              />
-            </Form.Item>
+          <Form.Item label="内容翻译" colon={false}>
+            <TranslateButton
+              text={form.getFieldValue('content') || ''}
+              onTranslated={(t) => setContentTranslations(t)}
+            />
+          </Form.Item>
+
+          {contentTranslations && Object.keys(contentTranslations).length > 0 && (
+            <Collapse
+              size="small"
+              style={{ marginBottom: 16 }}
+              items={[{
+                key: 'translations',
+                label: (
+                  <span>
+                    🌐 翻译预览
+                    <Tag color="cyan" style={{ marginLeft: 8, fontSize: 10 }}>已翻译 {Object.keys(contentTranslations).length} 种语言</Tag>
+                  </span>
+                ),
+                children: (
+                  <div>
+                    {Object.entries(contentTranslations).map(([lang, text]) => (
+                      <div key={lang} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <Tag style={{ width: 80, textAlign: 'center', flexShrink: 0, marginTop: 2 }}>
+                          {LANG_LABELS[lang] || lang}
+                        </Tag>
+                        <div style={{ flex: 1, fontSize: 12, color: '#555', paddingLeft: 8 }}>{text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ),
+              }]}
+            />
           )}
+
+          <Form.Item
+            label="动态表情（Telegram Premium）"
+            extra='点击将动态表情标签插入到消息内容末尾，Bot 所有者账号需为 Telegram Premium 会员'
+          >
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ANIMATED_EMOJIS.map((e) => (
+                <Button
+                  key={e.id}
+                  size="small"
+                  onClick={() => {
+                    const current = form.getFieldValue('content') || '';
+                    const tag = `<tg-emoji emoji-id="${e.id}">${e.fallback}</tg-emoji>`;
+                    form.setFieldValue('content', current + tag);
+                  }}
+                >
+                  {e.label}
+                </Button>
+              ))}
+            </div>
+          </Form.Item>
 
           <Form.Item name="targets" label="发送目标">
             <Select
