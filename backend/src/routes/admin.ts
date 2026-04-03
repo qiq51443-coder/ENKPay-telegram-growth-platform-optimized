@@ -1088,4 +1088,59 @@ router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthReque
   }
 });
 
+/**
+ * GET /api/admin/sticker-set/:name
+ * Proxy Telegram getStickerSet API — returns custom_emoji stickers in the pack
+ * Uses the first active bot's token from DB
+ */
+router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { name } = req.params;
+
+    // Get first active bot token
+    const botResult = await query(
+      'SELECT token FROM bots WHERE is_active = true ORDER BY created_at ASC LIMIT 1'
+    );
+    if (botResult.rows.length === 0) {
+      return res.status(400).json({ error: '没有可用的 Bot，请先添加并激活一个 Bot' });
+    }
+
+    const token = botResult.rows[0].token;
+    // Validate token format to prevent URL manipulation (bot tokens are numeric:alphanumeric)
+    if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+      return res.status(500).json({ error: '无效的 Bot Token 格式' });
+    }
+    const telegramUrl = `https://api.telegram.org/bot${token}/getStickerSet?name=${encodeURIComponent(name)}`;
+
+    const response = await axios.get(telegramUrl, { timeout: 10000 });
+    const data = response.data;
+
+    if (!data.ok) {
+      return res.status(400).json({ error: data.description || 'Sticker set not found' });
+    }
+
+    const stickerSet = data.result;
+
+    // Filter only custom_emoji type stickers
+    const emojis = (stickerSet.stickers || [])
+      .filter((s: any) => s.type === 'custom_emoji' || s.custom_emoji_id)
+      .map((s: any) => ({
+        id: s.custom_emoji_id,
+        fallback: s.emoji || '⭐',
+      }));
+
+    res.json({
+      name: stickerSet.name,
+      title: stickerSet.title,
+      sticker_type: stickerSet.sticker_type,
+      emojis,
+      total: emojis.length,
+    });
+  } catch (error: any) {
+    console.error('Get sticker set error:', error);
+    const detail = error.response?.data?.description || error.message;
+    res.status(500).json({ error: `获取 Sticker Pack 失败: ${detail}` });
+  }
+});
+
 export default router;

@@ -6,6 +6,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined, UploadOutline
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import axios from 'axios';
 import TranslateButton from '../components/TranslateButton';
+import AnimatedEmojiPanel from '../components/AnimatedEmojiPanel';
 
 const { TextArea } = Input;
 
@@ -59,19 +60,6 @@ const LANG_LABELS: Record<string, string> = {
   ar: 'العربية',
   ja: '日本語',
 };
-
-const ANIMATED_EMOJIS = [
-  { id: '5368324170671202286', fallback: '🎆', label: '🎆 烟花' },
-  { id: '5471952986970267163', fallback: '🔥', label: '🔥 火焰' },
-  { id: '5449767077127979601', fallback: '⭐', label: '⭐ 星星' },
-  { id: '5357419756283924461', fallback: '👑', label: '👑 皇冠' },
-  { id: '5461151367724015569', fallback: '💎', label: '💎 钻石' },
-  { id: '5440539497383087970', fallback: '🎉', label: '🎉 庆祝' },
-  { id: '5388823707011509811', fallback: '💰', label: '💰 金钱' },
-  { id: '5346026631252222062', fallback: '🚀', label: '🚀 火箭' },
-  { id: '5312536423851630001', fallback: '💯', label: '💯 百分百' },
-  { id: '5350336525463818766', fallback: '🏆', label: '🏆 奖杯' },
-];
 
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -447,23 +435,14 @@ export const Announcements: React.FC = () => {
 
           <Form.Item
             label="动态表情（Telegram Premium）"
-            extra='点击将动态表情标签插入到消息内容末尾，Bot 所有者账号需为 Telegram Premium 会员'
+            extra="点击插入动态表情标签；需要 Bot 所有者账号为 Telegram Premium 会员"
           >
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ANIMATED_EMOJIS.map((e) => (
-                <Button
-                  key={e.id}
-                  size="small"
-                  onClick={() => {
-                    const current = form.getFieldValue('content') || '';
-                    const tag = `<tg-emoji emoji-id="${e.id}">${e.fallback}</tg-emoji>`;
-                    form.setFieldValue('content', current + tag);
-                  }}
-                >
-                  {e.label}
-                </Button>
-              ))}
-            </div>
+            <AnimatedEmojiPanel
+              onInsert={(tag) => {
+                const current = form.getFieldValue('content') || '';
+                form.setFieldValue('content', current + tag);
+              }}
+            />
           </Form.Item>
 
           <Form.Item name="targets" label="发送目标">
