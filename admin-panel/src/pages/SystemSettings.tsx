@@ -296,18 +296,40 @@ export const SystemSettings: React.FC = () => {
       ctx.drawImage(img, 0, 0, size, size);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `enkpay_qr_${qrSelectedUser?.id || 'user'}_${size}px.png`;
+      const safeName = (qrSelectedUser?.first_name || qrSelectedUser?.username || 'user')
+        .replace(/[/\\?%*:|"<>\x00-\x1f]/g, '_');
+      a.download = `enkpay_收款码_${safeName}_${size}px.png`;
       a.click();
     };
     img.src = qrImageDataUrl;
   };
 
+  const StepTitle = ({ num, title }: { num: number; title: string }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: 'linear-gradient(135deg, #1890ff, #096dd9)',
+        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 14, fontWeight: 700, flexShrink: 0,
+      }}>{num}</div>
+      <span style={{ fontSize: 15, fontWeight: 600, color: '#262626' }}>{title}</span>
+    </div>
+  );
+
+  const styleCards = [
+    { key: 'standard', label: '标准', fg: '#000000', bg: '#FFFFFF', emoji: '⚫' },
+    { key: 'dark',     label: '深色', fg: '#F0B90B', bg: '#1a1a2e', emoji: '⬛' },
+    { key: 'gradient', label: '蓝紫', fg: '#6366f1', bg: '#FFFFFF', emoji: '🎨' },
+  ];
+
   const qrCodeTab = (
-    <Space direction="vertical" style={{ width: '100%' }} size="large">
-      {/* Step 1: Search & Select User */}
-      <Card title="第一步：选择用户">
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Space.Compact style={{ width: '100%' }}>
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      {/* 左栏 */}
+      <div style={{ flex: 1, minWidth: 380 }}>
+        {/* 第一步：选择用户 */}
+        <Card style={{ marginBottom: 16, borderRadius: 10 }} styles={{ body: { padding: 20 } }}>
+          <StepTitle num={1} title="选择收款用户" />
+          <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
             <Input
               value={qrSearchInput}
               onChange={(e) => setQrSearchInput(e.target.value)}
@@ -327,6 +349,7 @@ export const SystemSettings: React.FC = () => {
             <List
               size="small"
               bordered
+              style={{ marginBottom: 12 }}
               dataSource={qrSearchResults}
               renderItem={(user: any) => (
                 <List.Item
@@ -334,9 +357,22 @@ export const SystemSettings: React.FC = () => {
                   onClick={() => { setQrSelectedUser(user); setQrSearchResults(null); }}
                 >
                   <Space>
-                    <Tag color="blue">{user.unique_id || user.id}</Tag>
-                    <span>{user.first_name || user.username || '—'}</span>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #1890ff, #096dd9)',
+                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {(user.first_name?.[0] || user.username?.[0] || '?').toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 500 }}>{user.first_name || user.username || '—'}</span>
                     {user.username && <Text type="secondary">@{user.username}</Text>}
+                    <Tag color="blue" style={{ margin: 0 }}>UID: #{user.unique_id || user.id}</Tag>
+                    {(user.wallet_balance !== undefined || user.balance !== undefined) && (
+                      <Tag color="cyan" style={{ margin: 0 }}>
+                        ${parseFloat(user.wallet_balance || user.balance || 0).toFixed(2)} USDT
+                      </Tag>
+                    )}
                   </Space>
                 </List.Item>
               )}
@@ -344,120 +380,230 @@ export const SystemSettings: React.FC = () => {
           )}
 
           {qrSelectedUser && (
-            <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}>
-              <Space>
-                <Tag color="green">已选用户</Tag>
-                <Tag color="blue">{qrSelectedUser.unique_id || qrSelectedUser.id}</Tag>
-                <span>{qrSelectedUser.first_name || qrSelectedUser.username || '—'}</span>
-                {qrSelectedUser.username && <Text type="secondary">@{qrSelectedUser.username}</Text>}
-                <Button size="small" type="link" danger onClick={() => setQrSelectedUser(null)}>取消选择</Button>
-              </Space>
-            </Card>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              background: 'linear-gradient(135deg, #f6ffed, #d9f7be)',
+              border: '1px solid #52c41a', borderRadius: 10, padding: '12px 16px',
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #52c41a, #389e0d)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, fontWeight: 700, flexShrink: 0,
+              }}>
+                {(qrSelectedUser.first_name?.[0] || qrSelectedUser.username?.[0] || '?').toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#135200', fontSize: 15 }}>
+                  {qrSelectedUser.first_name || qrSelectedUser.username || '—'}
+                  {qrSelectedUser.username && (
+                    <span style={{ color: '#52c41a', marginLeft: 8, fontSize: 13 }}>@{qrSelectedUser.username}</span>
+                  )}
+                </div>
+                <Space size={6} style={{ marginTop: 4 }}>
+                  <Tag color="green" style={{ margin: 0 }}>UID: #{qrSelectedUser.unique_id || qrSelectedUser.id}</Tag>
+                  <Tag color="blue" style={{ margin: 0 }}>
+                    ${parseFloat(qrSelectedUser.wallet_balance || qrSelectedUser.balance || 0).toFixed(2)} USDT
+                  </Tag>
+                </Space>
+              </div>
+              <Button size="small" onClick={() => { setQrSelectedUser(null); setQrImageDataUrl(''); }}>重新选择</Button>
+            </div>
           )}
-        </Space>
-      </Card>
+        </Card>
 
-      {/* Step 2: Style Settings */}
-      <Card title="第二步：样式设置">
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Form layout="inline">
-            <Form.Item label="有效期（月）">
+        {/* 第二步：配置样式 */}
+        <Card style={{ borderRadius: 10 }} styles={{ body: { padding: 20 } }}>
+          <StepTitle num={2} title="配置样式" />
+
+          {/* 有效期 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: '#595959', marginBottom: 8 }}>⏳ 有效期</div>
+            <Space>
               <InputNumber
                 min={1}
                 max={24}
                 value={qrExpiresMonths}
                 onChange={(v) => setQrExpiresMonths(v || 1)}
+                addonAfter="个月"
+                style={{ width: 140 }}
               />
-            </Form.Item>
-            <Form.Item label="样式">
-              <Radio.Group value={qrStyle} onChange={(e) => setQrStyle(e.target.value)}>
-                <Radio.Button value="standard">标准</Radio.Button>
-                <Radio.Button value="dark">深色</Radio.Button>
-                <Radio.Button value="gradient">蓝紫</Radio.Button>
-              </Radio.Group>
-            </Form.Item>
-            <Form.Item label="纠错级别">
-              <Radio.Group value={qrErrorLevel} onChange={(e) => setQrErrorLevel(e.target.value)}>
-                <Radio.Button value="L">L</Radio.Button>
-                <Radio.Button value="M">M</Radio.Button>
-                <Radio.Button value="Q">Q</Radio.Button>
-                <Radio.Button value="H">H</Radio.Button>
-              </Radio.Group>
-            </Form.Item>
-          </Form>
-          <Form.Item label="Logo（可选）" style={{ marginBottom: 0 }}>
-            <Upload
-              accept="image/*"
-              maxCount={1}
-              showUploadList={false}
-              beforeUpload={(file) => {
-                setQrLogoFile(file);
-                const reader = new FileReader();
-                reader.onload = (e) => setQrLogoPreview(e.target?.result as string);
-                reader.readAsDataURL(file);
-                return false;
-              }}
-            >
-              <Button icon={<UploadOutlined />}>上传 Logo</Button>
-            </Upload>
-            {qrLogoPreview && (
-              <Space style={{ marginLeft: 12 }}>
-                <img src={qrLogoPreview} alt="logo" style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 4 }} />
-                <Button size="small" danger onClick={() => { setQrLogoFile(null); setQrLogoPreview(''); }}>移除</Button>
-              </Space>
-            )}
-          </Form.Item>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                到期：{(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + qrExpiresMonths); return d.toLocaleDateString('zh-CN'); })()}
+              </Text>
+            </Space>
+          </div>
+
+          {/* 样式卡片 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: '#595959', marginBottom: 8 }}>🎨 二维码样式</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {styleCards.map(s => (
+                <div
+                  key={s.key}
+                  onClick={() => setQrStyle(s.key as any)}
+                  style={{
+                    flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
+                    border: `2px solid ${qrStyle === s.key ? '#1890ff' : '#d9d9d9'}`,
+                    background: qrStyle === s.key ? '#e6f4ff' : '#fafafa',
+                    textAlign: 'center', transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 6, margin: '0 auto 6px',
+                    background: s.bg, border: '1px solid #e8e8e8',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <div style={{ width: 16, height: 16, background: s.fg, borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: qrStyle === s.key ? 700 : 400, color: qrStyle === s.key ? '#1890ff' : '#595959' }}>
+                    {s.emoji} {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 纠错级别 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: '#595959', marginBottom: 8 }}>
+              🔒 纠错级别 <span style={{ fontSize: 11, color: '#8c8c8c' }}>（级别越高，Logo遮挡越大也能识别，推荐 Q）</span>
+            </div>
+            <Radio.Group value={qrErrorLevel} onChange={(e) => setQrErrorLevel(e.target.value)}>
+              <Radio.Button value="L">L</Radio.Button>
+              <Radio.Button value="M">M</Radio.Button>
+              <Radio.Button value="Q">Q ✓</Radio.Button>
+              <Radio.Button value="H">H</Radio.Button>
+            </Radio.Group>
+          </div>
+
+          {/* Logo 上传 */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#595959', marginBottom: 8 }}>
+              🖼 Logo（可选）<span style={{ fontSize: 11, color: '#8c8c8c' }}>建议正方形 PNG/SVG，200×200px</span>
+            </div>
+            <Space align="center">
+              <Upload
+                accept="image/*"
+                maxCount={1}
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  setQrLogoFile(file);
+                  const reader = new FileReader();
+                  reader.onload = (e) => setQrLogoPreview(e.target?.result as string);
+                  reader.readAsDataURL(file);
+                  return false;
+                }}
+              >
+                <Button icon={<UploadOutlined />} size="small">上传 Logo</Button>
+              </Upload>
+              {qrLogoPreview && (
+                <>
+                  <img src={qrLogoPreview} alt="logo" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 4, border: '1px solid #d9d9d9' }} />
+                  <Button size="small" danger onClick={() => { setQrLogoFile(null); setQrLogoPreview(''); }}>移除</Button>
+                </>
+              )}
+            </Space>
+          </div>
+
+          {/* 生成按钮 */}
           <Button
             type="primary"
+            size="large"
             icon={<QrcodeOutlined />}
             loading={qrGenerating}
             disabled={!qrSelectedUser}
             onClick={handleGenerateUserQR}
-            size="large"
+            style={{
+              width: '100%', height: 48, fontSize: 16, fontWeight: 600,
+              background: qrSelectedUser ? 'linear-gradient(135deg, #1890ff, #096dd9)' : undefined,
+              border: 'none',
+            }}
           >
-            生成收款码
+            {qrGenerating ? '生成中...' : '🔄 生成收款码'}
           </Button>
-        </Space>
-      </Card>
-
-      {/* Step 3: Preview */}
-      {qrImageDataUrl && (
-        <Card title="第三步：预览与下载">
-          <Space direction="vertical" align="center" style={{ width: '100%' }}>
-            <img src={qrImageDataUrl} alt="Payment QR Code" width={256} height={256} style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} />
-            {qrSelectedUser && (
-              <Space>
-                <Tag color="blue">收款方：{qrSelectedUser.first_name || qrSelectedUser.username || qrSelectedUser.id}</Tag>
-                <Tag>ID: {qrSelectedUser.unique_id || qrSelectedUser.id}</Tag>
-              </Space>
-            )}
-            {qrExpiresAt && (
-              <Text type="secondary">有效期至：{new Date(qrExpiresAt).toLocaleDateString('zh-CN')}</Text>
-            )}
-            {qrContent && (
-              <Input.TextArea
-                value={qrContent}
-                readOnly
-                rows={2}
-                style={{ fontFamily: 'monospace', fontSize: 11 }}
-                onClick={(e) => {
-                  (e.target as HTMLTextAreaElement).select();
-                  navigator.clipboard?.writeText(qrContent).then(() => message.success('已复制'));
-                }}
-              />
-            )}
-            <Space>
-              <Button icon={<DownloadOutlined />} onClick={() => handleDownloadUserQR(256)}>
-                下载 256px
-              </Button>
-              <Button icon={<DownloadOutlined />} type="primary" onClick={() => handleDownloadUserQR(512)}>
-                下载 512px
-              </Button>
-            </Space>
-          </Space>
         </Card>
-      )}
-    </Space>
+      </div>
+
+      {/* 右栏：预览区 */}
+      <div style={{ width: 300, flexShrink: 0, position: 'sticky', top: 24 }}>
+        <Card
+          title={<span><QrcodeOutlined style={{ marginRight: 8 }} />收款码预览</span>}
+          style={{ borderRadius: 12 }}
+          styles={{ body: { padding: '20px 16px' } }}
+        >
+          {!qrImageDataUrl ? (
+            <div style={{
+              width: 256, height: 256, margin: '0 auto 16px',
+              border: '2px dashed #d9d9d9', borderRadius: 8,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              color: '#bfbfbf', background: '#fafafa',
+            }}>
+              <QrcodeOutlined style={{ fontSize: 48, marginBottom: 8 }} />
+              <div style={{ fontSize: 13 }}>选择用户后点击生成</div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                width: 256, height: 256, margin: '0 auto 16px',
+                borderRadius: 10, overflow: 'hidden',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                border: '1px solid #f0f0f0',
+              }}>
+                <img src={qrImageDataUrl} alt="Payment QR Code" width={256} height={256} style={{ display: 'block' }} />
+              </div>
+
+              <div style={{
+                background: '#f5f5f5', borderRadius: 8, padding: '10px 12px', marginBottom: 12, textAlign: 'left',
+              }}>
+                <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>收款方</div>
+                <div style={{ fontWeight: 600, color: '#262626' }}>
+                  {qrSelectedUser?.first_name || qrSelectedUser?.username || '—'}
+                </div>
+                <div style={{ fontSize: 12, color: '#595959', marginTop: 2 }}>
+                  UID: #{qrSelectedUser?.unique_id || qrSelectedUser?.id}
+                </div>
+              </div>
+
+              {qrExpiresAt && (
+                <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, color: '#8c8c8c' }}>有效期至</span>
+                  <Tag color="orange">{new Date(qrExpiresAt).toLocaleDateString('zh-CN')}</Tag>
+                </div>
+              )}
+
+              {qrContent && (
+                <div
+                  style={{
+                    background: '#f5f5f5', borderRadius: 6, padding: '8px 10px', marginBottom: 16,
+                    fontSize: 11, fontFamily: 'monospace', color: '#595959',
+                    wordBreak: 'break-all', lineHeight: 1.5, cursor: 'pointer',
+                  }}
+                  title="点击复制"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(qrContent)
+                      .then(() => message.success('已复制'))
+                      .catch(() => message.error('复制失败，请手动复制'));
+                  }}
+                >
+                  {qrContent.length > 80 ? qrContent.slice(0, 80) + '...' : qrContent}
+                  <div style={{ color: '#1890ff', fontSize: 11, marginTop: 4 }}>📋 点击复制完整内容</div>
+                </div>
+              )}
+
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Button icon={<DownloadOutlined />} style={{ width: '100%' }} onClick={() => handleDownloadUserQR(256)}>
+                  下载 PNG 256px
+                </Button>
+                <Button icon={<DownloadOutlined />} type="primary" style={{ width: '100%' }} onClick={() => handleDownloadUserQR(512)}>
+                  下载 PNG 512px
+                </Button>
+              </Space>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 
   const tabItems = [
