@@ -296,7 +296,9 @@ export const SystemSettings: React.FC = () => {
       ctx.drawImage(img, 0, 0, size, size);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `enkpay_收款码_${qrSelectedUser?.first_name || qrSelectedUser?.username || 'user'}_${size}px.png`;
+      const safeName = (qrSelectedUser?.first_name || qrSelectedUser?.username || 'user')
+        .replace(/[/\\?%*:|"<>\x00-\x1f]/g, '_');
+      a.download = `enkpay_收款码_${safeName}_${size}px.png`;
       a.click();
     };
     img.src = qrImageDataUrl;
@@ -315,7 +317,7 @@ export const SystemSettings: React.FC = () => {
   );
 
   const styleCards = [
-    { key: 'standard', label: '标准', fg: '#000000', bg: '#FFFFFF', emoji: '🟡' },
+    { key: 'standard', label: '标准', fg: '#000000', bg: '#FFFFFF', emoji: '⚫' },
     { key: 'dark',     label: '深色', fg: '#F0B90B', bg: '#1a1a2e', emoji: '⬛' },
     { key: 'gradient', label: '蓝紫', fg: '#6366f1', bg: '#FFFFFF', emoji: '🎨' },
   ];
@@ -427,7 +429,7 @@ export const SystemSettings: React.FC = () => {
                 style={{ width: 140 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
-                到期：{new Date(new Date().setMonth(new Date().getMonth() + qrExpiresMonths)).toLocaleDateString('zh-CN')}
+                到期：{(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + qrExpiresMonths); return d.toLocaleDateString('zh-CN'); })()}
               </Text>
             </Space>
           </div>
@@ -578,7 +580,11 @@ export const SystemSettings: React.FC = () => {
                     wordBreak: 'break-all', lineHeight: 1.5, cursor: 'pointer',
                   }}
                   title="点击复制"
-                  onClick={() => { navigator.clipboard?.writeText(qrContent); message.success('已复制'); }}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(qrContent)
+                      .then(() => message.success('已复制'))
+                      .catch(() => message.error('复制失败，请手动复制'));
+                  }}
                 >
                   {qrContent.length > 80 ? qrContent.slice(0, 80) + '...' : qrContent}
                   <div style={{ color: '#1890ff', fontSize: 11, marginTop: 4 }}>📋 点击复制完整内容</div>
