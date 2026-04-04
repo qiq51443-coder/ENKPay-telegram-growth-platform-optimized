@@ -5,10 +5,10 @@ const NFT_DAILY_INCOME_TEMPLATES: Record<string, string> = {
   en: '💰 You earned <b>{amount} USDT</b> today!\n\n📌 Source: NFT - {product_name}\n⏰ Day {current_day}/{term_days}\n🕙 Settled daily at UTC 10:00',
   zh: '💰 您今日获得 <b>{amount} USDT</b> 收益！\n\n📌 来源：NFT - {product_name}\n⏰ 第 {current_day}/{term_days} 天\n🕙 每天UTC10：00自动结算',
   ja: '💰 本日 <b>{amount} USDT</b> の収益を獲得しました！\n\n📌 出典：NFT - {product_name}\n⏰ {current_day}日目/{term_days}日\n🕙 毎日UTC10:00に自動決済',
-  ar: '💰 لقد حصلت على <b>{amount} USDT</b> اليوم!\n\n📌 المصدر: NFT - {product_name}\n⏰ اليوم {current_day}/{term_days}',
-  fr: '💰 Vous avez gagné <b>{amount} USDT</b> aujourd\'hui!\n\n📌 Source: NFT - {product_name}\n⏰ Jour {current_day}/{term_days}',
-  de: '💰 Sie haben heute <b>{amount} USDT</b> verdient!\n\n📌 Quelle: NFT - {product_name}\n⏰ Tag {current_day}/{term_days}',
-  es: '💰 ¡Ganaste <b>{amount} USDT</b> hoy!\n\n📌 Fuente: NFT - {product_name}\n⏰ Día {current_day}/{term_days}',
+  ar: '💰 لقد حصلت على <b>{amount} USDT</b> اليوم!\n\n📌 المصدر: NFT - {product_name}\n⏰ اليوم {current_day}/{term_days}\n🕙 يتم التسوية يومياً في UTC 10:00',
+  fr: '💰 Vous avez gagné <b>{amount} USDT</b> aujourd\'hui!\n\n📌 Source: NFT - {product_name}\n⏰ Jour {current_day}/{term_days}\n🕙 Réglé quotidiennement à UTC 10:00',
+  de: '💰 Sie haben heute <b>{amount} USDT</b> verdient!\n\n📌 Quelle: NFT - {product_name}\n⏰ Tag {current_day}/{term_days}\n🕙 Täglich um UTC 10:00 abgerechnet',
+  es: '💰 ¡Ganaste <b>{amount} USDT</b> hoy!\n\n📌 Fuente: NFT - {product_name}\n⏰ Día {current_day}/{term_days}\n🕙 Liquidado diariamente a las UTC 10:00',
 };
 
 const NFT_MATURITY_RETURN_TEMPLATES: Record<string, string> = {

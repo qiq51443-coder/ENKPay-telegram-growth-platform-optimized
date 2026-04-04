@@ -3,6 +3,47 @@ import { query, transaction } from '../db';
 import { TelegramAPI } from '../utils/telegram';
 import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification, buildNFTIncomeDescription, buildNFTPrincipalReturnDescription } from '../i18n/nft-notifications';
 
+// ── Language normalization ────────────────────────────────────────────────────
+const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
+const LANG_ALIAS_MAP: Record<string, string> = {
+  'zh-hans': 'zh',
+  'zh-hant': 'zh',
+  'zh-cn': 'zh',
+  'zh-tw': 'zh',
+  'zh-hk': 'zh',
+  'fr-fr': 'fr',
+  'fr-be': 'fr',
+  'fr-ca': 'fr',
+  'fr-ch': 'fr',
+  'de-de': 'de',
+  'de-at': 'de',
+  'de-ch': 'de',
+  'es-es': 'es',
+  'es-mx': 'es',
+  'es-ar': 'es',
+  'es-419': 'es',
+  'ar-sa': 'ar',
+  'ar-eg': 'ar',
+  'ja-jp': 'ja',
+};
+
+/**
+ * Normalize a Telegram language_code to one of the 7 supported language codes.
+ * Falls back to 'en' if the language is not supported.
+ */
+function normalizeLang(rawCode: string | null | undefined): string {
+  if (!rawCode) return 'en';
+  const lower = rawCode.toLowerCase();
+  // Direct match
+  if ((SUPPORTED_LANGS as readonly string[]).includes(lower)) return lower;
+  // Alias map
+  if (LANG_ALIAS_MAP[lower]) return LANG_ALIAS_MAP[lower];
+  // Prefix match (e.g. 'fr-FR' → 'fr' via prefix 'fr')
+  const prefix = lower.split('-')[0];
+  if ((SUPPORTED_LANGS as readonly string[]).includes(prefix)) return prefix;
+  return 'en';
+}
+
 let incomeJob: cron.ScheduledTask | null = null;
 let cronJob: cron.ScheduledTask | null = null;
 let maturityCronJob: cron.ScheduledTask | null = null;
@@ -110,7 +151,7 @@ async function settleDailyIncome(): Promise<number> {
           );
 
           // Write transactions record for this income
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
           await client.query(
             `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
@@ -121,7 +162,7 @@ async function settleDailyIncome(): Promise<number> {
 
         // Send bot notification
         if (holding.telegram_id && holding.bot_id) {
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const text = buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
@@ -203,7 +244,7 @@ async function settleDailyIncome(): Promise<number> {
           );
 
           // Write transactions record for this income
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: currentDay });
           await client.query(
             `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
@@ -223,7 +264,7 @@ async function settleDailyIncome(): Promise<number> {
         });
 
         if (holding.telegram_id && holding.bot_id) {
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const text = buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
@@ -314,7 +355,7 @@ async function releaseMatureHoldings(): Promise<number> {
           );
 
           // Write transactions record for principal return
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
           await client.query(
             `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
@@ -325,7 +366,7 @@ async function releaseMatureHoldings(): Promise<number> {
 
         // Send maturity notification
         if (holding.telegram_id && holding.bot_id) {
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const text = buildNFTMaturityReturnNotification({
             lang,
             amount: principal.toFixed(2),
@@ -401,7 +442,7 @@ async function releaseMatureHoldings(): Promise<number> {
           );
 
           // Write transactions record for principal return
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const principalDesc = buildNFTPrincipalReturnDescription({ lang, product_name: holding.product_name });
           await client.query(
             `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
@@ -411,7 +452,7 @@ async function releaseMatureHoldings(): Promise<number> {
         });
 
         if (holding.telegram_id && holding.bot_id) {
-          const lang = (holding.language_code || 'en').split('-')[0];
+          const lang = normalizeLang(holding.language_code);
           const text = buildNFTMaturityReturnNotification({
             lang,
             amount: principal.toFixed(2),
