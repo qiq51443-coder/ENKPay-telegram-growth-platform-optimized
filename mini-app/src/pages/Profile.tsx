@@ -966,13 +966,13 @@ export const Profile: React.FC = () => {
     const amt = parseFloat(scanAmount);
     const balance = parseFloat(String(profile?.wallet_balance || '0'));
     if (!scanAmount || isNaN(amt) || amt <= 0) {
-      setScanAmountError('请输入有效金额');
+      setScanAmountError(t('scan_amount_invalid'));
       return;
     }
     const fee = amt * 0.02;
     const total = amt + fee;
     if (total > balance) {
-      setScanAmountError(`余额不足，当前余额 ${balance.toFixed(2)} USDT`);
+      setScanAmountError(t('scan_balance_insufficient').replace('{balance}', balance.toFixed(2)));
       return;
     }
     setScanAmountError('');
@@ -981,7 +981,7 @@ export const Profile: React.FC = () => {
 
   const handleScanSubmitTransfer = async () => {
     if (!scanPassword || scanPassword.length < 4) {
-      setScanPasswordError('请输入正确的密码（4-6位）');
+      setScanPasswordError(t('scan_password_invalid'));
       return;
     }
     if (!scanRecipient) return;
@@ -998,7 +998,7 @@ export const Profile: React.FC = () => {
       // Refresh balance after successful transfer
       refreshBalance().catch(() => {});
     } catch (err: any) {
-      const msg = err?.response?.data?.error || '转账失败，请重试';
+      const msg = err?.response?.data?.error || t('scan_transfer_failed');
       setScanPasswordError(msg);
     } finally {
       setScanLoading(false);

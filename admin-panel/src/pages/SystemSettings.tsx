@@ -270,6 +270,7 @@ export const SystemSettings: React.FC = () => {
         const y = (canvas.height - logoSize) / 2;
         ctx.fillStyle = styleConfig.light;
         ctx.beginPath();
+        // 6px padding around logo, 10px border radius for the background box
         ctx.roundRect(x - 6, y - 6, logoSize + 12, logoSize + 12, 10);
         ctx.fill();
         ctx.drawImage(img, x, y, logoSize, logoSize);

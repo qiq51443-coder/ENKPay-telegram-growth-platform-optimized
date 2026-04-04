@@ -93,11 +93,9 @@ router.post('/verify', authenticateMiniApp, async (req: MiniAppAuthRequest, res)
     let params: URLSearchParams;
     try {
       const url = new URL(content);
-      if (url.protocol !== 'enkpay:' || url.pathname.replace(/^\/\/pay/, '').replace('/', '') !== '') {
-        // Accept enkpay://pay with any path prefix
-        if (!content.startsWith('enkpay://pay')) {
-          return res.json({ valid: false, expired: false, error: 'Invalid QR code format' });
-        }
+      // Only accept enkpay:// scheme with "pay" as the host/path
+      if (url.protocol !== 'enkpay:' || !content.startsWith('enkpay://pay')) {
+        return res.json({ valid: false, expired: false, error: 'Invalid QR code format' });
       }
       params = url.searchParams;
     } catch {

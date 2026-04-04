@@ -239,7 +239,10 @@ const zh: Translations = {
   scan_current_balance: '当前余额',
   scan_back_home: '返回个人中心',
   scan_transfer_again: '再次转账',
-  scan_not_available: '扫码功能暂不可用，请更新 Telegram 客户端',
+  scan_amount_invalid: '请输入有效金额',
+  scan_balance_insufficient: '余额不足，当前余额 {balance} USDT',
+  scan_password_invalid: '请输入正确的密码（4-6位）',
+  scan_transfer_failed: '转账失败，请重试',
 };
 
 const en: Translations = {
@@ -470,6 +473,10 @@ const en: Translations = {
   scan_back_home: 'Back to Profile',
   scan_transfer_again: 'Transfer Again',
   scan_not_available: 'Scan feature unavailable. Please update Telegram.',
+  scan_amount_invalid: 'Please enter a valid amount',
+  scan_balance_insufficient: 'Insufficient balance. Available: {balance} USDT',
+  scan_password_invalid: 'Please enter a valid password (4-6 digits)',
+  scan_transfer_failed: 'Transfer failed. Please try again.',
 };
 
 const fr: Translations = {
@@ -684,6 +691,10 @@ const fr: Translations = {
   scan_back_home: 'Retour au profil',
   scan_transfer_again: 'Nouveau virement',
   scan_not_available: 'Scan indisponible. Mettez Telegram à jour.',
+  scan_amount_invalid: 'Veuillez entrer un montant valide',
+  scan_balance_insufficient: 'Solde insuffisant. Disponible: {balance} USDT',
+  scan_password_invalid: 'Veuillez entrer un mot de passe valide (4-6 chiffres)',
+  scan_transfer_failed: 'Virement échoué. Veuillez réessayer.',
 };
 
 const de: Translations = {
@@ -898,6 +909,10 @@ const de: Translations = {
   scan_back_home: 'Zurück zum Profil',
   scan_transfer_again: 'Erneut überweisen',
   scan_not_available: 'Scan nicht verfügbar. Telegram aktualisieren.',
+  scan_amount_invalid: 'Bitte geben Sie einen gültigen Betrag ein',
+  scan_balance_insufficient: 'Unzureichendes Guthaben. Verfügbar: {balance} USDT',
+  scan_password_invalid: 'Bitte geben Sie ein gültiges Passwort ein (4-6 Ziffern)',
+  scan_transfer_failed: 'Überweisung fehlgeschlagen. Bitte erneut versuchen.',
 };
 
 const es: Translations = {
@@ -1112,6 +1127,10 @@ const es: Translations = {
   scan_back_home: 'Volver al perfil',
   scan_transfer_again: 'Nueva transferencia',
   scan_not_available: 'Escaneo no disponible. Actualice Telegram.',
+  scan_amount_invalid: 'Por favor ingrese un monto válido',
+  scan_balance_insufficient: 'Saldo insuficiente. Disponible: {balance} USDT',
+  scan_password_invalid: 'Por favor ingrese una contraseña válida (4-6 dígitos)',
+  scan_transfer_failed: 'Transferencia fallida. Por favor, inténtelo de nuevo.',
 };
 
 const ar: Translations = {
@@ -1326,6 +1345,10 @@ const ar: Translations = {
   scan_back_home: 'العودة إلى الملف الشخصي',
   scan_transfer_again: 'تحويل آخر',
   scan_not_available: 'المسح غير متاح. يرجى تحديث تيليغرام.',
+  scan_amount_invalid: 'يرجى إدخال مبلغ صالح',
+  scan_balance_insufficient: 'رصيد غير كافٍ. المتاح: {balance} USDT',
+  scan_password_invalid: 'يرجى إدخال كلمة مرور صالحة (4-6 أرقام)',
+  scan_transfer_failed: 'فشل التحويل. يرجى المحاولة مرة أخرى.',
 };
 
 const ja: Translations = {
@@ -1540,6 +1563,10 @@ const ja: Translations = {
   scan_back_home: 'プロフィールに戻る',
   scan_transfer_again: '再度送金',
   scan_not_available: 'スキャン機能は利用できません。Telegramを更新してください。',
+  scan_amount_invalid: '有効な金額を入力してください',
+  scan_balance_insufficient: '残高不足。利用可能: {balance} USDT',
+  scan_password_invalid: '有効なパスワードを入力してください（4〜6桁）',
+  scan_transfer_failed: '送金に失敗しました。もう一度お試しください。',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };
