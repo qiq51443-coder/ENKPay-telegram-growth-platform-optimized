@@ -211,7 +211,7 @@ export const Profile: React.FC = () => {
 
   const fetchAllTradingOrdersForMatch = async () => {
     try {
-      const res = await api.get('/trading/orders/my', { params: { limit: 100, offset: 0 } });
+      const res = await api.get('/trading/orders/my', { params: { limit: 200, offset: 0 } });
       const list: TradingOrder[] = res.data?.data || [];
       setAllTradingOrders(list);
     } catch {
@@ -407,7 +407,7 @@ export const Profile: React.FC = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {(() => {
-                const tradingOrderMap = new Map(allTradingOrders.map(o => [o.id, o]));
+                const tradingOrderMap = new Map(allTradingOrders.map(o => [String(o.id), o]));
                 return filteredTransactions.map(tx => {
                 // Enhanced display for trade_win / trade_loss using matched trading order data
                 if (tx.type === 'trade_win' || tx.type === 'trade_loss') {
