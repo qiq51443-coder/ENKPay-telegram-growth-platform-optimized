@@ -1208,8 +1208,8 @@ router.get('/orders/my', authenticateMiniApp, async (req: MiniAppAuthRequest, re
          s.start_time as session_start, s.end_time as session_end, s.period_label,
          s.open_price as session_open_price, s.close_price as session_close_price
        FROM trading_orders o
-       JOIN trading_pairs p ON o.pair_id = p.id
-       JOIN trading_sessions s ON o.session_id = s.id
+       LEFT JOIN trading_pairs p ON o.pair_id = p.id
+       LEFT JOIN trading_sessions s ON o.session_id = s.id
        WHERE o.user_id = $1
        ORDER BY o.created_at DESC
        LIMIT $2`,
