@@ -27,7 +27,7 @@ interface Announcement {
   target_group_ids?: string[];
   content_translations?: Record<string, string>;
   title_translations?: Record<string, string>;
-  sent_message_ids?: Record<string, number>;
+  sent_message_ids?: Record<string, { message_id: number; bot_id: string } | number>;
   support_telegram?: string;
   show_open_bot_button?: boolean;
   send_to_all_users?: boolean;

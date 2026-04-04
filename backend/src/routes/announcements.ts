@@ -235,9 +235,13 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     const contentTranslations: Record<string, string> = parseJsonbField(announcement.content_translations);
     const titleTranslations: Record<string, string> = parseJsonbField(announcement.title_translations);
 
+    // Returns true only when both title and content translations exist for the given language
+    const hasLang = (l: string | null): l is string =>
+      l !== null && contentTranslations[l] !== undefined && titleTranslations[l] !== undefined;
+
     let sentCount = 0;
     let failedCount = 0;
-    const sentMessageIds: Record<string, number> = {};
+    const sentMessageIds: Record<string, { message_id: number; bot_id: string } | number> = {};
 
     const BATCH_SIZE = 25;
     const BATCH_DELAY_MS = 1100;
@@ -260,7 +264,17 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const getLocalizedMessage = (lang: string | null): string => {
       const normLang = normaliseLang(lang);
-      const safeLang = normLang && contentTranslations[normLang] ? normLang : (contentTranslations['en'] ? 'en' : null);
+      // Only use a language when both title and content translations exist for it
+
+      let safeLang: string | null = null;
+      if (hasLang(normLang)) {
+        safeLang = normLang;
+      } else if (hasLang('en')) {
+        safeLang = 'en';
+      } else if (hasLang('zh')) {
+        safeLang = 'zh';
+      }
+
       const title = (safeLang ? titleTranslations[safeLang] : null) || announcement.title || '';
       const content = (safeLang ? contentTranslations[safeLang] : null) || announcement.content || '';
       if (title && content) return `<b>${title}</b>\n\n${content}`;
@@ -394,10 +408,10 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
           const batch = targetGroupIds.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (chatId) => {
             try {
-              // Groups use default language (zh if available, else en)
-              const groupLang = contentTranslations['zh'] ? 'zh' : 'en';
+              // Groups use default language (zh if available for both title and content, else en)
+              const groupLang = hasLang('zh') ? 'zh' : 'en';
               const result = await sendToChat(telegram, chatId, groupLang, true);
-              if (result) sentMessageIds[String(chatId)] = result.message_id;
+              if (result) sentMessageIds[String(chatId)] = { message_id: result.message_id, bot_id: announcement.announcement_bot_id };
               sentCount++;
             } catch (err: any) {
               console.error('Failed to send announcement to group:', chatId, err?.response?.data || err?.message);
@@ -437,7 +451,7 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
             await Promise.all(batch.map(async (user) => {
               try {
                 const result = await sendToChat(telegram, user.telegram_id, user.language_code, false);
-                if (result) sentMessageIds[String(user.telegram_id)] = result.message_id;
+                if (result) sentMessageIds[String(user.telegram_id)] = { message_id: result.message_id, bot_id: bot.id };
                 sentCount++;
               } catch (err: any) {
                 console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
@@ -463,7 +477,7 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
             await Promise.all(batch.map(async (user) => {
               try {
                 const result = await sendToChat(telegram, user.telegram_id, user.language_code, false);
-                if (result) sentMessageIds[String(user.telegram_id)] = result.message_id;
+                if (result) sentMessageIds[String(user.telegram_id)] = { message_id: result.message_id, bot_id: announcement.announcement_bot_id };
                 sentCount++;
               } catch (err: any) {
                 console.error('Failed to send announcement to user:', user.telegram_id, err?.response?.data || err?.message);
@@ -491,7 +505,8 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       const botResult = await query('SELECT token FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
       if (botResult.rows.length > 0) {
         const telegram = new TelegramAPI(botResult.rows[0].token);
-        for (const [chatId, messageId] of Object.entries(sentMessageIds)) {
+        for (const [chatId, val] of Object.entries(sentMessageIds)) {
+          const messageId = typeof val === 'object' ? val.message_id : Number(val);
           try {
             await telegram.pinChatMessage(chatId, messageId);
           } catch (err: any) {
@@ -522,28 +537,41 @@ router.delete('/:id/messages', authenticateAdmin, async (req: AuthRequest, res) 
     }
 
     const announcement = annResult.rows[0];
-    const sentMessageIds: Record<string, number> = announcement.sent_message_ids || {};
+    // Support both new format { message_id, bot_id } and legacy format (number)
+    const sentMessageIds: Record<string, { message_id: number; bot_id: string } | number> =
+      announcement.sent_message_ids || {};
 
-    if (!announcement.announcement_bot_id) {
-      return res.json({ success: true, deleted_count: 0, failed_count: 0 });
-    }
-
-    const botResult = await query('SELECT token FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
-    if (botResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Bot not found' });
-    }
-
-    const telegram = new TelegramAPI(botResult.rows[0].token);
     let deletedCount = 0;
     let failedCount = 0;
 
-    for (const [chatId, messageId] of Object.entries(sentMessageIds)) {
-      try {
-        await telegram.deleteMessage(chatId, Number(messageId));
-        deletedCount++;
-      } catch (err: any) {
-        console.error('Failed to delete message in chat:', chatId, messageId, err?.response?.data || err?.message);
+    // Group messages by bot_id so each bot deletes only its own messages
+    const byBot: Record<string, Array<{ chatId: string; messageId: number }>> = {};
+    for (const [chatId, val] of Object.entries(sentMessageIds)) {
+      const botId = typeof val === 'object' ? val.bot_id : (announcement.announcement_bot_id || '');
+      const messageId = typeof val === 'object' ? val.message_id : Number(val);
+      if (!botId) {
         failedCount++;
+        continue;
+      }
+      if (!byBot[botId]) byBot[botId] = [];
+      byBot[botId].push({ chatId, messageId });
+    }
+
+    for (const [botId, items] of Object.entries(byBot)) {
+      const botResult = await query('SELECT token FROM bots WHERE id = $1', [botId]);
+      if (botResult.rows.length === 0) {
+        failedCount += items.length;
+        continue;
+      }
+      const telegram = new TelegramAPI(botResult.rows[0].token);
+      for (const { chatId, messageId } of items) {
+        try {
+          await telegram.deleteMessage(chatId, messageId);
+          deletedCount++;
+        } catch (err: any) {
+          console.error('Failed to delete message in chat:', chatId, messageId, err?.response?.data || err?.message);
+          failedCount++;
+        }
       }
     }
 
