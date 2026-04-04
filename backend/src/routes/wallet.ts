@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
 import { authenticateBot, AuthRequest } from '../middleware/auth';
+import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
 import { getUserBalance, validateTransfer, validateWithdrawal } from '../services/balance.service';
 import { generateUserDepositAddress, getUserDepositAddresses } from '../services/deposit.service';
 import { walletLimiter } from '../middleware/rateLimiter';
@@ -236,12 +237,38 @@ router.get('/balance/:userId', authenticateBot, async (req: AuthRequest, res) =>
 /**
  * POST /api/wallet/transfer
  * Transfer funds between users
- * Body: { from_user_id, to_identifier, amount, memo }
+ * Body: { from_user_id?, to_identifier, amount, memo?, password? }
  * to_identifier can be robot_user_id or username
+ * Supports both Bot token (X-Bot-Token) and MiniApp session token (X-Session-Token) auth.
+ * When password is provided it is validated against the sender's withdraw_password.
  */
-router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
+router.post('/transfer', async (req, res, next) => {
+  // Try MiniApp session auth first; fall back to bot auth
+  const sessionToken = (req.headers['x-session-token'] as string | undefined) ||
+                       (req.headers['authorization'] as string | undefined);
+  if (sessionToken && req.headers['x-session-token']) {
+    return authenticateMiniApp(req as MiniAppAuthRequest, res, next);
+  }
+  return authenticateBot(req as AuthRequest, res, next);
+}, async (req, res) => {
   try {
-    const { from_user_id, to_identifier, amount, memo } = req.body;
+    const miniReq = req as MiniAppAuthRequest;
+    const botReq = req as AuthRequest;
+
+    const { to_identifier, amount, memo, password } = req.body;
+    // from_user_id: prefer miniapp session (resolved via telegramId), else body
+    let from_user_id: string | number | undefined = req.body.from_user_id;
+
+    // If authenticated via MiniApp session, resolve the DB user id from telegram_id
+    if (miniReq.telegramUser?.id) {
+      const userLookup = await query(
+        `SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`,
+        [miniReq.telegramUser.id]
+      );
+      if (userLookup.rows.length > 0) {
+        from_user_id = userLookup.rows[0].id;
+      }
+    }
 
     if (!from_user_id || !to_identifier || !amount) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -252,8 +279,59 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid transfer amount' });
     }
 
+    // If a password is provided, verify it against the sender's withdraw_password
+    if (password !== undefined && password !== null && password !== '') {
+      const pwResult = await query(
+        `SELECT withdraw_password, withdraw_password_attempts, withdraw_password_locked_until
+         FROM users WHERE id = $1`,
+        [from_user_id]
+      );
+      if (pwResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Sender not found' });
+      }
+      const { withdraw_password, withdraw_password_attempts, withdraw_password_locked_until } = pwResult.rows[0];
+
+      // Check if account is locked
+      if (withdraw_password_locked_until) {
+        const lockedUntil = new Date(withdraw_password_locked_until);
+        if (lockedUntil > new Date()) {
+          const minutesLeft = Math.ceil((lockedUntil.getTime() - Date.now()) / 60000);
+          return res.status(401).json({ error: `Too many failed attempts. Try again in ${minutesLeft} minute(s).` });
+        }
+      }
+
+      if (!withdraw_password) {
+        return res.status(401).json({ error: 'Withdraw password not set. Please set one first.' });
+      }
+
+      const passwordValid = await bcrypt.compare(String(password), withdraw_password);
+      if (!passwordValid) {
+        // Increment failed attempts
+        const newAttempts = (withdraw_password_attempts || 0) + 1;
+        if (newAttempts >= WITHDRAW_PASSWORD_MAX_ATTEMPTS) {
+          const lockedUntil = new Date(Date.now() + WITHDRAW_PASSWORD_LOCK_MINUTES * 60 * 1000);
+          await query(
+            `UPDATE users SET withdraw_password_attempts = $1, withdraw_password_locked_until = $2 WHERE id = $3`,
+            [newAttempts, lockedUntil, from_user_id]
+          );
+        } else {
+          await query(
+            `UPDATE users SET withdraw_password_attempts = $1 WHERE id = $2`,
+            [newAttempts, from_user_id]
+          );
+        }
+        return res.status(401).json({ error: 'Incorrect transfer password' });
+      }
+
+      // Password correct — reset attempt counter
+      await query(
+        `UPDATE users SET withdraw_password_attempts = 0, withdraw_password_locked_until = NULL WHERE id = $1`,
+        [from_user_id]
+      );
+    }
+
     // Validate transfer (amount/format checks only — balance re-checked inside transaction)
-    const validation = await validateTransfer(from_user_id, transferAmount);
+    const validation = await validateTransfer(Number(from_user_id), transferAmount);
     if (!validation.valid) {
       return res.status(400).json({ error: validation.error });
     }
@@ -382,7 +460,7 @@ router.post('/transfer', authenticateBot, async (req: AuthRequest, res) => {
 
     // TODO: Send notification to recipient via Bot
     notifyTransferParties(
-      from_user_id,
+      Number(from_user_id),
       recipient.id,
       recipient.first_name || recipient.username || String(recipient.id),
       transferAmount,

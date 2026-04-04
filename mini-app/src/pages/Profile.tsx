@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { useTelegram } from '../hooks/useTelegram';
-import { getTransactions, getAnnouncements, api } from '../services/api';
+import { getTransactions, getAnnouncements, api, verifyQRCode, submitTransferWithPassword } from '../services/api';
 import { useLang } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { useAuthSync } from '../context/AuthSyncContext';
@@ -75,7 +75,7 @@ const TX_TYPE_LABEL_KEYS: Record<string, { labelKey: string; icon: string }> = {
   nft_purchase: { labelKey: 'tx_product_purchase', icon: '💎' },
 };
 
-type ProfileView = 'main' | 'orders' | 'trading_orders' | 'agreement' | 'announcements' | 'language';
+type ProfileView = 'main' | 'orders' | 'trading_orders' | 'agreement' | 'announcements' | 'language' | 'scan_confirm_recipient' | 'scan_enter_amount' | 'scan_confirm_transfer' | 'scan_enter_password' | 'scan_result';
 
 const TX_FILTER_TABS = [
   { key: 'all',        labelKey: 'tx_filter_all' },
@@ -138,6 +138,15 @@ export const Profile: React.FC = () => {
   const [tradingOrdersPage, setTradingOrdersPage] = useState(1);
   const [tradingOrdersHasMore, setTradingOrdersHasMore] = useState(false);
   const tradingOrdersPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Scan QR payment flow state
+  const [scanRecipient, setScanRecipient] = useState<{uid: string; name: string; unique_id: string} | null>(null);
+  const [scanAmount, setScanAmount] = useState('');
+  const [scanAmountError, setScanAmountError] = useState('');
+  const [scanPassword, setScanPassword] = useState('');
+  const [scanPasswordError, setScanPasswordError] = useState('');
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<any | null>(null);
 
   // Use contextUser (set by App-level auth flow) as the single source of truth
   const profile = contextUser;
@@ -915,6 +924,264 @@ export const Profile: React.FC = () => {
     );
   }
 
+  // ─── Scan QR flow handlers ────────────────────────────────────────────────
+
+  const handleScanQR = () => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.showScanQrPopup) {
+      alert(t('scan_not_available'));
+      return;
+    }
+    tg.showScanQrPopup({ text: t('scan_qr_hint') }, async (data: string) => {
+      tg.closeScanQrPopup();
+      if (!data) return;
+      setScanLoading(true);
+      try {
+        const result = await verifyQRCode(data);
+        if (!result.valid) {
+          if (result.expired) {
+            alert(t('scan_qr_expired'));
+          } else {
+            alert(t('scan_qr_invalid'));
+          }
+          return;
+        }
+        const u = result.user;
+        setScanRecipient({ uid: u.unique_id || u.uid, name: u.first_name || u.username || u.uid, unique_id: u.unique_id || u.uid });
+        setScanAmount('');
+        setScanAmountError('');
+        setScanPassword('');
+        setScanPasswordError('');
+        setScanResult(null);
+        setView('scan_confirm_recipient');
+      } catch {
+        alert(t('scan_qr_invalid'));
+      } finally {
+        setScanLoading(false);
+      }
+    });
+  };
+
+  const handleScanConfirmAmount = () => {
+    const amt = parseFloat(scanAmount);
+    const balance = parseFloat(String(profile?.wallet_balance || '0'));
+    if (!scanAmount || isNaN(amt) || amt <= 0) {
+      setScanAmountError(t('scan_amount_invalid'));
+      return;
+    }
+    const fee = amt * 0.02;
+    const total = amt + fee;
+    if (total > balance) {
+      setScanAmountError(t('scan_balance_insufficient').replace('{balance}', balance.toFixed(2)));
+      return;
+    }
+    setScanAmountError('');
+    setView('scan_confirm_transfer');
+  };
+
+  const handleScanSubmitTransfer = async () => {
+    if (!scanPassword || scanPassword.length < 4) {
+      setScanPasswordError(t('scan_password_invalid'));
+      return;
+    }
+    if (!scanRecipient) return;
+    setScanPasswordError('');
+    setScanLoading(true);
+    try {
+      const result = await submitTransferWithPassword({
+        to_identifier: scanRecipient.unique_id,
+        amount: parseFloat(scanAmount),
+        password: scanPassword,
+      });
+      setScanResult(result);
+      setView('scan_result');
+      // Refresh balance after successful transfer
+      refreshBalance().catch(() => {});
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || t('scan_transfer_failed');
+      setScanPasswordError(msg);
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  if (view === 'scan_confirm_recipient' && scanRecipient) {
+    return (
+      <div style={{ padding: '16px' }}>
+        <div onClick={() => setView('main')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
+          {t('back')}
+        </div>
+        <h2 style={{ color: theme.text, marginBottom: '16px' }}>{t('scan_qr_confirm_title')}</h2>
+        <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '16px', border: `1px solid ${theme.border}` }}>
+          <div style={{ color: theme.accent, marginBottom: '8px', fontSize: '13px' }}>{t('scan_qr_verified')}</div>
+          <div style={{ color: theme.text, fontSize: '18px', fontWeight: '600' }}>{scanRecipient.name}</div>
+          <div style={{ color: theme.textSecondary, fontSize: '13px' }}>ID: {scanRecipient.unique_id}</div>
+        </div>
+        <button
+          onClick={() => setView('scan_enter_amount')}
+          style={{ width: '100%', padding: '14px', backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', cursor: 'pointer' }}
+        >
+          {t('confirm')}
+        </button>
+        <button
+          onClick={() => setView('main')}
+          style={{ width: '100%', padding: '14px', backgroundColor: 'transparent', color: theme.textSecondary, border: `1px solid ${theme.border}`, borderRadius: '10px', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}
+        >
+          {t('cancel')}
+        </button>
+      </div>
+    );
+  }
+
+  if (view === 'scan_enter_amount' && scanRecipient) {
+    const balance = parseFloat(String(profile?.wallet_balance || '0'));
+    const amt = parseFloat(scanAmount) || 0;
+    const fee = amt > 0 ? (amt * 0.02).toFixed(4) : '0.00';
+    const actual = amt > 0 ? amt.toFixed(2) : '0.00';
+    return (
+      <div style={{ padding: '16px' }}>
+        <div onClick={() => setView('scan_confirm_recipient')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
+          {t('back')}
+        </div>
+        <h2 style={{ color: theme.text, marginBottom: '8px' }}>{t('scan_enter_amount')}</h2>
+        <div style={{ color: theme.textSecondary, fontSize: '13px', marginBottom: '16px' }}>
+          {t('scan_amount_hint').replace('{balance}', balance.toFixed(2))}
+        </div>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={scanAmount}
+          onChange={e => { setScanAmount(e.target.value); setScanAmountError(''); }}
+          placeholder="0.00"
+          style={{ width: '100%', padding: '14px', fontSize: '20px', backgroundColor: theme.bgCard, color: theme.text, border: `1px solid ${scanAmountError ? '#ff4d4f' : theme.border}`, borderRadius: '10px', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {scanAmountError && <div style={{ color: '#ff4d4f', fontSize: '13px', marginTop: '6px' }}>{scanAmountError}</div>}
+        {amt > 0 && (
+          <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '8px' }}>
+            {t('scan_fee_hint').replace('{fee}', fee).replace('{actual}', actual)}
+          </div>
+        )}
+        <button
+          onClick={handleScanConfirmAmount}
+          style={{ width: '100%', padding: '14px', backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', cursor: 'pointer', marginTop: '16px' }}
+        >
+          {t('confirm')}
+        </button>
+      </div>
+    );
+  }
+
+  if (view === 'scan_confirm_transfer' && scanRecipient) {
+    const amt = parseFloat(scanAmount);
+    const fee = (amt * 0.02).toFixed(4);
+    const actual = amt.toFixed(2);
+    const total = (amt + parseFloat(fee)).toFixed(4);
+    return (
+      <div style={{ padding: '16px' }}>
+        <div onClick={() => setView('scan_enter_amount')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
+          {t('back')}
+        </div>
+        <h2 style={{ color: theme.text, marginBottom: '16px' }}>{t('scan_confirm_title')}</h2>
+        {[
+          [t('scan_confirm_to'), scanRecipient.name],
+          [t('scan_confirm_amount'), `${amt.toFixed(2)} USDT`],
+          [t('scan_confirm_fee'), `${fee} USDT`],
+          [t('scan_confirm_actual'), `${actual} USDT`],
+        ].map(([label, value]) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: `1px solid ${theme.border}` }}>
+            <span style={{ color: theme.textSecondary }}>{label}</span>
+            <span style={{ color: theme.text, fontWeight: '500' }}>{value}</span>
+          </div>
+        ))}
+        <button
+          onClick={() => setView('scan_enter_password')}
+          style={{ width: '100%', padding: '14px', backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', cursor: 'pointer', marginTop: '20px' }}
+        >
+          {t('confirm')}
+        </button>
+        <button
+          onClick={() => setView('main')}
+          style={{ width: '100%', padding: '14px', backgroundColor: 'transparent', color: theme.textSecondary, border: `1px solid ${theme.border}`, borderRadius: '10px', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}
+        >
+          {t('cancel')}
+        </button>
+      </div>
+    );
+  }
+
+  if (view === 'scan_enter_password') {
+    return (
+      <div style={{ padding: '16px' }}>
+        <div onClick={() => setView('scan_confirm_transfer')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
+          {t('back')}
+        </div>
+        <h2 style={{ color: theme.text, marginBottom: '8px' }}>{t('scan_enter_password')}</h2>
+        <div style={{ color: theme.textSecondary, fontSize: '13px', marginBottom: '16px' }}>{t('scan_password_hint')}</div>
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={6}
+          value={scanPassword}
+          onChange={e => { setScanPassword(e.target.value); setScanPasswordError(''); }}
+          placeholder="••••••"
+          style={{ width: '100%', padding: '14px', fontSize: '20px', letterSpacing: '8px', backgroundColor: theme.bgCard, color: theme.text, border: `1px solid ${scanPasswordError ? '#ff4d4f' : theme.border}`, borderRadius: '10px', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {scanPasswordError && <div style={{ color: '#ff4d4f', fontSize: '13px', marginTop: '6px' }}>{scanPasswordError}</div>}
+        <button
+          onClick={handleScanSubmitTransfer}
+          disabled={scanLoading}
+          style={{ width: '100%', padding: '14px', backgroundColor: scanLoading ? theme.border : theme.accent, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', cursor: scanLoading ? 'not-allowed' : 'pointer', marginTop: '16px' }}
+        >
+          {scanLoading ? t('scan_submitting') : t('confirm')}
+        </button>
+      </div>
+    );
+  }
+
+  if (view === 'scan_result' && scanResult) {
+    const data = scanResult.data || scanResult;
+    const balance = parseFloat(String(profile?.wallet_balance || '0'));
+    return (
+      <div style={{ padding: '16px', textAlign: 'center' }}>
+        <h2 style={{ color: theme.accent, marginBottom: '16px', fontSize: '22px' }}>{t('scan_success_title')}</h2>
+        <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '20px', border: `1px solid ${theme.border}`, textAlign: 'left' }}>
+          {[
+            [t('scan_order_id'), data.order_id || '—'],
+            [t('scan_transfer_to'), scanRecipient?.name || '—'],
+            [t('scan_transfer_amount'), `${parseFloat(data.amount || scanAmount).toFixed(2)} USDT`],
+            [t('scan_transfer_fee'), `${parseFloat(data.fee || '0').toFixed(4)} USDT`],
+            [t('scan_transfer_actual'), `${parseFloat(data.actual_received || scanAmount).toFixed(2)} USDT`],
+            [t('scan_current_balance'), `${balance.toFixed(2)} USDT`],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${theme.border}` }}>
+              <span style={{ color: theme.textSecondary, fontSize: '13px' }}>{label}</span>
+              <span style={{ color: theme.text, fontWeight: '500', fontSize: '13px' }}>{value}</span>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => {
+            setScanRecipient(null); setScanAmount(''); setScanPassword(''); setScanResult(null);
+            setView('main');
+          }}
+          style={{ width: '100%', padding: '14px', backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', cursor: 'pointer', marginBottom: '10px' }}
+        >
+          {t('scan_back_home')}
+        </button>
+        <button
+          onClick={() => {
+            setScanAmount(''); setScanPassword(''); setScanResult(null);
+            setView('scan_confirm_recipient');
+          }}
+          style={{ width: '100%', padding: '14px', backgroundColor: 'transparent', color: theme.textSecondary, border: `1px solid ${theme.border}`, borderRadius: '10px', fontSize: '16px', cursor: 'pointer' }}
+        >
+          {t('scan_transfer_again')}
+        </button>
+      </div>
+    );
+  }
+
   // Main view
   return (
     <div style={{ padding: '16px', paddingBottom: '80px' }}>
@@ -1033,6 +1300,21 @@ export const Profile: React.FC = () => {
             💡 {profile.wallet_tip_message}
           </div>
         ) : null}
+      </div>
+
+      {/* Scan to Pay button */}
+      <div
+        onClick={handleScanQR}
+        style={{
+          backgroundColor: theme.accent, borderRadius: '12px', padding: '16px',
+          marginBottom: '10px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          cursor: scanLoading ? 'not-allowed' : 'pointer',
+          opacity: scanLoading ? 0.7 : 1,
+        }}
+      >
+        <span style={{ color: '#fff', fontWeight: '600' }}>{t('scan_to_pay')}</span>
+        <span style={{ color: 'rgba(255,255,255,0.8)' }}>›</span>
       </div>
 
       {/* Menu items */}
