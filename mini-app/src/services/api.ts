@@ -201,3 +201,19 @@ export async function getAgreement() {
   return response.data;
 }
 
+
+// ─── QR Code Payment ──────────────────────────────────────────────────────────
+
+export async function verifyQRCode(content: string) {
+  const response = await api.post('/qrcode/verify', { content });
+  return response.data;
+}
+
+export async function submitTransferWithPassword(params: {
+  to_identifier: string;
+  amount: number;
+  password: string;
+}) {
+  const response = await api.post('/wallet/transfer', params);
+  return response.data;
+}

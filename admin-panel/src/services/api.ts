@@ -846,6 +846,11 @@ class ApiClient {
     const response = await this.client.post(`/charity/projects/${id}/translate`);
     return response.data;
   }
+
+  async generateUserQRCode(data: { user_id: string; expires_months?: number }) {
+    const response = await this.client.post('/admin/qrcode/generate', data);
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();
