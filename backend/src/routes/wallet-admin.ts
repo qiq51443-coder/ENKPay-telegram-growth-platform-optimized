@@ -688,9 +688,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           }
         }
         const { telegram_id, language_code, bot_token } = userResult.rows[0];
-        // Normalize language code: zh-hans/zh-cn/zh-tw → zh; keep first 2 chars for others
-        const rawLang = (language_code || '').toLowerCase();
-        const lang = rawLang.startsWith('zh') ? 'zh' : (rawLang.slice(0, 2) || 'en');
+        const lang = language_code || 'en';
         const tg = new TelegramAPI(bot_token);
 
         // Resolve network display name for notification
