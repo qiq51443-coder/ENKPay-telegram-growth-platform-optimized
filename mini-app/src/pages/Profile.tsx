@@ -565,6 +565,7 @@ export const Profile: React.FC = () => {
                       </span>
                     </div>
                   )}
+                  {/* deposit type description (transaction hash) is intentionally not displayed */}
                   {tx.description && !isTransferType && tx.type !== 'deposit' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <span style={{ color: theme.textSecondary, flexShrink: 0 }}>
