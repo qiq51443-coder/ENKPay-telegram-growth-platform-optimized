@@ -120,9 +120,9 @@ async function getOrCreateUser(ctx: Context, botId: string, inviteCodeUsed?: str
     // Update profile fields and last_active_at
     const updated = await query(
       `UPDATE users 
-       SET username = $1, first_name = $2, last_name = $3, last_active_at = NOW()
-       WHERE id = $4 RETURNING *`,
-      [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, existing.rows[0].id]
+       SET username = $1, first_name = $2, last_name = $3, language_code = $4, last_active_at = NOW()
+       WHERE id = $5 RETURNING *`,
+      [tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, tgUser.language_code || null, existing.rows[0].id]
     );
     const user = updated.rows[0];
 
