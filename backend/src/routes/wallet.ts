@@ -333,7 +333,7 @@ router.post('/transfer', async (req, res, next) => {
     }
 
     // Validate transfer (amount/format checks only — balance re-checked inside transaction)
-    const validation = await validateTransfer(from_user_id as string, transferAmount);
+    const validation = await validateTransfer(from_user_id, transferAmount);
     if (!validation.valid) {
       return res.status(400).json({ error: validation.error });
     }
