@@ -351,11 +351,15 @@ router.post('/transfer', async (req, res, next) => {
     }
     const senderBotId = senderBotResult.rows[0].bot_id;
 
-    // Find recipient user by robot_user_id or username, restricted to the same bot
+    // Find recipient user by unique_id (globally unique, no bot restriction) or
+    // by robot_user_id/username restricted to the same bot.
+    // unique_id is used by the MiniApp scan-to-pay flow; robot_user_id/username
+    // are used by bot transfer commands.
     const recipientResult = await query(
       `SELECT id, telegram_id, username, first_name 
        FROM users 
-       WHERE (robot_user_id = $1 OR username = $1) AND bot_id = $2`,
+       WHERE unique_id = $1
+         OR ((robot_user_id = $1 OR username = $1) AND bot_id = $2)`,
       [to_identifier, senderBotId]
     );
 
