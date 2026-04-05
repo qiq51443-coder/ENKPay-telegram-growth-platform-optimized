@@ -122,7 +122,8 @@ async function notifyTransferParties(
   amount: number,
   fee: number,
   actualReceived: number,
-  orderId: string
+  orderId: string,
+  transferType?: string
 ): Promise<void> {
   // Fetch sender info (telegram_id, language_code, updated balance, bot_token)
   const senderResult = await query(
@@ -150,7 +151,7 @@ async function notifyTransferParties(
       try {
         const lang = language_code || 'en';
         const template = getNotifyTemplate(lang, 'transfer_sent_notify');
-        const message = formatNotification(template, {
+        let message = formatNotification(template, {
           order_id: orderId,
           recipient: recipientDisplayName,
           amount: amount.toFixed(2),
@@ -158,6 +159,9 @@ async function notifyTransferParties(
           actual: actualReceived.toFixed(2),
           balance: parseFloat(wallet_balance || '0').toFixed(2),
         });
+        if (transferType === 'scan_transfer') {
+          message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
+        }
         const tg = new TelegramAPI(bot_token);
         await tg.sendMessage(telegram_id, message);
       } catch (err) {
@@ -176,12 +180,15 @@ async function notifyTransferParties(
           ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
           : String(senderId);
         const template = getNotifyTemplate(lang, 'transfer_received_notify');
-        const message = formatNotification(template, {
+        let message = formatNotification(template, {
           order_id: orderId,
           sender: senderDisplay,
           amount: actualReceived.toFixed(2),
           balance: parseFloat(wallet_balance || '0').toFixed(2),
         });
+        if (transferType === 'scan_transfer') {
+          message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
+        }
         const tg = new TelegramAPI(bot_token);
         await tg.sendMessage(telegram_id, message);
       } catch (err) {
@@ -468,7 +475,8 @@ router.post('/transfer', async (req, res, next) => {
       transferAmount,
       fee,
       actualReceived,
-      transferOrderId
+      transferOrderId,
+      transfer_type || 'transfer'
     ).catch((err) => console.error('Transfer notification failed:', err));
   } catch (error: any) {
     console.error('Transfer error:', error);

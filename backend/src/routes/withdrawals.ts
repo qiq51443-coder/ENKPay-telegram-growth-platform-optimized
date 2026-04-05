@@ -143,27 +143,41 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
 
         if (userResult.rows.length > 0) {
           const { telegram_id, language_code, wallet_balance } = userResult.rows[0];
-          const rawLang = (language_code || '').toLowerCase();
-          const lang = rawLang.startsWith('zh') ? 'zh' : (rawLang.slice(0, 2) || 'en');
+          const lang = language_code || 'en';
           const currentBalance = parseFloat(wallet_balance || '0').toFixed(2);
           const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
           const fee = parseFloat(withdrawal.fee || '0').toFixed(2);
           const actual = (parseFloat(withdrawal.amount) - parseFloat(withdrawal.fee || '0')).toFixed(2);
+          const reviewedAt = withdrawal.reviewed_at
+            ? new Date(withdrawal.reviewed_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+            : new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+          const createdAt = withdrawal.created_at
+            ? new Date(withdrawal.created_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+            : '-';
 
           let notificationMessage: string;
           if (status === 'approved') {
             const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
             notificationMessage = formatNotification(template, {
+              order_id: withdrawal.order_id || '-',
               amount: withdrawAmount,
               fee,
               actual,
               address: withdrawal.wallet_address || '',
+              network: withdrawal.network_name || '-',
+              time: reviewedAt,
+              created_at: createdAt,
               balance: currentBalance,
             });
           } else {
             const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
             notificationMessage = formatNotification(template, {
+              order_id: withdrawal.order_id || '-',
               amount: withdrawAmount,
+              address: withdrawal.wallet_address || '',
+              network: withdrawal.network_name || '-',
+              time: reviewedAt,
+              created_at: createdAt,
               balance: currentBalance,
               reason: admin_note || '-',
             });

@@ -140,6 +140,23 @@ export const Withdrawals: React.FC = () => {
       ),
     },
     {
+      title: '实际需要转出金额',
+      key: 'actual_transfer',
+      width: 140,
+      render: (_: any, record: Withdrawal) => {
+        const amount = parseFloat(String(record.amount ?? 0));
+        const fee = parseFloat(String(record.fee ?? 0));
+        const actual = record.actual_amount !== undefined
+          ? parseFloat(String(record.actual_amount))
+          : amount - fee;
+        return (
+          <span style={{ color: 'red', fontFamily: 'monospace', fontWeight: 'bold' }}>
+            {actual.toFixed(2)}USDT
+          </span>
+        );
+      },
+    },
+    {
       title: '钱包地址',
       dataIndex: 'wallet_address',
       key: 'wallet_address',
@@ -308,6 +325,19 @@ export const Withdrawals: React.FC = () => {
               <div style={{ color: '#666', marginBottom: 4 }}>提现金额</div>
               <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                 ${parseFloat(String(selectedWithdrawal.amount ?? 0)).toFixed(2)}
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: '#666', marginBottom: 4 }}>实际转出金额</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace', color: 'red' }}>
+                {(() => {
+                  const amount = parseFloat(String(selectedWithdrawal.amount ?? 0));
+                  const fee = parseFloat(String(selectedWithdrawal.fee ?? 0));
+                  const actual = selectedWithdrawal.actual_amount !== undefined
+                    ? parseFloat(String(selectedWithdrawal.actual_amount))
+                    : amount - fee;
+                  return actual.toFixed(2) + 'USDT';
+                })()}
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>
