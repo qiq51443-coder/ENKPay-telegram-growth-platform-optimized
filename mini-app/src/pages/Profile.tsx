@@ -524,58 +524,59 @@ export const Profile: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: theme.textSecondary }}>金额</span>
+                    <span style={{ color: theme.textSecondary }}>{t('detail_amount')}</span>
                     <span style={{ color: amtColor, fontWeight: '700', fontSize: '15px', fontFamily: 'monospace' }}>{amtStr}</span>
                   </div>
                   {tx.balance_after != null && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>余额</span>
+                      <span style={{ color: theme.textSecondary }}>{t('detail_balance')}</span>
                       <span style={{ color: theme.text, fontFamily: 'monospace' }}>{parseFloat(String(tx.balance_after)).toFixed(2)} USDT</span>
                     </div>
                   )}
                   {tx.status && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>状态</span>
+                      <span style={{ color: theme.textSecondary }}>{t('detail_status')}</span>
                       <span style={{ color: theme.text }}>{tx.status}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: theme.textSecondary }}>时间</span>
-                    <span style={{ color: theme.text }}>{new Date(tx.created_at).toLocaleString('zh-CN')}</span>
+                    <span style={{ color: theme.textSecondary }}>{t('detail_time')}</span>
+                    <span style={{ color: theme.text }}>{new Date(tx.created_at).toLocaleString()}</span>
                   </div>
                   {tx.order_id && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>订单号</span>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>{t('detail_order_id')}</span>
                       <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{tx.order_id}</span>
                     </div>
                   )}
                   {tx.description && isTransferType && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>类型</span>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>{t('detail_type')}</span>
                       <span style={{ color: theme.text, textAlign: 'right' }}>
-                        {tx.description === 'scan_transfer' ? '扫码转账' : '转账'}
+                        {tx.description === 'scan_transfer' ? t('detail_transfer_type_scan') : t('detail_transfer_type_normal')}
                       </span>
                     </div>
                   )}
                   {(tx.counterparty_name || tx.counterparty_uid) && isTransferType && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>交易对象</span>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>{t('detail_counterparty')}</span>
                       <span style={{ color: theme.text, textAlign: 'right' }}>
                         {tx.counterparty_name}{tx.counterparty_uid ? ` (${tx.counterparty_uid})` : ''}
                       </span>
                     </div>
                   )}
-                  {tx.description && !isTransferType && (
+                  {/* deposit type description (transaction hash) is intentionally not displayed */}
+                  {tx.description && !isTransferType && tx.type !== 'deposit' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <span style={{ color: theme.textSecondary, flexShrink: 0 }}>
-                        {tx.type === 'withdrawal' ? '提现地址' : tx.type === 'deposit' ? '交易哈希' : '描述'}
+                        {tx.type === 'withdrawal' ? t('detail_withdraw_address') : t('detail_description')}
                       </span>
                       <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{tx.description}</span>
                     </div>
                   )}
                   {(tx.type === 'trade_win' || tx.type === 'trade_loss') && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>方向</span>
+                      <span style={{ color: theme.textSecondary }}>{t('order_direction')}</span>
                       <span style={{ color: tx.type === 'trade_win' ? theme.success : '#ef4444', fontWeight: '700' }}>
                         {tx.type === 'trade_win' ? 'WIN' : 'LOSS'}
                       </span>
@@ -638,7 +639,7 @@ export const Profile: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: theme.textSecondary }}>结果</span>
+                    <span style={{ color: theme.textSecondary }}>{t('detail_result')}</span>
                     <span style={{ color: resultColor, fontWeight: '700' }}>
                       {isWin ? t('order_win_label') : isDraw ? t('order_draw_label') : t('order_lose_label')}
                     </span>
@@ -649,7 +650,7 @@ export const Profile: React.FC = () => {
                   </div>
                   {(isWin || isDraw) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>收益</span>
+                      <span style={{ color: theme.textSecondary }}>{t('detail_profit')}</span>
                       <span style={{ color: goldColor, fontFamily: 'monospace', fontWeight: '700' }}>
                         +{isWin ? safeFixed(Number(order.amount) * Number(order.odds)) : safeFixed(order.amount)} USDT
                       </span>
@@ -657,7 +658,7 @@ export const Profile: React.FC = () => {
                   )}
                   {isLose && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>亏损</span>
+                      <span style={{ color: theme.textSecondary }}>{t('detail_loss')}</span>
                       <span style={{ color: '#ef4444', fontFamily: 'monospace', fontWeight: '700' }}>-{safeFixed(order.amount)} USDT</span>
                     </div>
                   )}
@@ -678,17 +679,17 @@ export const Profile: React.FC = () => {
                     <span style={{ color: theme.text }}>{periodDisplay}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: theme.textSecondary }}>下单时间</span>
-                    <span style={{ color: theme.text }}>{new Date(order.created_at).toLocaleString('zh-CN')}</span>
+                    <span style={{ color: theme.textSecondary }}>{t('detail_order_time')}</span>
+                    <span style={{ color: theme.text }}>{new Date(order.created_at).toLocaleString()}</span>
                   </div>
                   {order.settled_at && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: theme.textSecondary }}>结算时间</span>
-                      <span style={{ color: theme.text }}>{new Date(order.settled_at).toLocaleString('zh-CN')}</span>
+                      <span style={{ color: theme.textSecondary }}>{t('detail_settle_time')}</span>
+                      <span style={{ color: theme.text }}>{new Date(order.settled_at).toLocaleString()}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                    <span style={{ color: theme.textSecondary, flexShrink: 0 }}>订单号</span>
+                    <span style={{ color: theme.textSecondary, flexShrink: 0 }}>{t('detail_order_id')}</span>
                     <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{order.id}</span>
                   </div>
                 </div>
