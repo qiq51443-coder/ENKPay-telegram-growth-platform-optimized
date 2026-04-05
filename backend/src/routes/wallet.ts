@@ -116,7 +116,7 @@ async function resolveNetworkId(networkId: string | number): Promise<number | nu
  * Errors are caught and logged — notification failure must never affect the transfer.
  */
 async function notifyTransferParties(
-  senderId: number,
+  senderId: string,
   recipientId: number,
   recipientDisplayName: string,
   amount: number,
@@ -489,7 +489,7 @@ router.post('/transfer', async (req, res, next) => {
 
     // TODO: Send notification to recipient via Bot
     notifyTransferParties(
-      Number(from_user_id),
+      String(from_user_id),
       recipient.id,
       recipient.first_name || recipient.username || String(recipient.id),
       transferAmount,

@@ -162,7 +162,7 @@ router.post('/jt-auth', async (req, res) => {
     const sessionToken = crypto.randomBytes(32).toString('hex');
     await setCache(
       sessionTokenKey(sessionToken),
-      { telegramId, botId },
+      { telegramId, botId, languageCode: languageCode || 'zh' },
       86400
     );
 
@@ -487,7 +487,7 @@ router.post('/auth-sync', authenticateMiniApp, async (req: MiniAppAuthRequest, r
     await setCache(
       sessionTokenKey(sessionToken),
       // botId is empty for initData-based auth (no single bot context; telegramId is the identity)
-      { telegramId: tgUser.id, botId: '' },
+      { telegramId: tgUser.id, botId: '', languageCode: tgUser.language_code || 'zh' },
       86400
     );
 
