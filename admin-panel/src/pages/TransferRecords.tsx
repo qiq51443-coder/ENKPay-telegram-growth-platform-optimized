@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, message, DatePicker, Space, Button, Input } from 'antd';
+import { Table, Tag, Select, message, DatePicker, Space, Button, Input } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
+const { Option } = Select;
 
 interface TransferRecord {
   id: string;
@@ -15,6 +16,7 @@ interface TransferRecord {
   actual_amount: number;
   status: string;
   order_id?: string;
+  transfer_type?: string; // 'transfer' | 'scan_transfer'
   created_at: string;
   from_user?: {
     telegram_id: number;
@@ -35,6 +37,7 @@ export const TransferRecords: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [orderIdSearch, setOrderIdSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   useEffect(() => {
     fetchRecords();
@@ -66,7 +69,8 @@ export const TransferRecords: React.FC = () => {
   };
 
   const filteredRecords = records.filter(r =>
-    !orderIdSearch || (r.order_id || '').toLowerCase().includes(orderIdSearch.toLowerCase())
+    (!orderIdSearch || (r.order_id || '').toLowerCase().includes(orderIdSearch.toLowerCase())) &&
+    (!filterType || r.transfer_type === filterType)
   );
 
   const columns = [
@@ -76,6 +80,17 @@ export const TransferRecords: React.FC = () => {
       key: 'id',
       width: 80,
       render: (id: any) => id ? String(id).substring(0, 8) : '-',
+    },
+    {
+      title: '描述',
+      dataIndex: 'transfer_type',
+      key: 'transfer_type',
+      width: 100,
+      render: (type: string) => {
+        if (type === 'scan_transfer') return <span style={{ color: '#1677ff' }}>扫码</span>;
+        if (type === 'transfer') return <span>转账</span>;
+        return '-';
+      },
     },
     {
       title: '发送方',
@@ -215,6 +230,16 @@ export const TransferRecords: React.FC = () => {
             allowClear
             style={{ width: 200 }}
           />
+          <Select
+            placeholder="转账类型"
+            style={{ width: 150 }}
+            value={filterType || undefined}
+            onChange={(v) => setFilterType(v || '')}
+            allowClear
+          >
+            <Option value="transfer">转账</Option>
+            <Option value="scan_transfer">扫码转账</Option>
+          </Select>
           <Button onClick={fetchRecords} icon={<ReloadOutlined />} loading={loading}>
             刷新
           </Button>

@@ -804,6 +804,7 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
       actual_amount: row.actual_amount,
       status: row.status,
       order_id: row.order_id,
+      transfer_type: row.transfer_type,
       created_at: row.created_at,
       from_user: {
         telegram_id: row.from_telegram_id,

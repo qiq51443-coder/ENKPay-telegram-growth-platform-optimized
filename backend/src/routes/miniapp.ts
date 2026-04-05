@@ -223,27 +223,38 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
     const limitNum = isNaN(parsedLimit) || parsedLimit <= 0 ? 50 : Math.min(parsedLimit, 200);
 
     const result = await query(
-      `SELECT id, type, amount, status, created_at, description, order_id
+      `SELECT id, type, amount, status, created_at, description, order_id, counterparty_name, counterparty_uid
        FROM (
          -- Incoming transfers
-         SELECT id::text, 'transfer_in' AS type, amount::numeric, status,
-                created_at, NULL AS description, order_id
-         FROM transfer_records
-         WHERE to_user_id = $1
+         SELECT tr.id::text, 'transfer_in' AS type, tr.amount::numeric, tr.status,
+                tr.created_at,
+                COALESCE(tr.transfer_type, 'transfer') AS description,
+                tr.order_id,
+                fu.first_name AS counterparty_name,
+                fu.unique_id AS counterparty_uid
+         FROM transfer_records tr
+         LEFT JOIN users fu ON tr.from_user_id = fu.id
+         WHERE tr.to_user_id = $1
 
          UNION ALL
 
          -- Outgoing transfers
-         SELECT id::text, 'transfer_out' AS type, amount::numeric, status,
-                created_at, NULL AS description, order_id
-         FROM transfer_records
-         WHERE from_user_id = $1
+         SELECT tr.id::text, 'transfer_out' AS type, tr.amount::numeric, tr.status,
+                tr.created_at,
+                COALESCE(tr.transfer_type, 'transfer') AS description,
+                tr.order_id,
+                tu.first_name AS counterparty_name,
+                tu.unique_id AS counterparty_uid
+         FROM transfer_records tr
+         LEFT JOIN users tu ON tr.to_user_id = tu.id
+         WHERE tr.from_user_id = $1
 
          UNION ALL
 
          -- Deposits
          SELECT id::text, 'deposit' AS type, amount::numeric, status,
-                created_at, tx_hash AS description, NULL AS order_id
+                created_at, tx_hash AS description, NULL AS order_id,
+                NULL AS counterparty_name, NULL AS counterparty_uid
          FROM deposit_records
          WHERE user_id = $1
 
@@ -251,7 +262,8 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
 
          -- Withdrawals
          SELECT id::text, 'withdrawal' AS type, amount::numeric, status,
-                created_at, to_address AS description, order_id
+                created_at, to_address AS description, order_id,
+                NULL AS counterparty_name, NULL AS counterparty_uid
          FROM withdrawal_records
          WHERE user_id = $1
 
@@ -272,7 +284,8 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
                 status,
                 COALESCE(settled_at, created_at) AS created_at,
                 pair_id::text AS description,
-                id::text AS order_id
+                id::text AS order_id,
+                NULL AS counterparty_name, NULL AS counterparty_uid
          FROM trading_orders
          WHERE user_id = $1
            AND status = 'settled'
@@ -291,7 +304,8 @@ router.get('/transactions', authenticateMiniApp, async (req: MiniAppAuthRequest,
                 'completed' AS status,
                 created_at,
                 description,
-                reference_id::text AS order_id
+                reference_id::text AS order_id,
+                NULL AS counterparty_name, NULL AS counterparty_uid
          FROM transactions
          WHERE user_id = $1
            AND type NOT IN (

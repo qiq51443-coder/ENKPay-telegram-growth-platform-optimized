@@ -213,6 +213,7 @@ export async function submitTransferWithPassword(params: {
   to_identifier: string;
   amount: number;
   password: string;
+  transfer_type?: string;
 }) {
   const response = await api.post('/wallet/transfer', params);
   return response.data;
