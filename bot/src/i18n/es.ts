@@ -219,8 +219,8 @@ export const es: Record<string, string> = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *Depósito Acreditado*\n\n💰 Monto: {amount} USDT\n🌐 Red: {network}\n🔗 Hash TX: `{txHash}`\n\n💳 Saldo Actual: *{balance} USDT*\n\n¡Gracias por tu depósito!',
-  withdraw_approved_notify: '✅ *Retiro Aprobado*\n\n📋 Pedido: `{order_id}`\n🌐 Red: {network}\n💰 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n📤 Neto: {actual} USDT\n📍 Dirección: {address}\n🕐 Revisado: {time}\n\n💳 Saldo Actual: *{balance} USDT*',
-  withdraw_rejected_notify: '❌ *Retiro Rechazado*\n\n📋 Pedido: `{order_id}`\n🌐 Red: {network}\n💰 Monto: {amount} USDT\n📍 Dirección: {address}\n🕐 Hora: {time}\n💳 Saldo Restaurado: *{balance} USDT*\n\n📝 Razón: {reason}',
+  withdraw_approved_notify: '✅ *Retiro Aprobado*\n\n📋 Pedido: `{order_id}`\n🌐 Red: {network}\n💰 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n📤 Neto: {actual} USDT\n📍 Dirección: {address}\n🕐 Enviado: {created_at}\n🕐 Revisado: {time}\n\n💳 Saldo Actual: *{balance} USDT*\n\n⚠️ Retiro exitoso. Tenga en cuenta que el monto real recibido ha sido deducido por una tarifa de manejo del 2%.',
+  withdraw_rejected_notify: '❌ *Retiro Rechazado*\n\n📋 Pedido: `{order_id}`\n🌐 Red: {network}\n💰 Monto: {amount} USDT\n📍 Dirección: {address}\n🕐 Enviado: {created_at}\n🕐 Hora: {time}\n\n💳 Saldo Restaurado: *{balance} USDT*\n\n📝 Razón: {reason}\n\n⚠️ Retiro fallido. Los fondos han sido devueltos a tu cuenta ENK.',
   transfer_sent_notify: '📤 *Transferencia Enviada*\n\n👤 Para: {recipient}\n💵 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n✅ Entregado: {actual} USDT\n\n💳 Saldo Actual: *{balance} USDT*',
   transfer_received_notify: '📥 *Transferencia Recibida*\n\n👤 De: {sender}\n✅ Monto: {amount} USDT\n\n💳 Saldo Actual: *{balance} USDT*',
 

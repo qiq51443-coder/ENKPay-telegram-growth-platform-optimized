@@ -232,8 +232,8 @@ export const en = {
 
   // Notification templates (backend-triggered)
   deposit_credited_notify: '✅ *Deposit Credited*\n\n💰 Amount: {amount} USDT\n🌐 Network: {network}\n🔗 TX Hash: `{txHash}`\n\n💳 Current Balance: *{balance} USDT*\n\nThank you for your deposit!',
-  withdraw_approved_notify: '✅ *Withdrawal Approved*\n\n📋 Order: `{order_id}`\n🌐 Network: {network}\n💰 Amount: {amount} USDT\n💸 Fee: {fee} USDT\n📤 Actual: {actual} USDT\n📍 To: {address}\n🕐 Reviewed: {time}\n\n💳 Current Balance: *{balance} USDT*',
-  withdraw_rejected_notify: '❌ *Withdrawal Rejected*\n\n📋 Order: `{order_id}`\n🌐 Network: {network}\n💰 Amount: {amount} USDT\n📍 Address: {address}\n🕐 Time: {time}\n💳 Balance Restored: *{balance} USDT*\n\n📝 Reason: {reason}',
+  withdraw_approved_notify: '✅ *Withdrawal Approved*\n\n📋 Order: `{order_id}`\n🌐 Network: {network}\n💰 Amount: {amount} USDT\n💸 Fee: {fee} USDT\n📤 Actual: {actual} USDT\n📍 To: {address}\n🕐 Submitted: {created_at}\n🕐 Reviewed: {time}\n\n💳 Current Balance: *{balance} USDT*\n\n⚠️ Withdrawal successful. Please note that the actual amount received has been deducted by a 2% handling fee.',
+  withdraw_rejected_notify: '❌ *Withdrawal Rejected*\n\n📋 Order: `{order_id}`\n🌐 Network: {network}\n💰 Amount: {amount} USDT\n📍 Address: {address}\n🕐 Submitted: {created_at}\n🕐 Time: {time}\n\n💳 Balance Restored: *{balance} USDT*\n\n📝 Reason: {reason}\n\n⚠️ Withdrawal failed. Funds have been returned to your ENK account.',
   transfer_sent_notify: '📤 *Transfer Sent*\n\n👤 To: {recipient}\n💵 Amount: {amount} USDT\n💸 Fee: {fee} USDT\n✅ Delivered: {actual} USDT\n\n💳 Current Balance: *{balance} USDT*',
   transfer_received_notify: '📥 *Transfer Received*\n\n👤 From: {sender}\n✅ Amount: {amount} USDT\n\n💳 Current Balance: *{balance} USDT*',
 

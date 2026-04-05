@@ -130,8 +130,8 @@ async function notifyTransferParties(
     `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name, u.username,
             b.token AS bot_token
      FROM users u
-     JOIN bots b ON u.bot_id = b.id
-     WHERE u.id = $1 AND b.is_active = true`,
+     LEFT JOIN bots b ON u.bot_id = b.id
+     WHERE u.id = $1`,
     [senderId]
   );
 
@@ -139,10 +139,30 @@ async function notifyTransferParties(
   const recipientResult = await query(
     `SELECT u.telegram_id, u.language_code, u.wallet_balance, b.token AS bot_token
      FROM users u
-     JOIN bots b ON u.bot_id = b.id
-     WHERE u.id = $1 AND b.is_active = true`,
+     LEFT JOIN bots b ON u.bot_id = b.id
+     WHERE u.id = $1`,
     [recipientId]
   );
+
+  // Fallback bot token: fetched once if either party lacks a bot_token
+  let fallbackBotToken: string | null = null;
+  const needsFallback =
+    (senderResult.rows.length > 0 && !senderResult.rows[0].bot_token) ||
+    (recipientResult.rows.length > 0 && !recipientResult.rows[0].bot_token);
+  if (needsFallback) {
+    const botRes = await query('SELECT token FROM bots WHERE is_active = true LIMIT 1');
+    if (botRes.rows.length > 0) {
+      fallbackBotToken = botRes.rows[0].token;
+    }
+  }
+
+  // Apply fallback token where needed
+  if (senderResult.rows.length > 0 && !senderResult.rows[0].bot_token) {
+    senderResult.rows[0].bot_token = fallbackBotToken;
+  }
+  if (recipientResult.rows.length > 0 && !recipientResult.rows[0].bot_token) {
+    recipientResult.rows[0].bot_token = fallbackBotToken;
+  }
 
   // Notify sender
   if (senderResult.rows.length > 0) {
