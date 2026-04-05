@@ -16,6 +16,8 @@ interface Transaction {
   order_id?: string;
   status?: string;
   created_at: string;
+  counterparty_name?: string;
+  counterparty_uid?: string;
 }
 
 interface Announcement {
@@ -503,6 +505,7 @@ export const Profile: React.FC = () => {
           const isNeg = isTxNegative(tx.type, tx.amount);
           const amtColor = isNeg ? '#ef4444' : theme.success;
           const amtStr = `${isNeg ? '-' : '+'}${Math.abs(parseFloat(String(tx.amount))).toFixed(2)} USDT`;
+          const isTransferType = tx.type === 'transfer_in' || tx.type === 'transfer_out';
           return (
             <div
               onClick={() => setSelectedTx(null)}
@@ -546,7 +549,23 @@ export const Profile: React.FC = () => {
                       <span style={{ color: theme.text, fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', textAlign: 'right' }}>{tx.order_id}</span>
                     </div>
                   )}
-                  {tx.description && (
+                  {tx.description && isTransferType && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>类型</span>
+                      <span style={{ color: theme.text, textAlign: 'right' }}>
+                        {tx.description === 'scan_transfer' ? '扫码转账' : '转账'}
+                      </span>
+                    </div>
+                  )}
+                  {(tx.counterparty_name || tx.counterparty_uid) && isTransferType && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span style={{ color: theme.textSecondary, flexShrink: 0 }}>交易对象</span>
+                      <span style={{ color: theme.text, textAlign: 'right' }}>
+                        {tx.counterparty_name}{tx.counterparty_uid ? ` (${tx.counterparty_uid})` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {tx.description && !isTransferType && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <span style={{ color: theme.textSecondary, flexShrink: 0 }}>
                         {tx.type === 'withdrawal' ? '提现地址' : tx.type === 'deposit' ? '交易哈希' : '描述'}
@@ -969,9 +988,7 @@ export const Profile: React.FC = () => {
       setScanAmountError(t('scan_amount_invalid'));
       return;
     }
-    const fee = amt * 0.02;
-    const total = amt + fee;
-    if (total > balance) {
+    if (amt > balance) {
       setScanAmountError(t('scan_balance_insufficient').replace('{balance}', balance.toFixed(2)));
       return;
     }
@@ -992,6 +1009,7 @@ export const Profile: React.FC = () => {
         to_identifier: scanRecipient.unique_id,
         amount: parseFloat(scanAmount),
         password: scanPassword,
+        transfer_type: 'scan_transfer',
       });
       setScanResult(result);
       setView('scan_result');
@@ -1036,8 +1054,6 @@ export const Profile: React.FC = () => {
   if (view === 'scan_enter_amount' && scanRecipient) {
     const balance = parseFloat(String(profile?.wallet_balance || '0'));
     const amt = parseFloat(scanAmount) || 0;
-    const fee = amt > 0 ? (amt * 0.02).toFixed(4) : '0.00';
-    const actual = amt > 0 ? amt.toFixed(2) : '0.00';
     return (
       <div style={{ padding: '16px' }}>
         <div onClick={() => setView('scan_confirm_recipient')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
@@ -1059,7 +1075,7 @@ export const Profile: React.FC = () => {
         {scanAmountError && <div style={{ color: '#ff4d4f', fontSize: '13px', marginTop: '6px' }}>{scanAmountError}</div>}
         {amt > 0 && (
           <div style={{ color: theme.textSecondary, fontSize: '12px', marginTop: '8px' }}>
-            {t('scan_fee_hint').replace('{fee}', fee).replace('{actual}', actual)}
+            {t('scan_fee_hint')}
           </div>
         )}
         <button
@@ -1074,9 +1090,9 @@ export const Profile: React.FC = () => {
 
   if (view === 'scan_confirm_transfer' && scanRecipient) {
     const amt = parseFloat(scanAmount);
-    const fee = (amt * 0.02).toFixed(4);
+    const fee = (0).toFixed(4); // Fee is 0 for scan transfer
     const actual = amt.toFixed(2);
-    const total = (amt + parseFloat(fee)).toFixed(4);
+    const total = amt.toFixed(4); // Total cost equals amount (no fee)
     return (
       <div style={{ padding: '16px' }}>
         <div onClick={() => setView('scan_enter_amount')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>

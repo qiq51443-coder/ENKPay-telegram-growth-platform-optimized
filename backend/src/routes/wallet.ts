@@ -255,7 +255,7 @@ router.post('/transfer', async (req, res, next) => {
     const miniReq = req as MiniAppAuthRequest;
     const botReq = req as AuthRequest;
 
-    const { to_identifier, amount, memo, password } = req.body;
+    const { to_identifier, amount, memo, password, transfer_type } = req.body;
     // from_user_id: prefer miniapp session (resolved via telegramId), else body
     let from_user_id: string | number | undefined = req.body.from_user_id;
 
@@ -380,15 +380,10 @@ router.post('/transfer', async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot transfer to yourself' });
     }
 
-    // Get transfer fee configuration
-    const configResult = await query(
-      `SELECT value FROM platform_config WHERE key = 'transfer_fee_rate'`
-    );
-    const feeRate = configResult.rows.length > 0 ? parseFloat(configResult.rows[0].value) : 0.02;
-
-    const fee = transferAmount * feeRate;
+    // Fee removed: transfers (regular and QR scan) are now fee-free
+    const fee = 0;
     const actualReceived = transferAmount;
-    const totalCost = transferAmount + fee;
+    const totalCost = transferAmount; // No fee added
 
     // Generate order ID before transaction
     const transferOrderId = await generateOrderId('transfer_records');
@@ -431,8 +426,8 @@ router.post('/transfer', async (req, res, next) => {
       await client.query(
         `INSERT INTO transfer_records 
          (order_id, from_user_id, to_user_id, amount, fee, actual_received, 
-          to_bot_username, to_telegram_id, memo, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed')`,
+          to_bot_username, to_telegram_id, memo, status, transfer_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', $10)`,
         [
           transferOrderId,
           from_user_id,
@@ -443,6 +438,7 @@ router.post('/transfer', async (req, res, next) => {
           recipient.username,
           recipient.telegram_id,
           memo || null,
+          transfer_type || 'transfer',
         ]
       );
     });
