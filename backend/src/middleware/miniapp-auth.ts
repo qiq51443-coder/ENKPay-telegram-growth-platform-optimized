@@ -29,7 +29,7 @@ async function trySessionToken(
   if (!sessionToken) return false;
 
   try {
-    const payload = await getCache<{ telegramId: number; botId: string }>(
+    const payload = await getCache<{ telegramId: number; botId: string; languageCode?: string }>(
       sessionTokenKey(sessionToken)
     );
     if (!payload?.telegramId) {
@@ -40,6 +40,14 @@ async function trySessionToken(
       return false;
     }
     req.telegramUser = { id: payload.telegramId };
+    if (payload.languageCode) {
+      req.telegramUser.language_code = payload.languageCode;
+      // Fire-and-forget: sync language_code to DB without blocking the request
+      query(
+        `UPDATE users SET language_code = $1 WHERE telegram_id = $2`,
+        [payload.languageCode, payload.telegramId]
+      ).catch((err: any) => console.error('[miniapp-auth] Failed to sync language_code:', err?.message));
+    }
     return true;
   } catch (err: any) {
     console.error('[miniapp-auth] session token lookup error:', err?.message);
