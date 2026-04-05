@@ -711,6 +711,11 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           : '-';
 
         if (action === 'approved') {
+          const updatedUser = await query(
+            'SELECT wallet_balance FROM users WHERE id = $1',
+            [result.withdrawal.user_id]
+          );
+          const currentBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
           const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
           const message = formatNotification(template, {
             order_id: result.withdrawal.order_id || '-',
@@ -721,7 +726,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             network: networkDisplay,
             time: reviewedAt,
             created_at: createdAt,
-            balance: parseFloat(userResult.rows[0].wallet_balance || '0').toFixed(2),
+            balance: currentBalance,
           });
           await tg.sendMessage(telegram_id, message);
         } else {
