@@ -20,7 +20,7 @@ interface UserBalance {
 /**
  * Get user balance details with unlock progress
  */
-export async function getUserBalance(userId: number): Promise<UserBalance> {
+export async function getUserBalance(userId: string | number): Promise<UserBalance> {
   const result = await query(
     `SELECT 
       wallet_balance,
@@ -111,7 +111,7 @@ export async function getUserBalance(userId: number): Promise<UserBalance> {
  * - Must have completed first trade
  */
 export async function validateTransfer(
-  fromUserId: number,
+  fromUserId: string | number,
   amount: number
 ): Promise<{ valid: boolean; error?: string }> {
   // Get platform config

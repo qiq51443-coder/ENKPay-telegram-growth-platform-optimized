@@ -222,7 +222,7 @@ router.get('/balance/:userId', authenticateBot, async (req: AuthRequest, res) =>
     }
     const canonicalId = canonicalRow.rows[0].id;
 
-    const balance = await getUserBalance(parseInt(canonicalId));
+    const balance = await getUserBalance(canonicalId);
 
     res.json({
       success: true,
@@ -267,6 +267,8 @@ router.post('/transfer', async (req, res, next) => {
       );
       if (userLookup.rows.length > 0) {
         from_user_id = userLookup.rows[0].id;
+      } else {
+        return res.status(404).json({ error: 'User not found for this Telegram account' });
       }
     }
 
@@ -331,7 +333,7 @@ router.post('/transfer', async (req, res, next) => {
     }
 
     // Validate transfer (amount/format checks only — balance re-checked inside transaction)
-    const validation = await validateTransfer(Number(from_user_id), transferAmount);
+    const validation = await validateTransfer(from_user_id as string, transferAmount);
     if (!validation.valid) {
       return res.status(400).json({ error: validation.error });
     }

@@ -227,7 +227,7 @@ const zh: Translations = {
   scan_confirm_fee: '手续费',
   scan_confirm_actual: '实际到账',
   scan_enter_password: '请输入转账密码',
-  scan_password_hint: '与提现密码相同（4-6位数字）',
+  scan_password_hint: '与提现密码相同（4位数字）',
   scan_submitting: '转账处理中...',
   scan_success_title: '✅ 转账成功！',
   scan_order_id: '订单号',
@@ -241,7 +241,7 @@ const zh: Translations = {
   scan_transfer_again: '再次转账',
   scan_amount_invalid: '请输入有效金额',
   scan_balance_insufficient: '余额不足，当前余额 {balance} USDT',
-  scan_password_invalid: '请输入正确的密码（4-6位）',
+  scan_password_invalid: '请输入正确的密码（4位）',
   scan_transfer_failed: '转账失败，请重试',
 };
 
@@ -460,7 +460,7 @@ const en: Translations = {
   scan_confirm_fee: 'Fee',
   scan_confirm_actual: 'Recipient Gets',
   scan_enter_password: 'Enter Transfer Password',
-  scan_password_hint: 'Same as your withdrawal password (4-6 digits)',
+  scan_password_hint: 'Same as your withdrawal password (4 digits)',
   scan_submitting: 'Processing...',
   scan_success_title: '✅ Transfer Successful!',
   scan_order_id: 'Order ID',
@@ -475,7 +475,7 @@ const en: Translations = {
   scan_not_available: 'Scan feature unavailable. Please update Telegram.',
   scan_amount_invalid: 'Please enter a valid amount',
   scan_balance_insufficient: 'Insufficient balance. Available: {balance} USDT',
-  scan_password_invalid: 'Please enter a valid password (4-6 digits)',
+  scan_password_invalid: 'Please enter a valid password (4 digits)',
   scan_transfer_failed: 'Transfer failed. Please try again.',
 };
 
@@ -678,7 +678,7 @@ const fr: Translations = {
   scan_confirm_fee: 'Frais',
   scan_confirm_actual: 'Reçu par destinataire',
   scan_enter_password: 'Entrer le mot de passe',
-  scan_password_hint: 'Identique au mot de passe de retrait (4-6 chiffres)',
+  scan_password_hint: 'Identique au mot de passe de retrait (4 chiffres)',
   scan_submitting: 'Traitement...',
   scan_success_title: '✅ Virement réussi !',
   scan_order_id: 'N° de commande',
@@ -693,7 +693,7 @@ const fr: Translations = {
   scan_not_available: 'Scan indisponible. Mettez Telegram à jour.',
   scan_amount_invalid: 'Veuillez entrer un montant valide',
   scan_balance_insufficient: 'Solde insuffisant. Disponible: {balance} USDT',
-  scan_password_invalid: 'Veuillez entrer un mot de passe valide (4-6 chiffres)',
+  scan_password_invalid: 'Veuillez entrer un mot de passe valide (4 chiffres)',
   scan_transfer_failed: 'Virement échoué. Veuillez réessayer.',
 };
 
@@ -896,7 +896,7 @@ const de: Translations = {
   scan_confirm_fee: 'Gebühr',
   scan_confirm_actual: 'Empfänger erhält',
   scan_enter_password: 'Passwort eingeben',
-  scan_password_hint: 'Wie Ihr Auszahlungspasswort (4-6 Ziffern)',
+  scan_password_hint: 'Wie Ihr Auszahlungspasswort (4 Ziffern)',
   scan_submitting: 'Verarbeitung...',
   scan_success_title: '✅ Überweisung erfolgreich!',
   scan_order_id: 'Bestellnummer',
@@ -911,7 +911,7 @@ const de: Translations = {
   scan_not_available: 'Scan nicht verfügbar. Telegram aktualisieren.',
   scan_amount_invalid: 'Bitte geben Sie einen gültigen Betrag ein',
   scan_balance_insufficient: 'Unzureichendes Guthaben. Verfügbar: {balance} USDT',
-  scan_password_invalid: 'Bitte geben Sie ein gültiges Passwort ein (4-6 Ziffern)',
+  scan_password_invalid: 'Bitte geben Sie ein gültiges Passwort ein (4 Ziffern)',
   scan_transfer_failed: 'Überweisung fehlgeschlagen. Bitte erneut versuchen.',
 };
 
@@ -1114,7 +1114,7 @@ const es: Translations = {
   scan_confirm_fee: 'Comisión',
   scan_confirm_actual: 'El destinatario recibe',
   scan_enter_password: 'Ingrese la contraseña',
-  scan_password_hint: 'Igual que su contraseña de retiro (4-6 dígitos)',
+  scan_password_hint: 'Igual que su contraseña de retiro (4 dígitos)',
   scan_submitting: 'Procesando...',
   scan_success_title: '✅ ¡Transferencia exitosa!',
   scan_order_id: 'N° de orden',
@@ -1129,7 +1129,7 @@ const es: Translations = {
   scan_not_available: 'Escaneo no disponible. Actualice Telegram.',
   scan_amount_invalid: 'Por favor ingrese un monto válido',
   scan_balance_insufficient: 'Saldo insuficiente. Disponible: {balance} USDT',
-  scan_password_invalid: 'Por favor ingrese una contraseña válida (4-6 dígitos)',
+  scan_password_invalid: 'Por favor ingrese una contraseña válida (4 dígitos)',
   scan_transfer_failed: 'Transferencia fallida. Por favor, inténtelo de nuevo.',
 };
 
@@ -1332,7 +1332,7 @@ const ar: Translations = {
   scan_confirm_fee: 'الرسوم',
   scan_confirm_actual: 'يستلم المستلم',
   scan_enter_password: 'أدخل كلمة المرور',
-  scan_password_hint: 'نفس كلمة مرور السحب (4-6 أرقام)',
+  scan_password_hint: 'نفس كلمة مرور السحب (4 أرقام)',
   scan_submitting: 'جارٍ المعالجة...',
   scan_success_title: '✅ تم التحويل بنجاح!',
   scan_order_id: 'رقم الطلب',
@@ -1347,7 +1347,7 @@ const ar: Translations = {
   scan_not_available: 'المسح غير متاح. يرجى تحديث تيليغرام.',
   scan_amount_invalid: 'يرجى إدخال مبلغ صالح',
   scan_balance_insufficient: 'رصيد غير كافٍ. المتاح: {balance} USDT',
-  scan_password_invalid: 'يرجى إدخال كلمة مرور صالحة (4-6 أرقام)',
+  scan_password_invalid: 'يرجى إدخال كلمة مرور صالحة (4 أرقام)',
   scan_transfer_failed: 'فشل التحويل. يرجى المحاولة مرة أخرى.',
 };
 
@@ -1550,7 +1550,7 @@ const ja: Translations = {
   scan_confirm_fee: '手数料',
   scan_confirm_actual: '受取人の受取額',
   scan_enter_password: 'パスワードを入力',
-  scan_password_hint: '出金パスワードと同じ（4〜6桁）',
+  scan_password_hint: '出金パスワードと同じ（4桁）',
   scan_submitting: '処理中...',
   scan_success_title: '✅ 送金成功！',
   scan_order_id: '注文番号',
@@ -1565,7 +1565,7 @@ const ja: Translations = {
   scan_not_available: 'スキャン機能は利用できません。Telegramを更新してください。',
   scan_amount_invalid: '有効な金額を入力してください',
   scan_balance_insufficient: '残高不足。利用可能: {balance} USDT',
-  scan_password_invalid: '有効なパスワードを入力してください（4〜6桁）',
+  scan_password_invalid: '有効なパスワードを入力してください（4桁）',
   scan_transfer_failed: '送金に失敗しました。もう一度お試しください。',
 };
 
