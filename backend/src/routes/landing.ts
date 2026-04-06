@@ -64,13 +64,15 @@ router.get('/config', async (_req, res) => {
 
     // 3. NFT 产品（最多6个，上架中，按时间倒序）
     const nftResult = await query(
-      `SELECT id, name, image_url, type, price, annual_yield, description
+      `SELECT id, name, image_url, type, price,
+              COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
+              description
        FROM nft_products
        WHERE is_active = true
        ORDER BY created_at DESC
        LIMIT 6`,
       []
-    );
+    ).catch((err: any) => { console.error('[landing] nftResult query error:', err.message); return { rows: [] as any[] }; });
     const nftProducts = nftResult.rows.map((r: any) => ({
       id: r.id,
       name: r.name,
@@ -89,7 +91,7 @@ router.get('/config', async (_req, res) => {
        ORDER BY created_at DESC
        LIMIT 3`,
       []
-    );
+    ).catch((err: any) => { console.error('[landing] charityResult query error:', err.message); return { rows: [] as any[] }; });
     const charityProjects = charityResult.rows.map((r: any) => {
       const target = parseFloat(r.target_amount) || 0;
       const raised = parseFloat(r.raised_amount) || 0;
