@@ -5,6 +5,9 @@ import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
+const LANDING_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
+const SOCIAL_PLATFORMS = ['facebook', 'tiktok', 'twitter', 'telegram', 'youtube', 'instagram'] as const;
+
 /** 解析 system_settings value 字段（JSON 字符串 → 原始值） */
 function parseSettingValue(raw: string): any {
   try {
@@ -256,8 +259,7 @@ router.put('/brand', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     if (slogans && typeof slogans === 'object') {
-      const langs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
-      for (const lang of langs) {
+      for (const lang of LANDING_LANGS) {
         if (slogans[lang] !== undefined) {
           updates.push({ key: `landing_slogan_${lang}`, value: slogans[lang] });
         }
@@ -301,8 +303,7 @@ router.put('/social', authenticateAdmin, async (req: AuthRequest, res) => {
     const updates: Array<{ key: string; value: string }> = [];
 
     if (socialLinks && typeof socialLinks === 'object') {
-      const platforms = ['facebook', 'tiktok', 'twitter', 'telegram', 'youtube', 'instagram'];
-      for (const platform of platforms) {
+      for (const platform of SOCIAL_PLATFORMS) {
         if (socialLinks[platform] !== undefined) {
           updates.push({ key: `landing_social_${platform}`, value: socialLinks[platform] });
         }
@@ -343,8 +344,7 @@ router.post('/privacy/translate', authenticateAdmin, async (req: AuthRequest, re
     const { translateToAllLangs } = await import('../utils/translate');
     const translations = await translateToAllLangs(String(text)) as Record<string, string>;
 
-    const langs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
-    for (const lang of langs) {
+    for (const lang of LANDING_LANGS) {
       if (translations[lang] !== undefined) {
         await query(
           `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,
@@ -375,8 +375,7 @@ router.post('/terms/translate', authenticateAdmin, async (req: AuthRequest, res)
     const { translateToAllLangs } = await import('../utils/translate');
     const translations = await translateToAllLangs(String(text)) as Record<string, string>;
 
-    const langs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
-    for (const lang of langs) {
+    for (const lang of LANDING_LANGS) {
       if (translations[lang] !== undefined) {
         await query(
           `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,

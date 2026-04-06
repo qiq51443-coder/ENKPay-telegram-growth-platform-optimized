@@ -193,7 +193,7 @@ export const SystemSettings: React.FC = () => {
       if (data.legal?.privacy?.zh) { setPrivacyText(data.legal.privacy.zh); setPrivacyTranslations(data.legal.privacy); }
       if (data.legal?.terms?.zh)   { setTermsText(data.legal.terms.zh);   setTermsTranslations(data.legal.terms); }
       setLandingLoaded(true);
-    } catch (e) { /* 静默，不影响其他 Tab */ }
+    } catch (e) { console.error('[landing] fetchLandingConfig error:', e); /* 静默，不影响其他 Tab */ }
   };
 
   const handleLogoUpload = async (file: File) => {
@@ -257,7 +257,7 @@ export const SystemSettings: React.FC = () => {
     try {
       const data = await apiClient.getLandingConfig();
       setPreviewData(data);
-    } catch { message.error('加载预览失败'); }
+    } catch (e: any) { message.error(e?.message || '加载预览失败'); }
     finally { setPreviewLoading(false); }
   };
 
