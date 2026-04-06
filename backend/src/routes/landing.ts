@@ -42,13 +42,24 @@ router.get('/config', async (_req, res) => {
     const [usersCount, nftCount, charitySum] = await Promise.all([
       usersOverride > 0
         ? Promise.resolve(usersOverride)
-        : query('SELECT COUNT(*) AS cnt FROM users', []).then(r => parseInt(r.rows[0].cnt, 10)),
+        : query('SELECT COUNT(*) AS cnt FROM users', [])
+            .then(r => parseInt(r.rows[0].cnt, 10))
+            .catch(() => 0),
       nftOverride > 0
         ? Promise.resolve(nftOverride)
-        : query('SELECT COUNT(*) AS cnt FROM nft_products WHERE is_active = true', []).then(r => parseInt(r.rows[0].cnt, 10)),
+        : query('SELECT COUNT(*) AS cnt FROM nft_products WHERE is_active = true', [])
+            .then(r => parseInt(r.rows[0].cnt, 10))
+            .catch(() => 0),
       charityOverride > 0
         ? Promise.resolve(charityOverride)
-        : query(`SELECT COALESCE(SUM(amount), 0) AS total FROM charity_donations WHERE status = 'completed'`, []).then(r => parseFloat(r.rows[0].total)),
+        : query(
+            `SELECT COALESCE(SUM(raised_amount), 0) AS total
+             FROM charity_projects
+             WHERE status IN ('active', 'completed')`,
+            []
+          )
+            .then(r => parseFloat(r.rows[0].total) || 0)
+            .catch(() => 0),
     ]);
 
     // 3. NFT 产品（最多6个，上架中，按时间倒序）
