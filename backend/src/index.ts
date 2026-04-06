@@ -58,6 +58,7 @@ import profileRoutes from './routes/profile';
 import dbRepairRoutes from './routes/db-repair';
 import healthRoutes from './routes/health';
 import landingRoutes from './routes/landing';
+import landingPublicRoutes from './routes/landing-public';
 import { ensureUploadDirs, UPLOAD_ROOT } from './services/storage.service';
 
 dotenv.config();
@@ -186,11 +187,32 @@ app.use('/api/miniapp', miniappRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
 
-// Landing page public API (no auth required)
-app.use('/api/landing', landingRoutes);
-
-// Landing admin routes (requires auth)
+// Landing — public API (no auth required)
+app.use('/api/landing', landingPublicRoutes);
+// Landing — admin API (requires admin auth)
 app.use('/api/admin/landing', landingRoutes);
+
+// Landing static files — must be registered after all /api routes and before the error handler
+const landingDistPath = path.join(__dirname, 'public');
+app.use('/', express.static(landingDistPath, {
+  index: 'index.html',
+  setHeaders: (res, filePath) => staticCacheHeaders(res, filePath),
+}));
+// Catch-all: serve index.html for non-API/admin/app paths
+app.get('*', generalLimiter, (req, res, next) => {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/admin') ||
+    req.path.startsWith('/app') ||
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/health') ||
+    req.path.startsWith('/webhook')
+  ) {
+    return next();
+  }
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(landingDistPath, 'index.html'));
+});
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

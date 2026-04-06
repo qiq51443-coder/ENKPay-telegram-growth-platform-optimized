@@ -12,7 +12,8 @@ services:
       cd backend && npm install && npm run build && \
       mkdir -p dist/public/admin dist/public/app && \
       cp -r ../admin-panel/dist/. dist/public/admin/ && \
-      cp -r ../mini-app/dist/. dist/public/app/
+      cp -r ../mini-app/dist/. dist/public/app/ && \
+      cp -r ../landing/. dist/public/
     preDeployCommand: cd backend && node -e "require('./dist/db/migrate').runMigrations().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
     startCommand: cd backend && node dist/index.js
     envVars:
