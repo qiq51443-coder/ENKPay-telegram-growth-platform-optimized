@@ -51,13 +51,15 @@ router.get('/config', async (_req, res) => {
     ]);
 
     const nftResult = await query(
-      `SELECT id, name, image_url, type, price, annual_yield, description
+      `SELECT id, name, image_url, type, price,
+              COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
+              description
        FROM nft_products WHERE is_active = true ORDER BY created_at DESC LIMIT 6`, []
-    );
+    ).catch((err: any) => { console.error('[landing-public] nftResult query error:', err.message); return { rows: [] as any[] }; });
     const charityResult = await query(
       `SELECT id, title, image_url, target_amount, raised_amount
        FROM charity_projects WHERE status = 'active' ORDER BY created_at DESC LIMIT 3`, []
-    );
+    ).catch((err: any) => { console.error('[landing-public] charityResult query error:', err.message); return { rows: [] as any[] }; });
 
     res.json({
       brand: {
