@@ -248,3 +248,74 @@ export interface ApiError {
   error: string;
   message?: string;
 }
+
+// ─── Landing Page（官网）相关类型 ───────────────────────────────────────
+
+export type LangCode = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ar' | 'ja';
+
+export interface LandingI18nMap {
+  zh: string;
+  en: string;
+  fr: string;
+  de: string;
+  es: string;
+  ar: string;
+  ja: string;
+}
+
+export interface LandingStats {
+  users: number;
+  nftProducts: number;
+  charityTotal: number;
+  countries: number;
+}
+
+export interface LandingSocialLinks {
+  facebook: string;
+  tiktok: string;
+  twitter: string;
+  telegram: string;
+  youtube: string;
+  instagram: string;
+}
+
+export interface LandingConfig {
+  brand: {
+    name: string;
+    logoUrl: string;
+  };
+  slogans: LandingI18nMap;
+  stats: LandingStats;
+  statsOverride: {
+    users: number;
+    nftProducts: number;
+    charityTotal: number;
+    countries: number;
+  };
+  nftProducts: any[];
+  charityProjects: any[];
+  socialLinks: LandingSocialLinks;
+  contact: {
+    telegram: string;
+  };
+  legal: {
+    privacy: LandingI18nMap;
+    terms: LandingI18nMap;
+  };
+}
+
+export interface LandingBrandSettings {
+  brandName: string;
+  slogans: LandingI18nMap;
+  statsOverride: {
+    users: number;
+    nftProducts: number;
+    charityTotal: number;
+    countries: number;
+  };
+}
+
+export interface LandingSocialSettings {
+  socialLinks: LandingSocialLinks;
+  contactTelegram: string;
+}
