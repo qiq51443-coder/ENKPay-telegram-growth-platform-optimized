@@ -58,6 +58,7 @@ import profileRoutes from './routes/profile';
 import dbRepairRoutes from './routes/db-repair';
 import healthRoutes from './routes/health';
 import landingRoutes from './routes/landing';
+import { ensureUploadDirs, UPLOAD_ROOT } from './services/storage.service';
 
 dotenv.config();
 
@@ -89,8 +90,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Health check
 app.use('/health', healthRoutes);
 
-// Static file serving for uploads (legacy)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Static file serving for uploads (Persistent Disk)
+// 生产环境路径：/opt/render/project/src/uploads
+// 本地开发路径：{项目根}/uploads
+app.use('/uploads', express.static(UPLOAD_ROOT, {
+  maxAge: '7d', // 图片7天缓存
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  },
+}));
 
 // Helper: set cache-control headers based on file type
 function staticCacheHeaders(res: express.Response, filePath: string) {
@@ -181,6 +189,9 @@ app.use('/api/admin/db-repair', dbRepairRoutes);
 // Landing page public API (no auth required)
 app.use('/api/landing', landingRoutes);
 
+// Landing admin routes (requires auth)
+app.use('/api/admin/landing', landingRoutes);
+
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -192,6 +203,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Start server
 const startServer = async () => {
   try {
+    // 确保图片上传目录存在（Persistent Disk 挂载后首次运行时创建子目录）
+    ensureUploadDirs();
+
     // 1. Wait for DB to become reachable (handles Render cold starts)
     await waitForDb();
 

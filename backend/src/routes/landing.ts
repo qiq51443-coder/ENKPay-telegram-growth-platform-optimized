@@ -1,5 +1,7 @@
 import express from 'express';
 import { query } from '../db';
+import { logoUpload, nftUpload, charityUpload, miscUpload, toPublicUrl } from '../services/storage.service';
+import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -148,5 +150,94 @@ router.get('/config', async (_req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * POST /api/admin/landing/upload-logo
+ * 上传品牌 Logo
+ * 需要管理员认证（JWT）
+ * 请求：multipart/form-data，字段名 "logo"
+ * 响应：{ logoUrl: "/uploads/logos/uuid.png", message: "..." }
+ */
+router.post(
+  '/upload-logo',
+  authenticateAdmin,
+  logoUpload.single('logo'),
+  async (req: AuthRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '请选择要上传的图片文件' });
+      }
+
+      // 转换为公开访问 URL
+      const logoUrl = toPublicUrl(req.file.path);
+
+      // 更新 system_settings 中的 landing_logo_url
+      await query(
+        `UPDATE system_settings
+         SET value = $1, updated_at = NOW()
+         WHERE key = 'landing_logo_url'`,
+        [JSON.stringify(logoUrl)]
+      );
+
+      res.json({
+        logoUrl,
+        message: 'Logo 上传成功',
+      });
+    } catch (error: any) {
+      console.error('Upload logo error:', error);
+      // multer 文件类型/大小错误
+      if (error.message?.includes('不支持') || error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: error.message || '文件过大，Logo 最大 2MB' });
+      }
+      res.status(500).json({ error: '上传失败，请重试' });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/landing/upload-image
+ * 通用图片上传（NFT封面、公益封面等）
+ * 需要管理员认证（JWT）
+ * 请求：multipart/form-data
+ *   - 字段 "image"：图片文件
+ *   - 查询参数 "category"：分类，可选值 "nft" | "charity" | "misc"（默认 misc）
+ * 响应：{ imageUrl: "/uploads/{category}/uuid.png", message: "..." }
+ */
+router.post(
+  '/upload-image',
+  authenticateAdmin,
+  (req, res, next) => {
+    // category is read from query string (req.body is not yet populated before multer runs)
+    const category = (req.query?.category as string) || 'misc';
+    const validCategories = ['nft', 'charity', 'misc'];
+    if (!validCategories.includes(category)) {
+      res.status(400).json({ error: `无效的分类 "${category}"，允许值：nft / charity / misc` });
+      return;
+    }
+    let upload;
+    if (category === 'nft') upload = nftUpload;
+    else if (category === 'charity') upload = charityUpload;
+    else upload = miscUpload;
+    upload.single('image')(req, res, next);
+  },
+  async (req: AuthRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '请选择要上传的图片文件' });
+      }
+      const imageUrl = toPublicUrl(req.file.path);
+      res.json({
+        imageUrl,
+        message: '图片上传成功',
+      });
+    } catch (error: any) {
+      console.error('Upload image error:', error);
+      if (error.message?.includes('不支持') || error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: error.message || '文件过大，最大 5MB' });
+      }
+      res.status(500).json({ error: '上传失败，请重试' });
+    }
+  }
+);
 
 export default router;
