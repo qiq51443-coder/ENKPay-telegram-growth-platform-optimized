@@ -491,8 +491,7 @@
               </div>
               <div class="text-teal-400 font-bold text-lg mb-1" x-text="'$' + nft.price.toFixed(2) + ' USDT'"></div>
               <div x-show="nft.annualYield > 0" class="text-purple-400 text-sm mb-3" x-text="t('nft_apy') + ' ' + nft.annualYield.toFixed(1) + '%'"></div>
-              <p x-show="nft.description" class="text-slate-500 text-xs mb-4 line-clamp-2" x-text="nft.description"></p>
-              <a href="/app" class="btn-outline text-xs w-full justify-center py-2" x-text="t('nft_learn_more')"></a>
+              <p x-show="nft.description" class="text-slate-500 text-xs mb-0 line-clamp-2" x-text="nft.description"></p>
             </div>
           </div>
         </template>
@@ -716,7 +715,6 @@
           nft_type_fixed:  { zh:'固定价', en:'Fixed Price', fr:'Prix fixe', de:'Festpreis', es:'Precio fijo', ar:'سعر ثابت', ja:'固定価格' },
           nft_type_auction:{ zh:'拍卖', en:'Auction', fr:'Enchère', de:'Auktion', es:'Subasta', ar:'مزاد', ja:'オークション' },
           nft_type_blind:  { zh:'盲盒', en:'Blind Box', fr:'Boîte mystère', de:'Blindbox', es:'Caja sorpresa', ar:'صندوق عشوائي', ja:'ブラインドボックス' },
-          nft_learn_more:  { zh:'了解更多 →', en:'Learn More →', fr:'En savoir plus →', de:'Mehr erfahren →', es:'Saber más →', ar:'اعرف المزيد →', ja:'もっと見る →' },
           nft_apy:         { zh:'年化', en:'APY', fr:'TAR', de:'Rendite', es:'APY', ar:'عائد سنوي', ja:'年利' },
         },
 
