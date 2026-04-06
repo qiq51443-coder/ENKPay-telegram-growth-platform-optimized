@@ -57,6 +57,7 @@ import miniappBotTokenRoutes from './routes/miniapp-bot-token';
 import profileRoutes from './routes/profile';
 import dbRepairRoutes from './routes/db-repair';
 import healthRoutes from './routes/health';
+import landingRoutes from './routes/landing';
 
 dotenv.config();
 
@@ -176,6 +177,9 @@ app.use('/api/miniapp/bot-token', miniappBotTokenRoutes);
 app.use('/api/miniapp', miniappRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
+
+// Landing page public API (no auth required)
+app.use('/api/landing', landingRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
