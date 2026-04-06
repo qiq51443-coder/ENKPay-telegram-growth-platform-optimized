@@ -851,6 +851,55 @@ class ApiClient {
     const response = await this.client.post('/admin/qrcode/generate', data);
     return response.data;
   }
+
+  // ─── Landing Page 官网管理 API ──────────────────────────────────────────
+
+  /** 获取官网公开配置（用于数据预览 Tab） */
+  async getLandingConfig() {
+    const response = await this.client.get('/landing/config');
+    return response.data;
+  }
+
+  /** 上传品牌 Logo，返回图片 URL */
+  async uploadLandingLogo(file: File): Promise<{ logoUrl: string }> {
+    const formData = new FormData();
+    formData.append('logo', file);
+    const response = await this.client.post<{ logoUrl: string }>('/admin/landing/upload-logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  /** 保存品牌设置（品牌名 + Slogan + 统计覆盖） */
+  async saveLandingBrand(data: {
+    brandName: string;
+    slogans: Record<string, string>;
+    statsOverride: { users: number; nftProducts: number; charityTotal: number; countries: number };
+  }) {
+    const response = await this.client.put('/admin/landing/brand', data);
+    return response.data;
+  }
+
+  /** 保存社交媒体链接 + 联系 Telegram */
+  async saveLandingSocial(data: {
+    socialLinks: Record<string, string>;
+    contactTelegram: string;
+  }) {
+    const response = await this.client.put('/admin/landing/social', data);
+    return response.data;
+  }
+
+  /** 翻译并保存隐私政策（7种语言） */
+  async translateAndSavePrivacy(text: string): Promise<{ translations: Record<string, string> }> {
+    const response = await this.client.post('/admin/landing/privacy/translate', { text });
+    return response.data;
+  }
+
+  /** 翻译并保存服务条款（7种语言） */
+  async translateAndSaveTerms(text: string): Promise<{ translations: Record<string, string> }> {
+    const response = await this.client.post('/admin/landing/terms/translate', { text });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

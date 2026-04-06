@@ -5,6 +5,9 @@ import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
+const LANDING_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
+const SOCIAL_PLATFORMS = ['facebook', 'tiktok', 'twitter', 'telegram', 'youtube', 'instagram'] as const;
+
 /** 解析 system_settings value 字段（JSON 字符串 → 原始值） */
 function parseSettingValue(raw: string): any {
   try {
@@ -239,5 +242,153 @@ router.post(
     }
   }
 );
+
+/**
+ * PUT /api/admin/landing/brand
+ * 保存品牌设置（品牌名 + 7语言 Slogan + 统计覆盖值）
+ * 需要管理员认证
+ */
+router.put('/brand', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { brandName, slogans, statsOverride } = req.body;
+
+    const updates: Array<{ key: string; value: any }> = [];
+
+    if (brandName !== undefined) {
+      updates.push({ key: 'landing_brand_name', value: brandName });
+    }
+
+    if (slogans && typeof slogans === 'object') {
+      for (const lang of LANDING_LANGS) {
+        if (slogans[lang] !== undefined) {
+          updates.push({ key: `landing_slogan_${lang}`, value: slogans[lang] });
+        }
+      }
+    }
+
+    if (statsOverride && typeof statsOverride === 'object') {
+      if (statsOverride.users !== undefined)
+        updates.push({ key: 'landing_stat_users_override', value: String(statsOverride.users) });
+      if (statsOverride.nftProducts !== undefined)
+        updates.push({ key: 'landing_stat_nft_override', value: String(statsOverride.nftProducts) });
+      if (statsOverride.charityTotal !== undefined)
+        updates.push({ key: 'landing_stat_charity_override', value: String(statsOverride.charityTotal) });
+      if (statsOverride.countries !== undefined)
+        updates.push({ key: 'landing_stat_countries', value: String(statsOverride.countries) });
+    }
+
+    for (const { key, value } of updates) {
+      await query(
+        `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,
+        [JSON.stringify(value), key]
+      );
+    }
+
+    res.json({ message: '品牌设置保存成功', updated: updates.length });
+  } catch (error: any) {
+    console.error('[landing] save brand error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/landing/social
+ * 保存社交媒体链接 + 联系 Telegram 用户名
+ * 需要管理员认证
+ */
+router.put('/social', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { socialLinks, contactTelegram } = req.body;
+
+    const updates: Array<{ key: string; value: string }> = [];
+
+    if (socialLinks && typeof socialLinks === 'object') {
+      for (const platform of SOCIAL_PLATFORMS) {
+        if (socialLinks[platform] !== undefined) {
+          updates.push({ key: `landing_social_${platform}`, value: socialLinks[platform] });
+        }
+      }
+    }
+
+    if (contactTelegram !== undefined) {
+      const clean = String(contactTelegram).replace(/^@/, '');
+      updates.push({ key: 'landing_contact_telegram', value: clean });
+    }
+
+    for (const { key, value } of updates) {
+      await query(
+        `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,
+        [JSON.stringify(value), key]
+      );
+    }
+
+    res.json({ message: '社交设置保存成功', updated: updates.length });
+  } catch (error: any) {
+    console.error('[landing] save social error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/landing/privacy/translate
+ * 翻译隐私政策并保存 7 种语言到 system_settings
+ * 需要管理员认证
+ */
+router.post('/privacy/translate', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: '请输入隐私政策内容' });
+    }
+
+    const { translateToAllLangs } = await import('../utils/translate');
+    const translations = await translateToAllLangs(String(text)) as Record<string, string>;
+
+    for (const lang of LANDING_LANGS) {
+      if (translations[lang] !== undefined) {
+        await query(
+          `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,
+          [JSON.stringify(translations[lang]), `landing_privacy_${lang}`]
+        );
+      }
+    }
+
+    res.json({ translations, message: '隐私政策翻译并保存成功' });
+  } catch (error: any) {
+    console.error('[landing] privacy translate error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/landing/terms/translate
+ * 翻译服务条款并保存 7 种语言到 system_settings
+ * 需要管理员认证
+ */
+router.post('/terms/translate', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: '请输入服务条款内容' });
+    }
+
+    const { translateToAllLangs } = await import('../utils/translate');
+    const translations = await translateToAllLangs(String(text)) as Record<string, string>;
+
+    for (const lang of LANDING_LANGS) {
+      if (translations[lang] !== undefined) {
+        await query(
+          `UPDATE system_settings SET value = $1, updated_at = NOW() WHERE key = $2`,
+          [JSON.stringify(translations[lang]), `landing_terms_${lang}`]
+        );
+      }
+    }
+
+    res.json({ translations, message: '服务条款翻译并保存成功' });
+  } catch (error: any) {
+    console.error('[landing] terms translate error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 export default router;

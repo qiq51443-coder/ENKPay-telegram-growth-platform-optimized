@@ -15,6 +15,9 @@ import {
   Radio,
   Upload,
   InputNumber,
+  Switch,
+  Divider,
+  Alert,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -23,6 +26,12 @@ import {
   QrcodeOutlined,
   UploadOutlined,
   DownloadOutlined,
+  GlobalOutlined,
+  LinkOutlined,
+  PictureOutlined,
+  SaveOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -37,6 +46,25 @@ const AGREEMENT_LANGUAGES: { code: string; label: string }[] = [
   { code: 'es', label: 'Español' },
   { code: 'ar', label: 'العربية' },
   { code: 'ja', label: '日本語' },
+];
+
+const LANG_CONFIG = [
+  { code: 'zh', label: '中文',     flag: '🇨🇳', dir: 'ltr' as const },
+  { code: 'en', label: 'English',  flag: '🇬🇧', dir: 'ltr' as const },
+  { code: 'fr', label: 'Français', flag: '🇫🇷', dir: 'ltr' as const },
+  { code: 'de', label: 'Deutsch',  flag: '🇩🇪', dir: 'ltr' as const },
+  { code: 'es', label: 'Español',  flag: '🇪🇸', dir: 'ltr' as const },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦', dir: 'rtl' as const },
+  { code: 'ja', label: '日本語',   flag: '🇯🇵', dir: 'ltr' as const },
+];
+
+const SOCIAL_CONFIG = [
+  { key: 'facebook',  label: 'Facebook',       icon: '📘', placeholder: 'https://facebook.com/yourpage' },
+  { key: 'tiktok',    label: 'TikTok',          icon: '🎵', placeholder: 'https://tiktok.com/@youraccount' },
+  { key: 'twitter',   label: 'X / Twitter',     icon: '🐦', placeholder: 'https://x.com/youraccount' },
+  { key: 'telegram',  label: 'Telegram 频道',   icon: '✈️', placeholder: 'https://t.me/yourchannel' },
+  { key: 'youtube',   label: 'YouTube',         icon: '▶️', placeholder: 'https://youtube.com/@yourchannel' },
+  { key: 'instagram', label: 'Instagram',       icon: '📷', placeholder: 'https://instagram.com/youraccount' },
 ];
 
 interface SystemSetting {
@@ -91,6 +119,41 @@ export const SystemSettings: React.FC = () => {
   const [qrStyle, setQrStyle] = useState<'standard' | 'dark' | 'gradient'>('standard');
   const [qrErrorLevel, setQrErrorLevel] = useState<'L' | 'M' | 'Q' | 'H'>('M');
 
+  // ── 网页管理 Tab 状态 ──────────────────────────────────────────────────
+  const [activeMainTab, setActiveMainTab]       = useState('user_agreement');
+  const [landingLoaded, setLandingLoaded]       = useState(false);
+
+  // 品牌
+  const [brandName, setBrandName]               = useState('ENKPay');
+  const [logoUrl, setLogoUrl]                   = useState('');
+  const [logoUploading, setLogoUploading]       = useState(false);
+  const [brandSaving, setBrandSaving]           = useState(false);
+  const [slogans, setSlogans]                   = useState<Record<string, string>>(
+    { zh: '', en: '', fr: '', de: '', es: '', ar: '', ja: '' }
+  );
+  const [statsOverride, setStatsOverride]       = useState(
+    { users: 0, nftProducts: 0, charityTotal: 0, countries: 30 }
+  );
+
+  // 社交
+  const [socialLinks, setSocialLinks]           = useState<Record<string, string>>(
+    { facebook: '', tiktok: '', twitter: '', telegram: '', youtube: '', instagram: '' }
+  );
+  const [contactTelegram, setContactTelegram]   = useState('');
+  const [socialSaving, setSocialSaving]         = useState(false);
+
+  // 法律文件
+  const [privacyText, setPrivacyText]           = useState('');
+  const [privacyTranslations, setPrivacyTranslations] = useState<Record<string, string> | null>(null);
+  const [privacySaving, setPrivacySaving]       = useState(false);
+  const [termsText, setTermsText]               = useState('');
+  const [termsTranslations, setTermsTranslations] = useState<Record<string, string> | null>(null);
+  const [termsSaving, setTermsSaving]           = useState(false);
+
+  // 预览
+  const [previewData, setPreviewData]           = useState<any>(null);
+  const [previewLoading, setPreviewLoading]     = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -115,6 +178,87 @@ export const SystemSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchLandingConfig = async () => {
+    if (landingLoaded) return;
+    try {
+      const data = await apiClient.getLandingConfig();
+      if (data.brand?.name)     setBrandName(data.brand.name);
+      if (data.brand?.logoUrl)  setLogoUrl(data.brand.logoUrl);
+      if (data.slogans)         setSlogans(s => ({ ...s, ...data.slogans }));
+      if (data.statsOverride)   setStatsOverride(data.statsOverride);
+      if (data.socialLinks)     setSocialLinks(s => ({ ...s, ...data.socialLinks }));
+      if (data.contact?.telegram) setContactTelegram(data.contact.telegram);
+      if (data.legal?.privacy?.zh) { setPrivacyText(data.legal.privacy.zh); setPrivacyTranslations(data.legal.privacy); }
+      if (data.legal?.terms?.zh)   { setTermsText(data.legal.terms.zh);   setTermsTranslations(data.legal.terms); }
+      setLandingLoaded(true);
+    } catch (e) { console.error('[landing] fetchLandingConfig error:', e); /* 静默，不影响其他 Tab */ }
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    setLogoUploading(true);
+    try {
+      const result = await apiClient.uploadLandingLogo(file);
+      setLogoUrl(result.logoUrl);
+      message.success('Logo 上传成功');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'Logo 上传失败');
+    } finally { setLogoUploading(false); }
+    return false;
+  };
+
+  const handleSaveBrand = async () => {
+    setBrandSaving(true);
+    try {
+      await apiClient.saveLandingBrand({ brandName, slogans, statsOverride });
+      message.success('品牌设置保存成功');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '保存失败');
+    } finally { setBrandSaving(false); }
+  };
+
+  const handleSaveSocial = async () => {
+    setSocialSaving(true);
+    try {
+      await apiClient.saveLandingSocial({ socialLinks, contactTelegram });
+      message.success('社交设置保存成功');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '保存失败');
+    } finally { setSocialSaving(false); }
+  };
+
+  const handleSavePrivacy = async () => {
+    if (!privacyText.trim()) { message.warning('请先输入隐私政策内容'); return; }
+    setPrivacySaving(true);
+    try {
+      const result = await apiClient.translateAndSavePrivacy(privacyText);
+      setPrivacyTranslations(result.translations);
+      message.success('隐私政策已翻译并保存 7 种语言');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '保存失败');
+    } finally { setPrivacySaving(false); }
+  };
+
+  const handleSaveTerms = async () => {
+    if (!termsText.trim()) { message.warning('请先输入服务条款内容'); return; }
+    setTermsSaving(true);
+    try {
+      const result = await apiClient.translateAndSaveTerms(termsText);
+      setTermsTranslations(result.translations);
+      message.success('服务条款已翻译并保存 7 种语言');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '保存失败');
+    } finally { setTermsSaving(false); }
+  };
+
+  const fetchPreviewData = async () => {
+    setPreviewLoading(true);
+    try {
+      const data = await apiClient.getLandingConfig();
+      setPreviewData(data);
+    } catch (e: any) { message.error(e?.message || '加载预览失败'); }
+    finally { setPreviewLoading(false); }
   };
 
   const handleAgreementTranslateAndSave = async () => {
@@ -191,6 +335,267 @@ export const SystemSettings: React.FC = () => {
           </>
         )}
       </Card>
+    );
+  };
+
+  const renderLandingTab = () => {
+    // ── 子 Tab A：品牌设置 ───────────────────────────────────────────────
+    const brandTab = (
+      <Space direction="vertical" style={{ width: '100%' }} size={16}>
+        <Card title="🎨 品牌标识">
+          <Form layout="vertical">
+            <Form.Item label="品牌名称">
+              <Input value={brandName} onChange={e => setBrandName(e.target.value)}
+                placeholder="ENKPay" style={{ maxWidth: 300 }} />
+            </Form.Item>
+            <Form.Item label="官网 Logo">
+              <Space align="start">
+                <div style={{
+                  width: 80, height: 80, borderRadius: 12, border: '2px dashed #d9d9d9',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', background: '#fafafa', flexShrink: 0,
+                }}>
+                  {logoUrl
+                    ? <img src={logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    : <PictureOutlined style={{ fontSize: 28, color: '#bfbfbf' }} />}
+                </div>
+                <div>
+                  <Upload accept=".png,.jpg,.jpeg,.svg,.webp" maxCount={1} showUploadList={false}
+                    beforeUpload={handleLogoUpload}>
+                    <Button icon={<UploadOutlined />} loading={logoUploading}>
+                      {logoUploading ? '上传中...' : '上传新 Logo'}
+                    </Button>
+                  </Upload>
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#8c8c8c' }}>
+                    支持 PNG / SVG / WebP，建议 512×512px，最大 2MB
+                  </div>
+                  {logoUrl && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#52c41a' }}>
+                      <CheckCircleOutlined /> 已上传
+                    </div>
+                  )}
+                </div>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <Card title="💬 各语言 Slogan">
+          <Form layout="vertical">
+            {LANG_CONFIG.map(lang => (
+              <Form.Item key={lang.code} label={<span>{lang.flag} {lang.label}</span>} style={{ marginBottom: 10 }}>
+                <Input
+                  value={slogans[lang.code] || ''}
+                  onChange={e => setSlogans(prev => ({ ...prev, [lang.code]: e.target.value }))}
+                  placeholder={`${lang.label} Slogan`}
+                  dir={lang.dir}
+                  style={{ textAlign: lang.dir === 'rtl' ? 'right' : 'left' }}
+                />
+              </Form.Item>
+            ))}
+          </Form>
+        </Card>
+
+        <Card title="📊 统计数字显示（填 0 = 自动读取数据库）">
+          <Space wrap size={16}>
+            {[
+              { label: '👥 用户数',       field: 'users' as const },
+              { label: '🎨 NFT 产品',     field: 'nftProducts' as const },
+              { label: '❤️ 公益总额 USDT', field: 'charityTotal' as const },
+              { label: '🌍 覆盖国家',     field: 'countries' as const },
+            ].map(({ label, field }) => (
+              <Form.Item key={field} label={label} style={{ marginBottom: 0 }}>
+                <InputNumber
+                  min={0} value={statsOverride[field]}
+                  onChange={v => setStatsOverride(prev => ({ ...prev, [field]: v || 0 }))}
+                  style={{ width: 140 }}
+                />
+              </Form.Item>
+            ))}
+          </Space>
+        </Card>
+
+        <Button type="primary" icon={<SaveOutlined />} loading={brandSaving}
+          onClick={handleSaveBrand} size="large">
+          💾 保存品牌设置
+        </Button>
+      </Space>
+    );
+
+    // ── 子 Tab B：社交 & 联系 ─────────────────────────────────────────────
+    const socialTab = (
+      <Space direction="vertical" style={{ width: '100%' }} size={16}>
+        <Card title="📱 社交媒体链接">
+          <Alert message="留空的平台不会在官网显示" type="info" showIcon style={{ marginBottom: 16 }} />
+          <Form layout="vertical">
+            {SOCIAL_CONFIG.map(s => (
+              <Form.Item key={s.key} label={<span>{s.icon} {s.label}</span>} style={{ marginBottom: 10 }}>
+                <Input
+                  value={socialLinks[s.key] || ''}
+                  onChange={e => setSocialLinks(prev => ({ ...prev, [s.key]: e.target.value }))}
+                  placeholder={s.placeholder}
+                  prefix={<LinkOutlined style={{ color: '#bfbfbf' }} />}
+                />
+              </Form.Item>
+            ))}
+          </Form>
+        </Card>
+
+        <Card title="✈️ 联系我们">
+          <Alert
+            message="仅支持 Telegram 用户名，官网页脚点击后跳转到对应 Telegram"
+            type="info" showIcon style={{ marginBottom: 16 }}
+          />
+          <Form layout="vertical">
+            <Form.Item label="Telegram 用户名（不含 @）">
+              <Input
+                value={contactTelegram}
+                onChange={e => setContactTelegram(e.target.value.replace(/^@/, ''))}
+                placeholder="enkpay_support"
+                prefix={<Text type="secondary">@</Text>}
+                style={{ maxWidth: 300 }}
+              />
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <Button type="primary" icon={<SaveOutlined />} loading={socialSaving}
+          onClick={handleSaveSocial} size="large">
+          💾 保存社交设置
+        </Button>
+      </Space>
+    );
+
+    // ── 子 Tab C：隐私 & 条款 ─────────────────────────────────────────────
+    const legalTab = (
+      <Space direction="vertical" style={{ width: '100%' }} size={24}>
+        <Card title="🔒 隐私政策">
+          <Form.Item label="原文（中文或英文，系统自动翻译为 7 种语言）">
+            <Input.TextArea rows={5} value={privacyText}
+              onChange={e => setPrivacyText(e.target.value)} placeholder="请输入隐私政策内容..." />
+            <Button type="primary" icon={<TranslationOutlined />} loading={privacySaving}
+              onClick={handleSavePrivacy} disabled={!privacyText.trim()} style={{ marginTop: 8 }}>
+              🌐 翻译并保存（7 种语言）
+            </Button>
+          </Form.Item>
+          {privacyTranslations && (
+            <>
+              <Divider>各语言预览</Divider>
+              <Collapse size="small" items={LANG_CONFIG.map(lang => ({
+                key: lang.code,
+                label: <span><Tag color="blue">{lang.code.toUpperCase()}</Tag>{lang.flag} {lang.label}
+                  {privacyTranslations[lang.code] &&
+                    <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                      ({privacyTranslations[lang.code].slice(0, 30)}{privacyTranslations[lang.code].length > 30 ? '…' : ''})
+                    </Text>}
+                </span>,
+                children: privacyTranslations[lang.code]
+                  ? <div style={{ whiteSpace: 'pre-wrap' }}>{privacyTranslations[lang.code]}</div>
+                  : <Text type="secondary">暂无内容</Text>,
+              }))} />
+            </>
+          )}
+        </Card>
+
+        <Card title="📋 服务条款">
+          <Form.Item label="原文（中文或英文，系统自动翻译为 7 种语言）">
+            <Input.TextArea rows={5} value={termsText}
+              onChange={e => setTermsText(e.target.value)} placeholder="请输入服务条款内容..." />
+            <Button type="primary" icon={<TranslationOutlined />} loading={termsSaving}
+              onClick={handleSaveTerms} disabled={!termsText.trim()} style={{ marginTop: 8 }}>
+              🌐 翻译并保存（7 种语言）
+            </Button>
+          </Form.Item>
+          {termsTranslations && (
+            <>
+              <Divider>各语言预览</Divider>
+              <Collapse size="small" items={LANG_CONFIG.map(lang => ({
+                key: lang.code,
+                label: <span><Tag color="green">{lang.code.toUpperCase()}</Tag>{lang.flag} {lang.label}
+                  {termsTranslations[lang.code] &&
+                    <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                      ({termsTranslations[lang.code].slice(0, 30)}{termsTranslations[lang.code].length > 30 ? '…' : ''})
+                    </Text>}
+                </span>,
+                children: termsTranslations[lang.code]
+                  ? <div style={{ whiteSpace: 'pre-wrap' }}>{termsTranslations[lang.code]}</div>
+                  : <Text type="secondary">暂无内容</Text>,
+              }))} />
+            </>
+          )}
+        </Card>
+      </Space>
+    );
+
+    // ── 子 Tab D：数据预览 ────────────────────────────────────────────────
+    const previewTab = (
+      <Spin spinning={previewLoading}>
+        <Card
+          title="📊 当前官网数据状态"
+          extra={<Button icon={<ReloadOutlined />} size="small" onClick={fetchPreviewData}>刷新</Button>}
+        >
+          {previewData ? (
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <div><Tag color="purple">品牌</Tag>
+                名称：<strong>{previewData.brand?.name || '—'}</strong>
+                <span style={{ marginLeft: 16 }}>Logo：{previewData.brand?.logoUrl
+                  ? <Tag color="green"><CheckCircleOutlined /> 已上传</Tag>
+                  : <Tag color="red"><ExclamationCircleOutlined /> 未上传</Tag>}
+                </span>
+              </div>
+              <div><Tag color="blue">实时统计</Tag>
+                👥 {(previewData.stats?.users || 0).toLocaleString()} 用户 ·
+                🎨 {previewData.stats?.nftProducts || 0} NFT ·
+                ❤️ ${(previewData.stats?.charityTotal || 0).toLocaleString()} ·
+                🌍 {previewData.stats?.countries || 0} 国家
+              </div>
+              <div><Tag color="cyan">展示内容</Tag>
+                NFT {previewData.nftProducts?.length || 0} 个 · 公益 {previewData.charityProjects?.length || 0} 个
+              </div>
+              <div><Tag color="orange">社交媒体</Tag>
+                {Object.entries(previewData.socialLinks || {}).filter(([, v]) => v)
+                  .map(([k]) => <Tag key={k}>{k}</Tag>)}
+                {Object.values(previewData.socialLinks || {}).filter(Boolean).length === 0 &&
+                  <Text type="secondary">未配置</Text>}
+              </div>
+              <div><Tag color="geekblue">联系</Tag>
+                {previewData.contact?.telegram
+                  ? <><CheckCircleOutlined style={{ color: '#52c41a' }} /> @{previewData.contact.telegram}</>
+                  : <Text type="secondary">未配置</Text>}
+              </div>
+              <div><Tag color="red">法律文件</Tag>
+                隐私政策：{previewData.legal?.privacy?.zh
+                  ? <Tag color="green">✅ 已配置</Tag> : <Tag color="red">❌ 未配置</Tag>}
+                服务条款：{previewData.legal?.terms?.zh
+                  ? <Tag color="green">✅ 已配置</Tag> : <Tag color="red">❌ 未配置</Tag>}
+              </div>
+            </Space>
+          ) : (
+            <Text type="secondary">点击右上角「刷新」加载数据</Text>
+          )}
+        </Card>
+        <Space style={{ marginTop: 16 }}>
+          <Button type="primary" icon={<GlobalOutlined />} onClick={() => window.open('/', '_blank')}>
+            🔗 打开官网预览
+          </Button>
+          <Button onClick={() => window.open('/api/landing/config', '_blank')}>
+            📡 查看 API 数据
+          </Button>
+        </Space>
+      </Spin>
+    );
+
+    return (
+      <Tabs
+        defaultActiveKey="brand"
+        onChange={key => { if (key === 'preview') fetchPreviewData(); }}
+        items={[
+          { key: 'brand',   label: '🎨 品牌设置',   children: brandTab },
+          { key: 'social',  label: '📱 社交 & 联系', children: socialTab },
+          { key: 'legal',   label: '📋 隐私 & 条款', children: legalTab },
+          { key: 'preview', label: '📊 数据预览',    children: previewTab },
+        ]}
+      />
     );
   };
 
@@ -617,6 +1022,11 @@ export const SystemSettings: React.FC = () => {
       label: '用户收款码',
       children: qrCodeTab,
     },
+    {
+      key: 'landing',
+      label: '网页管理',
+      children: renderLandingTab(),
+    },
   ];
 
   return (
@@ -632,7 +1042,14 @@ export const SystemSettings: React.FC = () => {
 
       <Spin spinning={loading}>
         <Form layout="vertical">
-          <Tabs items={tabItems} />
+          <Tabs
+            items={tabItems}
+            activeKey={activeMainTab}
+            onChange={key => {
+              setActiveMainTab(key);
+              if (key === 'landing') fetchLandingConfig();
+            }}
+          />
         </Form>
       </Spin>
     </div>
