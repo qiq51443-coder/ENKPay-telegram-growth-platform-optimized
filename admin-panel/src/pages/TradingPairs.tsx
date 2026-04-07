@@ -4,6 +4,16 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOu
 import type { UploadFile, RcFile } from 'antd/es/upload/interface';
 import { apiClient } from '../services/api';
 
+const resolveAdminImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined);
+  if (apiBase) {
+    return `${apiBase.replace(/\/api$/, '')}${url}`;
+  }
+  return `${window.location.origin}${url}`;
+};
+
 interface TradingPair {
   id: string;
   symbol: string;
@@ -57,6 +67,7 @@ export const TradingPairs: React.FC = () => {
 
   // Custom form icon upload state
   const [customIconFileList, setCustomIconFileList] = useState<UploadFile[]>([]);
+  const [customIconUrl, setCustomIconUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPairs();
@@ -139,6 +150,7 @@ export const TradingPairs: React.FC = () => {
     realForm.resetFields();
     customForm.resetFields();
     setCustomIconFileList([]);
+    setCustomIconUrl(null);
     setSelectedLibrarySymbols([]);
     setModalOpen(true);
   };
@@ -162,19 +174,18 @@ export const TradingPairs: React.FC = () => {
     try {
       const values = await customForm.validateFields();
       const { name, custom_initial_price, ...rest } = values;
-      // icon_url may have been set via the Upload component
-      const iconUrl = customForm.getFieldValue('icon_url') || undefined;
       await apiClient.createCustomPair({
         ...rest,
         display_name: name,
         initial_price: custom_initial_price,
-        icon_url: iconUrl,
+        icon_url: customIconUrl || undefined,
       });
       message.success('自定义交易对创建成功');
       
       setModalOpen(false);
       customForm.resetFields();
       setCustomIconFileList([]);
+      setCustomIconUrl(null);
       fetchPairs();
     } catch (error: any) {
       console.error('Failed to create custom pair:', error);
@@ -266,7 +277,7 @@ export const TradingPairs: React.FC = () => {
       const res = await apiClient.uploadTradingPairIcon(editingPair.id, file);
       message.success('图标上传成功');
       setIconFileList([]);
-      setEditingPair({ ...editingPair, icon_url: res.icon_url });
+      setEditingPair({ ...editingPair, icon_url: res.data?.icon_url ?? res.icon_url });
       fetchPairs();
     } catch (error: any) {
       message.error(error.response?.data?.error || '图标上传失败');
@@ -337,7 +348,7 @@ export const TradingPairs: React.FC = () => {
       width: 60,
       render: (iconUrl: string | undefined, record: TradingPair) =>
         iconUrl ? (
-          <Avatar src={iconUrl} size={32} />
+          <Avatar src={resolveAdminImageUrl(iconUrl)} size={32} />
         ) : (
           <Avatar size={32} style={{ backgroundColor: '#1677ff' }}>
             {record.symbol[0]}
@@ -716,10 +727,10 @@ export const TradingPairs: React.FC = () => {
                     <Input.TextArea rows={3} placeholder="币种描述" />
                   </Form.Item>
 
-                  <Form.Item label="币种图标（可选）" name="icon_url" extra="建议使用PNG/SVG，最大200KB">
+                  <Form.Item label="币种图标（可选）" extra="建议使用PNG/SVG，最大5MB">
                     <Upload
                       name="file"
-                      action="/api/admin/trading/upload-icon"
+                      action={`${(import.meta.env.VITE_API_URL as string | undefined) || '/api'}/admin/trading/upload-icon`}
                       headers={{ Authorization: `Bearer ${localStorage.getItem('token') || ''}` }}
                       listType="picture"
                       fileList={customIconFileList}
@@ -728,17 +739,19 @@ export const TradingPairs: React.FC = () => {
                       onChange={({ fileList, file }) => {
                         setCustomIconFileList(fileList);
                         if (file.status === 'done' && file.response?.url) {
-                          customForm.setFieldValue('icon_url', file.response.url);
+                          setCustomIconUrl(file.response.url);
                           message.success('图标上传成功');
                         } else if (file.status === 'error') {
                           message.error('图标上传失败');
+                        } else if (file.status === 'removed') {
+                          setCustomIconUrl(null);
                         }
                       }}
                       beforeUpload={(file) => {
                         const isImage = file.type.startsWith('image/');
                         if (!isImage) { message.error('只能上传图片文件'); return false; }
-                        const isLt200K = file.size / 1024 < 200;
-                        if (!isLt200K) { message.error('图标大小不能超过200KB'); return false; }
+                        const isLt5M = file.size / 1024 / 1024 < 5;
+                        if (!isLt5M) { message.error('图标大小不能超过5MB'); return false; }
                         return true;
                       }}
                     >
@@ -799,7 +812,7 @@ export const TradingPairs: React.FC = () => {
           <Form.Item label="币种图标">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {editingPair?.icon_url ? (
-                <Avatar src={editingPair.icon_url} size={48} />
+                <Avatar src={resolveAdminImageUrl(editingPair.icon_url)} size={48} />
               ) : (
                 <Avatar size={48} style={{ backgroundColor: '#1677ff' }}>
                   {editingPair?.symbol?.[0] ?? '?'}

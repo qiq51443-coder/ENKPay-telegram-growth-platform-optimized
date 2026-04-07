@@ -1,6 +1,5 @@
 import express from 'express';
 import axios from 'axios';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { query, transaction } from '../db';
@@ -8,32 +7,7 @@ import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
 import { getDayOpenPrice, binanceFetch } from '../services/price.service';
-
-// Multer storage for coin icon uploads
-const iconUploadDir = path.join(__dirname, '../../uploads/coin-icons');
-if (!fs.existsSync(iconUploadDir)) {
-  fs.mkdirSync(iconUploadDir, { recursive: true });
-}
-const iconStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, iconUploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.png';
-    cb(null, `coin-icon-${Date.now()}${ext}`);
-  },
-});
-const iconUpload = multer({
-  storage: iconStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PNG, JPG, SVG and WebP images are allowed'));
-    }
-  },
-});
+import { coinIconUpload, toPublicUrl, UPLOAD_ROOT } from '../services/storage.service';
 
 const router = express.Router();
 
@@ -995,9 +969,9 @@ router.patch('/pairs/:id/toggle', adminLimiter, authenticateAdmin, async (req: A
  * Upload a coin icon without binding to a specific pair — returns a persistent URL
  * Used by the Ant Design Upload component with action prop (for create form)
  */
-router.post('/upload-icon', authenticateAdmin, adminLimiter, iconUpload.single('file'), (req: AuthRequest, res) => {
+router.post('/upload-icon', authenticateAdmin, adminLimiter, coinIconUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ success: true, url: `/uploads/coin-icons/${req.file.filename}` });
+  res.json({ success: true, url: toPublicUrl(req.file.path) });
 });
 
 /**
@@ -1007,22 +981,21 @@ router.post('/upload-icon', authenticateAdmin, adminLimiter, iconUpload.single('
 router.post(
   '/pairs/:id/icon',
   authenticateAdmin,
-  iconUpload.single('icon'),
+  coinIconUpload.single('icon'),
   async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
       if (!req.file) {
         return res.status(400).json({ error: 'No icon file uploaded (field name: icon)' });
       }
-      const iconUrl = `/uploads/coin-icons/${req.file.filename}`;
+      const iconUrl = toPublicUrl(req.file.path);
 
       // Delete old icon file if it was a locally-uploaded one
       const existing = await query('SELECT icon_url FROM trading_pairs WHERE id = $1', [id]);
       if (existing.rows.length > 0) {
         const oldIconUrl: string | null = existing.rows[0].icon_url;
         if (oldIconUrl && oldIconUrl.startsWith('/uploads/coin-icons/')) {
-          const oldFilename = oldIconUrl.replace('/uploads/coin-icons/', '');
-          const oldFilePath = path.join(iconUploadDir, oldFilename);
+          const oldFilePath = path.join(UPLOAD_ROOT, oldIconUrl.replace(/^\/uploads\//, ''));
           fs.unlink(oldFilePath, (err) => { if (err) console.warn('Failed to delete old icon:', err.message); });
         }
       }

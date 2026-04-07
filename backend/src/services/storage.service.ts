@@ -9,14 +9,14 @@ import { v4 as uuidv4 } from 'uuid';
 export const UPLOAD_ROOT = process.env.UPLOAD_DIR
   || path.join(__dirname, '../../uploads');
 
-export type UploadCategory = 'logos' | 'nft' | 'charity' | 'misc';
+export type UploadCategory = 'logos' | 'nft' | 'charity' | 'misc' | 'coin-icons';
 
 /**
  * 确保所有上传子目录存在
  * 在 startServer() 最开头调用，保证 Persistent Disk 挂载后目录结构完整
  */
 export function ensureUploadDirs(): void {
-  const categories: UploadCategory[] = ['logos', 'nft', 'charity', 'misc'];
+  const categories: UploadCategory[] = ['logos', 'nft', 'charity', 'misc', 'coin-icons'];
   categories.forEach(cat => {
     const dir = path.join(UPLOAD_ROOT, cat);
     if (!fs.existsSync(dir)) {
@@ -97,6 +97,13 @@ export const charityUpload = multer({
 // 通用图片上传：最大 5MB
 export const miscUpload = multer({
   storage: createDiskStorage('misc'),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+// 币种图标上传：最大 5MB
+export const coinIconUpload = multer({
+  storage: createDiskStorage('coin-icons'),
   fileFilter: imageFileFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
