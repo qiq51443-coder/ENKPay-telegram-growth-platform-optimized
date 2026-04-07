@@ -539,7 +539,9 @@
       <!-- NFT Cards (horizontal scroll) -->
       <div class="-mx-4 px-4 md:mx-0 md:px-0 nft-scroll" x-show="config.nftProducts && config.nftProducts.length > 0" x-cloak>
         <template x-for="nft in config.nftProducts" :key="nft.id">
-          <div class="nft-item glass-card overflow-hidden cursor-pointer" @click="nft.imageUrl && window.open(nft.imageUrl, '_blank')">
+          <div class="nft-item glass-card overflow-hidden cursor-pointer" tabindex="0"
+            @click="nft.imageUrl && window.open(nft.imageUrl, '_blank')"
+            @keydown.enter="nft.imageUrl && window.open(nft.imageUrl, '_blank')">
             <!-- Image -->
             <div x-show="nft.imageUrl" class="relative overflow-hidden" style="height:180px">
               <img :src="nft.imageUrl" :alt="nft.name" class="w-full h-full object-cover"
@@ -568,7 +570,7 @@
       <!-- Empty state -->
       <div x-show="!configLoading && (!config.nftProducts || config.nftProducts.length === 0)" class="text-center py-16 text-slate-500">
         <div class="text-6xl mb-4">🎨</div>
-        <p>NFT 数字藏品即将上线...</p>
+        <p x-text="t('nft_empty')"></p>
       </div>
     </div>
   </section>
@@ -624,7 +626,7 @@
 
       <div x-show="!configLoading && (!config.charityProjects || config.charityProjects.length === 0)" class="text-center py-16 text-slate-500">
         <div class="text-6xl mb-4">❤️</div>
-        <p>公益项目即将上线...</p>
+        <p x-text="t('charity_empty')"></p>
       </div>
     </div>
   </section>
@@ -785,6 +787,8 @@
           footer_terms:  { zh:'服务条款', en:'Terms of Service', fr:'Conditions', de:'Nutzungsbedingungen', es:'Términos', ar:'شروط الخدمة', ja:'利用規約' },
           footer_contact:{ zh:'联系我们', en:'Contact Us', fr:'Nous contacter', de:'Kontakt', es:'Contáctanos', ar:'اتصل بنا', ja:'お問い合わせ' },
           enter_platform:{ zh:'进入平台', en:'Enter Platform', fr:'Entrer', de:'Plattform', es:'Entrar', ar:'الدخول', ja:'プラットフォームへ' },
+          nft_empty:       { zh:'NFT 数字藏品即将上线...', en:'NFT collections coming soon...', fr:'NFT bientôt disponibles...', de:'NFT bald verfügbar...', es:'NFT próximamente...', ar:'NFT قادمة قريبًا...', ja:'NFTコレクションが近日公開...' },
+          charity_empty:   { zh:'公益项目即将上线...', en:'Charity projects coming soon...', fr:'Projets caritatifs bientôt...', de:'Projekte bald verfügbar...', es:'Proyectos próximamente...', ar:'مشاريع خيرية قادمة قريبًا...', ja:'慈善プロジェクトが近日公開...' },
           nft_type_fixed:  { zh:'固定价', en:'Fixed Price', fr:'Prix fixe', de:'Festpreis', es:'Precio fijo', ar:'سعر ثابت', ja:'固定価格' },
           nft_type_auction:{ zh:'拍卖', en:'Auction', fr:'Enchère', de:'Auktion', es:'Subasta', ar:'مزاد', ja:'オークション' },
           nft_type_blind:  { zh:'盲盒', en:'Blind Box', fr:'Boîte mystère', de:'Blindbox', es:'Caja sorpresa', ar:'صندوق عشوائي', ja:'ブラインドボックス' },
