@@ -62,7 +62,7 @@ const SOCIAL_CONFIG = [
   { key: 'facebook',  label: 'Facebook',       icon: '📘', placeholder: 'https://facebook.com/yourpage' },
   { key: 'tiktok',    label: 'TikTok',          icon: '🎵', placeholder: 'https://tiktok.com/@youraccount' },
   { key: 'twitter',   label: 'X / Twitter',     icon: '🐦', placeholder: 'https://x.com/youraccount' },
-  { key: 'telegram',  label: 'Telegram 频道',   icon: '✈️', placeholder: 'https://t.me/yourchannel' },
+  { key: 'telegram',  label: 'Telegram 官方频道',   icon: '✈️', placeholder: 'https://t.me/yourchannel 或 yourchannel' },
   { key: 'youtube',   label: 'YouTube',         icon: '▶️', placeholder: 'https://youtube.com/@yourchannel' },
   { key: 'instagram', label: 'Instagram',       icon: '📷', placeholder: 'https://instagram.com/youraccount' },
 ];
@@ -360,14 +360,14 @@ export const SystemSettings: React.FC = () => {
                     : <PictureOutlined style={{ fontSize: 28, color: '#bfbfbf' }} />}
                 </div>
                 <div>
-                  <Upload accept=".png,.jpg,.jpeg,.svg,.webp" maxCount={1} showUploadList={false}
+                  <Upload accept=".png,.jpg,.jpeg,.svg,.webp,.gif" maxCount={1} showUploadList={false}
                     beforeUpload={handleLogoUpload}>
                     <Button icon={<UploadOutlined />} loading={logoUploading}>
                       {logoUploading ? '上传中...' : '上传新 Logo'}
                     </Button>
                   </Upload>
                   <div style={{ marginTop: 6, fontSize: 12, color: '#8c8c8c' }}>
-                    支持 PNG / SVG / WebP，建议 512×512px，最大 2MB
+                    支持 PNG / SVG / WebP / GIF，建议 512×512px，最大 2MB
                   </div>
                   {logoUrl && (
                     <div style={{ marginTop: 4, fontSize: 12, color: '#52c41a' }}>

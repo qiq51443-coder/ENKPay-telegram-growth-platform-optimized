@@ -26,6 +26,7 @@
       --purple: #7c4dff;
       --teal: #00d4aa;
       --card-bg: rgba(255,255,255,0.04);
+      --shadow-purple: 0 8px 32px rgba(124,77,255,0.25);
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -33,10 +34,10 @@
 
     /* Navbar glass */
     .navbar-glass {
-      background: rgba(8,12,24,0.7);
+      background: linear-gradient(135deg, rgba(8,12,24,0.85) 0%, rgba(20,10,50,0.75) 100%);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid rgba(124,77,255,0.15);
+      border-bottom: 1px solid rgba(124,77,255,0.2);
     }
 
     /* Glass card */
@@ -47,11 +48,21 @@
       border: 1px solid rgba(124,77,255,0.2);
       border-radius: 16px;
       transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+      position: relative;
+      overflow: hidden;
     }
     .glass-card:hover {
       transform: translateY(-6px);
       box-shadow: 0 0 28px rgba(124,77,255,0.35);
       border-color: rgba(124,77,255,0.5);
+    }
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 60px; height: 60px;
+      background: radial-gradient(circle, rgba(124,77,255,0.15), transparent);
+      pointer-events: none;
     }
 
     /* Star field */
@@ -184,7 +195,7 @@
 
     /* NFT image placeholder */
     .nft-img-placeholder {
-      background: linear-gradient(135deg, var(--purple), var(--teal));
+      background: linear-gradient(135deg, #7c4dff 0%, #00d4aa 50%, #ff6b9d 100%);
       border-radius: 12px;
       height: 180px;
       display: flex;
@@ -283,26 +294,75 @@
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
+
+    /* Nav link underline hover */
+    .nav-link {
+      position: relative;
+      padding-bottom: 2px;
+    }
+    .nav-link::after {
+      content: '';
+      position: absolute;
+      left: 0; bottom: -2px;
+      width: 0; height: 2px;
+      background: linear-gradient(90deg, var(--purple), var(--teal));
+      transition: width 0.3s ease;
+      border-radius: 2px;
+    }
+    .nav-link:hover::after { width: 100%; }
+
+    /* Stat glow animation */
+    @keyframes statGlow {
+      0%, 100% { text-shadow: none; }
+      50% { text-shadow: 0 0 20px rgba(124,77,255,0.6), 0 0 40px rgba(0,212,170,0.3); }
+    }
+    .stat-glow { animation: statGlow 1s ease 1.8s 1 forwards; }
+
+    /* Back to top button */
+    #back-to-top {
+      position: fixed;
+      bottom: 32px; right: 32px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), #5e35b1);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: var(--shadow-purple);
+      transition: transform 0.2s, opacity 0.3s;
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #back-to-top.visible { opacity: 1; pointer-events: auto; }
+    #back-to-top:hover { transform: translateY(-3px); }
+
+    /* Mobile responsive adjustments */
+    @media (max-width: 768px) {
+      section { padding: 60px 16px; }
+    }
   </style>
 </head>
 <body x-data="app()" x-init="init()">
 
   <!-- ==================== NAVBAR ==================== -->
   <nav class="navbar-glass fixed top-0 left-0 right-0 z-50 px-6 py-4">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 relative">
 
       <!-- Logo -->
       <a href="/" class="flex items-center gap-3 flex-shrink-0">
-        <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" alt="Logo" class="h-9 w-auto rounded-lg" onerror="this.style.display='none'">
+        <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" alt="Logo" class="h-9 w-auto rounded-lg" style="image-rendering: auto" onerror="this.style.display='none'">
         <span class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
       </a>
 
-      <!-- Desktop Nav Links -->
-      <div class="hidden md:flex items-center gap-6 text-sm font-medium">
-        <a href="#vision" class="text-slate-300 hover:text-white transition" x-text="t('nav_vision')"></a>
-        <a href="#nft" class="text-slate-300 hover:text-white transition" x-text="t('nav_nft')"></a>
-        <a href="#charity" class="text-slate-300 hover:text-white transition" x-text="t('nav_charity')"></a>
-        <a href="#community" class="text-slate-300 hover:text-white transition" x-text="t('nav_community')"></a>
+      <!-- Desktop Nav Links (centered absolutely) -->
+      <div class="hidden md:flex items-center gap-10 text-base font-medium absolute left-1/2 -translate-x-1/2">
+        <a href="#vision" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_vision')"></a>
+        <a href="#nft" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_nft')"></a>
+        <a href="#charity" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_charity')"></a>
+        <a href="#community" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_community')"></a>
       </div>
 
       <!-- Right side -->
@@ -337,12 +397,12 @@
     </div>
 
     <!-- Mobile Menu -->
-    <div x-show="mobileOpen" x-transition class="md:hidden mt-4 pb-2 flex flex-col gap-3 border-t border-white/10 pt-4">
-      <a href="#vision" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm" x-text="t('nav_vision')"></a>
-      <a href="#nft" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm" x-text="t('nav_nft')"></a>
-      <a href="#charity" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm" x-text="t('nav_charity')"></a>
-      <a href="#community" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm" x-text="t('nav_community')"></a>
-      <a href="/app" class="btn-primary text-sm self-start" x-text="t('enter_platform')"></a>
+    <div x-show="mobileOpen" x-transition class="md:hidden mt-4 pb-2 flex flex-col gap-2 border-t border-white/10 pt-4">
+      <a href="#vision" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_vision')"></a>
+      <a href="#nft" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_nft')"></a>
+      <a href="#charity" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_charity')"></a>
+      <a href="#community" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_community')"></a>
+      <a href="/app" class="btn-primary text-sm self-start mt-2" x-text="t('enter_platform')"></a>
     </div>
   </nav>
 
@@ -355,11 +415,12 @@
     <!-- Orbs -->
     <div class="orb w-96 h-96 bg-purple-700/30 top-20 -left-32"></div>
     <div class="orb w-80 h-80 bg-teal-600/20 bottom-20 -right-20"></div>
+    <div class="orb w-72 h-72 bg-purple-600/25 top-1/3 left-1/4"></div>
 
     <div class="relative z-10 max-w-4xl mx-auto px-4">
       <!-- Brand -->
       <div class="mb-6">
-        <h1 class="text-6xl md:text-8xl font-black grad-text mb-4" style="line-height:1.1">
+        <h1 class="text-5xl md:text-8xl font-black grad-text mb-4" style="line-height:1.1; text-shadow: 0 0 60px rgba(124,77,255,0.5), 0 0 120px rgba(0,212,170,0.3);">
           <span id="brandName">ENKPay</span>
         </h1>
         <!-- Slogan (typewriter effect) -->
@@ -368,15 +429,15 @@
 
       <!-- Feature tags -->
       <div class="flex flex-wrap justify-center gap-3 mb-10">
-        <span class="fade-in delay-1 px-4 py-2 rounded-full border border-purple-500/40 text-purple-300 text-sm font-medium glass-card">💳 Payment</span>
-        <span class="fade-in delay-2 px-4 py-2 rounded-full border border-teal-500/40 text-teal-300 text-sm font-medium glass-card">🏆 Auction</span>
-        <span class="fade-in delay-3 px-4 py-2 rounded-full border border-pink-500/40 text-pink-300 text-sm font-medium glass-card">❤️ Charity</span>
-        <span class="fade-in delay-4 px-4 py-2 rounded-full border border-yellow-500/40 text-yellow-300 text-sm font-medium glass-card">🎨 NFT</span>
+        <span class="fade-in delay-1 px-4 py-2 rounded-full text-purple-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(124,77,255,0.15); border: 1px solid rgba(124,77,255,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(124,77,255,0.2);">💳 Payment</span>
+        <span class="fade-in delay-2 px-4 py-2 rounded-full text-teal-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(0,212,170,0.2);">🏆 Auction</span>
+        <span class="fade-in delay-3 px-4 py-2 rounded-full text-pink-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(236,72,153,0.15); border: 1px solid rgba(236,72,153,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(236,72,153,0.2);">❤️ Charity</span>
+        <span class="fade-in delay-4 px-4 py-2 rounded-full text-yellow-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(234,179,8,0.15); border: 1px solid rgba(234,179,8,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(234,179,8,0.2);">🎨 NFT</span>
       </div>
 
       <!-- CTAs -->
       <div class="flex flex-wrap justify-center gap-4">
-        <a :href="config.socialLinks?.telegram ? 'https://t.me/' + config.socialLinks.telegram : '#'" target="_blank" class="btn-primary">
+        <a :href="config.socialLinks?.telegram ? (config.socialLinks.telegram.startsWith('http') ? config.socialLinks.telegram : 'https://t.me/' + config.socialLinks.telegram) : '#'" target="_blank" class="btn-primary">
           ✈ <span x-text="t('hero_cta')"></span>
         </a>
         <a href="#vision" class="btn-outline">
@@ -387,23 +448,27 @@
   </section>
 
   <!-- ==================== STATS ==================== -->
-  <section class="stats-bar py-16 px-4">
-    <div class="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-      <div class="fade-in">
-        <div class="text-4xl font-black grad-text mb-2" id="stat-users">0</div>
+  <section class="stats-bar py-12 md:py-16 px-4">
+    <div class="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
+      <div class="fade-in border border-white/5 rounded-xl py-6 px-4">
+        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-users">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_users')"></div>
+        <div class="text-2xl mt-2">👥</div>
       </div>
-      <div class="fade-in delay-1">
-        <div class="text-4xl font-black grad-text mb-2" id="stat-nft">0</div>
+      <div class="fade-in delay-1 border border-white/5 rounded-xl py-6 px-4">
+        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-nft">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_nft')"></div>
+        <div class="text-2xl mt-2">🎨</div>
       </div>
-      <div class="fade-in delay-2">
-        <div class="text-4xl font-black grad-text mb-2" id="stat-charity">$0</div>
+      <div class="fade-in delay-2 border border-white/5 rounded-xl py-6 px-4">
+        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-charity">$0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_charity')"></div>
+        <div class="text-2xl mt-2">❤️</div>
       </div>
-      <div class="fade-in delay-3">
-        <div class="text-4xl font-black grad-text mb-2" id="stat-countries">0</div>
+      <div class="fade-in delay-3 border border-white/5 rounded-xl py-6 px-4">
+        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-countries">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_countries')"></div>
+        <div class="text-2xl mt-2">🌍</div>
       </div>
     </div>
   </section>
@@ -453,8 +518,8 @@
   <!-- ==================== NFT ==================== -->
   <section id="nft" class="py-24 px-4" style="background: rgba(124,77,255,0.04);">
     <div class="max-w-7xl mx-auto">
-      <h2 class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_nft')"></h2>
-      <p class="text-center text-slate-400 mb-12 fade-in">🎨 Explore digital collectibles</p>
+      <h2 x-show="!configLoading" x-cloak class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_nft')"></h2>
+      <p x-show="!configLoading" x-cloak class="text-center text-slate-400 mb-12 fade-in">🎨 Explore digital collectibles</p>
 
       <!-- NFT skeleton loading -->
       <div x-show="configLoading" class="nft-scroll">
@@ -472,9 +537,11 @@
       </div>
 
       <!-- NFT Cards (horizontal scroll) -->
-      <div class="nft-scroll" x-show="config.nftProducts && config.nftProducts.length > 0">
+      <div class="-mx-4 px-4 md:mx-0 md:px-0 nft-scroll" x-show="config.nftProducts && config.nftProducts.length > 0" x-cloak>
         <template x-for="nft in config.nftProducts" :key="nft.id">
-          <div class="nft-item glass-card overflow-hidden">
+          <div class="nft-item glass-card overflow-hidden cursor-pointer" tabindex="0"
+            @click="nft.imageUrl && window.open(nft.imageUrl, '_blank')"
+            @keydown.enter="nft.imageUrl && window.open(nft.imageUrl, '_blank')">
             <!-- Image -->
             <div x-show="nft.imageUrl" class="relative overflow-hidden" style="height:180px">
               <img :src="nft.imageUrl" :alt="nft.name" class="w-full h-full object-cover"
@@ -489,7 +556,10 @@
                   :class="nft.type === 'fixed' ? 'bg-purple-900/50 text-purple-300' : nft.type === 'auction' ? 'bg-teal-900/50 text-teal-300' : 'bg-pink-900/50 text-pink-300'"
                   x-text="nft.type === 'fixed' ? t('nft_type_fixed') : nft.type === 'auction' ? t('nft_type_auction') : t('nft_type_blind')"></span>
               </div>
-              <div class="text-teal-400 font-bold text-lg mb-1" x-text="'$' + nft.price.toFixed(2) + ' USDT'"></div>
+              <div class="flex items-center gap-1 mb-1">
+                <span class="text-teal-400 font-bold text-lg" x-text="'$' + nft.price.toFixed(2) + ' USDT'"></span>
+                <span class="text-orange-400 text-sm">🔥</span>
+              </div>
               <div x-show="nft.annualYield > 0" class="text-purple-400 text-sm mb-3" x-text="t('nft_apy') + ' ' + nft.annualYield.toFixed(1) + '%'"></div>
               <p x-show="nft.description" class="text-slate-500 text-xs mb-0 line-clamp-2" x-text="nft.description"></p>
             </div>
@@ -500,7 +570,7 @@
       <!-- Empty state -->
       <div x-show="!configLoading && (!config.nftProducts || config.nftProducts.length === 0)" class="text-center py-16 text-slate-500">
         <div class="text-6xl mb-4">🎨</div>
-        <p>NFT products coming soon...</p>
+        <p x-text="t('nft_empty')"></p>
       </div>
     </div>
   </section>
@@ -508,8 +578,8 @@
   <!-- ==================== CHARITY ==================== -->
   <section id="charity" class="py-24 px-4">
     <div class="max-w-6xl mx-auto">
-      <h2 class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_charity')"></h2>
-      <p class="text-center text-slate-400 mb-12 fade-in">❤️ Making a difference together</p>
+      <h2 x-show="!configLoading" x-cloak class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_charity')"></h2>
+      <p x-show="!configLoading" x-cloak class="text-center text-slate-400 mb-12 fade-in">❤️ Making a difference together</p>
 
       <!-- Charity skeleton loading -->
       <div x-show="configLoading" class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -525,7 +595,7 @@
         </template>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8" x-show="config.charityProjects && config.charityProjects.length > 0">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8" x-show="config.charityProjects && config.charityProjects.length > 0" x-cloak>
         <template x-for="project in config.charityProjects" :key="project.id">
           <div class="glass-card overflow-hidden fade-in">
             <!-- Cover -->
@@ -556,7 +626,7 @@
 
       <div x-show="!configLoading && (!config.charityProjects || config.charityProjects.length === 0)" class="text-center py-16 text-slate-500">
         <div class="text-6xl mb-4">❤️</div>
-        <p>Charity projects coming soon...</p>
+        <p x-text="t('charity_empty')"></p>
       </div>
     </div>
   </section>
@@ -587,7 +657,7 @@
           </a>
         </template>
         <template x-if="config.socialLinks?.telegram">
-          <a :href="'https://t.me/' + config.socialLinks.telegram" target="_blank" rel="noopener noreferrer" class="social-card tg">
+          <a :href="config.socialLinks.telegram.startsWith('http') ? config.socialLinks.telegram : 'https://t.me/' + config.socialLinks.telegram" target="_blank" rel="noopener noreferrer" class="social-card tg">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="#0088CC" xmlns="http://www.w3.org/2000/svg"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.820 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
             <span class="text-sm font-medium">Telegram</span>
           </a>
@@ -609,13 +679,15 @@
   </section>
 
   <!-- ==================== FOOTER ==================== -->
-  <footer class="py-16 px-4 border-t border-white/10">
-    <div class="max-w-5xl mx-auto">
+  <footer class="py-16 px-4 border-t border-white/10" style="border-top: none;">
+    <!-- Gradient divider -->
+    <div style="height:1px; background: linear-gradient(90deg, transparent, var(--purple), var(--teal), transparent); margin-bottom: 0;"></div>
+    <div class="max-w-5xl mx-auto pt-12">
       <div class="flex flex-col md:flex-row items-center justify-between gap-8 mb-10">
         <!-- Logo + tagline -->
         <div class="text-center md:text-left">
           <div class="flex items-center gap-3 justify-center md:justify-start mb-3">
-            <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" alt="Logo" class="h-8 w-auto rounded-lg" onerror="this.style.display='none'">
+            <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" alt="Logo" class="h-8 w-auto rounded-lg" style="image-rendering: auto" onerror="this.style.display='none'">
             <span class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
           </div>
           <p class="text-slate-500 text-sm">Built on Telegram · Powered by Blockchain</p>
@@ -648,10 +720,13 @@
       </div>
 
       <div class="border-t border-white/10 pt-6 text-center text-slate-600 text-sm">
-        © 2026 ENKPay. All Rights Reserved.
+        © 2026 ENKPay. Built with ❤️ on Telegram
       </div>
     </div>
   </footer>
+
+  <!-- Back to top button -->
+  <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">↑</button>
 
   <!-- ==================== MODAL ==================== -->
   <div x-show="modal.open" x-transition class="modal-overlay" @keydown.escape.window="modal.open = false" @click.self="modal.open = false">
@@ -699,7 +774,7 @@
           nav_nft:       { zh:'NFT', en:'NFT', fr:'NFT', de:'NFT', es:'NFT', ar:'NFT', ja:'NFT' },
           nav_charity:   { zh:'公益', en:'Charity', fr:'Charité', de:'Wohltätigkeit', es:'Caridad', ar:'خيري', ja:'チャリティ' },
           nav_community: { zh:'社区', en:'Community', fr:'Communauté', de:'Gemeinschaft', es:'Comunidad', ar:'مجتمع', ja:'コミュニティ' },
-          hero_cta:      { zh:'加入 Telegram', en:'Join Telegram', fr:'Rejoindre', de:'Beitreten', es:'Unirse', ar:'انضم', ja:'参加する' },
+          hero_cta:      { zh:'加入电报官方频道', en:'Join Official Channel', fr:'Rejoindre le Canal Officiel', de:'Offiziellem Kanal Beitreten', es:'Unirse al Canal Oficial', ar:'انضم للقناة الرسمية', ja:'公式チャンネルに参加' },
           hero_more:     { zh:'了解更多', en:'Learn More', fr:'En savoir plus', de:'Mehr erfahren', es:'Saber más', ar:'اعرف المزيد', ja:'もっと見る' },
           stat_users:    { zh:'全球用户', en:'Global Users', fr:'Utilisateurs', de:'Nutzer', es:'Usuarios', ar:'مستخدمون', ja:'ユーザー' },
           stat_nft:      { zh:'NFT 产品', en:'NFT Products', fr:'Produits NFT', de:'NFT-Produkte', es:'Productos NFT', ar:'منتجات NFT', ja:'NFT製品' },
@@ -712,6 +787,8 @@
           footer_terms:  { zh:'服务条款', en:'Terms of Service', fr:'Conditions', de:'Nutzungsbedingungen', es:'Términos', ar:'شروط الخدمة', ja:'利用規約' },
           footer_contact:{ zh:'联系我们', en:'Contact Us', fr:'Nous contacter', de:'Kontakt', es:'Contáctanos', ar:'اتصل بنا', ja:'お問い合わせ' },
           enter_platform:{ zh:'进入平台', en:'Enter Platform', fr:'Entrer', de:'Plattform', es:'Entrar', ar:'الدخول', ja:'プラットフォームへ' },
+          nft_empty:       { zh:'NFT 数字藏品即将上线...', en:'NFT collections coming soon...', fr:'NFT bientôt disponibles...', de:'NFT bald verfügbar...', es:'NFT próximamente...', ar:'NFT قادمة قريبًا...', ja:'NFTコレクションが近日公開...' },
+          charity_empty:   { zh:'公益项目即将上线...', en:'Charity projects coming soon...', fr:'Projets caritatifs bientôt...', de:'Projekte bald verfügbar...', es:'Proyectos próximamente...', ar:'مشاريع خيرية قادمة قريبًا...', ja:'慈善プロジェクトが近日公開...' },
           nft_type_fixed:  { zh:'固定价', en:'Fixed Price', fr:'Prix fixe', de:'Festpreis', es:'Precio fijo', ar:'سعر ثابت', ja:'固定価格' },
           nft_type_auction:{ zh:'拍卖', en:'Auction', fr:'Enchère', de:'Auktion', es:'Subasta', ar:'مزاد', ja:'オークション' },
           nft_type_blind:  { zh:'盲盒', en:'Blind Box', fr:'Boîte mystère', de:'Blindbox', es:'Caja sorpresa', ar:'صندوق عشوائي', ja:'ブラインドボックス' },
@@ -763,6 +840,14 @@
           // Fade-in observer
           this._initFadeIn();
 
+          // Back to top button
+          const backBtn = document.getElementById('back-to-top');
+          if (backBtn) {
+            window.addEventListener('scroll', () => {
+              backBtn.classList.toggle('visible', window.scrollY > 400);
+            }, { passive: true });
+          }
+
           // Load config
           await this._loadConfig();
 
@@ -784,7 +869,15 @@
           } finally {
             clearTimeout(timeout);
             this.configLoading = false;
-            this.$nextTick(() => this._initProgressBars());
+            this.$nextTick(() => {
+              this._initProgressBars();
+              // Trigger NFT scroll visible area
+              const nftSection = document.getElementById('nft');
+              if (nftSection) {
+                const evt = new Event('scroll', { bubbles: true });
+                window.dispatchEvent(evt);
+              }
+            });
           }
         },
 
