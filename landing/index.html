@@ -88,7 +88,7 @@
       background-image:
         linear-gradient(rgba(124,77,255,0.06) 1px, transparent 1px),
         linear-gradient(90deg, rgba(124,77,255,0.06) 1px, transparent 1px);
-      background-size: 60px 60px;
+      background-size: 40px 40px;
     }
 
     /* Gradient orbs */
@@ -161,7 +161,17 @@
 
     /* Stats bar */
     .stats-bar {
-      background: linear-gradient(135deg, #2a1060, #0d3d30);
+      background: linear-gradient(135deg, rgba(42,16,96,0.8) 0%, rgba(13,61,48,0.8) 50%, rgba(20,10,50,0.8) 100%);
+      backdrop-filter: blur(10px);
+    }
+
+    /* Stat item border hover */
+    .stat-item {
+      border-color: rgba(124,77,255,0.2) !important;
+      transition: border-color 0.3s ease, transform 0.3s, box-shadow 0.3s;
+    }
+    .stat-item:hover {
+      border-color: rgba(124,77,255,0.5) !important;
     }
 
     /* Progress bar */
@@ -343,12 +353,28 @@
     @media (max-width: 768px) {
       section { padding: 60px 16px; }
     }
-  </style>
+
+    /* Feature tag pulse animation */
+    @keyframes tagPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124,77,255,0) }
+      50% { box-shadow: 0 0 16px 4px rgba(124,77,255,0.25) }
+    }
+    .feature-tag:hover { animation: tagPulse 1.5s ease-in-out infinite; }
+
+    /* Empty state pulse */
+    .empty-state-icon { animation: emptyPulse 2s ease-in-out infinite; }
+    @keyframes emptyPulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
 </head>
 <body x-data="app()" x-init="init()">
 
+  <!-- Scroll progress bar -->
+  <div id="scroll-progress" style="position:fixed;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,#7c4dff,#00d4aa);z-index:9999;transition:width 0.1s linear;pointer-events:none;"></div>
+
   <!-- ==================== NAVBAR ==================== -->
-  <nav class="navbar-glass fixed top-0 left-0 right-0 z-50 px-6 py-4">
+  <nav class="navbar-glass fixed top-0 left-0 right-0 z-50 px-8 lg:px-12 py-4">
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 relative">
 
       <!-- Logo -->
@@ -358,7 +384,7 @@
       </a>
 
       <!-- Desktop Nav Links (centered absolutely) -->
-      <div class="hidden md:flex items-center gap-10 text-base font-medium absolute left-1/2 -translate-x-1/2">
+      <div class="hidden md:flex items-center gap-12 text-base font-semibold tracking-wide absolute left-1/2 -translate-x-1/2">
         <a href="#vision" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_vision')"></a>
         <a href="#nft" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_nft')"></a>
         <a href="#charity" class="nav-link text-slate-300 hover:text-white transition" x-text="t('nav_charity')"></a>
@@ -366,7 +392,7 @@
       </div>
 
       <!-- Right side -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <!-- Language selector -->
         <div class="relative" x-data="{ open: false }">
           <button @click="open = !open" class="flex items-center gap-1 text-slate-300 hover:text-white text-sm px-3 py-2 rounded-lg hover:bg-white/10 transition">
@@ -429,10 +455,10 @@
 
       <!-- Feature tags -->
       <div class="flex flex-wrap justify-center gap-3 mb-10">
-        <span class="fade-in delay-1 px-4 py-2 rounded-full text-purple-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(124,77,255,0.15); border: 1px solid rgba(124,77,255,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(124,77,255,0.2);">💳 Payment</span>
-        <span class="fade-in delay-2 px-4 py-2 rounded-full text-teal-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(0,212,170,0.2);">🏆 Auction</span>
-        <span class="fade-in delay-3 px-4 py-2 rounded-full text-pink-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(236,72,153,0.15); border: 1px solid rgba(236,72,153,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(236,72,153,0.2);">❤️ Charity</span>
-        <span class="fade-in delay-4 px-4 py-2 rounded-full text-yellow-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(234,179,8,0.15); border: 1px solid rgba(234,179,8,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(234,179,8,0.2);">🎨 NFT</span>
+        <span class="feature-tag fade-in delay-1 px-4 py-2 rounded-full text-purple-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(124,77,255,0.15); border: 1px solid rgba(124,77,255,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(124,77,255,0.2);">💳 Payment</span>
+        <span class="feature-tag fade-in delay-2 px-4 py-2 rounded-full text-teal-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(0,212,170,0.2);">🏆 Auction</span>
+        <span class="feature-tag fade-in delay-3 px-4 py-2 rounded-full text-pink-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(236,72,153,0.15); border: 1px solid rgba(236,72,153,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(236,72,153,0.2);">❤️ Charity</span>
+        <span class="feature-tag fade-in delay-4 px-4 py-2 rounded-full text-yellow-300 text-sm font-medium cursor-default transition-all duration-300 hover:scale-105" style="background: rgba(234,179,8,0.15); border: 1px solid rgba(234,179,8,0.5); backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(234,179,8,0.2);">🎨 NFT</span>
       </div>
 
       <!-- CTAs -->
@@ -450,22 +476,22 @@
   <!-- ==================== STATS ==================== -->
   <section class="stats-bar py-12 md:py-16 px-4">
     <div class="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
-      <div class="fade-in border border-white/5 rounded-xl py-6 px-4">
+      <div class="fade-in stat-item border border-white/5 rounded-xl py-6 px-4">
         <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-users">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_users')"></div>
         <div class="text-2xl mt-2">👥</div>
       </div>
-      <div class="fade-in delay-1 border border-white/5 rounded-xl py-6 px-4">
+      <div class="fade-in delay-1 stat-item border border-white/5 rounded-xl py-6 px-4">
         <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-nft">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_nft')"></div>
         <div class="text-2xl mt-2">🎨</div>
       </div>
-      <div class="fade-in delay-2 border border-white/5 rounded-xl py-6 px-4">
+      <div class="fade-in delay-2 stat-item border border-white/5 rounded-xl py-6 px-4">
         <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-charity">$0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_charity')"></div>
         <div class="text-2xl mt-2">❤️</div>
       </div>
-      <div class="fade-in delay-3 border border-white/5 rounded-xl py-6 px-4">
+      <div class="fade-in delay-3 stat-item border border-white/5 rounded-xl py-6 px-4">
         <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-countries">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_countries')"></div>
         <div class="text-2xl mt-2">🌍</div>
@@ -474,41 +500,53 @@
   </section>
 
   <!-- ==================== VISION ==================== -->
-  <section id="vision" class="py-24 px-4">
+  <section id="vision" class="py-24 px-4" style="background: radial-gradient(ellipse at center, rgba(124,77,255,0.05) 0%, transparent 70%);">
     <div class="max-w-6xl mx-auto">
       <h2 class="text-4xl font-bold text-center mb-16 grad-text fade-in">🌟 Vision</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Card 1: Secure -->
         <div class="glass-card p-8 fade-in delay-1 text-center">
-          <div class="text-5xl mb-6">🔗</div>
-          <h3 class="text-xl font-bold mb-4 text-purple-300">
-            <span x-show="lang==='zh'">区块链透明</span>
-            <span x-show="lang!=='zh'">Blockchain Transparency</span>
+          <div class="flex justify-center mb-6">
+            <div class="text-5xl flex items-center justify-center w-20 h-20 rounded-full" style="background: radial-gradient(circle, rgba(124,77,255,0.2), rgba(124,77,255,0.05)); box-shadow: 0 0 24px rgba(124,77,255,0.25);">🛡️</div>
+          </div>
+          <h3 class="text-xl font-bold mb-2 text-blue-300">
+            <span x-show="lang==='zh'">安全</span>
+            <span x-show="lang!=='zh'">Secure</span>
           </h3>
+          <div class="w-12 h-0.5 mx-auto mb-4" style="background: linear-gradient(90deg, var(--purple), var(--teal));"></div>
           <p class="text-slate-400 text-sm leading-relaxed">
-            <span x-show="lang==='zh'">所有交易记录上链，公开透明，不可篡改，守护每一位用户的资产安全。</span>
-            <span x-show="lang!=='zh'">Every transaction is recorded on-chain, transparent, immutable, and secure for all users.</span>
+            <span x-show="lang==='zh'">采用顶级安全协议，多重加密保护，让每一笔交易都在安全的环境下进行，守护您的资产。</span>
+            <span x-show="lang!=='zh'">Built with top-tier security protocols and multi-layer encryption to keep every transaction and your assets fully protected.</span>
           </p>
         </div>
+        <!-- Card 2: Simple -->
         <div class="glass-card p-8 fade-in delay-2 text-center">
-          <div class="text-5xl mb-6">❤️</div>
-          <h3 class="text-xl font-bold mb-4 text-teal-300">
-            <span x-show="lang==='zh'">公益优先</span>
-            <span x-show="lang!=='zh'">Charity First</span>
+          <div class="flex justify-center mb-6">
+            <div class="text-5xl flex items-center justify-center w-20 h-20 rounded-full" style="background: radial-gradient(circle, rgba(0,212,170,0.2), rgba(0,212,170,0.05)); box-shadow: 0 0 24px rgba(0,212,170,0.25);">✨</div>
+          </div>
+          <h3 class="text-xl font-bold mb-2 text-teal-300">
+            <span x-show="lang==='zh'">简单</span>
+            <span x-show="lang!=='zh'">Simple</span>
           </h3>
+          <div class="w-12 h-0.5 mx-auto mb-4" style="background: linear-gradient(90deg, var(--purple), var(--teal));"></div>
           <p class="text-slate-400 text-sm leading-relaxed">
-            <span x-show="lang==='zh'">平台收入的一部分直接捐赠给全球公益项目，让每一笔交易都有温度。</span>
-            <span x-show="lang!=='zh'">A portion of platform revenue is directly donated to global charity projects, giving every transaction a purpose.</span>
+            <span x-show="lang==='zh'">极简的操作界面，无论是支付、NFT 还是公益捐赠，三步之内轻松完成，新手也能快速上手。</span>
+            <span x-show="lang!=='zh'">A clean and intuitive interface — whether it's payment, NFT, or charity, complete any action in three simple steps.</span>
           </p>
         </div>
+        <!-- Card 3: Fast -->
         <div class="glass-card p-8 fade-in delay-3 text-center">
-          <div class="text-5xl mb-6">🎮</div>
-          <h3 class="text-xl font-bold mb-4 text-pink-300">
-            <span x-show="lang==='zh'">互动生态</span>
-            <span x-show="lang!=='zh'">Interactive Ecosystem</span>
+          <div class="flex justify-center mb-6">
+            <div class="text-5xl flex items-center justify-center w-20 h-20 rounded-full" style="background: radial-gradient(circle, rgba(236,72,153,0.2), rgba(236,72,153,0.05)); box-shadow: 0 0 24px rgba(236,72,153,0.25);">⚡</div>
+          </div>
+          <h3 class="text-xl font-bold mb-2 text-pink-300">
+            <span x-show="lang==='zh'">快捷</span>
+            <span x-show="lang!=='zh'">Fast</span>
           </h3>
+          <div class="w-12 h-0.5 mx-auto mb-4" style="background: linear-gradient(90deg, var(--purple), var(--teal));"></div>
           <p class="text-slate-400 text-sm leading-relaxed">
-            <span x-show="lang==='zh'">NFT拍卖、交易、公益一体化，构建活跃的 Web3 Telegram 互动社区。</span>
-            <span x-show="lang!=='zh'">NFT auctions, trading, and charity in one platform — building an active Web3 Telegram community.</span>
+            <span x-show="lang==='zh'">基于 Telegram 的即时通讯优势，交易确认秒级完成，资金到账快如闪电，告别漫长等待。</span>
+            <span x-show="lang!=='zh'">Leveraging Telegram's instant messaging, transactions confirm in seconds — say goodbye to long waits.</span>
           </p>
         </div>
       </div>
@@ -569,7 +607,7 @@
 
       <!-- Empty state -->
       <div x-show="!configLoading && (!config.nftProducts || config.nftProducts.length === 0)" class="text-center py-16 text-slate-500">
-        <div class="text-6xl mb-4">🎨</div>
+        <div class="text-6xl mb-4 empty-state-icon">🎨</div>
         <p x-text="t('nft_empty')"></p>
       </div>
     </div>
@@ -625,7 +663,7 @@
       </div>
 
       <div x-show="!configLoading && (!config.charityProjects || config.charityProjects.length === 0)" class="text-center py-16 text-slate-500">
-        <div class="text-6xl mb-4">❤️</div>
+        <div class="text-6xl mb-4 empty-state-icon">❤️</div>
         <p x-text="t('charity_empty')"></p>
       </div>
     </div>
@@ -635,7 +673,7 @@
   <section id="community" class="py-24 px-4" style="background: rgba(0,212,170,0.03);">
     <div class="max-w-5xl mx-auto">
       <h2 class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_social')"></h2>
-      <p class="text-center text-slate-400 mb-12 fade-in">🌍 Join us on your favorite platform</p>
+      <p class="text-center text-slate-400 mb-12 fade-in" x-text="t('section_social_sub')"></p>
 
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4" id="socialGrid">
         <template x-if="config.socialLinks?.facebook">
@@ -783,6 +821,7 @@
           section_nft:   { zh:'探索 NFT 数字藏品', en:'Explore NFT Collections', fr:'Explorer les NFT', de:'NFT Erkunden', es:'Explorar NFT', ar:'استكشاف NFT', ja:'NFTを探索' },
           section_charity:{ zh:'我们的公益项目', en:'Our Charity Projects', fr:'Nos Projets', de:'Unsere Projekte', es:'Nuestros Proyectos', ar:'مشاريعنا الخيرية', ja:'慈善プロジェクト' },
           section_social:{ zh:'加入全球社区', en:'Join Global Community', fr:'Rejoindre', de:'Gemeinschaft', es:'Únete', ar:'انضم للمجتمع', ja:'コミュニティへ' },
+          section_social_sub:{ zh:'🌍 在您喜爱的平台上关注我们', en:'🌍 Join us on your favorite platform', fr:'🌍 Rejoignez-nous sur votre plateforme favorite', de:'🌍 Folgen Sie uns auf Ihrer Lieblingsplattform', es:'🌍 Únete en tu plataforma favorita', ar:'🌍 تابعنا على منصتك المفضلة', ja:'🌍 お気に入りのプラットフォームでフォロー' },
           footer_privacy:{ zh:'隐私政策', en:'Privacy Policy', fr:'Politique', de:'Datenschutz', es:'Privacidad', ar:'سياسة الخصوصية', ja:'プライバシー' },
           footer_terms:  { zh:'服务条款', en:'Terms of Service', fr:'Conditions', de:'Nutzungsbedingungen', es:'Términos', ar:'شروط الخدمة', ja:'利用規約' },
           footer_contact:{ zh:'联系我们', en:'Contact Us', fr:'Nous contacter', de:'Kontakt', es:'Contáctanos', ar:'اتصل بنا', ja:'お問い合わせ' },
@@ -845,6 +884,15 @@
           if (backBtn) {
             window.addEventListener('scroll', () => {
               backBtn.classList.toggle('visible', window.scrollY > 400);
+            }, { passive: true });
+          }
+
+          // Scroll progress bar
+          const progressBar = document.getElementById('scroll-progress');
+          if (progressBar) {
+            window.addEventListener('scroll', () => {
+              const scrolled = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+              progressBar.style.width = scrolled + '%';
             }, { passive: true });
           }
 
