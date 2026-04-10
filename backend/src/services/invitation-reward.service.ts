@@ -3,7 +3,32 @@
  * Handles L1 and L2 referral rewards for first trades
  */
 
-const TRADE_REWARD = 5.00;
+/**
+ * Read invite reward configuration from system_settings.
+ * Falls back to safe defaults if the table/rows don't exist yet.
+ */
+async function getInviteRewardConfig(client: any): Promise<{ amount: number; enabled: boolean }> {
+  try {
+    const result = await client.query(
+      `SELECT key, value FROM system_settings WHERE key IN ('invite_reward_amount', 'invite_reward_enabled')`
+    );
+    let amount = 2.00;
+    let enabled = true;
+    for (const row of result.rows) {
+      if (row.key === 'invite_reward_amount') {
+        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        amount = parseFloat(String(parsed)) || 2.00;
+      }
+      if (row.key === 'invite_reward_enabled') {
+        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        enabled = parsed === true || parsed === 'true';
+      }
+    }
+    return { amount, enabled };
+  } catch {
+    return { amount: 2.00, enabled: true };
+  }
+}
 
 /**
  * Trigger invitation rewards for a user's first trade
@@ -12,6 +37,14 @@ const TRADE_REWARD = 5.00;
  * @param userId - The user who made their first trade
  */
 export async function triggerFirstTradeReward(client: any, userId: string) {
+  // Load reward config from system_settings
+  const { amount: TRADE_REWARD, enabled } = await getInviteRewardConfig(client);
+
+  // If invite rewards are disabled, do nothing
+  if (!enabled) {
+    return;
+  }
+
   // Check for L1 referrer
   const invitationResult = await client.query(
     `SELECT inviter_id, trade_reward_paid, invitee_first_trade

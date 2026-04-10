@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input, Popconfirm, Space } from 'antd';
-import { ArrowLeftOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Table, Tag, Button, message, Spin, Tabs, Modal, Form, InputNumber, Input, Popconfirm, Space, Avatar, Typography } from 'antd';
+import { ArrowLeftOutlined, EditOutlined, LockOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
 const { TabPane } = Tabs;
+const { Text } = Typography;
 
 interface UserDetail {
   id: string;
@@ -29,6 +30,13 @@ interface UserDetail {
   bot_name?: string;
   invited_by?: string;
   invited_by_username?: string;
+  inviter_info?: {
+    id: string;
+    telegram_id: number;
+    username?: string;
+    first_name?: string;
+    account_status: string;
+  } | null;
   invite_count?: number;
 }
 
@@ -318,6 +326,25 @@ export const UserDetail: React.FC = () => {
       ),
     },
     {
+      title: '首次充值',
+      dataIndex: 'first_deposit_at',
+      key: 'first_deposit_at',
+      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : <Tag color="default">未充值</Tag>,
+    },
+    {
+      title: '邀请奖励',
+      dataIndex: 'reward_paid',
+      key: 'reward_paid',
+      render: (paid: boolean, record: any) => {
+        if (paid) {
+        const rewardAmt = record.reward_amount != null ? Number(record.reward_amount) : NaN;
+        const amountStr = !isNaN(rewardAmt) ? ` +${rewardAmt.toFixed(2)} USDT` : '';
+        return <Tag color="success">已到账 ✅{amountStr}</Tag>;
+        }
+        return <Tag color="warning">待充值 ⏳</Tag>;
+      },
+    },
+    {
       title: '注册时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -460,7 +487,47 @@ export const UserDetail: React.FC = () => {
         </TabPane>
 
         <TabPane tab="邀请统计" key="invitations">
-          <Card title={`邀请人列表 (共 ${user.invite_count ?? 0} 人)`}>
+          {/* Inviter info card */}
+          <Card
+            title={<span><TeamOutlined style={{ marginRight: 8 }} />邀请关系</span>}
+            style={{ marginBottom: 16 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 13, color: '#8c8c8c', marginBottom: 6 }}>邀请人（谁邀请了当前用户）</div>
+                {user.inviter_info ? (
+                  <Space>
+                    <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
+                    <div>
+                      <div style={{ fontWeight: 600 }}>
+                        {user.inviter_info.first_name || user.inviter_info.username || '未知用户'}
+                        {user.inviter_info.username && (
+                          <Text type="secondary" style={{ fontWeight: 400, marginLeft: 6 }}>@{user.inviter_info.username}</Text>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#595959' }}>
+                        Telegram ID: {user.inviter_info.telegram_id}
+                        <Tag
+                          color={user.inviter_info.account_status === 'active' ? 'success' : 'warning'}
+                          style={{ marginLeft: 8, fontSize: 11 }}
+                        >
+                          {user.inviter_info.account_status}
+                        </Tag>
+                      </div>
+                    </div>
+                  </Space>
+                ) : (
+                  <Tag color="default">直接注册（无邀请人）</Tag>
+                )}
+              </div>
+              <div style={{ borderLeft: '1px solid #f0f0f0', paddingLeft: 24 }}>
+                <div style={{ fontSize: 13, color: '#8c8c8c', marginBottom: 4 }}>当前用户共邀请</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#1890ff' }}>{user.invite_count ?? 0} 人</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card title={`被邀请人列表 (共 ${user.invite_count ?? 0} 人)`}>
             <Table
               columns={inviteeColumns}
               dataSource={invitees}

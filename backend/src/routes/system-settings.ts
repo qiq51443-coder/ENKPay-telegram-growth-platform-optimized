@@ -4,6 +4,7 @@ import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth
 import { logAuditAction, AuditActions } from '../utils/audit';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { translateToAllLangs } from '../utils/translate';
+import { inviteUpload, toPublicUrl } from '../services/storage.service';
 
 const router = express.Router();
 
@@ -344,6 +345,131 @@ router.post('/bulk-update', authenticateAdmin, requireRoles(['super_admin', 'adm
     });
   } catch (error) {
     console.error('Bulk update system settings error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /admin/system-settings/invite-card/upload
+ * Upload invite card image (JPG, PNG, GIF, WebP), max 10 MB.
+ * Saves the public URL to system_settings key = 'invite_card_image'.
+ */
+router.post(
+  '/invite-card/upload',
+  authenticateAdmin,
+  requireRoles(['super_admin', 'admin']),
+  inviteUpload.single('image'),
+  async (req: AuthRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '请选择要上传的图片文件' });
+      }
+
+      const url = toPublicUrl(req.file.path);
+
+      await query(
+        `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+         VALUES ('invite_card_image', $1, '邀请卡图片 URL', 'invite', true, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+           value = EXCLUDED.value,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [JSON.stringify(url), req.user?.id]
+      );
+
+      await logAuditAction({
+        adminUserId: req.user!.id,
+        action: AuditActions.UPDATE_SETTINGS,
+        resourceType: 'system_setting',
+        resourceId: 'invite_card_image',
+        details: { url },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.json({ url, message: '邀请卡图片上传成功' });
+    } catch (error: any) {
+      console.error('Upload invite card image error:', error);
+      if (error.message?.includes('不支持') || error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: error.message || '文件过大，最大 10MB' });
+      }
+      res.status(500).json({ error: '上传失败，请重试' });
+    }
+  }
+);
+
+/**
+ * POST /admin/system-settings/invite-message/translate-and-save
+ * Translate invite message text to all supported languages and save to system_settings.
+ */
+const INVITE_LANG_DESCRIPTIONS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
+
+router.post('/invite-message/translate-and-save', authenticateAdmin, requireRoles(['super_admin', 'admin']), async (req: AuthRequest, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const translations = await translateToAllLangs(String(text));
+
+    const savedKeys: string[] = [];
+
+    for (const [lang, translated] of Object.entries(translations)) {
+      const settingKey = `invite_message_${lang}`;
+      const description = INVITE_LANG_DESCRIPTIONS[lang] || lang;
+
+      await query(
+        `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+         VALUES ($1, $2, $3, 'invite', true, $4, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+           value = EXCLUDED.value,
+           description = EXCLUDED.description,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [settingKey, toJsonValue(translated), description, req.user?.id]
+      );
+
+      savedKeys.push(settingKey);
+    }
+
+    const translationsMap = translations as Record<string, string>;
+    const defaultText = translationsMap['en'] || translationsMap['zh'] || String(text);
+    await query(
+      `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+       VALUES ('invite_message', $1, '邀请语（默认）', 'invite', true, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+      [toJsonValue(defaultText), req.user?.id]
+    );
+
+    await logAuditAction({
+      adminUserId: req.user!.id,
+      action: AuditActions.UPDATE_SETTINGS,
+      resourceType: 'system_setting',
+      details: {
+        keys: savedKeys,
+        source_text_length: String(text).length,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      translations,
+      saved_keys: savedKeys,
+      message: '邀请语翻译并保存成功',
+    });
+  } catch (error) {
+    console.error('Translate and save invite message error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

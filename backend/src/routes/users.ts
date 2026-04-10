@@ -169,6 +169,13 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       `SELECT u.*,
         COUNT(DISTINCT i.id) as invite_count,
         (SELECT username FROM users WHERE id = u.invited_by) as invited_by_username,
+        (SELECT JSON_BUILD_OBJECT(
+          'id', inv_user.id,
+          'telegram_id', inv_user.telegram_id,
+          'username', inv_user.username,
+          'first_name', inv_user.first_name,
+          'account_status', inv_user.account_status
+        ) FROM users inv_user WHERE inv_user.id = u.invited_by) AS inviter_info,
         b.name as bot_name,
         (u.withdraw_password IS NOT NULL) as withdraw_password_set
       FROM users u
@@ -369,7 +376,12 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await query(
-      `SELECT u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.created_at, u.account_status
+      `SELECT 
+        u.id, u.telegram_id, u.username, u.first_name, u.last_name, 
+        u.created_at, u.account_status,
+        inv.reward_paid,
+        inv.reward_amount,
+        (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
        FROM users u
        INNER JOIN invitations inv ON inv.invitee_id = u.id
        WHERE inv.inviter_id = $1
