@@ -337,8 +337,9 @@ export const UserDetail: React.FC = () => {
       key: 'reward_paid',
       render: (paid: boolean, record: any) => {
         if (paid) {
-          const amount = record.reward_amount ? ` +${parseFloat(String(record.reward_amount)).toFixed(2)} USDT` : '';
-          return <Tag color="success">已到账 ✅{amount}</Tag>;
+        const rewardAmt = record.reward_amount != null ? Number(record.reward_amount) : NaN;
+        const amountStr = !isNaN(rewardAmt) ? ` +${rewardAmt.toFixed(2)} USDT` : '';
+        return <Tag color="success">已到账 ✅{amountStr}</Tag>;
         }
         return <Tag color="warning">待充值 ⏳</Tag>;
       },

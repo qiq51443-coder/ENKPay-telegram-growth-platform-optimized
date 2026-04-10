@@ -442,8 +442,8 @@ router.post('/invite-message/translate-and-save', authenticateAdmin, requireRole
       savedKeys.push(settingKey);
     }
 
-    // Save default invite_message key (use en or zh)
-    const defaultText = (translations as Record<string, string>)['en'] || (translations as Record<string, string>)['zh'] || String(text);
+    const translationsMap = translations as Record<string, string>;
+    const defaultText = translationsMap['en'] || translationsMap['zh'] || String(text);
     await query(
       `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
        VALUES ('invite_message', $1, '邀请语（默认）', 'invite', true, $2, NOW())
