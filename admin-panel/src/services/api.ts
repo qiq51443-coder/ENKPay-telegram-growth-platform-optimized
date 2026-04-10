@@ -900,6 +900,22 @@ class ApiClient {
     const response = await this.client.post('/admin/landing/terms/translate', { text });
     return response.data;
   }
+
+  /** 上传邀请卡图片，返回图片 URL */
+  async uploadInviteCardImage(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await this.client.post<{ url: string }>('/admin/system-settings/invite-card/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  /** 翻译并保存邀请语（7种语言） */
+  async translateAndSaveInviteMessage(text: string): Promise<{ translations: Record<string, string>; saved_keys: string[] }> {
+    const response = await this.client.post('/admin/system-settings/invite-message/translate-and-save', { text });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

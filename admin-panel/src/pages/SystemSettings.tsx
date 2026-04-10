@@ -154,6 +154,16 @@ export const SystemSettings: React.FC = () => {
   const [previewData, setPreviewData]           = useState<any>(null);
   const [previewLoading, setPreviewLoading]     = useState(false);
 
+  // ── 邀请设置 Tab 状态 ──────────────────────────────────────────────────
+  const [inviteCardUrl, setInviteCardUrl]               = useState('');
+  const [inviteCardUploading, setInviteCardUploading]   = useState(false);
+  const [inviteMessageText, setInviteMessageText]       = useState('');
+  const [inviteMessageTranslations, setInviteMessageTranslations] = useState<Record<string, string> | null>(null);
+  const [inviteMessageSaving, setInviteMessageSaving]   = useState(false);
+  const [inviteRewardEnabled, setInviteRewardEnabled]   = useState(true);
+  const [inviteRewardAmount, setInviteRewardAmount]     = useState<number>(2.00);
+  const [inviteRewardSaving, setInviteRewardSaving]     = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -169,6 +179,25 @@ export const SystemSettings: React.FC = () => {
       const zhAgreement = settingsData.find((s: SystemSetting) => s.key === 'user_agreement_zh');
       if (zhAgreement?.value && !agreementText) {
         setAgreementText(unwrapJsonString(zhAgreement.value));
+      }
+
+      // Pre-fill invite settings
+      const inviteCard = settingsData.find((s: SystemSetting) => s.key === 'invite_card_image');
+      if (inviteCard?.value) setInviteCardUrl(unwrapJsonString(inviteCard.value));
+
+      const inviteMsg = settingsData.find((s: SystemSetting) => s.key === 'invite_message_zh');
+      if (inviteMsg?.value && !inviteMessageText) setInviteMessageText(unwrapJsonString(inviteMsg.value));
+
+      const inviteEnabled = settingsData.find((s: SystemSetting) => s.key === 'invite_reward_enabled');
+      if (inviteEnabled?.value !== undefined) {
+        const parsed = unwrapJsonString(inviteEnabled.value);
+        setInviteRewardEnabled(parsed !== 'false');
+      }
+
+      const inviteAmount = settingsData.find((s: SystemSetting) => s.key === 'invite_reward_amount');
+      if (inviteAmount?.value !== undefined) {
+        const parsed = parseFloat(unwrapJsonString(inviteAmount.value));
+        if (!isNaN(parsed)) setInviteRewardAmount(parsed);
       }
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
@@ -1011,6 +1040,186 @@ export const SystemSettings: React.FC = () => {
     </div>
   );
 
+  const handleInviteCardUpload = async (file: File) => {
+    setInviteCardUploading(true);
+    try {
+      const result = await apiClient.uploadInviteCardImage(file);
+      setInviteCardUrl(result.url);
+      message.success('邀请卡图片上传成功');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '图片上传失败');
+    } finally { setInviteCardUploading(false); }
+    return false;
+  };
+
+  const handleInviteMessageTranslateAndSave = async () => {
+    if (!inviteMessageText.trim()) {
+      message.warning('请先输入邀请语内容');
+      return;
+    }
+    setInviteMessageSaving(true);
+    try {
+      const result = await apiClient.translateAndSaveInviteMessage(inviteMessageText);
+      setInviteMessageTranslations(result.translations);
+      message.success(`邀请语已翻译并保存 ${result.saved_keys?.length || 0} 个语言版本`);
+      await fetchSettings();
+    } catch (error: any) {
+      console.error('Failed to save invite message:', error);
+      message.error(error?.response?.data?.error || '翻译保存失败');
+    } finally {
+      setInviteMessageSaving(false);
+    }
+  };
+
+  const handleSaveInviteReward = async () => {
+    setInviteRewardSaving(true);
+    try {
+      await apiClient.bulkUpdateSystemSettings([
+        { key: 'invite_reward_enabled', value: String(inviteRewardEnabled) },
+        { key: 'invite_reward_amount', value: String(inviteRewardAmount) },
+      ]);
+      message.success('邀请奖励设置已保存');
+      await fetchSettings();
+    } catch (error: any) {
+      console.error('Failed to save invite reward settings:', error);
+      message.error(error?.response?.data?.error || '保存失败');
+    } finally {
+      setInviteRewardSaving(false);
+    }
+  };
+
+  const renderInviteSettingsTab = () => {
+    const inviteMessageCollapseItems = LANG_CONFIG.map(lang => {
+      const existingSetting = settings.find((s) => s.key === `invite_message_${lang.code}`);
+      const displayText =
+        (inviteMessageTranslations && inviteMessageTranslations[lang.code] !== undefined)
+          ? unwrapJsonString(inviteMessageTranslations[lang.code])
+          : (existingSetting?.value ? unwrapJsonString(existingSetting.value) : '');
+
+      return {
+        key: lang.code,
+        label: (
+          <span>
+            <Tag color="blue" style={{ marginRight: 6 }}>{lang.code.toUpperCase()}</Tag>
+            {lang.flag} {lang.label}
+            {displayText && <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>({displayText.slice(0, PREVIEW_TEXT_LENGTH)}{displayText.length > PREVIEW_TEXT_LENGTH ? '…' : ''})</Text>}
+          </span>
+        ),
+        children: displayText
+          ? <div style={{ whiteSpace: 'pre-wrap', padding: '8px 0', color: '#333', direction: lang.dir }}>{displayText}</div>
+          : <Text type="secondary">暂无内容</Text>,
+      };
+    });
+
+    return (
+      <>
+        {/* Card 1: 邀请卡图片 */}
+        <Card title="🖼️ 邀请卡图片" style={{ marginBottom: 16 }}>
+          <Space align="start" style={{ flexWrap: 'wrap' as const }}>
+            <div style={{
+              width: 160, height: 100, borderRadius: 8, border: '2px dashed #d9d9d9',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', background: '#fafafa', flexShrink: 0,
+            }}>
+              {inviteCardUrl
+                ? <img src={inviteCardUrl} alt="invite card" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                : <PictureOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />}
+            </div>
+            <div>
+              <Upload
+                accept="image/*"
+                maxCount={1}
+                showUploadList={false}
+                beforeUpload={handleInviteCardUpload}
+              >
+                <Button icon={<UploadOutlined />} loading={inviteCardUploading} style={{ marginRight: 8 }}>
+                  {inviteCardUploading ? '上传中...' : inviteCardUrl ? '替换图片' : '上传图片'}
+                </Button>
+              </Upload>
+              {inviteCardUrl && (
+                <Button
+                  danger
+                  onClick={() => setInviteCardUrl('')}
+                  size="small"
+                >
+                  删除
+                </Button>
+              )}
+              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
+                支持 JPG、PNG、GIF 动态图，最大 10MB
+              </div>
+            </div>
+          </Space>
+        </Card>
+
+        {/* Card 2: 邀请语设置 */}
+        <Card title="💬 邀请语设置" style={{ marginBottom: 16 }}>
+          <Form.Item label="原文（中文或英文，系统自动翻译为 7 种语言）">
+            <TextArea
+              rows={6}
+              placeholder="请输入邀请语（建议用中文或英文，系统将自动翻译为 7 种语言）"
+              value={inviteMessageText}
+              onChange={(e) => setInviteMessageText(e.target.value)}
+            />
+            <Button
+              type="primary"
+              icon={<TranslationOutlined />}
+              loading={inviteMessageSaving}
+              onClick={handleInviteMessageTranslateAndSave}
+              disabled={!inviteMessageText.trim()}
+              style={{ marginTop: 8 }}
+            >
+              🌐 翻译并保存（7 种语言）
+            </Button>
+          </Form.Item>
+
+          {(inviteMessageTranslations || settings.some(s => s.key.startsWith('invite_message_'))) && (
+            <>
+              <Divider>各语言预览</Divider>
+              <Collapse size="small" items={inviteMessageCollapseItems} />
+            </>
+          )}
+        </Card>
+
+        {/* Card 3: 邀请奖励设置 */}
+        <Card title="💰 邀请奖励设置">
+          <Form.Item label="启用邀请奖励">
+            <Switch
+              checked={inviteRewardEnabled}
+              onChange={setInviteRewardEnabled}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+            />
+          </Form.Item>
+          <Form.Item label="每次邀请奖励金额（USDT）">
+            <InputNumber
+              min={0}
+              step={0.01}
+              precision={2}
+              value={inviteRewardAmount}
+              onChange={(v) => setInviteRewardAmount(v ?? 2.00)}
+              style={{ width: 160 }}
+            />
+          </Form.Item>
+          <Alert
+            type="info"
+            message="被邀请者完成首次充值后，奖励自动到账到邀请人余额"
+            style={{ marginBottom: 16 }}
+            showIcon
+          />
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={inviteRewardSaving}
+            onClick={handleSaveInviteReward}
+          >
+            💾 保存奖励设置
+          </Button>
+        </Card>
+      </>
+    );
+  };
+
   const tabItems = [
     {
       key: 'user_agreement',
@@ -1026,6 +1235,11 @@ export const SystemSettings: React.FC = () => {
       key: 'landing',
       label: '网页管理',
       children: renderLandingTab(),
+    },
+    {
+      key: 'invite_settings',
+      label: '邀请设置',
+      children: renderInviteSettingsTab(),
     },
   ];
 
