@@ -110,8 +110,7 @@ docker-compose up -d
 这将启动：
 - PostgreSQL 数据库
 - Redis 缓存
-- 后端 API 服务器
-- 管理面板 (端口 5173)
+- 后端 API 服务器（端口 3000，管理面板挂载于 `/admin` 路径）
 - Telegram Bot
 
 ### 4. 初始化数据库
@@ -123,7 +122,7 @@ docker-compose exec backend npm run migrate
 
 ### 5. 访问管理面板
 
-1. 打开浏览器访问 `http://localhost:5173`
+1. 打开浏览器访问 `http://localhost:3000/admin`
 2. 使用默认凭据登录:
    - 用户名: `admin`
    - 密码: `admin123`
