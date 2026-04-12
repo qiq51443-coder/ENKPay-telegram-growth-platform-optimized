@@ -9,7 +9,56 @@ import { inviteUpload, toPublicUrl } from '../services/storage.service';
 
 const router = express.Router();
 
-// Apply rate limiting to all system settings routes
+/**
+ * GET /admin/system-settings/bot/invite
+ * Bot-internal endpoint: returns all invite-category settings that are marked
+ * is_public = true.  Does NOT require an admin token; instead it accepts an
+ * optional x-bot-token / Bearer token that must match BOT_INTERNAL_TOKEN or
+ * BOT_API_KEY when either of those env-vars is set.
+ *
+ * IMPORTANT: this route is registered BEFORE adminLimiter so that Bot requests
+ * (which all originate from a single IP) are not subject to the 60 req/min
+ * rate limit that applies to the admin panel routes.
+ */
+router.get('/bot/invite', async (req, res) => {
+  try {
+    const authHeader = (req.headers['authorization'] as string) || '';
+    const xBotToken = (req.headers['x-bot-token'] as string) || '';
+    const token = xBotToken || authHeader.replace('Bearer ', '');
+    const validToken = process.env.BOT_INTERNAL_TOKEN || process.env.BOT_API_KEY || '';
+
+    if (validToken) {
+      // Use constant-time comparison to prevent timing-based token enumeration
+      const maxLen = Math.max(token.length, validToken.length);
+      const a = Buffer.from(token.padEnd(maxLen));
+      const b = Buffer.from(validToken.padEnd(maxLen));
+      if (!timingSafeEqual(a, b)) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
+    const result = await query(
+      `SELECT key, value FROM system_settings WHERE category = 'invite' AND is_public = true`
+    );
+
+    const settings: Record<string, any> = {};
+    for (const row of result.rows) {
+      try {
+        settings[row.key] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      } catch {
+        settings[row.key] = row.value;
+      }
+    }
+
+    res.json(settings);
+  } catch (error: any) {
+    console.error('Bot invite settings read error:', error);
+    if (error.code === '42P01') return res.json({});
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Apply rate limiting to all admin system settings routes (registered after /bot/invite)
 router.use(adminLimiter);
 
 /**
@@ -97,51 +146,6 @@ router.get('/categories/list', authenticateAdmin, async (req: AuthRequest, res) 
     res.json({ categories: result.rows.map(row => row.category) });
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * GET /admin/system-settings/bot/invite
- * Bot-internal endpoint: returns all invite-category settings that are marked
- * is_public = true.  Does NOT require an admin token; instead it accepts an
- * optional x-bot-token / Bearer token that must match BOT_INTERNAL_TOKEN or
- * BOT_API_KEY when either of those env-vars is set.
- */
-router.get('/bot/invite', async (req, res) => {
-  try {
-    const authHeader = (req.headers['authorization'] as string) || '';
-    const xBotToken = (req.headers['x-bot-token'] as string) || '';
-    const token = xBotToken || authHeader.replace('Bearer ', '');
-    const validToken = process.env.BOT_INTERNAL_TOKEN || process.env.BOT_API_KEY || '';
-
-    if (validToken) {
-      // Use constant-time comparison to prevent timing-based token enumeration
-      const maxLen = Math.max(token.length, validToken.length);
-      const a = Buffer.from(token.padEnd(maxLen));
-      const b = Buffer.from(validToken.padEnd(maxLen));
-      if (!timingSafeEqual(a, b)) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
-
-    const result = await query(
-      `SELECT key, value FROM system_settings WHERE category = 'invite' AND is_public = true`
-    );
-
-    const settings: Record<string, any> = {};
-    for (const row of result.rows) {
-      try {
-        settings[row.key] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-      } catch {
-        settings[row.key] = row.value;
-      }
-    }
-
-    res.json(settings);
-  } catch (error: any) {
-    console.error('Bot invite settings read error:', error);
-    if (error.code === '42P01') return res.json({});
     res.status(500).json({ error: 'Internal server error' });
   }
 });
