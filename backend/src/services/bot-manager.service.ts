@@ -370,7 +370,7 @@ function buildOfficialLinksKeyboard(lang: string, settings: Record<string, any>)
 async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, settings: Record<string, any>) {
   const replyKeyboard = Markup.keyboard([
     [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-  ]).resize();
+  ]).resize().persistent();
   const officialKeyboard = buildOfficialLinksKeyboard(lang, settings);
 
   const imageUrl: string | undefined = settings.welcome_image_url || undefined;
@@ -380,11 +380,7 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
 
   if (imageUrl) {
     // ── Has welcome image ─────────────────────────────────────────────────
-    // Use officialKeyboard when available, otherwise fall back to replyKeyboard.
-    const photoReplyMarkup = officialKeyboard
-      ? officialKeyboard.reply_markup
-      : replyKeyboard.reply_markup;
-
+    // Always attach replyKeyboard so the bottom shortcut buttons are preserved.
     if (imageUrl.startsWith('data:')) {
       // base64 Data URL → decode to Buffer → multipart upload to Telegram
       const matches = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
@@ -395,7 +391,7 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
           {
             caption: welcomeText,
             parse_mode: 'HTML',
-            reply_markup: photoReplyMarkup,
+            reply_markup: replyKeyboard.reply_markup,
           }
         );
         photoSent = true;
@@ -408,7 +404,7 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
       await ctx.replyWithPhoto(imageUrl, {
         caption: welcomeText,
         parse_mode: 'HTML',
-        reply_markup: photoReplyMarkup,
+        reply_markup: replyKeyboard.reply_markup,
       });
       photoSent = true;
     } else {
@@ -419,7 +415,17 @@ async function sendWelcomeMessage(ctx: any, welcomeText: string, lang: string, s
 
   if (!photoSent) {
     // ── No photo (either no imageUrl configured, or imageUrl was invalid) ──
-    await ctx.replyWithHTML(welcomeText, officialKeyboard || replyKeyboard);
+    // Send replyKeyboard first so the bottom shortcut buttons are always shown.
+    await ctx.replyWithHTML(welcomeText, replyKeyboard);
+  }
+
+  // If official links are configured, send them as a separate inline-keyboard message
+  // so they coexist with the persistent ReplyKeyboard without hiding it.
+  if (officialKeyboard) {
+    await ctx.replyWithHTML(
+      t(lang, 'official_links_prompt') || '👇 Official Links',
+      officialKeyboard
+    );
   }
 }
 

@@ -9,7 +9,7 @@ export const getMainKeyboard = (lang: string = 'en', webAppUrl?: string) => {
   if (webAppUrl) {
     rows.push([Markup.button.webApp(t(lang, 'btn_open_app'), webAppUrl)]);
   }
-  return Markup.keyboard(rows).resize();
+  return Markup.keyboard(rows).resize().persistent();
 };
 
 export const removeKeyboard = () => {
