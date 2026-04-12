@@ -150,6 +150,7 @@ export const es: Record<string, string> = {
   // Wallet inline buttons
   btn_contact_support: '🎧 Contactar soporte',
   btn_support: '🎧 Contactar soporte',
+  btn_join_now: '🚀 Unirse ahora',
   btn_share: '📤 Compartir',
   invite_link: 'Enlace de invitación',
   btn_language: '🌐 Idioma',
