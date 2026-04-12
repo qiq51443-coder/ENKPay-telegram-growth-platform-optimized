@@ -916,6 +916,20 @@ class ApiClient {
     const response = await this.client.post('/admin/system-settings/invite-message/translate-and-save', { text });
     return response.data;
   }
+
+  /** 保存邀请奖励设置（amount + enabled） */
+  async saveInviteReward(data: { amount?: number; enabled?: boolean }): Promise<{ success: boolean }> {
+    const settings: Array<{ key: string; value: string }> = [];
+    if (data.amount !== undefined) {
+      settings.push({ key: 'invite_reward_amount', value: String(data.amount) });
+    }
+    if (data.enabled !== undefined) {
+      settings.push({ key: 'invite_reward_enabled', value: String(data.enabled) });
+    }
+    if (settings.length === 0) return { success: true };
+    const response = await this.client.post('/admin/system-settings/bulk-update', { settings });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

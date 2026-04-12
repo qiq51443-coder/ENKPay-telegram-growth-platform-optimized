@@ -3,6 +3,26 @@ import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 
+/**
+ * Fetch invite-category settings from the backend's bot-internal endpoint.
+ * Bot has no admin token, so it uses the dedicated /bot/invite route with an
+ * optional x-bot-token header for lightweight authentication.
+ */
+async function getInviteSystemSettings(): Promise<Record<string, string>> {
+  try {
+    const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
+    const botToken = process.env.BOT_INTERNAL_TOKEN || process.env.BOT_API_KEY || '';
+    const res = await fetch(`${apiBase}/api/admin/system-settings/bot/invite`, {
+      headers: botToken ? { 'x-bot-token': botToken } : {},
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data || {};
+  } catch {
+    return {};
+  }
+}
+
 export const handleInvite = async (ctx: Context) => {
   try {
     if (!ctx.from) return;
@@ -15,26 +35,70 @@ export const handleInvite = async (ctx: Context) => {
     const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
     const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
 
-    // Fetch configurable invite text/button from settings
-    let settings: Record<string, any> = {};
+    // 1. Fetch invite settings from system_settings (invite card image + multilingual messages)
+    const sysSettings = await getInviteSystemSettings();
+
+    // 2. Invite card image – strip surrounding quotes that JSON serialisation may add
+    const rawCardImage = sysSettings['invite_card_image'] || '';
+    const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
+
+    // 3. Multilingual invite message – priority: user lang → English → generic → built-in
+    const langKey = `invite_message_${lang}`;
+    const rawMessage =
+      sysSettings[langKey] ||
+      sysSettings['invite_message_en'] ||
+      sysSettings['invite_message'] ||
+      '';
+    const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
+
+    // 4. Replace {invite_link} placeholder; fall back to built-in i18n text
+    const inviteText = inviteTemplate
+      ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
+      : buildDefaultInviteText(lang, inviteLink);
+
+    // 5. Bot-level settings (button label etc.) – gracefully degrade on failure
+    let botSettings: Record<string, any> = {};
     try {
-      settings = await getSettings(botId) || {};
+      botSettings = (await getSettings(botId)) || {};
     } catch {}
+    const buttonText = botSettings.invite_button_text || t(lang, 'btn_invite');
 
-    const shareText = settings.invite_share_text ||
-      `${t(lang, 'invite_title')}\n\n` +
-      `${t(lang, 'invite_description')}\n\n` +
-      `🔗 ${t(lang, 'your_invite_link')}:\n` +
-      `${inviteLink}\n\n` +
-      t(lang, 'invite_share_hint');
-
-    const buttonText = settings.invite_button_text || t(lang, 'btn_invite');
-
-    await ctx.replyWithHTML(shareText, Markup.inlineKeyboard([
+    const keyboard = Markup.inlineKeyboard([
       [Markup.button.url(buttonText, inviteLink)],
-    ]));
+    ]);
+
+    // 6. Send photo card when available; fall back to plain text if photo delivery fails
+    if (cardImageUrl) {
+      const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
+      const photoUrl = cardImageUrl.startsWith('http')
+        ? cardImageUrl
+        : `${apiBase}${cardImageUrl}`;
+
+      try {
+        await ctx.replyWithPhoto(photoUrl, {
+          caption: inviteText,
+          parse_mode: 'HTML',
+          ...keyboard,
+        });
+        return;
+      } catch (photoErr) {
+        console.error('[invite] Photo send failed, falling back to text:', photoErr);
+      }
+    }
+
+    await ctx.replyWithHTML(inviteText, keyboard);
   } catch (error) {
     console.error('Invite handler error:', error);
     await ctx.reply(t('en', 'error'));
   }
 };
+
+function buildDefaultInviteText(lang: string, inviteLink: string): string {
+  return (
+    `${t(lang, 'invite_title')}\n\n` +
+    `${t(lang, 'invite_description')}\n\n` +
+    `🔗 ${t(lang, 'your_invite_link')}:\n` +
+    `${inviteLink}\n\n` +
+    t(lang, 'invite_share_hint')
+  );
+}
