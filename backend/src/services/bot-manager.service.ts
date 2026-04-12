@@ -1848,10 +1848,14 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
     : buildDefaultInviteTextInternal(lang, inviteLink);
 
   // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
-  const shareText = inviteText.replace(/<[^>]*>/g, '').replace(/[<>]/g, ''); // strip HTML tags for share preview
+  const shareText = (inviteTemplate
+    ? inviteTemplate.replace(/\{invite_link\}/g, '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim()
+    : t(lang, 'invite_description')
+  ).slice(0, 200);
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
 
   const keyboard = Markup.inlineKeyboard([
+    [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
     [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
   ]);
 

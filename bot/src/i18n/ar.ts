@@ -129,6 +129,7 @@ export const ar: Record<string, string> = {
   // Wallet inline buttons
   btn_contact_support: '🎧 التواصل مع الدعم',
   btn_support: '🎧 التواصل مع الدعم',
+  btn_join_now: '🚀 انضم الآن',
   btn_share: '📤 مشاركة',
   invite_link: 'رابط الدعوة',
   btn_language: '🌐 اللغة',
