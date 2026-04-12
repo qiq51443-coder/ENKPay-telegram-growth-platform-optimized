@@ -151,7 +151,7 @@ export const handleStart = async (ctx: Context) => {
 
     const replyKeyboard = Markup.keyboard([
       [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-    ]).resize();
+    ]).resize().persistent();
 
     // Send welcome content (photo or text) with reply keyboard, then optional official links
     const imageUrl: string | undefined = (settings as any).welcome_image_url || undefined;
