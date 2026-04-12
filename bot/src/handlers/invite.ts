@@ -1,6 +1,5 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
-import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 
 /**
@@ -56,33 +55,40 @@ export const handleInvite = async (ctx: Context) => {
       ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
       : buildDefaultInviteText(lang, inviteLink);
 
-    // 5. Bot-level settings (button label etc.) – gracefully degrade on failure
-    let botSettings: Record<string, any> = {};
-    try {
-      botSettings = (await getSettings(botId)) || {};
-    } catch {}
-    const buttonText = botSettings.invite_button_text || t(lang, 'btn_invite');
+    // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
+    const shareText = inviteText.replace(/<[^>]*>/g, '').replace(/[<>]/g, ''); // strip HTML tags for share preview
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
 
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.url(buttonText, inviteLink)],
+      [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
     ]);
 
-    // 6. Send photo card when available; fall back to plain text if photo delivery fails
+    // 6. Send photo/animation card when available; fall back to plain text if delivery fails
     if (cardImageUrl) {
       const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
       const photoUrl = cardImageUrl.startsWith('http')
         ? cardImageUrl
         : `${apiBase}${cardImageUrl}`;
 
+      const isGif = /\.gif(\?|$)/i.test(photoUrl);
+
       try {
-        await ctx.replyWithPhoto(photoUrl, {
-          caption: inviteText,
-          parse_mode: 'HTML',
-          ...keyboard,
-        });
+        if (isGif) {
+          await ctx.replyWithAnimation(photoUrl, {
+            caption: inviteText,
+            parse_mode: 'HTML',
+            ...keyboard,
+          });
+        } else {
+          await ctx.replyWithPhoto(photoUrl, {
+            caption: inviteText,
+            parse_mode: 'HTML',
+            ...keyboard,
+          });
+        }
         return;
-      } catch (photoErr) {
-        console.error('[invite] Photo send failed, falling back to text:', photoErr);
+      } catch (mediaErr) {
+        console.error('[invite] Media send failed, falling back to text:', mediaErr);
       }
     }
 
