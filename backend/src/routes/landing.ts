@@ -68,7 +68,7 @@ router.get('/config', async (_req, res) => {
               COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
               description
        FROM nft_products
-       WHERE status IN ('active', 'on_sale')
+       WHERE status NOT IN ('draft', 'off_shelf', 'inactive', 'sold_out')
        ORDER BY created_at DESC
        LIMIT 6`,
       []
@@ -83,11 +83,11 @@ router.get('/config', async (_req, res) => {
       description: r.description,
     }));
 
-    // 4. 公益项目（最多3个，活跃中，按时间倒序）
+    // 4. 公益项目（最多3个，活跃或已完成，按时间倒序）
     const charityResult = await query(
       `SELECT id, title, image_url, target_amount, raised_amount
        FROM charity_projects
-       WHERE status = 'active'
+       WHERE status IN ('active', 'completed')
        ORDER BY created_at DESC
        LIMIT 3`,
       []
@@ -107,6 +107,9 @@ router.get('/config', async (_req, res) => {
     });
 
     // 5. 组装响应
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({
       brand: {
         name: settings['landing_brand_name'] ?? 'ENKPay',
