@@ -914,6 +914,7 @@
               this.config = data;
             }
           } catch (e) {
+            console.error('[ENKPay] Failed to load config:', e);
             // Use defaults already set
           } finally {
             clearTimeout(timeout);
