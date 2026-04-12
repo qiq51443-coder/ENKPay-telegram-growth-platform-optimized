@@ -1772,6 +1772,31 @@ async function handleWallet(ctx: Context, botId: string, user: User, lang: strin
   }
 }
 
+async function getInviteSystemSettingsInternal(): Promise<Record<string, string>> {
+  try {
+    const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
+    const botToken = process.env.BOT_INTERNAL_TOKEN || process.env.BOT_API_KEY || '';
+    const res = await fetch(`${apiBase}/api/admin/system-settings/bot/invite`, {
+      headers: botToken ? { 'x-bot-token': botToken } : {},
+    });
+    if (!res.ok) return {};
+    const data = await res.json() as Record<string, string>;
+    return data || {};
+  } catch {
+    return {};
+  }
+}
+
+function buildDefaultInviteTextInternal(lang: string, inviteLink: string): string {
+  return (
+    `${t(lang, 'invite_title')}\n\n` +
+    `${t(lang, 'invite_description')}\n\n` +
+    `🔗 ${t(lang, 'your_invite_link')}:\n` +
+    `${inviteLink}\n\n` +
+    t(lang, 'invite_share_hint')
+  );
+}
+
 async function handleInvite(ctx: Context, botId: string, user: User, lang: string) {
   const settings = await getBotSettings(botId);
 
@@ -1800,15 +1825,53 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
   }
 
   const inviteLink = `https://t.me/${botUsername}?start=REF_${displayId}`;
-  const shareText = `${t(lang, 'invite_title')}\n\n${t(lang, 'invite_description')}\n\n${inviteLink}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
 
-  await ctx.replyWithHTML(
-    `${t(lang, 'invite_title')}\n\n🔗 ${t(lang, 'invite_link')}: <code>${inviteLink}</code>`,
-    Markup.inlineKeyboard([
-      [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
-    ])
-  );
+  // 1. Fetch invite settings from system_settings (invite card image + multilingual messages)
+  const sysSettings = await getInviteSystemSettingsInternal();
+
+  // 2. Invite card image – strip surrounding quotes that JSON serialisation may add
+  const rawCardImage = sysSettings['invite_card_image'] || '';
+  const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
+
+  // 3. Multilingual invite message – priority: user lang → English → generic → built-in
+  const langKey = `invite_message_${lang}`;
+  const rawMessage =
+    sysSettings[langKey] ||
+    sysSettings['invite_message_en'] ||
+    sysSettings['invite_message'] ||
+    '';
+  const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
+
+  // 4. Replace {invite_link} placeholder; fall back to built-in i18n text
+  const inviteText = inviteTemplate
+    ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
+    : buildDefaultInviteTextInternal(lang, inviteLink);
+
+  // 5. Button
+  const buttonText = settings.invite_button_text || t(lang, 'btn_invite');
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.url(buttonText, inviteLink)],
+  ]);
+
+  // 6. Send photo card when available; fall back to plain text if photo delivery fails
+  if (cardImageUrl) {
+    const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
+    const photoUrl = cardImageUrl.startsWith('http')
+      ? cardImageUrl
+      : `${apiBase}${cardImageUrl}`;
+    try {
+      await ctx.replyWithPhoto(photoUrl, {
+        caption: inviteText,
+        parse_mode: 'HTML',
+        ...keyboard,
+      });
+      return;
+    } catch (photoErr) {
+      console.error(`[bot ${botId}] Invite photo send failed, falling back to text:`, photoErr);
+    }
+  }
+
+  await ctx.replyWithHTML(inviteText, keyboard);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
