@@ -1847,27 +1847,40 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
     ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
     : buildDefaultInviteTextInternal(lang, inviteLink);
 
-  // 5. Button
-  const buttonText = settings.invite_button_text || t(lang, 'btn_invite');
+  // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
+  const shareText = inviteText.replace(/<[^>]*>/g, '').replace(/[<>]/g, ''); // strip HTML tags for share preview
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
+
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url(buttonText, inviteLink)],
+    [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
   ]);
 
-  // 6. Send photo card when available; fall back to plain text if photo delivery fails
+  // 6. Send photo/animation card when available; fall back to plain text if delivery fails
   if (cardImageUrl) {
     const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
     const photoUrl = cardImageUrl.startsWith('http')
       ? cardImageUrl
       : `${apiBase}${cardImageUrl}`;
+
+    const isGif = /\.gif(\?|$)/i.test(photoUrl);
+
     try {
-      await ctx.replyWithPhoto(photoUrl, {
-        caption: inviteText,
-        parse_mode: 'HTML',
-        ...keyboard,
-      });
+      if (isGif) {
+        await ctx.replyWithAnimation(photoUrl, {
+          caption: inviteText,
+          parse_mode: 'HTML',
+          ...keyboard,
+        });
+      } else {
+        await ctx.replyWithPhoto(photoUrl, {
+          caption: inviteText,
+          parse_mode: 'HTML',
+          ...keyboard,
+        });
+      }
       return;
-    } catch (photoErr) {
-      console.error(`[bot ${botId}] Invite photo send failed, falling back to text:`, photoErr);
+    } catch (mediaErr) {
+      console.error(`[bot ${botId}] Invite media send failed, falling back to text:`, mediaErr);
     }
   }
 
