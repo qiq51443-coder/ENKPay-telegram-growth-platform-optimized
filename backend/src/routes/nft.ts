@@ -609,9 +609,11 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
 
       // Create holding (with expires_at for fixed_term products)
       const termDays = product.term_days ?? product.duration_days ?? null;
-      const expiresAt = (isFixedTerm && termDays)
-        ? new Date(Date.now() + termDays * 86400000).toISOString()
-        : null;
+      let expiresAt: string | null = null;
+      if (isFixedTerm && termDays) {
+        const expiryBase = new Date(Date.now() + termDays * 86400000);
+        expiresAt = new Date(Date.UTC(expiryBase.getUTCFullYear(), expiryBase.getUTCMonth(), expiryBase.getUTCDate(), 10, 5, 0)).toISOString();
+      }
 
       const holdingResult = await client.query(
         `INSERT INTO nft_holdings 
@@ -782,7 +784,7 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       if (product.is_purchase_limited) {
         const purchaseCount = await client.query(
           `SELECT COUNT(*) AS total_count FROM product_holdings
-           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+           WHERE user_id = $1 AND product_id = $2`,
           [user.id, productId]
         );
         if (parseInt(purchaseCount.rows[0].total_count) >= (product.max_purchases_per_user ?? 1)) {
@@ -802,7 +804,9 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
 
       const startDate = new Date();
       const termDays = product.term_days ?? 30;
-      const endDate = new Date(startDate.getTime() + termDays * 86400000);
+      // Set end_date to UTC 10:05 of the expiry day so the maturity check fires at the correct time
+      const expiryBase = new Date(startDate.getTime() + termDays * 86400000);
+      const endDate = new Date(Date.UTC(expiryBase.getUTCFullYear(), expiryBase.getUTCMonth(), expiryBase.getUTCDate(), 10, 5, 0));
 
       // Write to product_holdings (for nft-yield.service.ts compatibility)
       const holdingInsert = await client.query(

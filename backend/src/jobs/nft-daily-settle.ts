@@ -103,7 +103,7 @@ async function settleDailyIncome(): Promise<number> {
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
          SELECT 1 FROM nft_income_records ir
-         WHERE ir.user_id = h.user_id AND ir.product_id = h.product_id AND ir.income_date = $1
+         WHERE ir.holding_id = h.id AND ir.income_date = $1
        )`,
     [today]
   );
@@ -208,7 +208,7 @@ async function settleDailyIncome(): Promise<number> {
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
          SELECT 1 FROM nft_income_records ir
-         WHERE ir.user_id = ph.user_id AND ir.product_id = ph.product_id AND ir.income_date = $1
+         WHERE ir.holding_id = ph.id AND ir.income_date = $1
        )`,
     [today]
   );
@@ -315,7 +315,7 @@ async function releaseMatureHoldings(): Promise<number> {
        AND (
          (h.expires_at IS NOT NULL AND h.expires_at <= NOW())
          OR
-         (h.expires_at IS NULL AND (h.created_at + (p.term_days || ' days')::interval) <= NOW())
+         (h.expires_at IS NULL AND (h.created_at + (p.term_days || ' days')::interval + interval '10 hours 5 minutes') <= NOW())
        )`,
     []
   );
@@ -405,9 +405,9 @@ async function releaseMatureHoldings(): Promise<number> {
        AND p.product_type = 'fixed_term'
        AND p.term_days IS NOT NULL
        AND (
-         (ph.end_date IS NOT NULL AND ph.end_date <= CURRENT_DATE)
+         (ph.end_date IS NOT NULL AND ph.end_date::timestamp + interval '10 hours 5 minutes' <= NOW())
          OR
-         (ph.end_date IS NULL AND (ph.created_at + (p.term_days || ' days')::interval) <= CURRENT_TIMESTAMP)
+         (ph.end_date IS NULL AND (ph.created_at + (p.term_days || ' days')::interval + interval '10 hours 5 minutes') <= NOW())
        )`,
     []
   );
@@ -509,7 +509,12 @@ export async function runNFTDailySettle(): Promise<{ income_count: number; refun
     console.log('NFT daily settle already running, skipping...');
     return { income_count: 0, refund_count: 0 };
   }
+  if (isIncomeRunning) {
+    console.log('NFT daily income already running, skipping settle to avoid duplicate income...');
+    return { income_count: 0, refund_count: 0 };
+  }
   isRunning = true;
+  isIncomeRunning = true;
   try {
     console.log('NFT daily settle: starting...');
     const income_count = await settleDailyIncome();
@@ -521,6 +526,7 @@ export async function runNFTDailySettle(): Promise<{ income_count: number; refun
     return { income_count: 0, refund_count: 0 };
   } finally {
     isRunning = false;
+    isIncomeRunning = false;
   }
 }
 
@@ -547,10 +553,8 @@ export async function runNFTMaturityCheck(): Promise<void> {
 
 /**
  * Start the NFT settlement cron jobs:
- *  - incomeJob:        UTC 10:00 daily — settles daily income for all active holdings
- *  - cronJob:          UTC 10:05 daily — releases matured principal after income is settled
- *  - maturityCronJob:  every hour      — releases expired holdings between daily runs
- *    (compensates for Render free-tier sleep / missed ticks)
+ *  - incomeJob:  UTC 10:00 daily — settles daily income for all active holdings
+ *  - cronJob:    UTC 10:05 daily — releases matured principal after income is settled
  */
 export function startNFTDailySettle(): void {
   if (!incomeJob) {
@@ -571,14 +575,6 @@ export function startNFTDailySettle(): void {
     console.log('✓ NFT principal release job started (runs at 10:05 UTC daily)');
   } else {
     console.log('NFT principal release job already started');
-  }
-
-  if (!maturityCronJob) {
-    // Runs at the top of every hour
-    maturityCronJob = cron.schedule('0 * * * *', async () => {
-      await runNFTMaturityCheck();
-    });
-    console.log('✓ NFT maturity check job started (runs hourly)');
   }
 }
 
