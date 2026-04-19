@@ -108,7 +108,11 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
       [symbol, effectiveName, effectiveName, binance_symbol, base_currency, quote_currency, iconUrl]
     );
 
-    try { subscribeAdditionalPairs([binance_symbol]); } catch {}
+    try {
+      subscribeAdditionalPairs([binance_symbol]);
+    } catch (wsErr: any) {
+      console.warn('[trading-admin] subscribeAdditionalPairs failed:', wsErr?.message || wsErr);
+    }
 
     res.json({
       success: true,
@@ -292,7 +296,11 @@ router.delete('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => 
     }
 
     if (binanceSymbol) {
-      try { unsubscribePairs([binanceSymbol]); } catch {}
+      try {
+        unsubscribePairs([binanceSymbol]);
+      } catch (wsErr: any) {
+        console.warn('[trading-admin] unsubscribePairs failed:', wsErr?.message || wsErr);
+      }
     }
 
     res.json({
@@ -952,7 +960,11 @@ router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: 
 
     const addedSymbols = added.map((p) => p.binance_symbol).filter(Boolean);
     if (addedSymbols.length > 0) {
-      try { subscribeAdditionalPairs(addedSymbols); } catch {}
+      try {
+        subscribeAdditionalPairs(addedSymbols);
+      } catch (wsErr: any) {
+        console.warn('[trading-admin] subscribeAdditionalPairs (bulk) failed:', wsErr?.message || wsErr);
+      }
     }
 
     res.json({
