@@ -283,3 +283,27 @@ export function subscribeAdditionalPairs(pairs: string[]): void {
   subscribe(newPairs);
   console.log(`[price-ws] Subscribed to additional pairs: ${newPairs.join(', ')}`);
 }
+
+/**
+ * Remove pairs from OKX WebSocket subscription.
+ * Sends an 'unsubscribe' op to OKX and removes from subscribedPairs list.
+ */
+export function unsubscribePairs(pairs: string[]): void {
+  const toRemove = pairs.filter((p) => subscribedPairs.includes(p));
+  if (toRemove.length === 0) return;
+
+  subscribedPairs = subscribedPairs.filter((p) => !toRemove.includes(p));
+  for (const sym of toRemove) {
+    priceCache.delete(sym);
+  }
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const args = toRemove.map((symbol) => ({
+      channel: 'tickers',
+      instId: toOkxInstId(symbol),
+    }));
+    ws.send(JSON.stringify({ op: 'unsubscribe', args }));
+  }
+
+  console.log(`[price-ws] Unsubscribed from pairs: ${toRemove.join(', ')}`);
+}

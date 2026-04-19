@@ -6,10 +6,21 @@ import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { syncBinanceSymbols, getSymbolLibrary } from '../services/symbol-library.service';
+import { subscribeAdditionalPairs, unsubscribePairs } from '../services/price-ws.service';
 import { getDayOpenPrice, binanceFetch } from '../services/price.service';
 import { coinIconUpload, toPublicUrl, UPLOAD_ROOT } from '../services/storage.service';
 
 const router = express.Router();
+
+function toOkxInstId(binanceSymbol: string): string {
+  for (const quote of ['USDT', 'USDC', 'BTC', 'ETH', 'BNB']) {
+    if (binanceSymbol.endsWith(quote)) {
+      const base = binanceSymbol.slice(0, -quote.length);
+      return `${base}-${quote}`;
+    }
+  }
+  return binanceSymbol.slice(0, -4) + '-' + binanceSymbol.slice(-4);
+}
 
 /**
  * GET /api/admin/trading/pairs
@@ -56,15 +67,19 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'symbol and binance_symbol are required' });
     }
 
-    // Validate binance_symbol format (alphanumeric only) and existence on Binance API
+    // Validate binance_symbol format (alphanumeric only) and check existence on OKX
     if (!/^[A-Z0-9]+$/.test(binance_symbol)) {
       return res.status(400).json({ error: 'binance_symbol must be alphanumeric uppercase (e.g. BTCUSDT)' });
     }
-    const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api.binance.com';
+    const OKX_BASE = process.env.OKX_API_URL || 'https://www.okx.com';
     try {
-      await axios.get(`${BINANCE_API_URL}/api/v3/ticker/price?symbol=${binance_symbol}`, { timeout: 5000 });
+      const instId = toOkxInstId(binance_symbol);
+      const r = await axios.get(`${OKX_BASE}/api/v5/market/ticker?instId=${instId}`, { timeout: 5000 });
+      if (r.data?.code !== '0' || !r.data?.data?.length) {
+        return res.status(400).json({ error: `Invalid symbol: "${binance_symbol}" not found on OKX` });
+      }
     } catch (validationError: any) {
-      return res.status(400).json({ error: `Invalid binance_symbol: "${binance_symbol}" does not exist on Binance` });
+      console.warn(`[trading-admin] OKX symbol validation failed for ${binance_symbol}:`, validationError.message);
     }
 
     const effectiveName = display_name || symbol;
@@ -92,6 +107,8 @@ router.post('/pairs/real', authenticateAdmin, async (req: AuthRequest, res) => {
        RETURNING *`,
       [symbol, effectiveName, effectiveName, binance_symbol, base_currency, quote_currency, iconUrl]
     );
+
+    try { subscribeAdditionalPairs([binance_symbol]); } catch {}
 
     res.json({
       success: true,
@@ -257,6 +274,12 @@ router.delete('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       });
     }
 
+    const pairToDelete = await query(
+      'SELECT binance_symbol FROM trading_pairs WHERE id = $1',
+      [id]
+    );
+    const binanceSymbol: string | null = pairToDelete.rows[0]?.binance_symbol ?? null;
+
     // Hard delete — related rows (price_points, price_presets, trading_sessions,
     // trading_rules, trading_orders) have ON DELETE CASCADE in the schema.
     const result = await query(
@@ -266,6 +289,10 @@ router.delete('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => 
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
+    if (binanceSymbol) {
+      try { unsubscribePairs([binanceSymbol]); } catch {}
     }
 
     res.json({
@@ -830,7 +857,7 @@ router.get('/symbol-library', adminLimiter, authenticateAdmin, async (req: AuthR
 
 /**
  * POST /api/admin/trading/symbol-library/sync
- * Sync Binance trading pairs into the local symbol library
+ * Sync exchange trading pairs into the local symbol library (OKX-first)
  */
 router.post('/symbol-library/sync', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -838,7 +865,7 @@ router.post('/symbol-library/sync', adminLimiter, authenticateAdmin, async (req:
 
     res.json({
       success: true,
-      message: `Successfully synced ${syncedCount} symbols from Binance`,
+      message: `Successfully synced ${syncedCount} symbols from OKX`,
       synced_count: syncedCount,
     });
   } catch (error: any) {
@@ -903,13 +930,14 @@ router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: 
 
         const insertResult = await query(
           `INSERT INTO trading_pairs
-             (symbol, display_name, pair_type, binance_symbol, base_currency, quote_currency, is_active, icon_url)
-           VALUES ($1, $2, 'real', $3, $4, $5, true, $6)
-           RETURNING *`,
+             (symbol, name, display_name, pair_type, binance_symbol, base_currency, quote_currency, is_active, icon_url)
+           VALUES ($1, $2, $3, 'real', $4, $5, $6, true, $7)
+            RETURNING *`,
           [
-            sym,                          // symbol (platform identifier)
-            lib.display_name || sym,      // display_name
-            sym,                          // binance_symbol
+            sym,                         // symbol (platform identifier)
+            lib.display_name || sym,     // name
+            lib.display_name || sym,     // display_name
+            sym,                         // binance_symbol
             lib.base_asset,              // base_currency
             lib.quote_asset,             // quote_currency
             bulkIconUrl,                 // icon_url
@@ -920,6 +948,11 @@ router.post('/pairs/from-library', adminLimiter, authenticateAdmin, async (req: 
       } catch (err: any) {
         errors.push({ symbol: sym, error: err.message });
       }
+    }
+
+    const addedSymbols = added.map((p) => p.binance_symbol).filter(Boolean);
+    if (addedSymbols.length > 0) {
+      try { subscribeAdditionalPairs(addedSymbols); } catch {}
     }
 
     res.json({

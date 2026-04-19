@@ -100,7 +100,7 @@ export const TradingPairs: React.FC = () => {
       setLibraryData(Array.isArray(list) ? list : []);
     } catch (error: any) {
       console.error('Failed to fetch symbol library:', error);
-      message.warning('获取币安币种库失败，可手动输入交易对');
+      message.warning('获取OKX币种库失败，可手动输入交易对');
       setLibraryData([]);
     } finally {
       setLibraryLoading(false);
@@ -111,7 +111,7 @@ export const TradingPairs: React.FC = () => {
     setLibrarySyncing(true);
     try {
       const response = await apiClient.syncSymbolLibrary();
-      message.success(`同步成功，共 ${response.count || 0} 个币种`);
+      message.success(`同步成功，共 ${response.synced_count || response.count || 0} 个币种`);
       await fetchSymbolLibrary();
     } catch (error: any) {
       message.error(error.response?.data?.error || '同步失败');
@@ -632,7 +632,7 @@ export const TradingPairs: React.FC = () => {
                     },
                     {
                       key: 'library',
-                      label: '从币安库选择',
+                      label: '从OKX市场选择',
                       children: (
                         <div style={{ marginTop: 12 }}>
                           <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
@@ -648,7 +648,7 @@ export const TradingPairs: React.FC = () => {
                               onClick={handleSyncLibrary}
                               loading={librarySyncing}
                             >
-                              同步币安数据
+                              同步OKX数据
                             </Button>
                           </div>
                           <Table
