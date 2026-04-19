@@ -2,6 +2,7 @@ import axios from 'axios';
 import { query } from '../db';
 
 const BINANCE_API_URL = process.env.BINANCE_API_URL || 'https://api1.binance.com';
+const OKX_API_URL = process.env.OKX_API_URL || 'https://www.okx.com';
 
 // Hardcoded popular USDT trading pairs used as fallback when Binance is unreachable
 const FALLBACK_SYMBOLS = [
@@ -107,9 +108,9 @@ interface PaginationResult<T> {
 }
 
 /**
- * Sync Binance trading pairs to local symbol library.
- * Fetches all USDT-quoted SPOT trading pairs from Binance exchangeInfo and upserts them.
- * Falls back to a built-in list of popular USDT pairs when Binance is unreachable.
+ * Sync trading pairs to local symbol library.
+ * Fetches all USDT-quoted SPOT trading pairs from OKX first, then Binance exchangeInfo.
+ * Falls back to a built-in list of popular USDT pairs when both exchanges are unreachable.
  * Returns the number of synced records.
  */
 export async function syncBinanceSymbols(): Promise<number> {
@@ -118,21 +119,39 @@ export async function syncBinanceSymbols(): Promise<number> {
   let usedFallback = false;
 
   try {
-    const data = await binanceFetch('/api/v3/exchangeInfo');
-    const symbols: any[] = data.symbols;
-    const usdtSpotSymbols = symbols.filter(
-      (s) => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.isSpotTradingAllowed
+    const okxResponse = await axios.get(`${OKX_API_URL}/api/v5/public/instruments?instType=SPOT`, { timeout: 8000 });
+    const okxData: any[] = okxResponse.data?.data || [];
+    const usdtSpotSymbols = okxData.filter(
+      (s) => s.quoteCcy === 'USDT' && s.state === 'live'
     );
-    symbolsToSync = usdtSpotSymbols.map((s) => ({
-      symbol: s.symbol,
-      base_asset: s.baseAsset,
-      quote_asset: s.quoteAsset,
-      display_name: `${s.baseAsset}/USDT`,
-    }));
+    symbolsToSync = usdtSpotSymbols.map((s) => {
+      const symbol = String(s.instId || '').replace('-', '');
+      return {
+        symbol,
+        base_asset: s.baseCcy,
+        quote_asset: s.quoteCcy,
+        display_name: `${s.baseCcy}/USDT`,
+      };
+    }).filter((s) => s.symbol && s.base_asset && s.quote_asset);
   } catch (err: any) {
-    console.warn('[SymbolLibrary] Binance API unreachable, using fallback symbols:', err instanceof Error ? err.message : String(err));
-    symbolsToSync = FALLBACK_SYMBOLS;
-    usedFallback = true;
+    console.warn('[SymbolLibrary] OKX instruments API unreachable, trying Binance fallback:', err instanceof Error ? err.message : String(err));
+    try {
+      const data = await binanceFetch('/api/v3/exchangeInfo');
+      const symbols: any[] = data.symbols;
+      const usdtSpotSymbols = symbols.filter(
+        (s) => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.isSpotTradingAllowed
+      );
+      symbolsToSync = usdtSpotSymbols.map((s) => ({
+        symbol: s.symbol,
+        base_asset: s.baseAsset,
+        quote_asset: s.quoteAsset,
+        display_name: `${s.baseAsset}/USDT`,
+      }));
+    } catch (binanceErr: any) {
+      console.warn('[SymbolLibrary] Binance API unreachable, using fallback symbols:', binanceErr instanceof Error ? binanceErr.message : String(binanceErr));
+      symbolsToSync = FALLBACK_SYMBOLS;
+      usedFallback = true;
+    }
   }
 
   let syncedCount = 0;
