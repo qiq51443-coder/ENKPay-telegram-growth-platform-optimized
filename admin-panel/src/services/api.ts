@@ -911,6 +911,54 @@ class ApiClient {
     return response.data;
   }
 
+  /** 上传迷你APP背景图片，返回图片 URL */
+  async uploadMiniAppBgImage(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await this.client.post<{ url: string }>('/admin/system-settings/miniapp-bg/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  /** 获取迷你APP背景分组配置 */
+  async getMiniAppBgGroups(): Promise<{
+    groups: Array<{
+      id: string;
+      name: string;
+      trading: string;
+      auction: string;
+      period: string;
+      charity: string;
+      profile: string;
+    }>;
+    rotation: 'manual' | 'weekly' | 'monthly';
+    current_group_id: string | null;
+    rotation_start: string | null;
+  }> {
+    const response = await this.client.get('/admin/system-settings/miniapp-bg/groups');
+    return response.data;
+  }
+
+  /** 保存迷你APP背景分组配置 */
+  async saveMiniAppBgGroups(payload: {
+    groups: Array<{
+      id: string;
+      name: string;
+      trading: string;
+      auction: string;
+      period: string;
+      charity: string;
+      profile: string;
+    }>;
+    rotation: 'manual' | 'weekly' | 'monthly';
+    current_group_id: string | null;
+    rotation_start: string | null;
+  }): Promise<any> {
+    const response = await this.client.post('/admin/system-settings/miniapp-bg/groups', payload);
+    return response.data;
+  }
+
   /** 翻译并保存邀请语（7种语言） */
   async translateAndSaveInviteMessage(text: string): Promise<{ translations: Record<string, string>; saved_keys: string[] }> {
     const response = await this.client.post('/admin/system-settings/invite-message/translate-and-save', { text });

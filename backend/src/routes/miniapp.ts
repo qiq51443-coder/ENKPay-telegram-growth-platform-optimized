@@ -5,6 +5,7 @@ import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-a
 import { buildCanonicalProfile, upsertUserFromTelegramId } from './miniapp-shared';
 import { getCache, setCache } from '../utils/cache';
 import { sessionTokenKey, jtTokenKey } from '../utils/cache-keys';
+import { getActiveMiniAppBgMap, normalizeMiniAppBgConfig } from '../services/miniapp-bg.service';
 
 const router = express.Router();
 
@@ -522,6 +523,27 @@ router.get('/user-agreement', async (req, res) => {
     res.json({ success: true, text, lang: effectiveLang });
   } catch (error: any) {
     console.error('Get user agreement error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/miniapp/bg-config
+ * 返回当前激活的迷你 App 背景组
+ */
+router.get('/bg-config', async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT value FROM system_settings WHERE key = 'miniapp_bg_groups' LIMIT 1`
+    );
+    const config = normalizeMiniAppBgConfig(result.rows[0]?.value || null);
+    const activeMap = getActiveMiniAppBgMap(config, new Date());
+    res.json(activeMap);
+  } catch (error: any) {
+    console.error('Get miniapp bg config error:', error);
+    if (error.code === '42P01') {
+      return res.json({ trading: '', auction: '', period: '', charity: '', profile: '' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });

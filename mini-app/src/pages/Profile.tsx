@@ -6,6 +6,7 @@ import { useLang } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { useAuthSync } from '../context/AuthSyncContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
+import { useMiniAppBg } from '../hooks/useMiniAppBg';
 
 interface Transaction {
   id: string;
@@ -121,6 +122,7 @@ function isTxNegative(type: string, amount: number): boolean {
 export const Profile: React.FC = () => {
   const { user: tgUser } = useTelegram();
   const { lang, setLang, t } = useLang();
+  const bgUrl = useMiniAppBg('profile');
   const { user: contextUser, refreshBalance } = useUser();
   const { authSyncDone, authStatus } = useAuthSync();
   const [view, setView] = useState<ProfileView>('main');
@@ -149,6 +151,13 @@ export const Profile: React.FC = () => {
   const [scanPasswordError, setScanPasswordError] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
   const [scanResult, setScanResult] = useState<any | null>(null);
+  const pageBgStyle = {
+    minHeight: '100vh',
+    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed' as const,
+  };
 
   // Use contextUser (set by App-level auth flow) as the single source of truth
   const profile = contextUser;
@@ -319,7 +328,7 @@ export const Profile: React.FC = () => {
 
   // Show loading while App-level auth has not yet completed
   if (!authSyncDone || authStatus === 'pending') {
-    return <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
+    return <div style={{ ...pageBgStyle, color: '#aaa', textAlign: 'center', padding: '40px' }}>{t('loading')}</div>;
   }
 
   // Auth failed / not a real Telegram session — don't show an error, just render nothing
@@ -331,7 +340,7 @@ export const Profile: React.FC = () => {
   // Auth succeeded but profile is still null — real backend problem, allow retry
   if (!profile) {
     return (
-      <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
+      <div style={{ ...pageBgStyle, color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>
         <div style={{ fontSize: '16px', marginBottom: '16px' }}>
           {t('profile_load_failed')}
         </div>
@@ -360,7 +369,7 @@ export const Profile: React.FC = () => {
       return !['deposit', 'withdrawal', 'transfer_in', 'transfer_out', 'trade_win', 'trade_loss', 'trade'].includes(tx.type);
     });
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
@@ -705,7 +714,7 @@ export const Profile: React.FC = () => {
   if (view === 'trading_orders') {
     const safeFixed = (v: any, d = 2) => { const n = Number(v); return isNaN(n) ? '0.00' : n.toFixed(d); };
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
@@ -840,7 +849,7 @@ export const Profile: React.FC = () => {
   // Agreement sub-page
   if (view === 'agreement') {
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
@@ -866,7 +875,7 @@ export const Profile: React.FC = () => {
   // Announcements sub-page
   if (view === 'announcements') {
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
@@ -906,7 +915,7 @@ export const Profile: React.FC = () => {
   // Language sub-page
   if (view === 'language') {
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${theme.border}` }}>
           <button
             onClick={() => setView('main')}
@@ -1026,7 +1035,7 @@ export const Profile: React.FC = () => {
 
   if (view === 'scan_confirm_recipient' && scanRecipient) {
     return (
-      <div style={{ padding: '16px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px' }}>
         <div onClick={() => setView('main')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
           {t('back')}
         </div>
@@ -1056,7 +1065,7 @@ export const Profile: React.FC = () => {
     const balance = parseFloat(String(profile?.wallet_balance || '0'));
     const amt = parseFloat(scanAmount) || 0;
     return (
-      <div style={{ padding: '16px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px' }}>
         <div onClick={() => setView('scan_confirm_recipient')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
           {t('back')}
         </div>
@@ -1095,7 +1104,7 @@ export const Profile: React.FC = () => {
     const actual = amt.toFixed(2);
     const total = amt.toFixed(4); // Total cost equals amount (no fee)
     return (
-      <div style={{ padding: '16px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px' }}>
         <div onClick={() => setView('scan_enter_amount')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
           {t('back')}
         </div>
@@ -1129,7 +1138,7 @@ export const Profile: React.FC = () => {
 
   if (view === 'scan_enter_password') {
     return (
-      <div style={{ padding: '16px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px' }}>
         <div onClick={() => setView('scan_confirm_transfer')} style={{ color: theme.accent, cursor: 'pointer', marginBottom: '16px' }}>
           {t('back')}
         </div>
@@ -1160,7 +1169,7 @@ export const Profile: React.FC = () => {
     const data = scanResult.data || scanResult;
     const balance = parseFloat(String(profile?.wallet_balance || '0'));
     return (
-      <div style={{ padding: '16px', textAlign: 'center' }}>
+      <div style={{ ...pageBgStyle, padding: '16px', textAlign: 'center' }}>
         <h2 style={{ color: theme.accent, marginBottom: '16px', fontSize: '22px' }}>{t('scan_success_title')}</h2>
         <div style={{ backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px', marginBottom: '20px', border: `1px solid ${theme.border}`, textAlign: 'left' }}>
           {[
@@ -1201,7 +1210,7 @@ export const Profile: React.FC = () => {
 
   // Main view
   return (
-    <div style={{ padding: '16px', paddingBottom: '80px' }}>
+    <div style={{ ...pageBgStyle, padding: '16px', paddingBottom: '80px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('profile_title')}</h1>
 
       {/* User info card */}

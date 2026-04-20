@@ -9,6 +9,7 @@ import {
   getMyAuctions,
   redeemAuction,
 } from '../services/api';
+import { useMiniAppBg } from '../hooks/useMiniAppBg';
 
 type AuctionView = 'list' | 'detail' | 'results' | 'my';
 
@@ -276,6 +277,7 @@ const AuctionDetail: React.FC<{
 
 export const Auction: React.FC = () => {
   const { t } = useLang();
+  const bgUrl = useMiniAppBg('auction');
   const [view, setView] = useState<AuctionView>('list');
   const [selectedId, setSelectedId] = useState<string>('');
   const [auctions, setAuctions] = useState<Auction[]>([]);
@@ -283,6 +285,13 @@ export const Auction: React.FC = () => {
   const [myAuctions, setMyAuctions] = useState<MyAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string>('');
+  const pageBgStyle = {
+    minHeight: '100vh',
+    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed' as const,
+  };
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -342,11 +351,15 @@ export const Auction: React.FC = () => {
   };
 
   if (view === 'detail') {
-    return <AuctionDetail auctionId={selectedId} onBack={() => setView('list')} />;
+    return (
+      <div style={pageBgStyle}>
+        <AuctionDetail auctionId={selectedId} onBack={() => setView('list')} />
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '16px', paddingBottom: '80px' }}>
+    <div style={{ ...pageBgStyle, padding: '16px', paddingBottom: '80px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h1 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>{t('auction_title')}</h1>
         <div style={{ display: 'flex', gap: '8px' }}>

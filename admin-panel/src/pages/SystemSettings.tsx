@@ -18,6 +18,7 @@ import {
   Switch,
   Divider,
   Alert,
+  DatePicker,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -32,8 +33,10 @@ import {
   SaveOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
+import dayjs, { Dayjs } from 'dayjs';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -76,6 +79,27 @@ interface SystemSetting {
   updated_at?: string;
   updated_by_username?: string;
 }
+
+type MiniAppBgRotation = 'manual' | 'weekly' | 'monthly';
+type MiniAppBgKey = 'trading' | 'auction' | 'period' | 'charity' | 'profile';
+
+interface MiniAppBgGroup {
+  id: string;
+  name: string;
+  trading: string;
+  auction: string;
+  period: string;
+  charity: string;
+  profile: string;
+}
+
+const MINIAPP_BG_FIELDS: Array<{ key: MiniAppBgKey; label: string }> = [
+  { key: 'trading', label: '即时交易' },
+  { key: 'auction', label: '夺宝' },
+  { key: 'period', label: '定期' },
+  { key: 'charity', label: '公益项目' },
+  { key: 'profile', label: '个人中心' },
+];
 
 /** Maximum characters shown in the Collapse panel header preview */
 const PREVIEW_TEXT_LENGTH = 30;
@@ -163,6 +187,14 @@ export const SystemSettings: React.FC = () => {
   const [inviteRewardEnabled, setInviteRewardEnabled]   = useState(true);
   const [inviteRewardAmount, setInviteRewardAmount]     = useState<number>(2.00);
   const [inviteRewardSaving, setInviteRewardSaving]     = useState(false);
+  const [miniAppBgGroups, setMiniAppBgGroups]           = useState<MiniAppBgGroup[]>([]);
+  const [miniAppBgRotation, setMiniAppBgRotation]       = useState<MiniAppBgRotation>('manual');
+  const [miniAppBgCurrentGroupId, setMiniAppBgCurrentGroupId] = useState<string | null>(null);
+  const [miniAppBgRotationStart, setMiniAppBgRotationStart] = useState<Dayjs | null>(null);
+  const [miniAppBgLoaded, setMiniAppBgLoaded]           = useState(false);
+  const [miniAppBgLoading, setMiniAppBgLoading]         = useState(false);
+  const [miniAppBgSaving, setMiniAppBgSaving]           = useState(false);
+  const [miniAppBgUploadingMap, setMiniAppBgUploadingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchSettings();
@@ -1088,6 +1120,212 @@ export const SystemSettings: React.FC = () => {
     }
   };
 
+  const createMiniAppBgGroup = (index: number): MiniAppBgGroup => ({
+    id: `group_${index}`,
+    name: `第${index}组`,
+    trading: '',
+    auction: '',
+    period: '',
+    charity: '',
+    profile: '',
+  });
+
+  const fetchMiniAppBgGroups = async () => {
+    if (miniAppBgLoaded) return;
+    setMiniAppBgLoading(true);
+    try {
+      const data = await apiClient.getMiniAppBgGroups();
+      const groups = Array.isArray(data?.groups) && data.groups.length > 0
+        ? data.groups
+        : [createMiniAppBgGroup(1)];
+      setMiniAppBgGroups(groups);
+      setMiniAppBgRotation(data?.rotation === 'weekly' || data?.rotation === 'monthly' ? data.rotation : 'manual');
+      setMiniAppBgCurrentGroupId(data?.current_group_id || groups[0]?.id || null);
+      setMiniAppBgRotationStart(data?.rotation_start ? dayjs(data.rotation_start) : null);
+      setMiniAppBgLoaded(true);
+    } catch (error: any) {
+      console.error('Failed to fetch miniapp bg groups:', error);
+      message.error(error?.response?.data?.error || '加载迷你APP背景设置失败');
+    } finally {
+      setMiniAppBgLoading(false);
+    }
+  };
+
+  const handleMiniAppBgUpload = async (groupId: string, key: MiniAppBgKey, file: File) => {
+    const mapKey = `${groupId}_${key}`;
+    setMiniAppBgUploadingMap(prev => ({ ...prev, [mapKey]: true }));
+    try {
+      const result = await apiClient.uploadMiniAppBgImage(file);
+      setMiniAppBgGroups(prev => prev.map(g => (g.id === groupId ? { ...g, [key]: result.url } : g)));
+      message.success(`${MINIAPP_BG_FIELDS.find(f => f.key === key)?.label || '背景'}上传成功`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || '上传失败');
+    } finally {
+      setMiniAppBgUploadingMap(prev => ({ ...prev, [mapKey]: false }));
+    }
+    return false;
+  };
+
+  const handleSaveMiniAppBgGroups = async () => {
+    setMiniAppBgSaving(true);
+    try {
+      const groups = miniAppBgGroups.length > 0 ? miniAppBgGroups : [createMiniAppBgGroup(1)];
+      const currentGroupId = miniAppBgCurrentGroupId && groups.some(g => g.id === miniAppBgCurrentGroupId)
+        ? miniAppBgCurrentGroupId
+        : (groups[0]?.id || null);
+      await apiClient.saveMiniAppBgGroups({
+        groups,
+        rotation: miniAppBgRotation,
+        current_group_id: currentGroupId,
+        rotation_start: miniAppBgRotation !== 'manual' && miniAppBgRotationStart ? miniAppBgRotationStart.toISOString() : null,
+      });
+      setMiniAppBgCurrentGroupId(currentGroupId);
+      message.success('迷你APP背景设置保存成功');
+    } catch (error: any) {
+      console.error('Failed to save miniapp bg groups:', error);
+      message.error(error?.response?.data?.error || '保存失败');
+    } finally {
+      setMiniAppBgSaving(false);
+    }
+  };
+
+  const renderMiniAppBgTab = () => {
+    const groups = miniAppBgGroups.length > 0 ? miniAppBgGroups : [createMiniAppBgGroup(1)];
+
+    return (
+      <Spin spinning={miniAppBgLoading}>
+        <Card title="⚙️ 轮换设置" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Form.Item label="轮换模式" style={{ marginBottom: 0 }}>
+              <Radio.Group
+                value={miniAppBgRotation}
+                onChange={(e) => setMiniAppBgRotation(e.target.value)}
+              >
+                <Radio value="manual">手动切换</Radio>
+                <Radio value="weekly">每周自动</Radio>
+                <Radio value="monthly">每月自动</Radio>
+              </Radio.Group>
+            </Form.Item>
+
+            {miniAppBgRotation !== 'manual' && (
+              <Form.Item label="首次生效时间" style={{ marginBottom: 0 }}>
+                <DatePicker
+                  showTime
+                  style={{ width: 280 }}
+                  value={miniAppBgRotationStart}
+                  onChange={setMiniAppBgRotationStart}
+                  placeholder="请选择首次生效时间"
+                />
+              </Form.Item>
+            )}
+
+            <Button type="primary" icon={<SaveOutlined />} loading={miniAppBgSaving} onClick={handleSaveMiniAppBgGroups}>
+              保存设置
+            </Button>
+          </Space>
+        </Card>
+
+        {groups.map((group, idx) => (
+          <Card
+            key={group.id}
+            title={`🎨 第 ${idx + 1} 组 - ${group.name || '未命名'}`}
+            style={{ marginBottom: 16 }}
+            extra={(
+              <Button
+                danger
+                size="small"
+                disabled={idx === 0}
+                onClick={() => {
+                  if (idx === 0) return;
+                  const nextGroups = groups.filter(g => g.id !== group.id);
+                  setMiniAppBgGroups(nextGroups);
+                  if (miniAppBgCurrentGroupId === group.id) {
+                    setMiniAppBgCurrentGroupId(nextGroups[0]?.id || null);
+                  }
+                }}
+              >
+                删除本组
+              </Button>
+            )}
+          >
+            <Form layout="vertical">
+              <Form.Item label="组名">
+                <Input
+                  value={group.name}
+                  onChange={(e) => setMiniAppBgGroups(prev => prev.map(g => (g.id === group.id ? { ...g, name: e.target.value } : g)))}
+                  placeholder={`请输入第 ${idx + 1} 组名称`}
+                />
+              </Form.Item>
+            </Form>
+
+            <Space wrap size={16}>
+              {MINIAPP_BG_FIELDS.map(field => {
+                const url = group[field.key];
+                const mapKey = `${group.id}_${field.key}`;
+                const uploading = !!miniAppBgUploadingMap[mapKey];
+                return (
+                  <Card key={field.key} size="small" title={field.label} style={{ width: 190 }}>
+                    <div style={{
+                      width: 160, height: 100, borderRadius: 8, border: '2px dashed #d9d9d9',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', background: '#fafafa', marginBottom: 8,
+                    }}>
+                      {url
+                        ? <img src={url} alt={field.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        : <PictureOutlined style={{ fontSize: 28, color: '#bfbfbf' }} />}
+                    </div>
+                    <Space>
+                      <Upload
+                        accept="image/*"
+                        maxCount={1}
+                        showUploadList={false}
+                        beforeUpload={(file) => handleMiniAppBgUpload(group.id, field.key, file)}
+                      >
+                        <Button size="small" icon={<UploadOutlined />} loading={uploading}>
+                          上传图片
+                        </Button>
+                      </Upload>
+                      <Button
+                        size="small"
+                        danger
+                        disabled={!url}
+                        onClick={() => setMiniAppBgGroups(prev => prev.map(g => (g.id === group.id ? { ...g, [field.key]: '' } : g)))}
+                      >
+                        删除
+                      </Button>
+                    </Space>
+                  </Card>
+                );
+              })}
+            </Space>
+
+            {miniAppBgRotation === 'manual' && (
+              <div style={{ marginTop: 12 }}>
+                {miniAppBgCurrentGroupId === group.id ? (
+                  <Tag color="green">✅ 当前使用</Tag>
+                ) : (
+                  <Button size="small" onClick={() => setMiniAppBgCurrentGroupId(group.id)}>
+                    设为当前使用
+                  </Button>
+                )}
+              </div>
+            )}
+          </Card>
+        ))}
+
+        <Button
+          icon={<PlusOutlined />}
+          onClick={() => {
+            const next = [...groups, createMiniAppBgGroup(groups.length + 1)];
+            setMiniAppBgGroups(next);
+          }}
+        >
+          添加新组
+        </Button>
+      </Spin>
+    );
+  };
+
   const renderInviteSettingsTab = () => {
     const inviteMessageCollapseItems = LANG_CONFIG.map(lang => {
       const existingSetting = settings.find((s) => s.key === `invite_message_${lang.code}`);
@@ -1241,6 +1479,11 @@ export const SystemSettings: React.FC = () => {
       label: '邀请设置',
       children: renderInviteSettingsTab(),
     },
+    {
+      key: 'miniapp_bg',
+      label: '迷你APP背景设置',
+      children: renderMiniAppBgTab(),
+    },
   ];
 
   return (
@@ -1262,6 +1505,7 @@ export const SystemSettings: React.FC = () => {
             onChange={key => {
               setActiveMainTab(key);
               if (key === 'landing') fetchLandingConfig();
+              if (key === 'miniapp_bg') fetchMiniAppBgGroups();
             }}
           />
         </Form>
@@ -1271,4 +1515,3 @@ export const SystemSettings: React.FC = () => {
 };
 
 export default SystemSettings;
-

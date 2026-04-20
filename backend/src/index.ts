@@ -14,6 +14,7 @@ import { startPeriodSnapshot } from './jobs/period-snapshot';
 import { startCleanupJob } from './jobs/cleanup';
 import { startRedPacketExpiryJob } from './jobs/redpacket-expiry';
 import { startSymbolLibrarySync } from './jobs/symbol-library-sync';
+import { startMiniAppBgRotationJob } from './jobs/miniapp-bg-rotation';
 import { startPriceGenerator } from './services/price-generator.service';
 import { startNFTDailySettle } from './jobs/nft-daily-settle';
 import { startRealPriceSnapshot } from './jobs/real-price-snapshot';
@@ -304,6 +305,9 @@ const startServer = async () => {
 
     // Start symbol library sync job
     startSymbolLibrarySync();
+
+    // Start mini app background rotation job
+    startMiniAppBgRotationJob();
 
     // Start price generator for custom trading pairs
     startPriceGenerator();
