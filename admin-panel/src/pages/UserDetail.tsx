@@ -84,7 +84,10 @@ export const UserDetail: React.FC = () => {
     try {
       const data = await apiClient.getUserInvitees(id!);
       setInvitees(data.invitees || []);
-      setInviteesTotal(data.total ?? data.invitees?.length ?? 0);
+      const total = typeof data.total === 'number'
+        ? data.total
+        : Array.isArray(data.invitees) ? data.invitees.length : 0;
+      setInviteesTotal(total);
       setInviteesLoaded(true);
     } catch (error) {
       console.error('Failed to fetch invitees:', error);

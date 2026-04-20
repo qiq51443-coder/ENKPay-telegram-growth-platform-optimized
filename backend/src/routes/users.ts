@@ -159,7 +159,15 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
          VALUES ($1, $2)
          ON CONFLICT (inviter_id, invitee_id) DO NOTHING`,
         [invitedBy, result.rows[0].id]
-      ).catch(() => {});
+      )
+        .then((inviteInsertResult) => {
+          if (inviteInsertResult.rowCount === 0) {
+            console.warn('Invitation record already exists:', { inviterId: invitedBy, inviteeId: result.rows[0].id });
+          }
+        })
+        .catch((inviteInsertError) => {
+          console.warn('Create invitation record failed:', inviteInsertError);
+        });
     }
 
     res.json({ user: result.rows[0] });
@@ -399,7 +407,7 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
           (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
          FROM users u
          LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
-         WHERE u.invited_by = $1 OR inv.inviter_id IS NOT NULL
+         WHERE u.invited_by = $1 OR inv.inviter_id = $1
          ORDER BY u.created_at DESC
          LIMIT $2 OFFSET $3`,
         [id, Number(limit), offset]
@@ -418,7 +426,7 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
             (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
            FROM users u
            LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
-           WHERE u.invited_by = $1 OR inv.inviter_id IS NOT NULL
+           WHERE u.invited_by = $1 OR inv.inviter_id = $1
            ORDER BY u.created_at DESC
            LIMIT $2 OFFSET $3`,
           [id, Number(limit), offset]
