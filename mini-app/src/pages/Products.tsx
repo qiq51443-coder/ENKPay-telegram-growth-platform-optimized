@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { useMiniAppBg } from '../hooks/useMiniAppBg';
 
 interface Product {
   id: string;
@@ -64,6 +65,7 @@ function formatAmount(price: string | number): string {
 
 export const Products: React.FC = () => {
   const { t, lang } = useLang();
+  const bgUrl = useMiniAppBg('period');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -75,6 +77,13 @@ export const Products: React.FC = () => {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [expandedHoldings, setExpandedHoldings] = useState<Set<string>>(new Set());
+  const pageBgStyle = {
+    minHeight: '100vh',
+    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed' as const,
+  };
 
   const selected = products.find(p => p.id === selectedId) || null;
 
@@ -150,7 +159,7 @@ export const Products: React.FC = () => {
     const expectedYield = price * dailyRate * termDays;
 
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         {/* Back button */}
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
@@ -278,7 +287,7 @@ export const Products: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '16px', paddingBottom: '80px' }}>
+    <div style={{ ...pageBgStyle, padding: '16px', paddingBottom: '80px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('products_title')}</h1>
 
       {/* Tab 切换：产品列表 / 我的持仓 */}

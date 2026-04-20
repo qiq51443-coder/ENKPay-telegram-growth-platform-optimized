@@ -5,7 +5,8 @@ import { authenticateAdmin, requireRoles, AuthRequest } from '../middleware/auth
 import { logAuditAction, AuditActions } from '../utils/audit';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { translateToAllLangs } from '../utils/translate';
-import { inviteUpload, toPublicUrl } from '../services/storage.service';
+import { inviteUpload, miniappBgUpload, toPublicUrl } from '../services/storage.service';
+import { MINIAPP_BG_EMPTY_CONFIG, normalizeMiniAppBgConfig } from '../services/miniapp-bg.service';
 
 const router = express.Router();
 
@@ -444,6 +445,103 @@ router.post(
         return res.status(400).json({ error: error.message || '文件过大，最大 10MB' });
       }
       res.status(500).json({ error: '上传失败，请重试' });
+    }
+  }
+);
+
+/**
+ * POST /admin/system-settings/miniapp-bg/upload
+ * 上传迷你 App 背景图片（JPG/PNG/GIF/WebP），最大 10MB
+ */
+router.post(
+  '/miniapp-bg/upload',
+  authenticateAdmin,
+  requireRoles(['super_admin', 'admin']),
+  miniappBgUpload.single('image'),
+  async (req: AuthRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '请选择要上传的图片文件' });
+      }
+      const url = toPublicUrl(req.file.path);
+      res.json({ url, message: '迷你APP背景图片上传成功' });
+    } catch (error: any) {
+      console.error('Upload miniapp bg image error:', error);
+      if (error.message?.includes('不支持') || error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: error.message || '文件过大，最大 10MB' });
+      }
+      res.status(500).json({ error: '上传失败，请重试' });
+    }
+  }
+);
+
+/**
+ * GET /admin/system-settings/miniapp-bg/groups
+ * 获取迷你 App 背景分组配置
+ */
+router.get(
+  '/miniapp-bg/groups',
+  authenticateAdmin,
+  requireRoles(['super_admin', 'admin']),
+  async (_req: AuthRequest, res) => {
+    try {
+      const result = await query(
+        `SELECT value FROM system_settings WHERE key = 'miniapp_bg_groups' LIMIT 1`
+      );
+      const rawValue = result.rows[0]?.value;
+      const config = rawValue ? normalizeMiniAppBgConfig(rawValue) : MINIAPP_BG_EMPTY_CONFIG;
+      res.json(config);
+    } catch (error: any) {
+      console.error('Get miniapp bg groups error:', error);
+      if (error.code === '42P01') return res.json(MINIAPP_BG_EMPTY_CONFIG);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+/**
+ * POST /admin/system-settings/miniapp-bg/groups
+ * 保存迷你 App 背景分组配置（整包覆盖）
+ */
+router.post(
+  '/miniapp-bg/groups',
+  authenticateAdmin,
+  requireRoles(['super_admin', 'admin']),
+  async (req: AuthRequest, res) => {
+    try {
+      const payload = normalizeMiniAppBgConfig(req.body || {});
+      await query(
+        `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+         VALUES ('miniapp_bg_groups', $1, '迷你App背景图片分组配置', 'miniapp', true, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+           value = EXCLUDED.value,
+           description = EXCLUDED.description,
+           category = EXCLUDED.category,
+           is_public = EXCLUDED.is_public,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [toJsonValue(payload), req.user?.id]
+      );
+
+      await logAuditAction({
+        adminUserId: req.user!.id,
+        action: AuditActions.UPDATE_SETTINGS,
+        resourceType: 'system_setting',
+        resourceId: 'miniapp_bg_groups',
+        details: {
+          group_count: payload.groups.length,
+          rotation: payload.rotation,
+          current_group_id: payload.current_group_id,
+          rotation_start: payload.rotation_start,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.json({ config: payload, message: '迷你APP背景设置保存成功' });
+    } catch (error) {
+      console.error('Save miniapp bg groups error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
+import { useMiniAppBg } from '../hooks/useMiniAppBg';
 
 type CharityView = 'list' | 'detail';
 
@@ -49,6 +50,7 @@ const getDisplayPercent = (project: CharityProject): number => {
 
 export const Charity: React.FC = () => {
   const { t, lang } = useLang();
+  const bgUrl = useMiniAppBg('charity');
   const [projects, setProjects] = useState<CharityProject[]>([]);
   const [banners, setBanners] = useState<CharityBanner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,13 @@ export const Charity: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pageBgStyle = {
+    minHeight: '100vh',
+    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed' as const,
+  };
 
   const selected = projects.find(p => p.id === selectedId) || null;
 
@@ -95,7 +104,7 @@ export const Charity: React.FC = () => {
   if (view === 'detail' && selected) {
     const hasAmbassador = !!selected.ambassador_telegram;
     return (
-      <div style={{ paddingBottom: '80px' }}>
+      <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
         <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => { setView('list'); setSelectedId(null); }}
@@ -211,7 +220,7 @@ export const Charity: React.FC = () => {
   }
 
   return (
-    <div style={{ paddingBottom: '80px' }}>
+    <div style={{ ...pageBgStyle, paddingBottom: '80px' }}>
       <div style={{ padding: '16px 16px 0' }}>
         <h1 style={{ color: theme.text, marginBottom: '12px', fontSize: '20px' }}>{t('charity_title')}</h1>
       </div>

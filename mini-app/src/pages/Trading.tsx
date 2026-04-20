@@ -8,6 +8,7 @@ import { useAuthSync } from '../context/AuthSyncContext';
 import { useUser } from '../context/UserContext';
 import { createChart } from 'lightweight-charts';
 import { usePriceWebSocket } from '../hooks/usePriceWebSocket';
+import { useMiniAppBg } from '../hooks/useMiniAppBg';
 
 interface TradingPair {
   id: string;
@@ -136,6 +137,7 @@ const FLASH_ANIMATION_DURATION_MS = 600;
 
 export const Trading: React.FC = () => {
   const { t } = useLang();
+  const bgUrl = useMiniAppBg('trading');
   const { user: tgUser, tg } = useTelegram();
   const { authSyncDone } = useAuthSync();
   const { user: contextUser, refreshBalance: refreshContextBalance } = useUser();
@@ -1141,10 +1143,17 @@ export const Trading: React.FC = () => {
   };
 
   const priceColor = (change: number) => (change >= 0 ? '#26a69a' : '#ef5350');
+  const pageBgStyle = {
+    minHeight: '100vh',
+    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed' as const,
+  };
 
   if (loading) {
     return (
-      <div style={{ padding: '16px', color: theme.textSecondary, textAlign: 'center', paddingTop: '80px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px', color: theme.textSecondary, textAlign: 'center', paddingTop: '80px' }}>
         {t('loading')}
       </div>
     );
@@ -1157,7 +1166,7 @@ export const Trading: React.FC = () => {
     const expectedProfit = amountNum * (selectedOdds - 1);
 
     return (
-      <div style={{ padding: '16px', paddingBottom: '32px' }}>
+      <div style={{ ...pageBgStyle, padding: '16px', paddingBottom: '32px' }}>
         {/* Confetti overlay */}
         {showConfetti && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none', overflow: 'hidden' }}>
@@ -1663,7 +1672,7 @@ export const Trading: React.FC = () => {
 
   // Pairs list view
   return (
-    <div style={{ padding: '16px' }}>
+    <div style={{ ...pageBgStyle, padding: '16px' }}>
       <h1 style={{ color: theme.text, marginBottom: '16px', fontSize: '20px' }}>{t('trading_title')}</h1>
       {pairs.length === 0 && (
         <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>

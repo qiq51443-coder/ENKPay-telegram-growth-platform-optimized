@@ -9,14 +9,14 @@ import { v4 as uuidv4 } from 'uuid';
 export const UPLOAD_ROOT = process.env.UPLOAD_DIR
   || path.join(__dirname, '../../uploads');
 
-export type UploadCategory = 'logos' | 'nft' | 'charity' | 'misc' | 'coin-icons' | 'invite';
+export type UploadCategory = 'logos' | 'nft' | 'charity' | 'misc' | 'coin-icons' | 'invite' | 'miniapp-bg';
 
 /**
  * 确保所有上传子目录存在
  * 在 startServer() 最开头调用，保证 Persistent Disk 挂载后目录结构完整
  */
 export function ensureUploadDirs(): void {
-  const categories: UploadCategory[] = ['logos', 'nft', 'charity', 'misc', 'coin-icons', 'invite'];
+  const categories: UploadCategory[] = ['logos', 'nft', 'charity', 'misc', 'coin-icons', 'invite', 'miniapp-bg'];
   categories.forEach(cat => {
     const dir = path.join(UPLOAD_ROOT, cat);
     if (!fs.existsSync(dir)) {
@@ -111,6 +111,13 @@ export const coinIconUpload = multer({
 // 邀请卡图片上传：最大 10MB（支持 GIF 动态图）
 export const inviteUpload = multer({
   storage: createDiskStorage('invite'),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// 迷你 App 背景图上传：最大 10MB（支持 GIF 动态图）
+export const miniappBgUpload = multer({
+  storage: createDiskStorage('miniapp-bg'),
   fileFilter: imageFileFilter,
   limits: { fileSize: 10 * 1024 * 1024 },
 });
