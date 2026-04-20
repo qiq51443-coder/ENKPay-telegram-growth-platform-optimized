@@ -45,7 +45,7 @@ export function normalizeMiniAppBgConfig(input: any): MiniAppBgConfig {
   const groups: MiniAppBgGroup[] = groupsRaw
     .map((item: any, index: number) => ({
       id: String(item?.id || `group_${index + 1}`),
-      name: String(item?.name || `第${index + 1}组`),
+      name: String(item?.name || `group_${index + 1}`),
       trading: String(item?.trading || ''),
       auction: String(item?.auction || ''),
       period: String(item?.period || ''),

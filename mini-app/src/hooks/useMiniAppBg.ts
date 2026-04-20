@@ -66,7 +66,7 @@ export function useMiniAppBg(page: MiniAppBgPage): string {
     const cached = readCache();
     if (cached) {
       setBgUrl(cached[page] || '');
-      return () => { active = false; };
+      return;
     }
 
     fetchMiniAppBgConfig().then((config) => {
