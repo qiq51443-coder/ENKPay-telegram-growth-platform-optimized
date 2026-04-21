@@ -47,6 +47,8 @@ export const UserDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [invitees, setInvitees] = useState([]);
+  const [inviteesLoaded, setInviteesLoaded] = useState(false);
+  const [inviteesTotal, setInviteesTotal] = useState<number | null>(null);
   const [linkedBots, setLinkedBots] = useState<any[]>([]);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
@@ -54,6 +56,9 @@ export const UserDetail: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      setInvitees([]);
+      setInviteesLoaded(false);
+      setInviteesTotal(null);
       fetchUserDetail();
     }
   }, [id]);
@@ -79,6 +84,11 @@ export const UserDetail: React.FC = () => {
     try {
       const data = await apiClient.getUserInvitees(id!);
       setInvitees(data.invitees || []);
+      const total = typeof data.total === 'number'
+        ? data.total
+        : Array.isArray(data.invitees) ? data.invitees.length : 0;
+      setInviteesTotal(total);
+      setInviteesLoaded(true);
     } catch (error) {
       console.error('Failed to fetch invitees:', error);
     }
@@ -377,7 +387,7 @@ export const UserDetail: React.FC = () => {
       <h2>用户详情</h2>
 
       <Tabs defaultActiveKey="info" onChange={(key) => {
-        if (key === 'invitations' && invitees.length === 0) fetchInvitees();
+        if (key === 'invitations' && !inviteesLoaded) fetchInvitees();
       }}>
         <TabPane tab="基本信息" key="info">
           <Card>
@@ -527,7 +537,7 @@ export const UserDetail: React.FC = () => {
             </div>
           </Card>
 
-          <Card title={`被邀请人列表 (共 ${user.invite_count ?? 0} 人)`}>
+          <Card title={`被邀请人列表 (共 ${inviteesTotal ?? user.invite_count ?? 0} 人)`}>
             <Table
               columns={inviteeColumns}
               dataSource={invitees}

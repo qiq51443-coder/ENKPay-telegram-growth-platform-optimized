@@ -149,9 +149,26 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
       `INSERT INTO users (bot_id, telegram_id, username, first_name, last_name, language_code, invited_by, red_packet_balance)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (telegram_id) DO UPDATE SET last_active_at = NOW()
-       RETURNING *`,
+       RETURNING *, (xmax = 0) AS is_new_insert`,
       [req.botId, telegram_id, username, first_name, last_name, language_code || 'en', invitedBy, initialRedPacketBalance]
     );
+
+    if (invitedBy && result.rows[0]?.is_new_insert) {
+      await query(
+        `INSERT INTO invitations (inviter_id, invitee_id)
+         VALUES ($1, $2)
+         ON CONFLICT (inviter_id, invitee_id) DO NOTHING`,
+        [invitedBy, result.rows[0].id]
+      )
+        .then((inviteInsertResult) => {
+          if (inviteInsertResult.rowCount === 0) {
+            console.warn('Invitation record already exists:', { inviterId: invitedBy, inviteeId: result.rows[0].id });
+          }
+        })
+        .catch((inviteInsertError) => {
+          console.warn('Create invitation record failed:', inviteInsertError);
+        });
+    }
 
     res.json({ user: result.rows[0] });
   } catch (error) {
@@ -167,7 +184,13 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `SELECT u.*,
-        COUNT(DISTINCT i.id) as invite_count,
+        (
+          SELECT COUNT(DISTINCT sub.uid) FROM (
+            SELECT invitee_id AS uid FROM invitations WHERE inviter_id = u.id
+            UNION
+            SELECT id AS uid FROM users WHERE invited_by = u.id
+          ) sub
+        ) as invite_count,
         (SELECT username FROM users WHERE id = u.invited_by) as invited_by_username,
         (SELECT JSON_BUILD_OBJECT(
           'id', inv_user.id,
@@ -179,10 +202,8 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         b.name as bot_name,
         (u.withdraw_password IS NOT NULL) as withdraw_password_set
       FROM users u
-      LEFT JOIN invitations i ON i.inviter_id = u.id
       LEFT JOIN bots b ON u.bot_id = b.id
-      WHERE u.id = $1
-      GROUP BY u.id, b.name`,
+      WHERE u.id = $1`,
       [id]
     );
 
@@ -381,12 +402,12 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
         `SELECT 
           u.id, u.telegram_id, u.username, u.first_name, u.last_name, 
           u.created_at, u.account_status,
-          inv.reward_paid,
+          COALESCE(inv.reward_paid, false) AS reward_paid,
           COALESCE(inv.reward_amount, 0) AS reward_amount,
           (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
          FROM users u
-         INNER JOIN invitations inv ON inv.invitee_id = u.id
-         WHERE inv.inviter_id = $1
+         LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
+         WHERE u.invited_by = $1 OR inv.inviter_id = $1
          ORDER BY u.created_at DESC
          LIMIT $2 OFFSET $3`,
         [id, Number(limit), offset]
@@ -400,12 +421,12 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
           `SELECT 
             u.id, u.telegram_id, u.username, u.first_name, u.last_name, 
             u.created_at, u.account_status,
-            inv.reward_paid,
+            COALESCE(inv.reward_paid, false) AS reward_paid,
             0 AS reward_amount,
             (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
            FROM users u
-           INNER JOIN invitations inv ON inv.invitee_id = u.id
-           WHERE inv.inviter_id = $1
+           LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
+           WHERE u.invited_by = $1 OR inv.inviter_id = $1
            ORDER BY u.created_at DESC
            LIMIT $2 OFFSET $3`,
           [id, Number(limit), offset]
@@ -417,7 +438,11 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
     }
 
     const countResult = await query(
-      `SELECT COUNT(*) FROM invitations WHERE inviter_id = $1`,
+      `SELECT COUNT(DISTINCT sub.uid) FROM (
+         SELECT invitee_id AS uid FROM invitations WHERE inviter_id = $1
+         UNION
+         SELECT id AS uid FROM users WHERE invited_by = $1
+       ) sub`,
       [id]
     );
 
