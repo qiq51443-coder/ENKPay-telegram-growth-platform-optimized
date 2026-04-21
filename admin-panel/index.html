@@ -2,9 +2,24 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/api/landing/logo-icon" id="admin-favicon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ENK Pay - 平台管理</title>
+    <script>
+      // 动态加载官网 Logo 作为管理面板 favicon
+      fetch('/api/landing/config')
+        .then(r => r.json())
+        .then(data => {
+          if (data.brand?.logoUrl) {
+            const favicon = document.getElementById('admin-favicon');
+            if (favicon) favicon.href = data.brand.logoUrl;
+            if (data.brand?.name) {
+              document.title = data.brand.name + ' - 平台管理';
+            }
+          }
+        })
+        .catch(() => {});
+    </script>
   </head>
   <body>
     <div id="root"></div>

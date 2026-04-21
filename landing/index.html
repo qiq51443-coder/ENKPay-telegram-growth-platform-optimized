@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Favicon：优先使用上传的 Logo，兜底使用 SVG 内联图标 -->
+  <link rel="icon" id="favicon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon.png">
   <title>ENKPay - Web3 Payment &amp; NFT Platform</title>
   <meta name="description" content="ENKPay — Telegram-based Web3 payment, NFT and charity platform. Join millions of users worldwide.">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,7 +19,7 @@
   <link rel="alternate" hreflang="ar" href="/?lang=ar">
   <link rel="alternate" hreflang="ja" href="/?lang=ja">
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"Organization","name":"ENKPay","url":"https://telegram-growth-platform.onrender.com"}
+  {"@context":"https://schema.org","@type":"Organization","name":"ENKPay","url":"https://enkpay.co.com"}
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -912,6 +915,17 @@
             if (res.ok) {
               const data = await res.json();
               this.config = data;
+              // 动态更新 favicon 为官网 Logo
+              if (data.brand?.logoUrl) {
+                const favicon = document.getElementById('favicon');
+                const appleIcon = document.getElementById('apple-touch-icon');
+                if (favicon) favicon.href = data.brand.logoUrl;
+                if (appleIcon) appleIcon.href = data.brand.logoUrl;
+                // 更新浏览器 tab 标题为品牌名
+                if (data.brand?.name) {
+                  document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
+                }
+              }
             }
           } catch (e) {
             console.error('[ENKPay] Failed to load config:', e);
