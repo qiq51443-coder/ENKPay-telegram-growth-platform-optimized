@@ -35,7 +35,7 @@ router.get('/config', async (_req, res) => {
             .catch(() => 0),
       nftOverride > 0
         ? Promise.resolve(nftOverride)
-        : query('SELECT COUNT(*) AS cnt FROM nft_products WHERE is_active = true', [])
+        : query("SELECT COUNT(*) AS cnt FROM nft_products WHERE status NOT IN ('draft', 'off_shelf', 'inactive', 'sold_out')", [])
             .then(r => parseInt(r.rows[0].cnt, 10))
             .catch(() => 0),
       charityOverride > 0
@@ -51,10 +51,12 @@ router.get('/config', async (_req, res) => {
     ]);
 
     const nftResult = await query(
-      `SELECT id, name, image_url, type, price,
+      `SELECT id, name, image_url, product_type AS type, price,
               COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
               description
-       FROM nft_products WHERE is_active = true ORDER BY created_at DESC LIMIT 6`, []
+       FROM nft_products
+       WHERE status NOT IN ('draft', 'off_shelf', 'inactive', 'sold_out')
+       ORDER BY created_at DESC LIMIT 6`, []
     ).catch((err: any) => { console.error('[landing-public] nftResult query error:', err.message); return { rows: [] as any[] }; });
     const charityResult = await query(
       `SELECT id, title, image_url, target_amount, raised_amount
