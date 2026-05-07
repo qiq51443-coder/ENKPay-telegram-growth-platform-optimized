@@ -59,8 +59,11 @@ router.get('/config', async (_req, res) => {
        ORDER BY created_at DESC LIMIT 6`, []
     ).catch((err: any) => { console.error('[landing-public] nftResult query error:', err.message); return { rows: [] as any[] }; });
     const charityResult = await query(
-      `SELECT id, title, image_url, target_amount, raised_amount
-       FROM charity_projects WHERE status IN ('active', 'completed') ORDER BY created_at DESC LIMIT 3`, []
+      `SELECT id, title, image_url, target_amount, raised_amount, progress_override
+       FROM charity_projects WHERE status IN ('active', 'completed')
+         AND is_active = true
+         AND show_in_app = true
+       ORDER BY created_at DESC LIMIT 3`, []
     ).catch((err: any) => { console.error('[landing-public] charityResult query error:', err.message); return { rows: [] as any[] }; });
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -96,10 +99,19 @@ router.get('/config', async (_req, res) => {
       charityProjects: charityResult.rows.map((r: any) => {
         const target = parseFloat(r.target_amount) || 0;
         const raised = parseFloat(r.raised_amount) || 0;
+        let progress = 0;
+        if (r.progress_override != null) {
+          const override = parseFloat(r.progress_override);
+          if (!isNaN(override)) {
+            progress = Math.min(100, Math.max(0, override));
+          }
+        } else if (target > 0) {
+          progress = parseFloat(((raised / target) * 100).toFixed(1));
+        }
         return {
           id: r.id, title: r.title, coverUrl: r.image_url,
           targetAmount: target, currentAmount: raised,
-          progress: target > 0 ? parseFloat(((raised / target) * 100).toFixed(1)) : 0,
+          progress,
         };
       }),
       socialLinks: {

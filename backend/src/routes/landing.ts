@@ -85,9 +85,11 @@ router.get('/config', async (_req, res) => {
 
     // 4. 公益项目（最多3个，活跃或已完成，按时间倒序）
     const charityResult = await query(
-      `SELECT id, title, image_url, target_amount, raised_amount
+      `SELECT id, title, image_url, target_amount, raised_amount, progress_override
        FROM charity_projects
        WHERE status IN ('active', 'completed')
+         AND is_active = true
+         AND show_in_app = true
        ORDER BY created_at DESC
        LIMIT 3`,
       []
@@ -95,7 +97,15 @@ router.get('/config', async (_req, res) => {
     const charityProjects = charityResult.rows.map((r: any) => {
       const target = parseFloat(r.target_amount) || 0;
       const raised = parseFloat(r.raised_amount) || 0;
-      const progress = target > 0 ? parseFloat(((raised / target) * 100).toFixed(1)) : 0;
+      let progress = 0;
+      if (r.progress_override != null) {
+        const override = parseFloat(r.progress_override);
+        if (!isNaN(override)) {
+          progress = Math.min(100, Math.max(0, override));
+        }
+      } else if (target > 0) {
+        progress = parseFloat(((raised / target) * 100).toFixed(1));
+      }
       return {
         id: r.id,
         title: r.title,
