@@ -941,6 +941,8 @@
             this.configLoading = false;
             this.$nextTick(() => {
               this._initProgressBars();
+              // 延迟再调用一次，兜底 Alpine x-for 异步渲染
+              setTimeout(() => { this._initProgressBars(); }, 300);
               // Trigger NFT scroll visible area
               const nftSection = document.getElementById('nft');
               if (nftSection) {
@@ -1010,10 +1012,20 @@
         },
 
         _initProgressBars() {
+          // 立即执行一次（处理已在视口内的元素）
+          const fills = document.querySelectorAll('.progress-fill[data-target]');
+          fills.forEach(fill => {
+            const target = parseFloat(fill.getAttribute('data-target') || '0');
+            if (!isNaN(target)) {
+              requestAnimationFrame(() => { fill.style.width = target + '%'; });
+            }
+          });
+
+          // 也保留 IntersectionObserver 处理滚动进入视口的场景
           const obs = new IntersectionObserver((entries) => {
             entries.forEach(e => {
               if (e.isIntersecting) {
-                const fill = e.target.querySelector('.progress-fill');
+                const fill = e.target.querySelector('.progress-fill[data-target]');
                 if (fill) {
                   const target = fill.getAttribute('data-target') || '0';
                   fill.style.width = target + '%';
@@ -1021,11 +1033,9 @@
                 obs.unobserve(e.target);
               }
             });
-          }, { threshold: 0.3 });
-          // Observe charity cards after Alpine renders
-          this.$nextTick(() => {
-            document.querySelectorAll('.progress-track').forEach(el => obs.observe(el.closest('.glass-card') || el));
-          });
+          }, { threshold: 0.1 });
+
+          document.querySelectorAll('.progress-track').forEach(el => obs.observe(el));
         },
       };
     }
