@@ -789,6 +789,8 @@
     function app() {
       return {
         lang: 'en',
+        _alpineRenderDelayMs: 300,
+        _progressObserver: null,
         mobileOpen: false,
         config: {
           brand: { name: 'ENKPay', logoUrl: '' },
@@ -941,6 +943,8 @@
             this.configLoading = false;
             this.$nextTick(() => {
               this._initProgressBars();
+              // Delayed re-initialization to handle Alpine x-for async rendering
+              setTimeout(() => { this._initProgressBars(); }, this._alpineRenderDelayMs);
               // Trigger NFT scroll visible area
               const nftSection = document.getElementById('nft');
               if (nftSection) {
@@ -1010,10 +1014,25 @@
         },
 
         _initProgressBars() {
+          if (this._progressObserver) {
+            this._progressObserver.disconnect();
+            this._progressObserver = null;
+          }
+
+          // Immediately initialize progress bars for elements already in viewport
+          const fills = document.querySelectorAll('.progress-fill[data-target]');
+          fills.forEach(fill => {
+            const target = parseFloat(fill.getAttribute('data-target') || '0');
+            if (!isNaN(target)) {
+              requestAnimationFrame(() => { fill.style.width = target + '%'; });
+            }
+          });
+
+          // Also maintain IntersectionObserver for elements entering viewport on scroll
           const obs = new IntersectionObserver((entries) => {
             entries.forEach(e => {
               if (e.isIntersecting) {
-                const fill = e.target.querySelector('.progress-fill');
+                const fill = e.target.querySelector('.progress-fill[data-target]');
                 if (fill) {
                   const target = fill.getAttribute('data-target') || '0';
                   fill.style.width = target + '%';
@@ -1021,11 +1040,10 @@
                 obs.unobserve(e.target);
               }
             });
-          }, { threshold: 0.3 });
-          // Observe charity cards after Alpine renders
-          this.$nextTick(() => {
-            document.querySelectorAll('.progress-track').forEach(el => obs.observe(el.closest('.glass-card') || el));
-          });
+          }, { threshold: 0.1 });
+
+          this._progressObserver = obs;
+          document.querySelectorAll('.progress-track').forEach(el => obs.observe(el));
         },
       };
     }

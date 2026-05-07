@@ -88,8 +88,8 @@ router.get('/config', async (_req, res) => {
       `SELECT id, title, image_url, target_amount, raised_amount, progress_override
        FROM charity_projects
        WHERE status IN ('active', 'completed')
-         AND is_active = true
-         AND show_in_app = true
+         AND (is_active IS NULL OR is_active = true)
+         AND (show_in_app IS NULL OR show_in_app = true)
        ORDER BY created_at DESC
        LIMIT 3`,
       []
