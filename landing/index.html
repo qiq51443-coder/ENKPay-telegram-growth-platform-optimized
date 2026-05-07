@@ -370,6 +370,9 @@
       0%, 100% { transform: scale(1); opacity: 0.5; }
       50% { transform: scale(1.1); opacity: 0.8; }
     }
+
+    /* Alpine.js cloak: hide elements until Alpine initialises */
+    [x-cloak] { display: none !important; }
   </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -914,6 +917,9 @@
             const res = await fetch('/api/landing/config', { signal: controller.signal });
             if (res.ok) {
               const data = await res.json();
+              // Ensure array fields always have a default to prevent x-show/x-for failures
+              if (!Array.isArray(data.charityProjects)) data.charityProjects = [];
+              if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
               this.config = data;
               // 动态更新 favicon 为官网 Logo
               if (data.brand?.logoUrl) {
