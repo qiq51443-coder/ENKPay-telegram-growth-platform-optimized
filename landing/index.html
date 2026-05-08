@@ -683,7 +683,7 @@
       <h2 class="text-4xl font-bold text-center mb-4 fade-in grad-text" x-text="t('section_social')"></h2>
       <p class="text-center text-slate-400 mb-12 fade-in" x-text="t('section_social_sub')"></p>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4" id="socialGrid">
+      <div x-show="hasSocialLinks" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4" id="socialGrid">
         <template x-if="config.socialLinks?.facebook">
           <a :href="config.socialLinks.facebook" target="_blank" rel="noopener noreferrer" class="social-card fb">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="#1877F2" xmlns="http://www.w3.org/2000/svg"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
@@ -720,6 +720,12 @@
             <span class="text-sm font-medium">Instagram</span>
           </a>
         </template>
+      </div>
+
+      <!-- Social empty state -->
+      <div x-show="!configLoading && !hasSocialLinks" class="text-center py-12 text-slate-500">
+        <div class="text-5xl mb-4">🌍</div>
+        <p x-text="lang === 'zh' ? '社交平台链接配置中，敬请期待...' : 'Social links coming soon...'"></p>
       </div>
     </div>
   </section>
@@ -852,6 +858,11 @@
           return (this.config.slogans && this.config.slogans[this.lang]) || '';
         },
 
+        get hasSocialLinks() {
+          const s = this.config.socialLinks || {};
+          return Object.values(s).some(v => !!v);
+        },
+
         setLang(code) {
           this.lang = code;
           localStorage.setItem('enkpay_lang', code);
@@ -918,26 +929,37 @@
           const timeout = setTimeout(() => controller.abort(), 4000);
           try {
             const res = await fetch('/api/landing/config', { signal: controller.signal });
-            if (res.ok) {
-              const data = await res.json();
-              // Ensure array fields always have a default to prevent x-show/x-for failures
-              if (!Array.isArray(data.charityProjects)) data.charityProjects = [];
-              if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
-              this.config = data;
-              // 动态更新 favicon 为官网 Logo
-              if (data.brand?.logoUrl) {
-                const favicon = document.getElementById('favicon');
-                const appleIcon = document.getElementById('apple-touch-icon');
-                if (favicon) favicon.href = data.brand.logoUrl;
-                if (appleIcon) appleIcon.href = data.brand.logoUrl;
-                // 更新浏览器 tab 标题为品牌名
-                if (data.brand?.name) {
-                  document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
-                }
+            if (!res.ok) {
+              const body = await res.text().catch(() => '');
+              console.error(`[ENKPay] Failed to load config: HTTP ${res.status}`, body);
+              return;
+            }
+
+            const data = await res.json();
+            // Ensure array fields always have a default to prevent x-show/x-for failures
+            if (!Array.isArray(data.charityProjects)) data.charityProjects = [];
+            if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
+            if (data.socialLinks && typeof data.socialLinks === 'object') {
+              const filtered = {};
+              for (const [k, v] of Object.entries(data.socialLinks)) {
+                if (v) filtered[k] = v;
+              }
+              data.socialLinks = filtered;
+            }
+            this.config = data;
+            // 动态更新 favicon 为官网 Logo
+            if (data.brand?.logoUrl) {
+              const favicon = document.getElementById('favicon');
+              const appleIcon = document.getElementById('apple-touch-icon');
+              if (favicon) favicon.href = data.brand.logoUrl;
+              if (appleIcon) appleIcon.href = data.brand.logoUrl;
+              // 更新浏览器 tab 标题为品牌名
+              if (data.brand?.name) {
+                document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
               }
             }
           } catch (e) {
-            console.error('[ENKPay] Failed to load config:', e);
+            console.error('[ENKPay] Failed to load config:', e instanceof Error ? e.message : e);
             // Use defaults already set
           } finally {
             clearTimeout(timeout);
