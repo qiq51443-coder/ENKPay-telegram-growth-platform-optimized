@@ -13,13 +13,17 @@ function parseSettingValue(raw: string): any {
  */
 router.get('/config', async (_req, res) => {
   try {
-    const settingsResult = await query(
-      `SELECT key, value FROM system_settings WHERE category = 'landing' AND is_public = true`,
-      []
-    );
     const settings: Record<string, any> = {};
-    for (const row of settingsResult.rows) {
-      settings[row.key] = parseSettingValue(row.value);
+    try {
+      const settingsResult = await query(
+        `SELECT key, value FROM system_settings WHERE category = 'landing' AND (is_public IS NULL OR is_public = true)`,
+        []
+      );
+      for (const row of settingsResult.rows) {
+        settings[row.key] = parseSettingValue(row.value);
+      }
+    } catch (settingsErr: any) {
+      console.error('[landing-public] settings query error:', settingsErr.message);
     }
 
     const usersOverride   = Number(settings['landing_stat_users_override']   ?? 0);
@@ -114,14 +118,16 @@ router.get('/config', async (_req, res) => {
           progress,
         };
       }),
-      socialLinks: {
-        facebook:  settings['landing_social_facebook']  ?? '',
-        tiktok:    settings['landing_social_tiktok']    ?? '',
-        twitter:   settings['landing_social_twitter']   ?? '',
-        telegram:  settings['landing_social_telegram']  ?? '',
-        youtube:   settings['landing_social_youtube']   ?? '',
-        instagram: settings['landing_social_instagram'] ?? '',
-      },
+      socialLinks: Object.fromEntries(
+        Object.entries({
+          facebook:  settings['landing_social_facebook']  || null,
+          tiktok:    settings['landing_social_tiktok']    || null,
+          twitter:   settings['landing_social_twitter']   || null,
+          telegram:  settings['landing_social_telegram']  || null,
+          youtube:   settings['landing_social_youtube']   || null,
+          instagram: settings['landing_social_instagram'] || null,
+        }).filter(([_, v]) => v != null)
+      ),
       contact: { telegram: settings['landing_contact_telegram'] ?? '' },
       legal: {
         privacy: {

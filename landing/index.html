@@ -721,6 +721,12 @@
           </a>
         </template>
       </div>
+
+      <!-- Social empty state -->
+      <div x-show="!configLoading && !hasSocialLinks" class="text-center py-12 text-slate-500">
+        <div class="text-5xl mb-4">🌍</div>
+        <p x-text="lang === 'zh' ? '社交平台链接配置中，敬请期待...' : 'Social links coming soon...'"></p>
+      </div>
     </div>
   </section>
 
@@ -852,6 +858,11 @@
           return (this.config.slogans && this.config.slogans[this.lang]) || '';
         },
 
+        get hasSocialLinks() {
+          const s = this.config.socialLinks || {};
+          return Object.values(s).some(v => !!v);
+        },
+
         setLang(code) {
           this.lang = code;
           localStorage.setItem('enkpay_lang', code);
@@ -918,26 +929,37 @@
           const timeout = setTimeout(() => controller.abort(), 4000);
           try {
             const res = await fetch('/api/landing/config', { signal: controller.signal });
-            if (res.ok) {
-              const data = await res.json();
-              // Ensure array fields always have a default to prevent x-show/x-for failures
-              if (!Array.isArray(data.charityProjects)) data.charityProjects = [];
-              if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
-              this.config = data;
-              // 动态更新 favicon 为官网 Logo
-              if (data.brand?.logoUrl) {
-                const favicon = document.getElementById('favicon');
-                const appleIcon = document.getElementById('apple-touch-icon');
-                if (favicon) favicon.href = data.brand.logoUrl;
-                if (appleIcon) appleIcon.href = data.brand.logoUrl;
-                // 更新浏览器 tab 标题为品牌名
-                if (data.brand?.name) {
-                  document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
-                }
+            if (!res.ok) {
+              const body = await res.text().catch(() => '');
+              console.error(`[ENKPay] Failed to load config: HTTP ${res.status}`, body);
+              return;
+            }
+
+            const data = await res.json();
+            // Ensure array fields always have a default to prevent x-show/x-for failures
+            if (!Array.isArray(data.charityProjects)) data.charityProjects = [];
+            if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
+            if (data.socialLinks && typeof data.socialLinks === 'object') {
+              const filtered = {};
+              for (const [k, v] of Object.entries(data.socialLinks)) {
+                if (v) filtered[k] = v;
+              }
+              data.socialLinks = filtered;
+            }
+            this.config = data;
+            // 动态更新 favicon 为官网 Logo
+            if (data.brand?.logoUrl) {
+              const favicon = document.getElementById('favicon');
+              const appleIcon = document.getElementById('apple-touch-icon');
+              if (favicon) favicon.href = data.brand.logoUrl;
+              if (appleIcon) appleIcon.href = data.brand.logoUrl;
+              // 更新浏览器 tab 标题为品牌名
+              if (data.brand?.name) {
+                document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
               }
             }
           } catch (e) {
-            console.error('[ENKPay] Failed to load config:', e);
+            console.error('[ENKPay] Failed to load config:', e instanceof Error ? e.message : e);
             // Use defaults already set
           } finally {
             clearTimeout(timeout);
