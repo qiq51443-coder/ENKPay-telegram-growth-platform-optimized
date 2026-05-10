@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Favicon：优先使用上传的 Logo，兜底使用 SVG 内联图标 -->
-  <link rel="icon" id="favicon" type="image/png" href="/favicon.png">
-  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon.png">
+  <!-- Favicon：指向后端动态端点，自动同步管理面板上传的 Logo -->
+  <link rel="icon" id="favicon" type="image/png" href="/api/landing/logo-icon">
+  <link rel="apple-touch-icon" id="apple-touch-icon" href="/api/landing/logo-icon">
+  <link rel="shortcut icon" href="/api/landing/logo-icon">
   <title>ENKPay - Web3 Payment &amp; NFT Platform</title>
   <meta name="description" content="ENKPay — Telegram-based Web3 payment, NFT and charity platform. Join millions of users worldwide.">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,6 +13,8 @@
   <meta property="og:title" content="ENKPay">
   <meta property="og:description" content="Telegram-based Web3 platform for payments, NFT and charity">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://enkpay.co.com/api/landing/logo-icon">
+  <meta property="og:url" content="https://enkpay.co.com">
   <link rel="alternate" hreflang="zh" href="/?lang=zh">
   <link rel="alternate" hreflang="en" href="/?lang=en">
   <link rel="alternate" hreflang="fr" href="/?lang=fr">
