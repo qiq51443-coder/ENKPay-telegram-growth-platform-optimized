@@ -151,7 +151,7 @@ export async function sendInviteCard(
   } catch (err) {
     console.error('[sendInviteCard] Unexpected error:', err);
     try {
-      const uniqueId = (user as any).unique_id || (user as any).robot_user_id || (user as any).invite_code || '';
+      const uniqueId = user.unique_id || user.robot_user_id || user.invite_code || '';
       const fallbackLink = `https://t.me/${process.env.BOT_USERNAME || 'your_bot'}?start=REF_${uniqueId}`;
       await ctx.replyWithHTML(buildDefaultInviteText(lang, fallbackLink));
     } catch {
