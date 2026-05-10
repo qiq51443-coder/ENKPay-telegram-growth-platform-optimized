@@ -8,6 +8,31 @@ function parseSettingValue(raw: string): any {
 }
 
 /**
+ * GET /api/landing/logo-icon
+ * 重定向到当前品牌 Logo（从 system_settings 读取 landing_logo_url）
+ * 供 favicon 使用，公开访问
+ */
+router.get('/logo-icon', async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT value FROM system_settings WHERE key = 'landing_logo_url' AND is_public = true LIMIT 1`,
+      []
+    );
+    if (result.rows.length > 0) {
+      const logoUrl = parseSettingValue(result.rows[0].value);
+      if (logoUrl && typeof logoUrl === 'string' && logoUrl.trim()) {
+        res.redirect(302, logoUrl);
+        return;
+      }
+    }
+    res.status(204).end();
+  } catch (error: any) {
+    console.error('[landing-public] logo-icon error:', error);
+    res.status(204).end();
+  }
+});
+
+/**
  * GET /api/landing/config
  * 公开接口，无需认证
  */
