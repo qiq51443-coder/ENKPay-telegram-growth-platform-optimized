@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Favicon：优先使用上传的 Logo，兜底使用 SVG 内联图标 -->
-  <link rel="icon" id="favicon" type="image/png" href="/favicon.png">
-  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon.png">
+  <!-- Favicon：静态资源优先，确保搜索引擎可抓取 -->
+  <link rel="icon" id="favicon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="icon" sizes="any" href="/favicon.ico">
+  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon.svg">
   <title>ENKPay - Web3 Payment &amp; NFT Platform</title>
   <meta name="description" content="ENKPay — Telegram-based Web3 payment, NFT and charity platform. Join millions of users worldwide.">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,6 +15,8 @@
   <meta property="og:title" content="ENKPay">
   <meta property="og:description" content="Telegram-based Web3 platform for payments, NFT and charity">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://enkpay.co.com/favicon.svg">
+  <meta property="og:url" content="https://enkpay.co.com">
   <link rel="alternate" hreflang="zh" href="/?lang=zh">
   <link rel="alternate" hreflang="en" href="/?lang=en">
   <link rel="alternate" hreflang="fr" href="/?lang=fr">
@@ -375,6 +380,40 @@
     /* Alpine.js cloak: hide elements until Alpine initialises */
     [x-cloak] { display: none !important; }
   </style>
+  <script>
+    (function () {
+      var validLangs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
+      var rawUrlLang = '';
+      var urlLang = '';
+      var storedLang = '';
+      var browserLang = 'en';
+      var rawLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+
+      try {
+        rawUrlLang = new URLSearchParams(window.location.search).get('lang') || '';
+      } catch (e) {}
+      urlLang = rawUrlLang.toLowerCase();
+      if (urlLang.indexOf('zh') === 0) urlLang = 'zh';
+      else urlLang = urlLang.slice(0, 2);
+
+      try {
+        storedLang = (localStorage.getItem('enkpay_lang') || '').toLowerCase();
+      } catch (e) {}
+      if (storedLang.indexOf('zh') === 0) storedLang = 'zh';
+      else storedLang = storedLang.slice(0, 2);
+
+      if (rawLang.indexOf('zh') === 0) browserLang = 'zh';
+      else browserLang = rawLang.slice(0, 2);
+
+      var detected = urlLang || storedLang || browserLang;
+      var finalLang = validLangs.indexOf(detected) >= 0 ? detected : 'en';
+
+      window.__ENKPAY_INITIAL_LANG = finalLang;
+      document.documentElement.setAttribute('data-lang', finalLang);
+      document.documentElement.lang = finalLang;
+      document.documentElement.dir = finalLang === 'ar' ? 'rtl' : 'ltr';
+    })();
+  </script>
 </head>
 <body x-data="app()" x-init="init()">
 
@@ -795,7 +834,7 @@
     // ========== Alpine.js App ==========
     function app() {
       return {
-        lang: 'en',
+        lang: window.__ENKPAY_INITIAL_LANG || 'en',
         _alpineRenderDelayMs: 300,
         _progressObserver: null,
         mobileOpen: false,
@@ -866,6 +905,7 @@
         setLang(code) {
           this.lang = code;
           localStorage.setItem('enkpay_lang', code);
+          document.documentElement.setAttribute('data-lang', code);
           document.documentElement.lang = code;
           document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr';
           // Update URL param without reload
@@ -886,13 +926,8 @@
         },
 
         async init() {
-          // Detect language
-          const urlLang = new URLSearchParams(window.location.search).get('lang');
-          const storedLang = localStorage.getItem('enkpay_lang');
-          const browserLang = (navigator.language || 'en').slice(0, 2).toLowerCase();
           const validLangs = Object.keys(this.langs);
-          const detected = urlLang || storedLang || (validLangs.includes(browserLang) ? browserLang : 'en');
-          this.setLang(validLangs.includes(detected) ? detected : 'en');
+          this.setLang(validLangs.includes(this.lang) ? this.lang : 'en');
 
           // Generate stars
           this._generateStars();
