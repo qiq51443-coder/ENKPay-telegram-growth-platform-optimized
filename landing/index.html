@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="icon" sizes="any" href="/favicon.ico">
-  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon.svg">
+  <link rel="apple-touch-icon" id="apple-touch-icon" href="/favicon-32x32.png">
   <title>ENKPay - Web3 Payment &amp; NFT Platform</title>
   <meta name="description" content="ENKPay — Telegram-based Web3 payment, NFT and charity platform. Join millions of users worldwide.">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,7 +15,7 @@
   <meta property="og:title" content="ENKPay">
   <meta property="og:description" content="Telegram-based Web3 platform for payments, NFT and charity">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://enkpay.co.com/favicon.svg">
+  <meta property="og:image" content="https://enkpay.co.com/favicon-32x32.png">
   <meta property="og:url" content="https://enkpay.co.com">
   <link rel="alternate" hreflang="zh" href="/?lang=zh">
   <link rel="alternate" hreflang="en" href="/?lang=en">
@@ -383,6 +383,12 @@
   <script>
     (function () {
       var validLangs = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
+      var normalizeLang = function (value) {
+        var normalized = (value || '').toLowerCase();
+        if (!normalized) return '';
+        if (normalized.indexOf('zh') === 0) return 'zh';
+        return normalized.length >= 2 ? normalized.slice(0, 2) : normalized;
+      };
       var rawUrlLang = '';
       var urlLang = '';
       var storedLang = '';
@@ -392,18 +398,12 @@
       try {
         rawUrlLang = new URLSearchParams(window.location.search).get('lang') || '';
       } catch (e) {}
-      urlLang = rawUrlLang.toLowerCase();
-      if (urlLang.indexOf('zh') === 0) urlLang = 'zh';
-      else urlLang = urlLang.slice(0, 2);
+      urlLang = normalizeLang(rawUrlLang);
 
       try {
-        storedLang = (localStorage.getItem('enkpay_lang') || '').toLowerCase();
+        storedLang = normalizeLang(localStorage.getItem('enkpay_lang') || '');
       } catch (e) {}
-      if (storedLang.indexOf('zh') === 0) storedLang = 'zh';
-      else storedLang = storedLang.slice(0, 2);
-
-      if (rawLang.indexOf('zh') === 0) browserLang = 'zh';
-      else browserLang = rawLang.slice(0, 2);
+      browserLang = normalizeLang(rawLang) || 'en';
 
       var detected = urlLang || storedLang || browserLang;
       var finalLang = validLangs.indexOf(detected) >= 0 ? detected : 'en';
