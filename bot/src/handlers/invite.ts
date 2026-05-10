@@ -56,8 +56,9 @@ export const handleInvite = async (ctx: Context) => {
 };
 
 /**
- * 发送邀请卡片消息（GIF/图片 + caption + 按钮）
- * 可在 invite handler 和 start handler（新用户通过邀请链接注册时）中调用
+ * Sends invite card message (GIF/image + caption + buttons).
+ * Can be called from invite handler and start handler
+ * (when new user registers via invite link).
  */
 export async function sendInviteCard(
   ctx: Context,
@@ -84,11 +85,10 @@ export async function sendInviteCard(
   // 2. Invite card image – strip surrounding quotes that JSON serialisation may add
   const rawCardImage = sysSettings['invite_card_image'] || '';
   const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
-  const mediaUrl = cardImageUrl.startsWith('http')
-    ? cardImageUrl
-    : cardImageUrl
-      ? `${BACKEND_URL}${cardImageUrl}`
-      : '';
+  let mediaUrl = '';
+  if (cardImageUrl) {
+    mediaUrl = cardImageUrl.startsWith('http') ? cardImageUrl : `${BACKEND_URL}${cardImageUrl}`;
+  }
 
   // 3. Multilingual invite message – priority: user lang → English → generic → built-in
   const langKey = `invite_message_${lang}`;
@@ -109,7 +109,6 @@ export async function sendInviteCard(
   const shareText = (inviteTemplate
     ? inviteTemplate
         .replace(/\{invite_link\}/g, '')
-        .replace(/<[^>]*>/g, '')
         .replace(/&(?:[a-zA-Z]+|#\d+|#x[\da-fA-F]+);/g, '')
         .replace(/[<>]/g, '')
         .replace(/\s+/g, ' ')
