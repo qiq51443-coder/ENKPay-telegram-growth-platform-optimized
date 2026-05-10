@@ -86,7 +86,7 @@ export const handleInvite = async (ctx: Context) => {
       ? inviteTemplate
           .replace(/\{invite_link\}/g, '')
           .replace(/<[^>]*>/g, '')
-          .replace(/&[a-zA-Z0-9#]+;/g, '')
+          .replace(/&(?:[a-zA-Z]+|#\d+|#x[\da-fA-F]+);/g, '')
           .replace(/[<>]/g, '')
           .replace(/\s+/g, ' ')
           .trim()

@@ -70,7 +70,7 @@ export const getOrCreateUser = async (ctx: Context, botId: string, inviteCode?: 
       const isInviteRejection =
         createErr?.response?.status === 400 &&
         userData.invite_code_used &&
-        (errBody.includes('invite') || errBody.includes('self') || errBody.includes('referral') || errBody === '""');
+        (errBody.includes('invite') || errBody.includes('self') || errBody.includes('referral'));
       if (isInviteRejection) {
         console.warn('[user] Invite code rejected by backend, retrying without invite code');
         delete userData.invite_code_used;
