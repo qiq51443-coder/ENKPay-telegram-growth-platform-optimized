@@ -825,7 +825,7 @@
     // ========== Alpine.js App ==========
     function app() {
       return {
-        lang: (window.__ENKPAY_INITIAL_LANG) || 'en',
+        lang: window.__ENKPAY_INITIAL_LANG || 'en',
         _alpineRenderDelayMs: 300,
         _progressObserver: null,
         mobileOpen: false,
