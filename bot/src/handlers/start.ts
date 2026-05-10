@@ -1,5 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser } from '../services/user';
+import { getUser as getUserAPI } from '../services/api';
 import { getSettings } from '../services/settings';
 import { t, isSupportedLang } from '../i18n';
 import { clearUserState } from '../utils/state';
@@ -25,8 +26,30 @@ export const handleStart = async (ctx: Context) => {
       inviteCodeUsed = startPayload.substring(4); // Extract invite code after REF_
     }
 
-    // Get or create user
-    const user = await getOrCreateUser(ctx, botId, inviteCodeUsed);
+    // Check if user already exists so we can apply invite-code guards
+    const existingUser = inviteCodeUsed
+      ? await getUserAPI(botId, ctx.from.id).catch(() => null)
+      : null;
+    const isNewUser = !existingUser;
+
+    // Self-referral guard: prevent a user from using their own invite code
+    if (inviteCodeUsed && existingUser) {
+      const selfCode =
+        (existingUser as any).unique_id ||
+        (existingUser as any).robot_user_id ||
+        (existingUser as any).invite_code;
+      if (selfCode && inviteCodeUsed === selfCode) {
+        console.warn(`[bot ${botId}] Self-referral attempt by user ${ctx.from.id}`);
+        inviteCodeUsed = undefined;
+      }
+    }
+
+    // Get or create user — only pass invite code for genuinely new users
+    const user = await getOrCreateUser(ctx, botId, isNewUser ? inviteCodeUsed : undefined);
+
+    if (inviteCodeUsed && isNewUser) {
+      console.info(`[bot ${botId}] New user ${ctx.from.id} registered with invite code: ${inviteCodeUsed}`);
+    }
 
     // Clear any in-progress flow state so /start always shows a clean view
     await clearUserState(user.id.toString()).catch((err) =>

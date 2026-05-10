@@ -42,7 +42,7 @@ export const getOrCreateUser = async (ctx: Context, botId: string, inviteCode?: 
 
   // Create if doesn't exist
   if (!user) {
-    const userData = {
+    const userData: Record<string, any> = {
       bot_id: botId,
       telegram_id: ctx.from.id,
       username: ctx.from.username,
@@ -51,15 +51,35 @@ export const getOrCreateUser = async (ctx: Context, botId: string, inviteCode?: 
       language_code: ctx.from.language_code || 'en',
     };
 
-    // Add invite code if provided
+    // invite_code_used is only passed on first registration (new users).
+    // The caller is responsible for ensuring this is not set for existing users
+    // or for self-referrals.
     if (inviteCode) {
-      // Find inviter by invite code
-      // This would be handled by the backend
-      (userData as any).invite_code_used = inviteCode;
+      userData.invite_code_used = inviteCode;
     }
 
-    const response = await createUserAPI(botId, userData);
-    user = response.user;
+    try {
+      const response = await createUserAPI(botId, userData);
+      user = response.user;
+    } catch (createErr: any) {
+      // If backend rejects the invite code with a 400 (e.g. self-referral), gracefully
+      // retry without it so that user registration still succeeds.
+      // We only retry when invite_code_used was set and the error body hints at an
+      // invite-related rejection; other 400 causes (malformed fields, etc.) are re-thrown.
+      const errBody: string = JSON.stringify(createErr?.response?.data ?? '').toLowerCase();
+      const isInviteRejection =
+        createErr?.response?.status === 400 &&
+        userData.invite_code_used &&
+        (errBody.includes('invite') || errBody.includes('self') || errBody.includes('referral') || errBody === '""');
+      if (isInviteRejection) {
+        console.warn('[user] Invite code rejected by backend, retrying without invite code');
+        delete userData.invite_code_used;
+        const retryResponse = await createUserAPI(botId, userData);
+        user = retryResponse.user;
+      } else {
+        throw createErr;
+      }
+    }
   }
 
   return user;
