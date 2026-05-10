@@ -129,14 +129,20 @@ async function settleDailyIncome(): Promise<number> {
         const currentDay = Math.max(1, Math.floor(diffMs / 86400000) + 1);
         const termDays = holding.term_days ?? 30;
 
-        await transaction(async (client) => {
+        const incomeActuallySettled = await transaction(async (client) => {
           // Insert income record (skip if already exists for today)
-          await client.query(
+          const insertResult = await client.query(
             `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (holding_id, income_date) DO NOTHING`,
+             ON CONFLICT (holding_id, income_date) DO NOTHING
+             RETURNING id`,
             [holding.id, holding.user_id, holding.product_id, amountStr, today]
           );
+
+          if ((insertResult.rowCount ?? 0) === 0) {
+            console.log(`NFT daily settle: holding ${holding.id} already settled today, skipping`);
+            return false;
+          }
 
           // Add income to wallet_balance
           await client.query(
@@ -158,7 +164,11 @@ async function settleDailyIncome(): Promise<number> {
              SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
             [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
           );
+
+          return true;
         });
+
+        if (!incomeActuallySettled) continue;
 
         // Send bot notification
         if (holding.telegram_id && holding.bot_id) {
@@ -230,13 +240,19 @@ async function settleDailyIncome(): Promise<number> {
         const currentDay = Math.max(1, Math.floor(diffMs / 86400000) + 1);
         const termDays = holding.term_days ?? 30;
 
-        await transaction(async (client) => {
-          await client.query(
+        const incomeActuallySettled = await transaction(async (client) => {
+          const insertResult = await client.query(
             `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (holding_id, income_date) DO NOTHING`,
+             ON CONFLICT (holding_id, income_date) DO NOTHING
+             RETURNING id`,
             [holding.id, holding.user_id, holding.product_id, amountStr, today]
           );
+
+          if ((insertResult.rowCount ?? 0) === 0) {
+            console.log(`NFT daily settle (product_holdings): holding ${holding.id} already settled today, skipping`);
+            return false;
+          }
 
           await client.query(
             'UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1 WHERE id = $2',
@@ -251,7 +267,11 @@ async function settleDailyIncome(): Promise<number> {
              SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
             [holding.user_id, dailyIncome, incomeDesc, String(holding.id)]
           );
+
+          return true;
         });
+
+        if (!incomeActuallySettled) continue;
 
         // Update total_income on product_holdings if the column exists (optional, outside transaction)
         await query(
