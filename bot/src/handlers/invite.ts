@@ -2,6 +2,23 @@ import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { t } from '../i18n';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+
+/**
+ * Fetch the bot's Telegram username from the backend API.
+ * Used as a fallback when ctx.botInfo is unavailable.
+ */
+async function fetchBotUsername(botId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bots/${botId}`);
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return (data?.bot?.username as string) || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch invite-category settings from the backend's bot-internal endpoint.
  * Bot has no admin token, so it uses the dedicated /bot/invite route with an
@@ -9,13 +26,12 @@ import { t } from '../i18n';
  */
 async function getInviteSystemSettings(): Promise<Record<string, string>> {
   try {
-    const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
     const botToken = process.env.BOT_INTERNAL_TOKEN || process.env.BOT_API_KEY || '';
-    const res = await fetch(`${apiBase}/api/admin/system-settings/bot/invite`, {
+    const res = await fetch(`${BACKEND_URL}/api/admin/system-settings/bot/invite`, {
       headers: botToken ? { 'x-bot-token': botToken } : {},
     });
     if (!res.ok) return {};
-    const data = await res.json();
+    const data = await res.json() as Record<string, string>;
     return data || {};
   } catch {
     return {};
@@ -30,7 +46,16 @@ export const handleInvite = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
 
-    const botUsername = process.env.BOT_USERNAME || 'your_bot';
+    // Bot username resolution priority:
+    // 1. Telegraf runtime ctx.botInfo (most reliable in multi-bot mode)
+    // 2. Backend API GET /api/bots/{botId}
+    // 3. BOT_USERNAME env var
+    const botUsername =
+      (ctx as any).botInfo?.username ||
+      (await fetchBotUsername(botId)) ||
+      process.env.BOT_USERNAME ||
+      'your_bot';
+
     const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
     const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
 
@@ -56,8 +81,15 @@ export const handleInvite = async (ctx: Context) => {
       : buildDefaultInviteText(lang, inviteLink);
 
     // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
+    // Strip {invite_link} placeholder, HTML tags, HTML entities, and extra whitespace
     const shareText = (inviteTemplate
-      ? inviteTemplate.replace(/\{invite_link\}/g, '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim()
+      ? inviteTemplate
+          .replace(/\{invite_link\}/g, '')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&(?:[a-zA-Z]+|#\d+|#x[\da-fA-F]+);/g, '')
+          .replace(/[<>]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
       : t(lang, 'invite_description')
     ).slice(0, 200);
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
@@ -69,10 +101,9 @@ export const handleInvite = async (ctx: Context) => {
 
     // 6. Send photo/animation card when available; fall back to plain text if delivery fails
     if (cardImageUrl) {
-      const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
       const photoUrl = cardImageUrl.startsWith('http')
         ? cardImageUrl
-        : `${apiBase}${cardImageUrl}`;
+        : `${BACKEND_URL}${cardImageUrl}`;
 
       const isGif = /\.gif(\?|$)/i.test(photoUrl);
 
@@ -81,13 +112,13 @@ export const handleInvite = async (ctx: Context) => {
           await ctx.replyWithAnimation(photoUrl, {
             caption: inviteText,
             parse_mode: 'HTML',
-            ...keyboard,
+            reply_markup: keyboard.reply_markup,
           });
         } else {
           await ctx.replyWithPhoto(photoUrl, {
             caption: inviteText,
             parse_mode: 'HTML',
-            ...keyboard,
+            reply_markup: keyboard.reply_markup,
           });
         }
         return;
