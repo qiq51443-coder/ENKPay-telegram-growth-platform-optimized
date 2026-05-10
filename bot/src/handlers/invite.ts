@@ -66,87 +66,98 @@ export async function sendInviteCard(
   botId: string,
   lang: string
 ): Promise<void> {
-  // Bot username resolution priority:
-  // 1. Telegraf runtime ctx.botInfo (most reliable in multi-bot mode)
-  // 2. Backend API GET /api/bots/{botId}
-  // 3. BOT_USERNAME env var
-  const botUsername =
-    ctx.botInfo?.username ||
-    (await fetchBotUsername(botId)) ||
-    process.env.BOT_USERNAME ||
-    'your_bot';
+  try {
+    // Bot username resolution priority:
+    // 1. Telegraf runtime ctx.botInfo (most reliable in multi-bot mode)
+    // 2. Backend API GET /api/bots/{botId}
+    // 3. BOT_USERNAME env var
+    const botUsername =
+      (ctx as any).botInfo?.username ||
+      (await fetchBotUsername(botId)) ||
+      process.env.BOT_USERNAME ||
+      'your_bot';
 
-  const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
-  const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
+    const uniqueId = user.unique_id || user.robot_user_id || user.invite_code;
+    const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
 
-  // 1. Fetch invite settings from system_settings (invite card image + multilingual messages)
-  const sysSettings = await getInviteSystemSettings(botId);
+    // 1. Fetch invite settings from system_settings (invite card image + multilingual messages)
+    const sysSettings = await getInviteSystemSettings(botId);
 
-  // 2. Invite card image – strip surrounding quotes that JSON serialisation may add
-  const rawCardImage = sysSettings['invite_card_image'] || '';
-  const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
-  let mediaUrl = '';
-  if (cardImageUrl) {
-    mediaUrl = cardImageUrl.startsWith('http') ? cardImageUrl : `${BACKEND_URL}${cardImageUrl}`;
-  }
+    // 2. Invite card image – strip surrounding quotes that JSON serialisation may add
+    const rawCardImage = sysSettings['invite_card_image'] || '';
+    const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
+    let mediaUrl = '';
+    if (cardImageUrl) {
+      mediaUrl = cardImageUrl.startsWith('http') ? cardImageUrl : `${BACKEND_URL}${cardImageUrl}`;
+    }
 
-  // 3. Multilingual invite message – priority: user lang → English → generic → built-in
-  const langKey = `invite_message_${lang}`;
-  const rawMessage =
-    sysSettings[langKey] ||
-    sysSettings['invite_message_en'] ||
-    sysSettings['invite_message'] ||
-    '';
-  const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
+    // 3. Multilingual invite message – priority: user lang → English → generic → built-in
+    const langKey = `invite_message_${lang}`;
+    const rawMessage =
+      sysSettings[langKey] ||
+      sysSettings['invite_message_en'] ||
+      sysSettings['invite_message'] ||
+      '';
+    const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
 
-  // 4. Replace {invite_link} placeholder; fall back to built-in i18n text
-  const inviteText = inviteTemplate
-    ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
-    : buildDefaultInviteText(lang, inviteLink);
+    // 4. Replace {invite_link} placeholder; fall back to built-in i18n text
+    const inviteText = inviteTemplate
+      ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
+      : buildDefaultInviteText(lang, inviteLink);
 
-  // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
-  // Strip {invite_link} placeholder, HTML tags, HTML entities, and extra whitespace
-  const shareText = (inviteTemplate
-    ? inviteTemplate
-        .replace(/\{invite_link\}/g, '')
-        .replace(/&(?:[a-zA-Z]+|#\d+|#x[\da-fA-F]+);/g, '')
-        .replace(/[<>]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-    : t(lang, 'invite_description')
-  ).slice(0, 200);
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
+    // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
+    // Strip {invite_link} placeholder, HTML tags, HTML entities, and extra whitespace
+    const shareText = (inviteTemplate
+      ? inviteTemplate
+          .replace(/\{invite_link\}/g, '')
+          .replace(/&(?:[a-zA-Z]+|#\d+|#x[\da-fA-F]+);/g, '')
+          .replace(/[<>]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : t(lang, 'invite_description')
+    ).slice(0, 200);
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
 
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
-    [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
-  ]);
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
+      [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
+    ]);
 
-  // 6. Send photo/animation card when available; fall back to plain text if delivery fails
-  if (mediaUrl) {
-    const isGif = /\.gif(\?|$)/i.test(mediaUrl);
+    // 6. Send photo/animation card when available; fall back to plain text if delivery fails
+    if (mediaUrl) {
+      const isGif = /\.gif(\?|$)/i.test(mediaUrl);
 
-    try {
-      if (isGif) {
-        await ctx.replyWithAnimation(mediaUrl, {
-          caption: inviteText,
-          parse_mode: 'HTML',
-          reply_markup: keyboard.reply_markup,
-        });
-      } else {
-        await ctx.replyWithPhoto(mediaUrl, {
-          caption: inviteText,
-          parse_mode: 'HTML',
-          reply_markup: keyboard.reply_markup,
-        });
+      try {
+        if (isGif) {
+          await ctx.replyWithAnimation(mediaUrl, {
+            caption: inviteText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard.reply_markup,
+          });
+        } else {
+          await ctx.replyWithPhoto(mediaUrl, {
+            caption: inviteText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard.reply_markup,
+          });
+        }
+        return;
+      } catch (mediaErr) {
+        console.error('[inviteCard] Media send failed, falling back to text:', mediaErr);
       }
-      return;
-    } catch (mediaErr) {
-      console.error('[inviteCard] Media send failed, falling back to text:', mediaErr);
+    }
+
+    await ctx.replyWithHTML(inviteText, keyboard);
+  } catch (err) {
+    console.error('[sendInviteCard] Unexpected error:', err);
+    try {
+      const uniqueId = user.unique_id || user.robot_user_id || user.invite_code || '';
+      const fallbackLink = `https://t.me/${process.env.BOT_USERNAME || 'your_bot'}?start=REF_${uniqueId}`;
+      await ctx.replyWithHTML(buildDefaultInviteText(lang, fallbackLink));
+    } catch {
+      // Swallow all fallback errors to ensure this helper never crashes caller flow.
     }
   }
-
-  await ctx.replyWithHTML(inviteText, keyboard);
 }
 
 function buildDefaultInviteText(lang: string, inviteLink: string): string {
