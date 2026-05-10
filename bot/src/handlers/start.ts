@@ -4,6 +4,7 @@ import { getUser as getUserAPI } from '../services/api';
 import { getSettings } from '../services/settings';
 import { t, isSupportedLang } from '../i18n';
 import { clearUserState } from '../utils/state';
+import { sendInviteCard } from './invite';
 import axios from 'axios';
 import crypto from 'crypto';
 
@@ -215,6 +216,14 @@ export const handleStart = async (ctx: Context) => {
         t(lang, 'official_links_prompt') || '👇 请点击下方按钮关注群组',
         officialKeyboard
       );
+    }
+
+    if (isNewUser && inviteCodeUsed) {
+      try {
+        await sendInviteCard(ctx, user, botId, lang);
+      } catch (err) {
+        console.error(`[bot ${botId}] Failed to send invite card to new user:`, err);
+      }
     }
   } catch (error) {
     console.error('Start handler error:', error);
