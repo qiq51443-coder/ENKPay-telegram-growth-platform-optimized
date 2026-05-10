@@ -378,6 +378,36 @@
     /* Alpine.js cloak: hide elements until Alpine initialises */
     [x-cloak] { display: none !important; }
   </style>
+  <!-- 语言预检测：在 Alpine.js 加载前立即执行，消除语言闪烁 -->
+  <script>
+  (function () {
+    var VALID_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'];
+    function normalizeLang(raw) {
+      if (!raw) return '';
+      var s = raw.toLowerCase();
+      // 中文子语言全部映射到 zh（zh-CN, zh-TW, zh-HK 等）
+      if (s.indexOf('zh') === 0) return 'zh';
+      return s.length >= 2 ? s.slice(0, 2) : s;
+    }
+    var urlLang = '';
+    try {
+      urlLang = normalizeLang(new URLSearchParams(location.search).get('lang'));
+    } catch (e) {}
+    var stored = '';
+    try {
+      stored = normalizeLang(localStorage.getItem('enkpay_lang'));
+    } catch (e) {}
+    var browser = normalizeLang(navigator.language || navigator.userLanguage || '');
+    var detected = urlLang || stored || browser || 'en';
+    var finalLang = VALID_LANGS.indexOf(detected) !== -1 ? detected : 'en';
+    // 写入全局变量，供 Alpine app() 读取
+    window.__ENKPAY_INITIAL_LANG = finalLang;
+    // 立即同步到 HTML 属性，让 CSS/SEO 立刻生效
+    document.documentElement.lang = finalLang;
+    document.documentElement.dir = finalLang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.setAttribute('data-lang', finalLang);
+  })();
+  </script>
 </head>
 <body x-data="app()" x-init="init()">
 
@@ -798,7 +828,7 @@
     // ========== Alpine.js App ==========
     function app() {
       return {
-        lang: 'en',
+        lang: window.__ENKPAY_INITIAL_LANG || 'en',
         _alpineRenderDelayMs: 300,
         _progressObserver: null,
         mobileOpen: false,
@@ -889,13 +919,10 @@
         },
 
         async init() {
-          // Detect language
-          const urlLang = new URLSearchParams(window.location.search).get('lang');
-          const storedLang = localStorage.getItem('enkpay_lang');
-          const browserLang = (navigator.language || 'en').slice(0, 2).toLowerCase();
+          // 直接使用预检测结果，setLang 会持久化到 localStorage 和 URL
+          const preDetected = window.__ENKPAY_INITIAL_LANG || 'en';
           const validLangs = Object.keys(this.langs);
-          const detected = urlLang || storedLang || (validLangs.includes(browserLang) ? browserLang : 'en');
-          this.setLang(validLangs.includes(detected) ? detected : 'en');
+          this.setLang(validLangs.includes(preDetected) ? preDetected : 'en');
 
           // Generate stars
           this._generateStars();
