@@ -386,8 +386,14 @@
       if (s.indexOf('zh') === 0) return 'zh';
       return s.length >= 2 ? s.slice(0, 2) : s;
     }
-    var urlLang = normalizeLang(new URLSearchParams(location.search).get('lang'));
-    var stored = normalizeLang(localStorage.getItem('enkpay_lang'));
+    var urlLang = '';
+    try {
+      urlLang = normalizeLang(new URLSearchParams(location.search).get('lang'));
+    } catch (e) {}
+    var stored = '';
+    try {
+      stored = normalizeLang(localStorage.getItem('enkpay_lang'));
+    } catch (e) {}
     var browser = normalizeLang(navigator.language || navigator.userLanguage || '');
     var detected = urlLang || stored || browser || 'en';
     var finalLang = VALID_LANGS.indexOf(detected) !== -1 ? detected : 'en';
