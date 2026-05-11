@@ -209,6 +209,13 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
   const inviteText = inviteTemplate
     ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
     : buildDefaultInviteText(lang, inviteLink);
+  const plainCaption = inviteText
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .slice(0, 1024);
 
   const joinKeyboard = Markup.inlineKeyboard([
     [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
@@ -217,34 +224,42 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
   if (mediaUrl) {
     const isGif = /\.gif(\?|$)/i.test(mediaUrl);
     if (isGif) {
+      try {
+        await ctx.answerInlineQuery([
+          {
+            type: 'gif',
+            id: `invite_gif_${uniqueId}`,
+            gif_url: mediaUrl,
+            gif_mime_type: 'image/gif',
+            thumbnail_url: mediaUrl,
+            thumbnail_mime_type: 'image/gif',
+            title: t(lang, 'invite_title'),
+            caption: plainCaption,
+            reply_markup: joinKeyboard.reply_markup,
+          } as any,
+        ], { cache_time: 0 });
+        return;
+      } catch (gifErr) {
+        console.warn('[inline] GIF result failed, falling back to article:', gifErr);
+      }
+    }
+
+    try {
       await ctx.answerInlineQuery([
         {
-          type: 'gif',
-          id: `invite_gif_${uniqueId}`,
-          gif_url: mediaUrl,
+          type: 'photo',
+          id: `invite_photo_${uniqueId}`,
+          photo_url: mediaUrl,
           thumbnail_url: mediaUrl,
           title: t(lang, 'invite_title'),
-          caption: inviteText,
-          parse_mode: 'HTML',
+          caption: plainCaption,
           reply_markup: joinKeyboard.reply_markup,
         },
       ], { cache_time: 0 });
       return;
+    } catch (photoErr) {
+      console.warn('[inline] Photo result failed, falling back to article:', photoErr);
     }
-
-    await ctx.answerInlineQuery([
-      {
-        type: 'photo',
-        id: `invite_photo_${uniqueId}`,
-        photo_url: mediaUrl,
-        thumbnail_url: mediaUrl,
-        title: t(lang, 'invite_title'),
-        caption: inviteText,
-        parse_mode: 'HTML',
-        reply_markup: joinKeyboard.reply_markup,
-      },
-    ], { cache_time: 0 });
-    return;
   }
 
   await ctx.answerInlineQuery([
@@ -254,8 +269,7 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
       title: t(lang, 'invite_title'),
       description: t(lang, 'invite_description'),
       input_message_content: {
-        message_text: inviteText,
-        parse_mode: 'HTML',
+        message_text: plainCaption || inviteLink,
       },
       reply_markup: joinKeyboard.reply_markup,
     },
