@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type React from 'react';
 import { api } from '../services/api';
 
 type MiniAppBgPage = 'trading' | 'auction' | 'period' | 'charity' | 'profile';
@@ -56,6 +57,18 @@ async function fetchMiniAppBgConfig(): Promise<MiniAppBgConfig> {
   }
 
   return pendingRequest;
+}
+
+export function buildBgStyle(bgUrl: string): React.CSSProperties {
+  return {
+    minHeight: '100vh',
+    backgroundImage: bgUrl
+      ? `linear-gradient(rgba(10, 22, 40, 0.65), rgba(10, 22, 40, 0.65)), url(${bgUrl})`
+      : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+  };
 }
 
 export function useMiniAppBg(page: MiniAppBgPage): string {

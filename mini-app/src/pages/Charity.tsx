@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
-import { useMiniAppBg } from '../hooks/useMiniAppBg';
+import { useMiniAppBg, buildBgStyle } from '../hooks/useMiniAppBg';
 
 type CharityView = 'list' | 'detail';
 
@@ -58,13 +58,7 @@ export const Charity: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pageBgStyle = {
-    minHeight: '100vh',
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed' as const,
-  };
+  const pageBgStyle = buildBgStyle(bgUrl);
 
   const selected = projects.find(p => p.id === selectedId) || null;
 

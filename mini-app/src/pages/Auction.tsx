@@ -9,7 +9,7 @@ import {
   getMyAuctions,
   redeemAuction,
 } from '../services/api';
-import { useMiniAppBg } from '../hooks/useMiniAppBg';
+import { useMiniAppBg, buildBgStyle } from '../hooks/useMiniAppBg';
 
 type AuctionView = 'list' | 'detail' | 'results' | 'my';
 
@@ -234,8 +234,13 @@ const AuctionDetail: React.FC<{
           </div>
 
           {auction.status === 'completed' && auction.winner_unique_id && (
-            <div style={{ backgroundColor: '#fef9c3', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
-              <span style={{ fontSize: '14px' }}>🏆 {t('auction_winner')}: <b>{auction.winner_unique_id}</b></span>
+            <div style={{
+              background: 'linear-gradient(135deg, #15803d, #22c55e)',
+              borderRadius: '8px', padding: '12px', marginBottom: '12px', textAlign: 'center',
+              boxShadow: '0 2px 8px rgba(34, 197, 94, 0.4)',
+              border: '1px solid rgba(34,197,94,0.5)',
+            }}>
+              <span style={{ fontSize: '14px', color: '#fff', fontWeight: '600' }}>🏆 {t('auction_winner')}: <b>{auction.winner_unique_id}</b></span>
             </div>
           )}
         </div>
@@ -285,13 +290,7 @@ export const Auction: React.FC = () => {
   const [myAuctions, setMyAuctions] = useState<MyAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string>('');
-  const pageBgStyle = {
-    minHeight: '100vh',
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed' as const,
-  };
+  const pageBgStyle = buildBgStyle(bgUrl);
 
   const fetchList = useCallback(async () => {
     setLoading(true);

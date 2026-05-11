@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { useLang } from '../context/LanguageContext';
-import { useMiniAppBg } from '../hooks/useMiniAppBg';
+import { useMiniAppBg, buildBgStyle } from '../hooks/useMiniAppBg';
 
 interface Product {
   id: string;
@@ -77,13 +77,7 @@ export const Products: React.FC = () => {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [expandedHoldings, setExpandedHoldings] = useState<Set<string>>(new Set());
-  const pageBgStyle = {
-    minHeight: '100vh',
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed' as const,
-  };
+  const pageBgStyle = buildBgStyle(bgUrl);
 
   const selected = products.find(p => p.id === selectedId) || null;
 
@@ -215,7 +209,7 @@ export const Products: React.FC = () => {
 
           {/* Purchase limit info */}
           {selected.is_purchase_limited && (
-            <div style={{ color: theme.textSecondary, fontSize: '12px', marginBottom: '12px', textAlign: 'center' }}>
+            <div style={{ color: theme.text, fontSize: '12px', marginBottom: '12px', textAlign: 'center', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
               {t('product_purchase_limit')} {selected.max_purchases_per_user ?? 1} {t('product_purchase_limit_times')}
             </div>
           )}
