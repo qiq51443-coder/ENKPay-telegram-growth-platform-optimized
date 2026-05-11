@@ -1964,10 +1964,6 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
     : buildDefaultInviteTextInternal(lang, inviteLink);
   const plainCaption = inviteText
     .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
     .slice(0, 1024);
 
   const joinKeyboard = Markup.inlineKeyboard([
@@ -1993,7 +1989,7 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
         ], { cache_time: 0 });
         return;
       } catch (gifErr) {
-        console.warn(`[bot ${botId}] Inline GIF result failed, falling back to article:`, gifErr);
+        console.warn('Inline GIF result failed, falling back to article', { botId, error: gifErr });
       }
     }
 
@@ -2011,7 +2007,7 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
       ], { cache_time: 0 });
       return;
     } catch (photoErr) {
-      console.warn(`[bot ${botId}] Inline photo result failed, falling back to article:`, photoErr);
+      console.warn('Inline photo result failed, falling back to article', { botId, error: photoErr });
     }
   }
 
@@ -2077,9 +2073,15 @@ class BotManager {
         if (result.rows.length === 0) continue;
 
         const { webhook_url, token } = result.rows[0];
+        const rawToken = token || instance.token;
+        if (!rawToken || !String(rawToken).trim()) {
+          console.warn(`BotManager: missing token for bot ${botId}, skipping webhook refresh`);
+          continue;
+        }
         const webhookUrl = webhook_url?.trim() || `${backendUrl}/webhook/${botId}`;
+        const tokenForWebhook = encodeURIComponent(String(rawToken));
         const response = await axios.post(
-          `https://api.telegram.org/bot${token}/setWebhook`,
+          `https://api.telegram.org/bot${tokenForWebhook}/setWebhook`,
           { url: webhookUrl, allowed_updates: requiredAllowedUpdates }
         );
 
@@ -2141,6 +2143,10 @@ class BotManager {
       const backendUrl = process.env.BACKEND_URL;
       if (backendUrl) {
         try {
+          if (!resolvedToken || !String(resolvedToken).trim()) {
+            console.warn(`BotManager: missing token for bot ${botId}, skipping webhook registration`);
+            return;
+          }
           const webhookResult = await query(
             'SELECT webhook_url FROM bots WHERE id = $1',
             [botId]
@@ -2148,8 +2154,9 @@ class BotManager {
           const existingWebhook = webhookResult.rows[0]?.webhook_url;
           const requiredAllowedUpdates = ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'];
           const webhookTarget = existingWebhook?.trim() || `${backendUrl}/webhook/${botId}`;
+          const tokenForWebhook = encodeURIComponent(String(resolvedToken));
           const telegramRes = await axios.post(
-            `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
+            `https://api.telegram.org/bot${tokenForWebhook}/setWebhook`,
             { url: webhookTarget, allowed_updates: requiredAllowedUpdates }
           );
           if (telegramRes.data?.ok) {

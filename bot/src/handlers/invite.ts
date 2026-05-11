@@ -211,10 +211,6 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
     : buildDefaultInviteText(lang, inviteLink);
   const plainCaption = inviteText
     .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
     .slice(0, 1024);
 
   const joinKeyboard = Markup.inlineKeyboard([
@@ -240,7 +236,7 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
         ], { cache_time: 0 });
         return;
       } catch (gifErr) {
-        console.warn('[inline] GIF result failed, falling back to article:', gifErr);
+        console.warn('Inline GIF result failed, falling back to article', { botId, error: gifErr });
       }
     }
 
@@ -258,7 +254,7 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
       ], { cache_time: 0 });
       return;
     } catch (photoErr) {
-      console.warn('[inline] Photo result failed, falling back to article:', photoErr);
+      console.warn('Inline photo result failed, falling back to article', { botId, error: photoErr });
     }
   }
 
