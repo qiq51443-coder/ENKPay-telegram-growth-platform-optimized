@@ -1962,6 +1962,13 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
   const inviteText = inviteTemplate
     ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
     : buildDefaultInviteTextInternal(lang, inviteLink);
+  const plainCaption = inviteText
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .slice(0, 1024);
 
   const joinKeyboard = Markup.inlineKeyboard([
     [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
@@ -1970,34 +1977,42 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
   if (mediaUrl) {
     const isGif = /\.gif(\?|$)/i.test(mediaUrl);
     if (isGif) {
+      try {
+        await ctx.answerInlineQuery([
+          {
+            type: 'gif',
+            id: `invite_gif_${uniqueId}`,
+            gif_url: mediaUrl,
+            gif_mime_type: 'image/gif',
+            thumbnail_url: mediaUrl,
+            thumbnail_mime_type: 'image/gif',
+            title: t(lang, 'invite_title'),
+            caption: plainCaption,
+            reply_markup: joinKeyboard.reply_markup,
+          } as any,
+        ], { cache_time: 0 });
+        return;
+      } catch (gifErr) {
+        console.warn(`[bot ${botId}] Inline GIF result failed, falling back to article:`, gifErr);
+      }
+    }
+
+    try {
       await ctx.answerInlineQuery([
         {
-          type: 'gif',
-          id: `invite_gif_${uniqueId}`,
-          gif_url: mediaUrl,
+          type: 'photo',
+          id: `invite_photo_${uniqueId}`,
+          photo_url: mediaUrl,
           thumbnail_url: mediaUrl,
           title: t(lang, 'invite_title'),
-          caption: inviteText,
-          parse_mode: 'HTML',
+          caption: plainCaption,
           reply_markup: joinKeyboard.reply_markup,
         },
       ], { cache_time: 0 });
       return;
+    } catch (photoErr) {
+      console.warn(`[bot ${botId}] Inline photo result failed, falling back to article:`, photoErr);
     }
-
-    await ctx.answerInlineQuery([
-      {
-        type: 'photo',
-        id: `invite_photo_${uniqueId}`,
-        photo_url: mediaUrl,
-        thumbnail_url: mediaUrl,
-        title: t(lang, 'invite_title'),
-        caption: inviteText,
-        parse_mode: 'HTML',
-        reply_markup: joinKeyboard.reply_markup,
-      },
-    ], { cache_time: 0 });
-    return;
   }
 
   await ctx.answerInlineQuery([
@@ -2007,8 +2022,7 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
       title: t(lang, 'invite_title'),
       description: t(lang, 'invite_description'),
       input_message_content: {
-        message_text: inviteText,
-        parse_mode: 'HTML',
+        message_text: plainCaption || inviteLink,
       },
       reply_markup: joinKeyboard.reply_markup,
     },
@@ -2053,6 +2067,7 @@ class BotManager {
     }
 
     let registered = 0;
+    const requiredAllowedUpdates = ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'];
     for (const [botId, instance] of this.bots) {
       try {
         const result = await query(
@@ -2062,12 +2077,10 @@ class BotManager {
         if (result.rows.length === 0) continue;
 
         const { webhook_url, token } = result.rows[0];
-        if (webhook_url) continue;
-
-        const webhookUrl = `${backendUrl}/webhook/${botId}`;
+        const webhookUrl = webhook_url?.trim() || `${backendUrl}/webhook/${botId}`;
         const response = await axios.post(
           `https://api.telegram.org/bot${token}/setWebhook`,
-          { url: webhookUrl, allowed_updates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'] }
+          { url: webhookUrl, allowed_updates: requiredAllowedUpdates }
         );
 
         if (response.data?.ok) {
@@ -2088,7 +2101,7 @@ class BotManager {
     if (registered > 0) {
       console.log(`✓ BotManager: auto-registered webhooks for ${registered} bot(s)`);
     } else {
-      console.log('BotManager: all bots already have webhooks configured');
+      console.log('BotManager: no webhooks were refreshed');
     }
   }
 
@@ -2133,16 +2146,15 @@ class BotManager {
             [botId]
           );
           const existingWebhook = webhookResult.rows[0]?.webhook_url;
-          if (!existingWebhook || existingWebhook.trim() === '') {
-            const webhookTarget = `${backendUrl}/webhook/${botId}`;
-            const telegramRes = await axios.post(
-              `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
-              { url: webhookTarget, allowed_updates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'] }
-            );
-            if (telegramRes.data?.ok) {
-              await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookTarget, botId]);
-              console.log(`BotManager: auto-registered webhook for bot ${botId}: ${webhookTarget}`);
-            }
+          const requiredAllowedUpdates = ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'];
+          const webhookTarget = existingWebhook?.trim() || `${backendUrl}/webhook/${botId}`;
+          const telegramRes = await axios.post(
+            `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
+            { url: webhookTarget, allowed_updates: requiredAllowedUpdates }
+          );
+          if (telegramRes.data?.ok) {
+            await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookTarget, botId]);
+            console.log(`BotManager: auto-registered webhook for bot ${botId}: ${webhookTarget}`);
           }
         } catch (webhookError) {
           console.error(`BotManager: failed to auto-register webhook for bot ${botId}:`, webhookError);
