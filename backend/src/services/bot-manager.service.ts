@@ -1660,6 +1660,15 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     }
   });
 
+  bot.on('inline_query', async (ctx) => {
+    try {
+      await handleInviteInlineQuery(ctx, botId, defaultLanguage);
+    } catch (error) {
+      console.error(`[bot ${botId}] Inline query error:`, error);
+      await ctx.answerInlineQuery([], { cache_time: 0 });
+    }
+  });
+
   bot.catch((err, ctx) => {
     console.error(`[bot ${botId}] Unhandled error:`, err);
   });
@@ -1862,7 +1871,7 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
-    [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
+    [Markup.button.switchToChat(t(lang, 'btn_share'), `inv_${displayId}`)],
   ]);
 
   // 6. Send photo/animation card when available; fall back to plain text if delivery fails
@@ -1895,6 +1904,115 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
   }
 
   await ctx.replyWithHTML(inviteText, keyboard);
+}
+
+async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLanguage: string): Promise<void> {
+  const inlineQuery = (ctx as any).inlineQuery;
+  const queryText = (inlineQuery?.query || '').trim();
+  if (!queryText.startsWith('inv_')) {
+    await ctx.answerInlineQuery([]);
+    return;
+  }
+
+  const uniqueId = queryText.slice(4).trim();
+  if (!uniqueId) {
+    await ctx.answerInlineQuery([], { cache_time: 0 });
+    return;
+  }
+
+  let botUsername = process.env.BOT_USERNAME || 'your_bot';
+  try {
+    const botResult = await query('SELECT username FROM bots WHERE id = $1', [botId]);
+    botUsername = botResult.rows[0]?.username || botUsername;
+  } catch {}
+
+  const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
+  const sysSettings = await getInviteSystemSettingsInternal();
+
+  const rawCardImage = sysSettings['invite_card_image'] || '';
+  const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
+  const apiBase = process.env.BACKEND_URL || 'http://localhost:3000';
+  const mediaUrl = cardImageUrl
+    ? (cardImageUrl.startsWith('http') ? cardImageUrl : `${apiBase}${cardImageUrl}`)
+    : '';
+
+  let lang = defaultLanguage || 'en';
+  try {
+    if (ctx.from?.id) {
+      const langResult = await query(
+        'SELECT language_code FROM users WHERE telegram_id = $1 ORDER BY created_at ASC LIMIT 1',
+        [ctx.from.id]
+      );
+      lang = langResult.rows[0]?.language_code || ctx.from.language_code || lang || 'en';
+    }
+  } catch {
+    lang = ctx.from?.language_code || lang || 'en';
+  }
+  if (!isSupportedLang(lang)) {
+    lang = 'en';
+  }
+
+  const langKey = `invite_message_${lang}`;
+  const rawMessage =
+    sysSettings[langKey] ||
+    sysSettings['invite_message_en'] ||
+    sysSettings['invite_message'] ||
+    '';
+  const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
+  const inviteText = inviteTemplate
+    ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
+    : buildDefaultInviteTextInternal(lang, inviteLink);
+
+  const joinKeyboard = Markup.inlineKeyboard([
+    [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
+  ]);
+
+  if (mediaUrl) {
+    const isGif = /\.gif(\?|$)/i.test(mediaUrl);
+    if (isGif) {
+      await ctx.answerInlineQuery([
+        {
+          type: 'gif',
+          id: `invite_gif_${uniqueId}`,
+          gif_url: mediaUrl,
+          thumbnail_url: mediaUrl,
+          title: t(lang, 'invite_title'),
+          caption: inviteText,
+          parse_mode: 'HTML',
+          reply_markup: joinKeyboard.reply_markup,
+        },
+      ], { cache_time: 0 });
+      return;
+    }
+
+    await ctx.answerInlineQuery([
+      {
+        type: 'photo',
+        id: `invite_photo_${uniqueId}`,
+        photo_url: mediaUrl,
+        thumbnail_url: mediaUrl,
+        title: t(lang, 'invite_title'),
+        caption: inviteText,
+        parse_mode: 'HTML',
+        reply_markup: joinKeyboard.reply_markup,
+      },
+    ], { cache_time: 0 });
+    return;
+  }
+
+  await ctx.answerInlineQuery([
+    {
+      type: 'article',
+      id: `invite_text_${uniqueId}`,
+      title: t(lang, 'invite_title'),
+      description: t(lang, 'invite_description'),
+      input_message_content: {
+        message_text: inviteText,
+        parse_mode: 'HTML',
+      },
+      reply_markup: joinKeyboard.reply_markup,
+    },
+  ], { cache_time: 0 });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1949,7 +2067,7 @@ class BotManager {
         const webhookUrl = `${backendUrl}/webhook/${botId}`;
         const response = await axios.post(
           `https://api.telegram.org/bot${token}/setWebhook`,
-          { url: webhookUrl, allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'] }
+          { url: webhookUrl, allowed_updates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'] }
         );
 
         if (response.data?.ok) {
@@ -2019,7 +2137,7 @@ class BotManager {
             const webhookTarget = `${backendUrl}/webhook/${botId}`;
             const telegramRes = await axios.post(
               `https://api.telegram.org/bot${resolvedToken}/setWebhook`,
-              { url: webhookTarget, allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'] }
+              { url: webhookTarget, allowed_updates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'] }
             );
             if (telegramRes.data?.ok) {
               await query('UPDATE bots SET webhook_url = $1 WHERE id = $2', [webhookTarget, botId]);

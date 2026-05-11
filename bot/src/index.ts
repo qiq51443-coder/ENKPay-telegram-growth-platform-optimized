@@ -12,7 +12,7 @@ import { getUserState, clearUserState } from './utils/state';
 import { handleStart } from './handlers/start';
 import { handleMenu } from './handlers/menu';
 import { handleWallet } from './handlers/wallet';
-import { handleInvite } from './handlers/invite';
+import { handleInlineQuery, handleInvite } from './handlers/invite';
 import { handleLanguage, handleLanguageChange } from './handlers/language';
 import { handleRedPacketClaim } from './handlers/redpacket';
 import { handleDepositSelectNetwork, handleDepositShowAddress } from './handlers/deposit';
@@ -248,6 +248,15 @@ function createBotInstance(entry: BotEntry): Telegraf {
     }
   });
 
+  bot.on('inline_query', async (ctx) => {
+    try {
+      await handleInlineQuery(ctx, BOT_ID);
+    } catch (error) {
+      console.error(`[bot ${BOT_ID}] Inline query error:`, error);
+      await ctx.answerInlineQuery([], { cache_time: 0 });
+    }
+  });
+
   // Error handling
   bot.catch((err, ctx) => {
     console.error(`[bot ${BOT_ID}] Bot error:`, err);
@@ -397,12 +406,12 @@ const startBots = async () => {
 
       if (botMode === 'webhook' && webhookDomain) {
         await bot.telegram.setWebhook(`${webhookDomain}/webhook/${entry.id}`, {
-          allowed_updates: ['message', 'callback_query', 'chat_member', 'my_chat_member'],
+          allowed_updates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'],
         });
         console.log(`✓ Bot ${entry.id} webhook set to ${webhookDomain}/webhook/${entry.id}`);
       } else {
         await bot.launch({
-          allowedUpdates: ['message', 'callback_query', 'chat_member', 'my_chat_member'],
+          allowedUpdates: ['message', 'callback_query', 'inline_query', 'chat_member', 'my_chat_member'],
         });
         console.log(`✓ Bot ${entry.id} started in polling mode`);
         bots.push(bot);
