@@ -161,11 +161,14 @@ export async function sendInviteCard(
   }
 }
 
-export async function handleInlineQuery(ctx: Context, botId: string): Promise<void> {
-  const inlineQuery = (ctx as any).inlineQuery;
+export async function handleInlineQuery(
+  ctx: Context & { inlineQuery?: { query?: string }; botInfo?: { username?: string } },
+  botId: string
+): Promise<void> {
+  const inlineQuery = ctx.inlineQuery;
   const queryText = (inlineQuery?.query || '').trim();
   if (!queryText.startsWith('inv_')) {
-    await ctx.answerInlineQuery([]);
+    await ctx.answerInlineQuery([], { cache_time: 0 });
     return;
   }
 
@@ -176,10 +179,15 @@ export async function handleInlineQuery(ctx: Context, botId: string): Promise<vo
   }
 
   const botUsername =
-    (ctx as any).botInfo?.username ||
+    ctx.botInfo?.username ||
     (await fetchBotUsername(botId)) ||
     process.env.BOT_USERNAME ||
-    'your_bot';
+    '';
+  if (!botUsername) {
+    console.warn(`[bot ${botId}] Inline invite query ignored: bot username not found`);
+    await ctx.answerInlineQuery([], { cache_time: 0 });
+    return;
+  }
   const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
 
   const sysSettings = await getInviteSystemSettings(botId);

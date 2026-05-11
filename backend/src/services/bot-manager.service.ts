@@ -1664,7 +1664,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     try {
       await handleInviteInlineQuery(ctx, botId, defaultLanguage);
     } catch (error) {
-      console.error(`[bot ${botId}] Inline query error:`, error);
+      console.error('Inline query handler error', { botId, error });
       await ctx.answerInlineQuery([], { cache_time: 0 });
     }
   });
@@ -1906,11 +1906,15 @@ async function handleInvite(ctx: Context, botId: string, user: User, lang: strin
   await ctx.replyWithHTML(inviteText, keyboard);
 }
 
-async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLanguage: string): Promise<void> {
-  const inlineQuery = (ctx as any).inlineQuery;
+async function handleInviteInlineQuery(
+  ctx: Context & { inlineQuery?: { query?: string } },
+  botId: string,
+  defaultLanguage: string
+): Promise<void> {
+  const inlineQuery = ctx.inlineQuery;
   const queryText = (inlineQuery?.query || '').trim();
   if (!queryText.startsWith('inv_')) {
-    await ctx.answerInlineQuery([]);
+    await ctx.answerInlineQuery([], { cache_time: 0 });
     return;
   }
 
@@ -1920,11 +1924,16 @@ async function handleInviteInlineQuery(ctx: Context, botId: string, defaultLangu
     return;
   }
 
-  let botUsername = process.env.BOT_USERNAME || 'your_bot';
+  let botUsername = process.env.BOT_USERNAME || '';
   try {
     const botResult = await query('SELECT username FROM bots WHERE id = $1', [botId]);
     botUsername = botResult.rows[0]?.username || botUsername;
   } catch {}
+  if (!botUsername) {
+    console.warn(`[bot ${botId}] Inline invite query ignored: bot username not found`);
+    await ctx.answerInlineQuery([], { cache_time: 0 });
+    return;
+  }
 
   const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
   const sysSettings = await getInviteSystemSettingsInternal();
