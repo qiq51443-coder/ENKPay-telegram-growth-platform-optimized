@@ -1,5 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage, User } from '../services/user';
+import { getUser as getUserFromAPI } from '../services/api';
 import { t } from '../i18n';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
@@ -120,7 +121,7 @@ export async function sendInviteCard(
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
-      [Markup.button.url(t(lang, 'btn_share'), shareUrl)],
+      [Markup.button.switchToChat(t(lang, 'btn_share'), `inv_${uniqueId}`)],
     ]);
 
     // 6. Send photo/animation card when available; fall back to plain text if delivery fails
@@ -158,6 +159,107 @@ export async function sendInviteCard(
       // Swallow all fallback errors to ensure this helper never crashes caller flow.
     }
   }
+}
+
+export async function handleInlineQuery(ctx: Context, botId: string): Promise<void> {
+  const inlineQuery = (ctx as any).inlineQuery;
+  const queryText = (inlineQuery?.query || '').trim();
+  if (!queryText.startsWith('inv_')) {
+    await ctx.answerInlineQuery([]);
+    return;
+  }
+
+  const uniqueId = queryText.slice(4).trim();
+  if (!uniqueId) {
+    await ctx.answerInlineQuery([], { cache_time: 0 });
+    return;
+  }
+
+  const botUsername =
+    (ctx as any).botInfo?.username ||
+    (await fetchBotUsername(botId)) ||
+    process.env.BOT_USERNAME ||
+    'your_bot';
+  const inviteLink = `https://t.me/${botUsername}?start=REF_${uniqueId}`;
+
+  const sysSettings = await getInviteSystemSettings(botId);
+  const rawCardImage = sysSettings['invite_card_image'] || '';
+  const cardImageUrl = rawCardImage.replace(/^"|"$/g, '').trim();
+  const mediaUrl = cardImageUrl
+    ? (cardImageUrl.startsWith('http') ? cardImageUrl : `${BACKEND_URL}${cardImageUrl}`)
+    : '';
+
+  let lang = 'en';
+  try {
+    if (ctx.from?.id) {
+      const dbUser = await getUserFromAPI(botId, ctx.from.id);
+      lang = dbUser?.language_code || ctx.from.language_code || 'en';
+    }
+  } catch {
+    lang = ctx.from?.language_code || 'en';
+  }
+
+  const langKey = `invite_message_${lang}`;
+  const rawMessage =
+    sysSettings[langKey] ||
+    sysSettings['invite_message_en'] ||
+    sysSettings['invite_message'] ||
+    '';
+  const inviteTemplate = rawMessage.replace(/^"|"$/g, '').trim();
+  const inviteText = inviteTemplate
+    ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
+    : buildDefaultInviteText(lang, inviteLink);
+
+  const joinKeyboard = Markup.inlineKeyboard([
+    [Markup.button.url(t(lang, 'btn_join_now'), inviteLink)],
+  ]);
+
+  if (mediaUrl) {
+    const isGif = /\.gif(\?|$)/i.test(mediaUrl);
+    if (isGif) {
+      await ctx.answerInlineQuery([
+        {
+          type: 'gif',
+          id: `invite_gif_${uniqueId}`,
+          gif_url: mediaUrl,
+          thumbnail_url: mediaUrl,
+          title: t(lang, 'invite_title'),
+          caption: inviteText,
+          parse_mode: 'HTML',
+          reply_markup: joinKeyboard.reply_markup,
+        },
+      ], { cache_time: 0 });
+      return;
+    }
+
+    await ctx.answerInlineQuery([
+      {
+        type: 'photo',
+        id: `invite_photo_${uniqueId}`,
+        photo_url: mediaUrl,
+        thumbnail_url: mediaUrl,
+        title: t(lang, 'invite_title'),
+        caption: inviteText,
+        parse_mode: 'HTML',
+        reply_markup: joinKeyboard.reply_markup,
+      },
+    ], { cache_time: 0 });
+    return;
+  }
+
+  await ctx.answerInlineQuery([
+    {
+      type: 'article',
+      id: `invite_text_${uniqueId}`,
+      title: t(lang, 'invite_title'),
+      description: t(lang, 'invite_description'),
+      input_message_content: {
+        message_text: inviteText,
+        parse_mode: 'HTML',
+      },
+      reply_markup: joinKeyboard.reply_markup,
+    },
+  ], { cache_time: 0 });
 }
 
 function buildDefaultInviteText(lang: string, inviteLink: string): string {
