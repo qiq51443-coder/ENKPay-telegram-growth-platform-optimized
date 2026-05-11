@@ -6,7 +6,7 @@ import { useLang } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 import { useAuthSync } from '../context/AuthSyncContext';
 import { SUPPORTED_LANGUAGES, LangCode } from '../i18n';
-import { useMiniAppBg } from '../hooks/useMiniAppBg';
+import { useMiniAppBg, buildBgStyle } from '../hooks/useMiniAppBg';
 
 interface Transaction {
   id: string;
@@ -151,13 +151,7 @@ export const Profile: React.FC = () => {
   const [scanPasswordError, setScanPasswordError] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
   const [scanResult, setScanResult] = useState<any | null>(null);
-  const pageBgStyle = {
-    minHeight: '100vh',
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed' as const,
-  };
+  const pageBgStyle = buildBgStyle(bgUrl);
 
   // Use contextUser (set by App-level auth flow) as the single source of truth
   const profile = contextUser;

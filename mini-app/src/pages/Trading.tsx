@@ -8,7 +8,7 @@ import { useAuthSync } from '../context/AuthSyncContext';
 import { useUser } from '../context/UserContext';
 import { createChart } from 'lightweight-charts';
 import { usePriceWebSocket } from '../hooks/usePriceWebSocket';
-import { useMiniAppBg } from '../hooks/useMiniAppBg';
+import { useMiniAppBg, buildBgStyle } from '../hooks/useMiniAppBg';
 
 interface TradingPair {
   id: string;
@@ -1143,13 +1143,7 @@ export const Trading: React.FC = () => {
   };
 
   const priceColor = (change: number) => (change >= 0 ? '#26a69a' : '#ef5350');
-  const pageBgStyle = {
-    minHeight: '100vh',
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed' as const,
-  };
+  const pageBgStyle = buildBgStyle(bgUrl);
 
   if (loading) {
     return (
