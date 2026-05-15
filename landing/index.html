@@ -5,7 +5,7 @@
   <!-- Favicon：指向后端动态端点，自动同步管理面板上传的 Logo -->
   <link rel="icon" id="favicon" type="image/png" href="/api/landing/logo-icon">
   <link rel="apple-touch-icon" id="apple-touch-icon" href="/api/landing/logo-icon">
-  <link rel="shortcut icon" href="/api/landing/logo-icon">
+  <link rel="shortcut icon" id="shortcut-icon" href="/api/landing/logo-icon">
   <title>ENKPay - Web3 Payment &amp; NFT Platform</title>
   <meta name="description" content="ENKPay — Telegram-based Web3 payment, NFT and charity platform. Join millions of users worldwide.">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,7 +22,7 @@
   <link rel="alternate" hreflang="es" href="/?lang=es">
   <link rel="alternate" hreflang="ar" href="/?lang=ar">
   <link rel="alternate" hreflang="ja" href="/?lang=ja">
-  <script type="application/ld+json">
+  <script type="application/ld+json" id="brand-jsonld">
   {"@context":"https://schema.org","@type":"Organization","name":"ENKPay","url":"https://enkpay.co.com"}
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -419,9 +419,9 @@
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 relative">
 
       <!-- Logo -->
-      <a href="/" class="flex items-center gap-3 flex-shrink-0">
-        <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" alt="Logo" class="h-9 w-auto rounded-lg" style="image-rendering: auto" onerror="this.style.display='none'">
-        <span class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
+      <a href="/" class="flex items-center flex-shrink-0">
+        <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="h-9 w-auto rounded-lg" style="image-rendering: auto" @error="config.brand.logoUrl = ''">
+        <span x-show="!config.brand?.logoUrl" class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
       </a>
 
       <!-- Desktop Nav Links (centered absolutely) -->
@@ -484,12 +484,15 @@
     <div class="orb w-80 h-80 bg-teal-600/20 bottom-20 -right-20"></div>
     <div class="orb w-72 h-72 bg-purple-600/25 top-1/3 left-1/4"></div>
 
-    <div class="relative z-10 max-w-4xl mx-auto px-4">
-      <!-- Brand -->
-      <div class="mb-6">
-        <h1 class="text-5xl md:text-8xl font-black grad-text mb-4" style="line-height:1.1; text-shadow: 0 0 60px rgba(124,77,255,0.5), 0 0 120px rgba(0,212,170,0.3);">
-          <span id="brandName">ENKPay</span>
-        </h1>
+      <div class="relative z-10 max-w-4xl mx-auto px-4">
+        <!-- Brand -->
+        <div class="mb-6">
+          <div x-show="config.brand?.logoUrl" x-cloak class="flex justify-center mb-6">
+            <img :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="max-h-24 md:max-h-28 w-auto rounded-2xl shadow-2xl shadow-purple-500/20" @error="config.brand.logoUrl = ''">
+          </div>
+          <h1 class="text-5xl md:text-8xl font-black grad-text mb-4" style="line-height:1.1; text-shadow: 0 0 60px rgba(124,77,255,0.5), 0 0 120px rgba(0,212,170,0.3);">
+            <span id="brandName" x-text="config.brand?.name || 'ENKPay'">ENKPay</span>
+          </h1>
         <!-- Slogan (typewriter effect) -->
         <p class="text-xl md:text-2xl text-slate-300 mt-4 min-h-[2em]" id="sloganEl" x-text="currentSlogan || 'Web3 Payment · NFT · Charity'"></p>
       </div>
@@ -518,22 +521,22 @@
   <section class="stats-bar py-12 md:py-16 px-4">
     <div class="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
       <div class="fade-in stat-item border border-white/5 rounded-xl py-6 px-4">
-        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-users">0</div>
+        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow break-all leading-tight" id="stat-users">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_users')"></div>
         <div class="text-2xl mt-2">👥</div>
       </div>
       <div class="fade-in delay-1 stat-item border border-white/5 rounded-xl py-6 px-4">
-        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-nft">0</div>
+        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow leading-tight" id="stat-nft">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_nft')"></div>
         <div class="text-2xl mt-2">🎨</div>
       </div>
       <div class="fade-in delay-2 stat-item border border-white/5 rounded-xl py-6 px-4">
-        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-charity">$0</div>
+        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow leading-tight" id="stat-charity">$0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_charity')"></div>
         <div class="text-2xl mt-2">❤️</div>
       </div>
       <div class="fade-in delay-3 stat-item border border-white/5 rounded-xl py-6 px-4">
-        <div class="text-3xl md:text-4xl font-black grad-text mb-2 stat-glow" id="stat-countries">0</div>
+        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow leading-tight" id="stat-countries">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_countries')"></div>
         <div class="text-2xl mt-2">🌍</div>
       </div>
@@ -618,9 +621,9 @@
       <!-- NFT Cards (horizontal scroll) -->
       <div class="-mx-4 px-4 md:mx-0 md:px-0 nft-scroll" x-show="config.nftProducts && config.nftProducts.length > 0" x-cloak>
         <template x-for="nft in config.nftProducts" :key="nft.id">
-          <div class="nft-item glass-card overflow-hidden cursor-pointer" tabindex="0"
-            @click="nft.imageUrl && window.open(nft.imageUrl, '_blank')"
-            @keydown.enter="nft.imageUrl && window.open(nft.imageUrl, '_blank')">
+          <div class="nft-item glass-card overflow-hidden cursor-pointer" tabindex="0" role="button"
+            @click="openNftModal(nft)"
+            @keydown.enter="openNftModal(nft)">
             <!-- Image -->
             <div x-show="nft.imageUrl" class="relative overflow-hidden" style="height:180px">
               <img :src="nft.imageUrl" :alt="nft.name" class="w-full h-full object-cover"
@@ -631,14 +634,13 @@
             <div class="p-5">
               <div class="flex items-start justify-between gap-2 mb-2">
                 <h3 class="font-bold text-sm" x-text="nft.name"></h3>
-                <span class="text-xs px-2 py-1 rounded-full flex-shrink-0"
-                  :class="nft.type === 'fixed' ? 'bg-purple-900/50 text-purple-300' : nft.type === 'auction' ? 'bg-teal-900/50 text-teal-300' : 'bg-pink-900/50 text-pink-300'"
-                  x-text="nft.type === 'fixed' ? t('nft_type_fixed') : nft.type === 'auction' ? t('nft_type_auction') : t('nft_type_blind')"></span>
+                <span class="text-xs px-2 py-1 rounded-full flex-shrink-0 bg-purple-900/50 text-purple-300" x-text="t('nft_type_term')"></span>
               </div>
               <div class="flex items-center gap-1 mb-1">
                 <span class="text-teal-400 font-bold text-lg" x-text="'$' + nft.price.toFixed(2) + ' USDT'"></span>
                 <span class="text-orange-400 text-sm">🔥</span>
               </div>
+              <div x-show="nft.durationDays > 0" class="text-slate-400 text-xs mb-2" x-text="t('modal_lock_period') + ' ' + nft.durationDays + ' ' + t('day_unit')"></div>
               <div x-show="nft.annualYield > 0" class="text-purple-400 text-sm mb-3" x-text="t('nft_apy') + ' ' + nft.annualYield.toFixed(1) + '%'"></div>
               <p x-show="nft.description" class="text-slate-500 text-xs mb-0 line-clamp-2" x-text="nft.description"></p>
             </div>
@@ -676,7 +678,9 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8" x-show="config.charityProjects && config.charityProjects.length > 0" x-cloak>
         <template x-for="project in config.charityProjects" :key="project.id">
-          <div class="glass-card overflow-hidden fade-in">
+          <div class="glass-card overflow-hidden fade-in cursor-pointer" tabindex="0" role="button"
+            @click="openCharityModal(project)"
+            @keydown.enter="openCharityModal(project)">
             <!-- Cover -->
             <template x-if="project.coverUrl">
               <img :src="project.coverUrl" :alt="project.title" class="charity-img" onerror="this.outerHTML='<div class=\'charity-img-placeholder\'>❤️</div>'">
@@ -686,7 +690,12 @@
             </template>
             <!-- Body -->
             <div class="p-6">
-              <h3 class="font-bold text-base mb-4" x-text="project.title"></h3>
+              <div class="flex items-start justify-between gap-3 mb-4">
+                <h3 class="font-bold text-base" x-text="project.title"></h3>
+                <span class="text-xs px-2 py-1 rounded-full whitespace-nowrap"
+                  :class="project.status === 'completed' ? 'bg-blue-900/50 text-blue-300' : 'bg-green-900/50 text-green-300'"
+                  x-text="project.status === 'completed' ? t('charity_status_completed') : t('charity_status_active')"></span>
+              </div>
               <!-- Progress -->
               <div class="progress-track mb-2">
                 <div class="progress-fill" :data-target="project.progress" style="width:0"></div>
@@ -824,6 +833,99 @@
     </div>
   </div>
 
+  <div x-show="nftModal.open" x-cloak x-transition class="modal-overlay" @keydown.escape.window="closeNftModal()" @click.self="closeNftModal()">
+    <div class="modal-box" x-show="nftModal.item">
+      <div class="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-xs px-3 py-1 rounded-full bg-purple-900/50 text-purple-300" x-text="t('nft_type_term')"></span>
+          </div>
+          <h3 class="text-2xl font-bold grad-text" x-text="nftModal.item?.name"></h3>
+        </div>
+        <button @click="closeNftModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+      </div>
+      <template x-if="nftModal.item?.imageUrl">
+        <img :src="nftModal.item?.imageUrl" :alt="nftModal.item?.name" class="w-full h-64 md:h-80 object-cover rounded-2xl mb-6">
+      </template>
+      <template x-if="!nftModal.item?.imageUrl">
+        <div class="nft-img-placeholder mb-6" style="height: 260px;">🎨</div>
+      </template>
+      <div class="space-y-4 text-slate-300">
+        <div>
+          <div class="text-slate-400 text-sm mb-2" x-text="t('modal_product_desc')"></div>
+          <p class="text-sm leading-relaxed whitespace-pre-wrap" x-text="nftModal.item?.description || t('modal_no_description')"></p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="glass-card p-4">
+            <div class="text-slate-400 mb-1" x-text="t('modal_invest_amount')"></div>
+            <div class="font-bold text-teal-300" x-text="(nftModal.item ? nftModal.item.price.toFixed(2) : '0.00') + ' USDT'"></div>
+          </div>
+          <div class="glass-card p-4">
+            <div class="text-slate-400 mb-1" x-text="t('modal_lock_period')"></div>
+            <div class="font-bold text-white" x-text="nftModal.item?.durationDays > 0 ? nftModal.item.durationDays + ' ' + t('day_unit') : '-'"></div>
+          </div>
+          <div class="glass-card p-4">
+            <div class="text-slate-400 mb-1" x-text="t('modal_annual_yield')"></div>
+            <div class="font-bold text-purple-300" x-text="(nftModal.item ? nftModal.item.annualYield.toFixed(1) : '0.0') + '%'"></div>
+          </div>
+        </div>
+        <div class="pt-2">
+          <button @click="closeNftModal()" class="btn-primary" x-text="t('modal_close')"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div x-show="charityModal.open" x-cloak x-transition class="modal-overlay" @keydown.escape.window="closeCharityModal()" @click.self="closeCharityModal()">
+    <div class="modal-box" x-show="charityModal.item">
+      <div class="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-xs px-3 py-1 rounded-full"
+              :class="charityModal.item?.status === 'completed' ? 'bg-blue-900/50 text-blue-300' : 'bg-green-900/50 text-green-300'"
+              x-text="charityModal.item?.status === 'completed' ? t('charity_status_completed') : t('charity_status_active')"></span>
+          </div>
+          <h3 class="text-2xl font-bold grad-text" x-text="charityModal.item?.title"></h3>
+        </div>
+        <button @click="closeCharityModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+      </div>
+      <template x-if="charityModal.item?.coverUrl">
+        <img :src="charityModal.item?.coverUrl" :alt="charityModal.item?.title" class="w-full h-64 md:h-80 object-cover rounded-2xl mb-6">
+      </template>
+      <template x-if="!charityModal.item?.coverUrl">
+        <div class="charity-img-placeholder mb-6" style="height: 260px; border-radius: 16px;">❤️</div>
+      </template>
+      <div class="space-y-4 text-slate-300">
+        <div>
+          <div class="text-slate-400 text-sm mb-2" x-text="t('modal_project_desc')"></div>
+          <p class="text-sm leading-relaxed whitespace-pre-wrap" x-text="charityModal.item?.description || t('modal_no_description')"></p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div class="glass-card p-4">
+            <div class="text-slate-400 mb-1" x-text="t('modal_target_amount')"></div>
+            <div class="font-bold text-white" x-text="(charityModal.item ? charityModal.item.targetAmount.toLocaleString() : '0') + ' USDT'"></div>
+          </div>
+          <div class="glass-card p-4">
+            <div class="text-slate-400 mb-1" x-text="t('modal_raised_amount')"></div>
+            <div class="font-bold text-teal-300" x-text="(charityModal.item ? charityModal.item.currentAmount.toLocaleString() : '0') + ' USDT'"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-2">
+            <span class="text-slate-400" x-text="t('modal_progress')"></span>
+            <span class="font-bold text-purple-300" x-text="(charityModal.item?.progress || 0) + '%'"></span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" :style="'width:' + (charityModal.item?.progress || 0) + '%'"></div>
+          </div>
+        </div>
+        <div class="pt-2">
+          <button @click="closeCharityModal()" class="btn-primary" x-text="t('modal_close')"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ========== Alpine.js App ==========
     function app() {
@@ -843,6 +945,8 @@
           legal: { privacy: {}, terms: {} },
         },
         modal: { open: false, title: '', content: '' },
+        nftModal: { open: false, item: null },
+        charityModal: { open: false, item: null },
         statsAnimated: false,
         configLoading: true,
 
@@ -880,7 +984,21 @@
           nft_type_fixed:  { zh:'固定价', en:'Fixed Price', fr:'Prix fixe', de:'Festpreis', es:'Precio fijo', ar:'سعر ثابت', ja:'固定価格' },
           nft_type_auction:{ zh:'拍卖', en:'Auction', fr:'Enchère', de:'Auktion', es:'Subasta', ar:'مزاد', ja:'オークション' },
           nft_type_blind:  { zh:'盲盒', en:'Blind Box', fr:'Boîte mystère', de:'Blindbox', es:'Caja sorpresa', ar:'صندوق عشوائي', ja:'ブラインドボックス' },
+          nft_type_term:   { zh:'定期', en:'Fixed Term', fr:'À terme fixe', de:'Festlaufzeit', es:'Plazo fijo', ar:'ثابت المدة', ja:'定期' },
           nft_apy:         { zh:'年化', en:'APY', fr:'TAR', de:'Rendite', es:'APY', ar:'عائد سنوي', ja:'年利' },
+          modal_close:     { zh:'关闭', en:'Close', fr:'Fermer', de:'Schließen', es:'Cerrar', ar:'إغلاق', ja:'閉じる' },
+          modal_product_desc:{ zh:'产品说明', en:'Product Description', fr:'Description du produit', de:'Produktbeschreibung', es:'Descripción del producto', ar:'وصف المنتج', ja:'商品説明' },
+          modal_project_desc:{ zh:'项目说明', en:'Project Description', fr:'Description du projet', de:'Projektbeschreibung', es:'Descripción del proyecto', ar:'وصف المشروع', ja:'プロジェクト説明' },
+          modal_invest_amount:{ zh:'投资金额', en:'Investment Amount', fr:'Montant investi', de:'Investitionsbetrag', es:'Monto de inversión', ar:'مبلغ الاستثمار', ja:'投資金額' },
+          modal_lock_period:{ zh:'锁定期限', en:'Lock Period', fr:'Durée de blocage', de:'Sperrfrist', es:'Período de bloqueo', ar:'مدة القفل', ja:'ロック期間' },
+          modal_annual_yield:{ zh:'年化收益率', en:'Annual Yield', fr:'Rendement annuel', de:'Jahresrendite', es:'Rendimiento anual', ar:'العائد السنوي', ja:'年利回り' },
+          modal_target_amount:{ zh:'目标金额', en:'Target Amount', fr:'Objectif', de:'Zielbetrag', es:'Monto objetivo', ar:'المبلغ المستهدف', ja:'目標金額' },
+          modal_raised_amount:{ zh:'已筹金额', en:'Raised Amount', fr:'Montant collecté', de:'Gesammelter Betrag', es:'Monto recaudado', ar:'المبلغ المحصل', ja:'調達額' },
+          modal_progress:  { zh:'项目进度', en:'Progress', fr:'Progression', de:'Fortschritt', es:'Progreso', ar:'التقدم', ja:'進捗' },
+          modal_no_description:{ zh:'暂无说明', en:'No description available.', fr:'Aucune description disponible.', de:'Keine Beschreibung verfügbar.', es:'Sin descripción disponible.', ar:'لا يوجد وصف متاح.', ja:'説明はありません。' },
+          charity_status_active:{ zh:'进行中', en:'Active', fr:'En cours', de:'Aktiv', es:'Activo', ar:'نشط', ja:'進行中' },
+          charity_status_completed:{ zh:'已完成', en:'Completed', fr:'Terminé', de:'Abgeschlossen', es:'Completado', ar:'مكتمل', ja:'完了' },
+          day_unit:        { zh:'天', en:'days', fr:'jours', de:'Tage', es:'días', ar:'يوم', ja:'日' },
         },
 
         t(key) {
@@ -916,6 +1034,46 @@
             this.modal.content = (this.config.legal.terms && this.config.legal.terms[this.lang]) || 'No content available.';
           }
           this.modal.open = true;
+        },
+
+        openNftModal(item) {
+          this.nftModal = { open: true, item };
+        },
+
+        closeNftModal() {
+          this.nftModal = { open: false, item: null };
+        },
+
+        openCharityModal(item) {
+          this.charityModal = { open: true, item };
+        },
+
+        closeCharityModal() {
+          this.charityModal = { open: false, item: null };
+        },
+
+        updateBrandMetadata(brand) {
+          const brandName = (brand && brand.name) || 'ENKPay';
+          document.title = brandName + ' - Web3 Payment & NFT Platform';
+          const ogTitle = document.querySelector('meta[property="og:title"]');
+          if (ogTitle) ogTitle.setAttribute('content', brandName);
+          const jsonLd = document.getElementById('brand-jsonld');
+          if (jsonLd) {
+            jsonLd.textContent = JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              name: brandName,
+              url: 'https://enkpay.co.com',
+              logo: (brand && brand.logoUrl) || undefined,
+            });
+          }
+          const faviconUrl = (brand && brand.logoUrl) || '/api/landing/logo-icon';
+          const favicon = document.getElementById('favicon');
+          const appleIcon = document.getElementById('apple-touch-icon');
+          const shortcutIcon = document.getElementById('shortcut-icon');
+          if (favicon) favicon.href = faviconUrl;
+          if (appleIcon) appleIcon.href = faviconUrl;
+          if (shortcutIcon) shortcutIcon.href = faviconUrl;
         },
 
         async init() {
@@ -971,23 +1129,13 @@
             if (!Array.isArray(data.nftProducts)) data.nftProducts = [];
             if (data.socialLinks && typeof data.socialLinks === 'object') {
               const filtered = {};
-              for (const [k, v] of Object.entries(data.socialLinks)) {
+             for (const [k, v] of Object.entries(data.socialLinks)) {
                 if (v) filtered[k] = v;
               }
               data.socialLinks = filtered;
             }
             this.config = data;
-            // 动态更新 favicon 为官网 Logo
-            if (data.brand?.logoUrl) {
-              const favicon = document.getElementById('favicon');
-              const appleIcon = document.getElementById('apple-touch-icon');
-              if (favicon) favicon.href = data.brand.logoUrl;
-              if (appleIcon) appleIcon.href = data.brand.logoUrl;
-              // 更新浏览器 tab 标题为品牌名
-              if (data.brand?.name) {
-                document.title = data.brand.name + ' - Web3 Payment & NFT Platform';
-              }
-            }
+            this.updateBrandMetadata(data.brand || {});
           } catch (e) {
             console.error('[ENKPay] Failed to load config:', e instanceof Error ? e.message : e);
             // Use defaults already set
@@ -1049,6 +1197,7 @@
           const countUp = (elId, target, prefix = '', suffix = '+') => {
             const el = document.getElementById(elId);
             if (!el) return;
+            this._applyStatSize(el, target);
             if (!target || target === 0) { el.textContent = prefix + '0'; return; }
             const duration = 1800;
             const steps = 60;
@@ -1057,13 +1206,28 @@
             const timer = setInterval(() => {
               current += inc;
               if (current >= target) { current = target; clearInterval(timer); }
-              el.textContent = prefix + Math.floor(current).toLocaleString() + (current < target ? suffix : suffix);
+              el.textContent = this.formatStat(Math.floor(current), { prefix, suffix });
             }, duration / steps);
           };
           countUp('stat-users', stats.users || 0);
           countUp('stat-nft', stats.nftProducts || 0);
           countUp('stat-charity', stats.charityTotal || 0, '$');
           countUp('stat-countries', stats.countries || 30);
+        },
+
+        formatStat(value, options = {}) {
+          const prefix = options.prefix || '';
+          const suffix = options.suffix == null ? '+' : options.suffix;
+          return prefix + Number(value || 0).toLocaleString() + suffix;
+        },
+
+        _applyStatSize(el, target) {
+          if (!el) return;
+          const compact = Number(target || 0) >= 100000;
+          el.classList.toggle('text-3xl', !compact);
+          el.classList.toggle('md:text-4xl', !compact);
+          el.classList.toggle('text-2xl', compact);
+          el.classList.toggle('md:text-3xl', compact);
         },
 
         _initProgressBars() {

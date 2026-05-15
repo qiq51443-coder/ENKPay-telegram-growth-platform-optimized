@@ -82,15 +82,20 @@ router.get('/config', async (_req, res) => {
     const nftResult = await query(
       `SELECT id, name, image_url, product_type AS type, price,
               COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
-              description
+              COALESCE(duration_days, term_days, 0) AS duration_days,
+              COALESCE(description, '') AS description
        FROM nft_products
        WHERE status NOT IN ('draft', 'off_shelf', 'inactive', 'sold_out')
        ORDER BY created_at DESC LIMIT 6`, []
     ).catch((err: any) => { console.error('[landing-public] nftResult query error:', err.message); return { rows: [] as any[] }; });
     const charityResult = await query(
-      `SELECT id, title, image_url, target_amount, raised_amount, progress_override
-       FROM charity_projects WHERE status IN ('active', 'completed')
-         AND (is_active IS NULL OR is_active = true)
+      `SELECT id, title, image_url, target_amount, raised_amount, progress_override, status,
+              COALESCE(description, '') AS description
+       FROM charity_projects
+       WHERE (
+         (status = 'active' AND (is_active IS NULL OR is_active = true))
+         OR status = 'completed'
+       )
          AND (show_in_app IS NULL OR show_in_app = true)
        ORDER BY created_at DESC LIMIT 3`, []
     ).catch((err: any) => { console.error('[landing-public] charityResult query error:', err.message); return { rows: [] as any[] }; });
@@ -123,13 +128,16 @@ router.get('/config', async (_req, res) => {
       nftProducts: nftResult.rows.map((r: any) => ({
         id: r.id, name: r.name, imageUrl: r.image_url, type: r.type,
         price: parseFloat(r.price), annualYield: parseFloat(r.annual_yield ?? 0),
+        durationDays: parseInt(String(r.duration_days ?? 0), 10) || 0,
         description: r.description,
       })),
       charityProjects: charityResult.rows.map((r: any) => {
         const target = parseFloat(r.target_amount) || 0;
         const raised = parseFloat(r.raised_amount) || 0;
         let progress = 0;
-        if (r.progress_override != null) {
+        if (r.status === 'completed') {
+          progress = 100;
+        } else if (r.progress_override != null) {
           const override = parseFloat(r.progress_override);
           if (!isNaN(override)) {
             progress = Math.min(100, Math.max(0, override));
@@ -140,7 +148,9 @@ router.get('/config', async (_req, res) => {
         return {
           id: r.id, title: r.title, coverUrl: r.image_url,
           targetAmount: target, currentAmount: raised,
+          status: r.status,
           progress,
+          description: r.description,
         };
       }),
       socialLinks: Object.fromEntries(
