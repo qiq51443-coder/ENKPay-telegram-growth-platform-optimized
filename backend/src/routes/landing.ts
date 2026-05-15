@@ -64,9 +64,10 @@ router.get('/config', async (_req, res) => {
 
     // 3. NFT 产品（最多6个，上架中，按时间倒序）
     const nftResult = await query(
-      `SELECT id, name, image_url, type, price,
+      `SELECT id, name, image_url, product_type AS type, price,
               COALESCE(annual_yield_rate, daily_yield_rate * 365, 0) AS annual_yield,
-              description
+              COALESCE(duration_days, term_days, 0) AS duration_days,
+              COALESCE(description, '') AS description
        FROM nft_products
        WHERE status NOT IN ('draft', 'off_shelf', 'inactive', 'sold_out')
        ORDER BY created_at DESC
@@ -80,16 +81,20 @@ router.get('/config', async (_req, res) => {
       type: r.type,
       price: parseFloat(r.price),
       annualYield: parseFloat(r.annual_yield ?? 0),
+      durationDays: Number(r.duration_days) || 0,
       description: r.description,
     }));
 
     // 4. 公益项目（最多3个，活跃或已完成，按时间倒序）
     const charityResult = await query(
-      `SELECT id, title, image_url, target_amount, raised_amount, progress_override
+      `SELECT id, title, image_url, target_amount, raised_amount, progress_override, status,
+              COALESCE(description, '') AS description
        FROM charity_projects
-       WHERE status IN ('active', 'completed')
-         AND (is_active IS NULL OR is_active = true)
-         AND (show_in_app IS NULL OR show_in_app = true)
+       WHERE (
+          (status = 'active' AND (is_active IS NULL OR is_active = true))
+          OR status = 'completed'
+       )
+          AND (show_in_app IS NULL OR show_in_app = true)
        ORDER BY created_at DESC
        LIMIT 3`,
       []
@@ -98,7 +103,9 @@ router.get('/config', async (_req, res) => {
       const target = parseFloat(r.target_amount) || 0;
       const raised = parseFloat(r.raised_amount) || 0;
       let progress = 0;
-      if (r.progress_override != null) {
+      if (r.status === 'completed') {
+        progress = 100;
+      } else if (r.progress_override != null) {
         const override = parseFloat(r.progress_override);
         if (!isNaN(override)) {
           progress = Math.min(100, Math.max(0, override));
@@ -112,7 +119,9 @@ router.get('/config', async (_req, res) => {
         coverUrl: r.image_url,
         targetAmount: target,
         currentAmount: raised,
+        status: r.status,
         progress,
+        description: r.description,
       };
     });
 
