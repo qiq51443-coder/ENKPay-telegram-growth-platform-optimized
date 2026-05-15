@@ -128,7 +128,7 @@ router.get('/config', async (_req, res) => {
       nftProducts: nftResult.rows.map((r: any) => ({
         id: r.id, name: r.name, imageUrl: r.image_url, type: r.type,
         price: parseFloat(r.price), annualYield: parseFloat(r.annual_yield ?? 0),
-        durationDays: parseInt(String(r.duration_days ?? 0), 10) || 0,
+        durationDays: Number(r.duration_days) || 0,
         description: r.description,
       })),
       charityProjects: charityResult.rows.map((r: any) => {

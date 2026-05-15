@@ -420,8 +420,8 @@
 
       <!-- Logo -->
       <a href="/" class="flex items-center flex-shrink-0">
-        <img x-show="config.brand?.logoUrl" :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="h-9 w-auto rounded-lg" style="image-rendering: auto" @error="config.brand.logoUrl = ''">
-        <span x-show="!config.brand?.logoUrl" class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
+        <img x-show="config.brand?.logoUrl && !logoLoadError" :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="h-9 w-auto rounded-lg" style="image-rendering: auto" @error="logoLoadError = true">
+        <span x-show="!config.brand?.logoUrl || logoLoadError" class="font-bold text-xl grad-text" x-text="config.brand?.name || 'ENKPay'"></span>
       </a>
 
       <!-- Desktop Nav Links (centered absolutely) -->
@@ -487,8 +487,8 @@
       <div class="relative z-10 max-w-4xl mx-auto px-4">
         <!-- Brand -->
         <div class="mb-6">
-          <div x-show="config.brand?.logoUrl" x-cloak class="flex justify-center mb-6">
-            <img :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="max-h-24 md:max-h-28 w-auto rounded-2xl shadow-2xl shadow-purple-500/20" @error="config.brand.logoUrl = ''">
+          <div x-show="config.brand?.logoUrl && !logoLoadError" x-cloak class="flex justify-center mb-6">
+            <img :src="config.brand?.logoUrl" :alt="(config.brand?.name || 'ENKPay') + ' Logo'" class="max-h-24 md:max-h-28 w-auto rounded-2xl shadow-2xl shadow-purple-500/20" @error="logoLoadError = true">
           </div>
           <h1 class="text-5xl md:text-8xl font-black grad-text mb-4" style="line-height:1.1; text-shadow: 0 0 60px rgba(124,77,255,0.5), 0 0 120px rgba(0,212,170,0.3);">
             <span id="brandName" x-text="config.brand?.name || 'ENKPay'">ENKPay</span>
@@ -521,7 +521,7 @@
   <section class="stats-bar py-12 md:py-16 px-4">
     <div class="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
       <div class="fade-in stat-item border border-white/5 rounded-xl py-6 px-4">
-        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow break-all leading-tight" id="stat-users">0</div>
+        <div class="stat-value text-3xl md:text-4xl font-black grad-text mb-2 stat-glow break-words leading-tight" id="stat-users">0</div>
         <div class="text-slate-400 text-sm" x-text="t('stat_users')"></div>
         <div class="text-2xl mt-2">👥</div>
       </div>
@@ -947,6 +947,7 @@
         modal: { open: false, title: '', content: '' },
         nftModal: { open: false, item: null },
         charityModal: { open: false, item: null },
+        logoLoadError: false,
         statsAnimated: false,
         configLoading: true,
 
@@ -1053,6 +1054,7 @@
         },
 
         updateBrandMetadata(brand) {
+          this.logoLoadError = false;
           const brandName = (brand && brand.name) || 'ENKPay';
           document.title = brandName + ' - Web3 Payment & NFT Platform';
           const ogTitle = document.querySelector('meta[property="og:title"]');

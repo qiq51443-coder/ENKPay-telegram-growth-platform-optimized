@@ -81,7 +81,7 @@ router.get('/config', async (_req, res) => {
       type: r.type,
       price: parseFloat(r.price),
       annualYield: parseFloat(r.annual_yield ?? 0),
-      durationDays: parseInt(String(r.duration_days ?? 0), 10) || 0,
+      durationDays: Number(r.duration_days) || 0,
       description: r.description,
     }));
 
