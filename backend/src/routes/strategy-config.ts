@@ -9,6 +9,14 @@ const router = express.Router();
 router.use(adminLimiter);
 router.use(authenticateAdmin);
 
+function handleInternalError(res: express.Response, logPrefix: string, error: any) {
+  console.error(`${logPrefix}:`, error?.message || error);
+  res.status(500).json({
+    error: 'Internal server error',
+    detail: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
+  });
+}
+
 function toJson(value: any, fallback: any) {
   if (value === undefined || value === null) return fallback;
   return value;
@@ -29,8 +37,7 @@ router.get('/', async (_req: AuthRequest, res) => {
     );
     res.json({ configs: result.rows });
   } catch (error) {
-    console.error('Get strategy configs error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Get strategy configs error', error);
   }
 });
 
@@ -85,8 +92,7 @@ router.post('/', async (req: AuthRequest, res) => {
 
     res.json({ config: inserted.rows[0] });
   } catch (error) {
-    console.error('Create strategy config error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Create strategy config error', error);
   }
 });
 
@@ -150,8 +156,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
 
     res.json({ config: updated.rows[0] });
   } catch (error) {
-    console.error('Update strategy config error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Update strategy config error', error);
   }
 });
 
@@ -164,8 +169,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete strategy config error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Delete strategy config error', error);
   }
 });
 
@@ -175,8 +179,11 @@ router.post('/:id/send-now', async (req: AuthRequest, res) => {
     const result = await sendStrategyMessage(id);
     res.json({ success: true, result });
   } catch (error: any) {
-    console.error('Send strategy now error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('Send strategy now error:', error?.message || error);
+    res.status(500).json({
+      error: error?.message || 'Internal server error',
+      detail: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
+    });
   }
 });
 
@@ -200,8 +207,7 @@ router.get('/send-logs/recent', async (_req: AuthRequest, res) => {
   } catch (err: any) {
     const msg = String(err?.message || '');
     if (!msg.includes('relation "audit_logs" does not exist')) {
-      console.error('Get strategy logs error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return handleInternalError(res, 'Get strategy logs error', err);
     }
   }
 
@@ -223,8 +229,7 @@ router.get('/send-logs/recent', async (_req: AuthRequest, res) => {
 
     res.json({ logs });
   } catch (error) {
-    console.error('Get strategy fallback logs error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Get strategy fallback logs error', error);
   }
 });
 
