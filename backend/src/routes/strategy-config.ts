@@ -3,6 +3,7 @@ import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { sendStrategyMessage } from '../services/strategy-bot.service';
+import { strategyUpload, toPublicUrl } from '../services/storage.service';
 
 const router = express.Router();
 
@@ -103,6 +104,16 @@ router.post('/', async (req: AuthRequest, res) => {
     handleInternalError(res, 'Create strategy config error', error);
   }
 });
+
+router.post(
+  '/upload-media',
+  strategyUpload.single('file'),
+  (req: AuthRequest, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const url = toPublicUrl(req.file.path);
+    res.json({ url, filename: req.file.originalname });
+  }
+);
 
 router.put('/:id', async (req: AuthRequest, res) => {
   try {

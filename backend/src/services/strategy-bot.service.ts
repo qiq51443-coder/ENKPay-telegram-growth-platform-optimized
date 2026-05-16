@@ -1,6 +1,10 @@
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import FormData from 'form-data';
 import { query } from '../db';
 import { getNextPeriod } from './period.service';
+import { UPLOAD_ROOT } from './storage.service';
 
 const TELEGRAM_BASE = 'https://api.telegram.org';
 
@@ -161,6 +165,46 @@ async function sendMediaByUrl(botToken: string, chatId: string, mediaUrl: string
       parse_mode: 'HTML',
     });
   }
+}
+
+async function sendMediaByLocalPath(botToken: string, chatId: string, localPath: string, caption: string): Promise<any> {
+  const isGif = /\.gif$/i.test(localPath);
+  const method = isGif ? 'sendAnimation' : 'sendPhoto';
+  const field = isGif ? 'animation' : 'photo';
+
+  const form = new FormData();
+  form.append('chat_id', chatId);
+  form.append('caption', caption);
+  form.append('parse_mode', 'HTML');
+  form.append(field, fs.createReadStream(localPath), {
+    filename: path.basename(localPath),
+  });
+
+  const response = await axios.post(
+    `${TELEGRAM_BASE}/bot${botToken}/${method}`,
+    form,
+    { headers: form.getHeaders(), timeout: 30000 }
+  );
+  if (!response.data?.ok) {
+    throw new Error(response.data?.description || `${method} failed`);
+  }
+  return response.data.result;
+}
+
+function isLocalPath(url: string): boolean {
+  return url.startsWith('/uploads/');
+}
+
+function resolveLocalPath(relativeUrl: string): string | null {
+  const relative = relativeUrl.replace(/^\/uploads\//, '');
+  const resolvedPath = path.resolve(UPLOAD_ROOT, relative);
+  const uploadRoot = path.resolve(UPLOAD_ROOT);
+
+  if (resolvedPath !== uploadRoot && !resolvedPath.startsWith(`${uploadRoot}${path.sep}`)) {
+    return null;
+  }
+
+  return resolvedPath;
 }
 
 function extractTelegramFileId(result: any): string | null {
@@ -327,7 +371,23 @@ export async function sendStrategyMessage(configId: string) {
       if (cachedFileId) {
         await sendMediaByFileId(row.bot_token, group.chat_id, cachedFileId, messageText);
       } else if (row.media_url) {
-        const result = await sendMediaByUrl(row.bot_token, group.chat_id, row.media_url, messageText);
+        let result: any;
+        if (isLocalPath(row.media_url)) {
+          const localPath = resolveLocalPath(row.media_url);
+          if (localPath && fs.existsSync(localPath)) {
+            result = await sendMediaByLocalPath(row.bot_token, group.chat_id, localPath, messageText);
+          } else {
+            await telegramPost(row.bot_token, 'sendMessage', {
+              chat_id: group.chat_id,
+              text: messageText,
+              parse_mode: 'HTML',
+            });
+            successCount += 1;
+            continue;
+          }
+        } else {
+          result = await sendMediaByUrl(row.bot_token, group.chat_id, row.media_url, messageText);
+        }
         const newFileId = extractTelegramFileId(result);
         if (newFileId && !cachedFileId) {
           cachedFileId = newFileId;
