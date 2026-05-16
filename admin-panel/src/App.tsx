@@ -42,6 +42,7 @@ import { TransferRecords } from './pages/TransferRecords';
 import { TradingRules } from './pages/TradingRules';
 import { TradingSessions } from './pages/TradingSessions';
 import { TradingOrders } from './pages/TradingOrders';
+import { TradingStrategyBot } from './pages/TradingStrategyBot';
 import { Orders } from './pages/Orders';
 import { Groups } from './pages/Groups';
 import { Announcements } from './pages/Announcements';
@@ -129,6 +130,10 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
         {
           key: 'trading-orders',
           label: <Link to="/trading-orders">交易订单</Link>,
+        },
+        {
+          key: 'strategy-bot',
+          label: <Link to="/strategy-bot">策略机器人</Link>,
         },
       ],
     },
@@ -499,6 +504,14 @@ function App() {
         element={
           <ProtectedRoute>
             <TradingOrders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/strategy-bot"
+        element={
+          <ProtectedRoute>
+            <TradingStrategyBot />
           </ProtectedRoute>
         }
       />

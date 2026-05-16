@@ -80,15 +80,24 @@ export async function runMigrations(): Promise<void> {
       await runSqlFile(schemaPath, 'schema.sql');
     }
 
-    // 2. Run all migration files in order
-    const migrationsDir = path.join(__dirname, '../../db/migrations');
-    if (fs.existsSync(migrationsDir)) {
+    // 2. Run all migration files in order from both migration folders
+    const migrationDirs = [
+      path.join(__dirname, '../../db/migrations'), // backend/db/migrations
+      path.join(__dirname, '../db/migrations'),    // backend/src/db/migrations
+    ];
+    const seen = new Set<string>();
+
+    for (const migrationsDir of migrationDirs) {
+      if (!fs.existsSync(migrationsDir)) continue;
+
       const files = fs.readdirSync(migrationsDir)
         .filter(f => f.endsWith('.sql'))
         .sort(); // alphabetical = numerical order by prefix
 
       for (const file of files) {
-        await runSqlFile(path.join(migrationsDir, file), file);
+        const uniqueName = seen.has(file) ? `${path.basename(migrationsDir)}__${file}` : file;
+        seen.add(file);
+        await runSqlFile(path.join(migrationsDir, file), uniqueName);
       }
     }
 

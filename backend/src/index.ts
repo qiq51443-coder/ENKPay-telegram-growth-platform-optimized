@@ -20,6 +20,7 @@ import { startNFTDailySettle } from './jobs/nft-daily-settle';
 import { startRealPriceSnapshot } from './jobs/real-price-snapshot';
 import { startRealPriceSync, stopRealPriceSync } from './services/real-price-sync.service';
 import { startCharityProgressJob } from './jobs/charity-progress.job';
+import { startStrategyBotScheduler } from './jobs/strategy-bot-scheduler';
 import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
@@ -41,6 +42,8 @@ import dashboardRoutes from './routes/dashboard';
 import ordersRoutes from './routes/orders';
 import botAuthRoutes from './routes/bot-auth';
 import announcementsRoutes from './routes/announcements';
+import strategyBotRoutes from './routes/strategy-bot';
+import strategyConfigRoutes from './routes/strategy-config';
 
 // New NFT platform routes
 import nftRoutes from './routes/nft';
@@ -167,6 +170,8 @@ app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/bot-auth', botAuthRoutes);
 app.use('/api/announcements', announcementsRoutes);
+app.use('/api/strategy-bots', strategyBotRoutes);
+app.use('/api/strategy-configs', strategyConfigRoutes);
 app.use('/webhook', webhookRoutes);
 
 // Deposit webhook routes (for blockchain notifications)
@@ -320,6 +325,9 @@ const startServer = async () => {
 
     // Start charity progress auto-increment job
     startCharityProgressJob();
+
+    // Start strategy bot scheduler (checks every minute for scheduled sends)
+    startStrategyBotScheduler();
 
     const server = http.createServer(app);
 
