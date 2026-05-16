@@ -38,9 +38,13 @@ CREATE TABLE IF NOT EXISTS strategy_configs (
   media_telegram_file_id      TEXT,
   target_group_ids            JSONB NOT NULL DEFAULT '[]',
   current_coin_index          INT DEFAULT 0,
+  daily_send_limit            INT DEFAULT 0,
   created_at                  TIMESTAMPTZ DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure daily_send_limit exists on databases created before this column was added
+ALTER TABLE strategy_configs ADD COLUMN IF NOT EXISTS daily_send_limit INT DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_strategy_configs_bot_id ON strategy_configs(strategy_bot_id);
 CREATE INDEX IF NOT EXISTS idx_strategy_configs_active_auto ON strategy_configs(is_active, auto_send_daily);
