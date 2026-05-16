@@ -156,9 +156,11 @@ async function ensureStrategyTables() {
       media_telegram_file_id      TEXT,
       target_group_ids            JSONB NOT NULL DEFAULT '[]',
       current_coin_index          INT DEFAULT 0,
+      daily_send_limit            INT NOT NULL DEFAULT 0,
       created_at                  TIMESTAMPTZ DEFAULT NOW(),
       updated_at                  TIMESTAMPTZ DEFAULT NOW()
     )`,
+    `ALTER TABLE strategy_configs ADD COLUMN IF NOT EXISTS daily_send_limit INT NOT NULL DEFAULT 0`,
     `CREATE INDEX IF NOT EXISTS idx_strategy_configs_bot_id ON strategy_configs(strategy_bot_id)`,
     `CREATE INDEX IF NOT EXISTS idx_strategy_configs_active_auto ON strategy_configs(is_active, auto_send_daily)`,
     `CREATE INDEX IF NOT EXISTS idx_strategy_bot_groups_bot_id ON strategy_bot_groups(strategy_bot_id)`,
