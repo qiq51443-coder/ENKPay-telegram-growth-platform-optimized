@@ -5,6 +5,7 @@ import {
   Modal,
   Form,
   Input,
+  InputNumber,
   Select,
   Space,
   Tag,
@@ -23,6 +24,7 @@ import {
   EditOutlined,
   SendOutlined,
   UploadOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
@@ -71,6 +73,7 @@ interface StrategyConfig {
   media_telegram_file_id?: string;
   target_group_ids: string[];
   current_coin_index: number;
+  daily_send_limit?: number;
   bot_name?: string;
   username?: string;
 }
@@ -89,16 +92,11 @@ interface StrategySendLog {
 const LANG_OPTIONS = [
   { value: 'zh', label: '中文 (zh)' },
   { value: 'en', label: '英语 (en)' },
-  { value: 'ja', label: '日语 (ja)' },
-  { value: 'ko', label: '韩语 (ko)' },
-  { value: 'ru', label: '俄语 (ru)' },
-  { value: 'ar', label: '阿拉伯语 (ar)' },
-  { value: 'es', label: '西班牙语 (es)' },
-  { value: 'fr', label: '法语 (fr)' },
   { value: 'de', label: '德语 (de)' },
-  { value: 'pt', label: '葡萄牙语 (pt)' },
-  { value: 'vi', label: '越南语 (vi)' },
-  { value: 'th', label: '泰语 (th)' },
+  { value: 'fr', label: '法语 (fr)' },
+  { value: 'es', label: '西班牙语 (es)' },
+  { value: 'ar', label: '阿拉伯语 (ar)' },
+  { value: 'ja', label: '日语 (ja)' },
 ];
 
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('token') || ''}` });
@@ -116,6 +114,7 @@ export const TradingStrategyBot: React.FC = () => {
   const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [groups, setGroups] = useState<StrategyBotGroup[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
+  const [syncGroupsLoading, setSyncGroupsLoading] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<StrategyBotGroup | null>(null);
   const [groupForm] = Form.useForm();
@@ -246,6 +245,7 @@ export const TradingStrategyBot: React.FC = () => {
         send_times: (cfg.send_times || []).map((t) => dayjs(t, 'HH:mm')),
         target_group_ids: cfg.target_group_ids || [],
         custom_text: cfg.custom_text || '',
+        daily_send_limit: Number(cfg.daily_send_limit) || 0,
       });
     } else {
       setContentTranslations(null);
@@ -258,6 +258,7 @@ export const TradingStrategyBot: React.FC = () => {
         coin_rotation: [{ time_frame: 60 }],
         send_times: [dayjs('00:00', 'HH:mm')],
         target_group_ids: [],
+        daily_send_limit: 0,
       });
     }
 
@@ -379,6 +380,27 @@ export const TradingStrategyBot: React.FC = () => {
     }
   };
 
+  const syncGroups = async () => {
+    if (!selectedBotId) {
+      message.warning('请先选择机器人');
+      return;
+    }
+    setSyncGroupsLoading(true);
+    try {
+      const res = await axios.post(
+        `/api/strategy-bots/${selectedBotId}/sync-groups`,
+        {},
+        { headers: authHeaders() }
+      );
+      message.success(`同步成功，共同步 ${Number(res.data?.syncedCount || 0)} 个群组`);
+      fetchGroups(selectedBotId);
+    } catch (error: any) {
+      message.error(apiErrorMessage(error, '同步群组失败'));
+    } finally {
+      setSyncGroupsLoading(false);
+    }
+  };
+
   const handleSaveConfig = async () => {
     try {
       const values = await configForm.validateFields();
@@ -400,6 +422,7 @@ export const TradingStrategyBot: React.FC = () => {
         })),
         send_times: (values.send_times || []).map((t: any) => dayjs(t).format('HH:mm')),
         target_group_ids: values.target_group_ids || [],
+        daily_send_limit: Number(values.daily_send_limit) || 0,
         custom_text: values.custom_text || '',
         custom_text_translations: contentTranslations || null,
         media_url: mediaUrl || null,
@@ -499,6 +522,7 @@ export const TradingStrategyBot: React.FC = () => {
     },
     { title: '发送时间', key: 'times', render: (_: any, row: StrategyConfig) => (row.send_times || []).join(', ') || '-' },
     { title: '自动发送', dataIndex: 'auto_send_daily', key: 'auto_send_daily', render: (v: boolean) => <Tag color={v ? 'blue' : 'default'}>{v ? '开启' : '关闭'}</Tag> },
+    { title: '每日上限', key: 'daily_send_limit', render: (_: any, row: StrategyConfig) => (Number(row.daily_send_limit) > 0 ? Number(row.daily_send_limit) : '不限') },
     { title: '状态', dataIndex: 'is_active', key: 'is_active', render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? '启用' : '停用'}</Tag> },
     {
       title: '操作',
@@ -554,6 +578,7 @@ export const TradingStrategyBot: React.FC = () => {
                     options={bots.map((b) => ({ value: b.id, label: b.username ? `@${b.username}` : b.bot_name || b.id }))}
                   />
                   <Button type="primary" onClick={() => openGroupModal()}>手动添加群组</Button>
+                  <Button icon={<SyncOutlined />} onClick={syncGroups} loading={syncGroupsLoading}>同步群组</Button>
                 </Space>
                 <Table rowKey="id" columns={groupColumns} dataSource={groups} loading={groupsLoading} pagination={{ pageSize: 8 }} />
               </Card>
@@ -659,6 +684,15 @@ export const TradingStrategyBot: React.FC = () => {
                     </Form.Item>
                     <Form.Item name="auto_send_daily" label="每天自动发送" valuePropName="checked" style={{ marginBottom: 0 }}>
                       <Switch />
+                    </Form.Item>
+                    <Form.Item
+                      name="daily_send_limit"
+                      label="每日发送期数"
+                      initialValue={0}
+                      extra="0 = 不限制，设为 5 则每天最多发送 5 期后停止"
+                      style={{ marginBottom: 0 }}
+                    >
+                      <InputNumber min={0} placeholder="0=不限制" />
                     </Form.Item>
                   </Space>
 

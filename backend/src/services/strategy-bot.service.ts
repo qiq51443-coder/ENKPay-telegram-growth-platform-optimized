@@ -37,6 +37,7 @@ interface StrategyConfigRecord {
   media_telegram_file_id: string | null;
   target_group_ids: any;
   current_coin_index: number;
+  daily_send_limit: number;
 }
 
 interface StrategyBotGroup {
@@ -193,6 +194,35 @@ async function writeStrategyAuditLog(details: Record<string, any>) {
   );
 }
 
+async function countStrategySendsToday(configId: string, utcStartIso: string): Promise<number> {
+  try {
+    const result = await query(
+      `SELECT COUNT(*)::int AS count
+       FROM audit_logs
+       WHERE action = 'strategy_send'
+         AND details->>'configId' = $1
+         AND created_at >= $2::timestamptz`,
+      [configId, utcStartIso]
+    );
+    return Number(result.rows[0]?.count || 0);
+  } catch (err: any) {
+    const msg = String(err?.message || '');
+    if (!msg.includes('relation "audit_logs" does not exist')) {
+      throw err;
+    }
+  }
+
+  const fallback = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM admin_audit_logs
+     WHERE action = 'strategy_send'
+       AND resource_id = $1
+       AND created_at >= $2::timestamptz`,
+    [configId, utcStartIso]
+  );
+  return Number(fallback.rows[0]?.count || 0);
+}
+
 export async function sendStrategyMessage(configId: string) {
   const configRes = await query(
     `SELECT
@@ -222,6 +252,16 @@ export async function sendStrategyMessage(configId: string) {
   if (!row.bot_active) throw new Error('Strategy bot is inactive');
   if (coinRotation.length === 0) throw new Error('coin_rotation is empty');
   if (targetGroupIds.length === 0) throw new Error('target_group_ids is empty');
+
+  const dailyLimit = Math.max(0, Number(row.daily_send_limit) || 0);
+  if (dailyLimit > 0) {
+    const utcStart = new Date();
+    utcStart.setUTCHours(0, 0, 0, 0);
+    const todayCount = await countStrategySendsToday(row.id, utcStart.toISOString());
+    if (todayCount >= dailyLimit) {
+      throw new Error(`Daily send limit (${dailyLimit}) reached for today`);
+    }
+  }
 
   const currentIndex = Math.max(0, Number(row.current_coin_index) || 0);
   const selectedCoin = coinRotation[currentIndex % coinRotation.length] || coinRotation[0];

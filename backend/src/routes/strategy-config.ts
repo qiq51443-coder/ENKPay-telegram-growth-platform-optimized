@@ -22,6 +22,12 @@ function toJson(value: any, fallback: any) {
   return value;
 }
 
+function toDailySendLimit(value: any): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
 router.get('/', async (_req: AuthRequest, res) => {
   try {
     const result = await query(
@@ -55,6 +61,7 @@ router.post('/', async (req: AuthRequest, res) => {
       media_url = null,
       target_group_ids = [],
       current_coin_index = 0,
+      daily_send_limit = 0,
     } = req.body || {};
 
     if (!strategy_bot_id) {
@@ -66,15 +73,15 @@ router.post('/', async (req: AuthRequest, res) => {
 
     const inserted = await query(
       `INSERT INTO strategy_configs (
-         strategy_bot_id, name, is_active, auto_send_daily,
-         coin_rotation, send_times, custom_text, custom_text_translations,
-         media_url, target_group_ids, current_coin_index
-       ) VALUES (
-         $1, $2, $3, $4,
-         $5::jsonb, $6::jsonb, $7, $8::jsonb,
-         $9, $10::jsonb, $11
-       )
-       RETURNING *`,
+          strategy_bot_id, name, is_active, auto_send_daily,
+          coin_rotation, send_times, custom_text, custom_text_translations,
+          media_url, target_group_ids, current_coin_index, daily_send_limit
+        ) VALUES (
+          $1, $2, $3, $4,
+          $5::jsonb, $6::jsonb, $7, $8::jsonb,
+          $9, $10::jsonb, $11, $12
+        )
+        RETURNING *`,
       [
         strategy_bot_id,
         String(name).trim(),
@@ -87,6 +94,7 @@ router.post('/', async (req: AuthRequest, res) => {
         media_url,
         JSON.stringify(toJson(target_group_ids, [])),
         Number(current_coin_index) || 0,
+        toDailySendLimit(daily_send_limit),
       ]
     );
 
@@ -112,6 +120,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
       media_telegram_file_id,
       target_group_ids,
       current_coin_index,
+      daily_send_limit,
     } = req.body || {};
 
     const values: any[] = [];
@@ -134,6 +143,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
     if (media_telegram_file_id !== undefined) addField('media_telegram_file_id', media_telegram_file_id);
     if (target_group_ids !== undefined) addField('target_group_ids', JSON.stringify(toJson(target_group_ids, [])));
     if (current_coin_index !== undefined) addField('current_coin_index', Number(current_coin_index) || 0);
+    if (daily_send_limit !== undefined) addField('daily_send_limit', toDailySendLimit(daily_send_limit));
 
     if (sets.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
