@@ -128,6 +128,71 @@ router.get('/:id/groups', async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/:id/sync-groups', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const botRes = await query('SELECT bot_token FROM strategy_bots WHERE id = $1', [id]);
+    if (botRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Strategy bot not found' });
+    }
+
+    const botToken = String(botRes.rows[0].bot_token || '');
+    const updatesRes = await axios.post(
+      `https://api.telegram.org/bot${botToken}/getUpdates`,
+      {
+        allowed_updates: ['my_chat_member', 'message'],
+        limit: 100,
+      },
+      { timeout: 15000 }
+    );
+
+    if (!updatesRes.data?.ok || !Array.isArray(updatesRes.data?.result)) {
+      return res.status(400).json({ error: 'Failed to fetch updates from Telegram' });
+    }
+
+    const groupMap = new Map<string, { chat_id: string; chat_title: string | null; is_active: boolean }>();
+
+    for (const update of updatesRes.data.result) {
+      const myChatMember = update?.my_chat_member;
+      const message = update?.message;
+
+      if (myChatMember?.chat && (myChatMember.chat.type === 'group' || myChatMember.chat.type === 'supergroup')) {
+        const status = String(myChatMember?.new_chat_member?.status || '').toLowerCase();
+        const isActive = !['left', 'kicked', 'banned'].includes(status);
+        groupMap.set(String(myChatMember.chat.id), {
+          chat_id: String(myChatMember.chat.id),
+          chat_title: myChatMember.chat.title ? String(myChatMember.chat.title) : null,
+          is_active: isActive,
+        });
+      }
+
+      if (message?.chat && (message.chat.type === 'group' || message.chat.type === 'supergroup')) {
+        groupMap.set(String(message.chat.id), {
+          chat_id: String(message.chat.id),
+          chat_title: message.chat.title ? String(message.chat.title) : null,
+          is_active: true,
+        });
+      }
+    }
+
+    for (const group of groupMap.values()) {
+      await query(
+        `INSERT INTO strategy_bot_groups (strategy_bot_id, chat_id, chat_title, is_active)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (strategy_bot_id, chat_id)
+         DO UPDATE SET
+           chat_title = EXCLUDED.chat_title,
+           is_active = EXCLUDED.is_active`,
+        [id, group.chat_id, group.chat_title, group.is_active]
+      );
+    }
+
+    res.json({ success: true, syncedCount: groupMap.size });
+  } catch (error) {
+    handleInternalError(res, 'Sync strategy bot groups error', error);
+  }
+});
+
 router.post('/:id/groups', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;

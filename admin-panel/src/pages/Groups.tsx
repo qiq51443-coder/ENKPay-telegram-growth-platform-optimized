@@ -26,6 +26,16 @@ interface BotOption {
   username?: string;
 }
 
+const LANG_OPTIONS = [
+  { value: 'zh', label: '中文 (zh)' },
+  { value: 'en', label: '英语 (en)' },
+  { value: 'de', label: '德语 (de)' },
+  { value: 'fr', label: '法语 (fr)' },
+  { value: 'es', label: '西班牙语 (es)' },
+  { value: 'ar', label: '阿拉伯语 (ar)' },
+  { value: 'ja', label: '日语 (ja)' },
+];
+
 export const Groups: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,18 +322,7 @@ export const Groups: React.FC = () => {
             <Input placeholder="请输入国家（如：中国、美国）" />
           </Form.Item>
           <Form.Item name="language" label="语言">
-            <Select placeholder="请选择语言" allowClear>
-              <Select.Option value="zh">中文 (zh)</Select.Option>
-              <Select.Option value="en">英语 (en)</Select.Option>
-              <Select.Option value="ja">日语 (ja)</Select.Option>
-              <Select.Option value="ko">韩语 (ko)</Select.Option>
-              <Select.Option value="ru">俄语 (ru)</Select.Option>
-              <Select.Option value="ar">阿拉伯语 (ar)</Select.Option>
-              <Select.Option value="es">西班牙语 (es)</Select.Option>
-              <Select.Option value="fr">法语 (fr)</Select.Option>
-              <Select.Option value="de">德语 (de)</Select.Option>
-              <Select.Option value="pt">葡萄牙语 (pt)</Select.Option>
-            </Select>
+            <Select placeholder="请选择语言" allowClear options={LANG_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
@@ -388,18 +387,7 @@ export const Groups: React.FC = () => {
             <Input placeholder="可选" />
           </Form.Item>
           <Form.Item name="language" label="语言">
-            <Select placeholder="可选" allowClear>
-              <Select.Option value="zh">中文 (zh)</Select.Option>
-              <Select.Option value="en">英语 (en)</Select.Option>
-              <Select.Option value="ja">日语 (ja)</Select.Option>
-              <Select.Option value="ko">韩语 (ko)</Select.Option>
-              <Select.Option value="ru">俄语 (ru)</Select.Option>
-              <Select.Option value="ar">阿拉伯语 (ar)</Select.Option>
-              <Select.Option value="es">西班牙语 (es)</Select.Option>
-              <Select.Option value="fr">法语 (fr)</Select.Option>
-              <Select.Option value="de">德语 (de)</Select.Option>
-              <Select.Option value="pt">葡萄牙语 (pt)</Select.Option>
-            </Select>
+            <Select placeholder="可选" allowClear options={LANG_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
