@@ -30,10 +30,15 @@ router.post('/', async (req: AuthRequest, res) => {
     if (!token) {
       return res.status(400).json({ error: 'token is required' });
     }
+    if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
+      return res.status(400).json({ error: 'Invalid bot token format' });
+    }
 
     let botInfo: any;
     try {
-      const response = await axios.get(`https://api.telegram.org/bot${token}/getMe`, { timeout: 15000 });
+      const safeToken = encodeURIComponent(token);
+      const telegramUrl = `https://api.telegram.org/bot${safeToken}/getMe`;
+      const response = await axios.get(telegramUrl, { timeout: 15000 });
       if (!response.data?.ok) {
         return res.status(400).json({ error: 'Invalid bot token' });
       }
