@@ -102,6 +102,8 @@ const LANG_OPTIONS = [
 ];
 
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('token') || ''}` });
+const apiErrorMessage = (error: any, fallback: string) =>
+  error?.response?.data?.error || error?.message || fallback;
 
 export const TradingStrategyBot: React.FC = () => {
   const [activeTab, setActiveTab] = useState('bots');
@@ -152,7 +154,7 @@ export const TradingStrategyBot: React.FC = () => {
       }
     } catch (error) {
       console.error(error);
-      message.error('获取策略机器人失败');
+      message.error(apiErrorMessage(error, '获取策略机器人失败'));
     } finally {
       setBotsLoading(false);
     }
@@ -169,7 +171,7 @@ export const TradingStrategyBot: React.FC = () => {
       setGroups(res.data.groups || []);
     } catch (error) {
       console.error(error);
-      message.error('获取群组失败');
+      message.error(apiErrorMessage(error, '获取群组失败'));
     } finally {
       setGroupsLoading(false);
     }
@@ -178,11 +180,11 @@ export const TradingStrategyBot: React.FC = () => {
   const fetchPairs = async () => {
     try {
       const res = await axios.get('/api/trading/pairs', { headers: authHeaders() });
-      const data: TradingPair[] = res.data?.data || [];
+      const data: TradingPair[] = res.data?.pairs || res.data?.data || [];
       setPairs(data.filter((p) => p.pair_type !== 'custom'));
     } catch (error) {
       console.error(error);
-      message.error('获取交易币种失败');
+      message.error(apiErrorMessage(error, '获取交易币种失败'));
     }
   };
 
@@ -193,7 +195,7 @@ export const TradingStrategyBot: React.FC = () => {
       setConfigs(res.data.configs || []);
     } catch (error) {
       console.error(error);
-      message.error('获取策略配置失败');
+      message.error(apiErrorMessage(error, '获取策略配置失败'));
     } finally {
       setConfigsLoading(false);
     }
@@ -206,7 +208,7 @@ export const TradingStrategyBot: React.FC = () => {
       setLogs(res.data.logs || []);
     } catch (error) {
       console.error(error);
-      message.error('获取发送记录失败');
+      message.error(apiErrorMessage(error, '获取发送记录失败'));
     } finally {
       setLogsLoading(false);
     }
@@ -273,7 +275,7 @@ export const TradingStrategyBot: React.FC = () => {
     } catch (error) {
       console.error(error);
       setTargetGroupsForConfig([]);
-      message.error('加载目标群组失败');
+      message.error(apiErrorMessage(error, '加载目标群组失败'));
     }
   };
 
@@ -287,7 +289,7 @@ export const TradingStrategyBot: React.FC = () => {
       fetchBots();
     } catch (error: any) {
       if (error.errorFields) return;
-      message.error(error.response?.data?.error || '授权失败');
+      message.error(apiErrorMessage(error, '授权失败'));
     }
   };
 
@@ -297,7 +299,7 @@ export const TradingStrategyBot: React.FC = () => {
       message.success(bot.is_active ? '已停用' : '已启用');
       fetchBots();
     } catch (error: any) {
-      message.error(error.response?.data?.error || '操作失败');
+      message.error(apiErrorMessage(error, '操作失败'));
     }
   };
 
@@ -310,7 +312,7 @@ export const TradingStrategyBot: React.FC = () => {
       fetchGroups(selectedBotId === id ? '' : selectedBotId);
       fetchConfigs();
     } catch (error: any) {
-      message.error(error.response?.data?.error || '删除失败');
+      message.error(apiErrorMessage(error, '删除失败'));
     }
   };
 
@@ -363,7 +365,7 @@ export const TradingStrategyBot: React.FC = () => {
       fetchGroups(selectedBotId);
     } catch (error: any) {
       if (error.errorFields) return;
-      message.error(error.response?.data?.error || '保存失败');
+      message.error(apiErrorMessage(error, '保存失败'));
     }
   };
 
@@ -373,7 +375,7 @@ export const TradingStrategyBot: React.FC = () => {
       message.success('删除成功');
       fetchGroups(selectedBotId);
     } catch (error: any) {
-      message.error(error.response?.data?.error || '删除失败');
+      message.error(apiErrorMessage(error, '删除失败'));
     }
   };
 
@@ -414,7 +416,7 @@ export const TradingStrategyBot: React.FC = () => {
       fetchConfigs();
     } catch (error: any) {
       if (error.errorFields) return;
-      message.error(error.response?.data?.error || '保存失败');
+      message.error(apiErrorMessage(error, '保存失败'));
     }
   };
 
@@ -424,7 +426,7 @@ export const TradingStrategyBot: React.FC = () => {
       message.success('删除成功');
       fetchConfigs();
     } catch (error: any) {
-      message.error(error.response?.data?.error || '删除失败');
+      message.error(apiErrorMessage(error, '删除失败'));
     }
   };
 
@@ -435,7 +437,7 @@ export const TradingStrategyBot: React.FC = () => {
       fetchLogs();
       fetchConfigs();
     } catch (error: any) {
-      message.error(error.response?.data?.error || '发送失败');
+      message.error(apiErrorMessage(error, '发送失败'));
     }
   };
 

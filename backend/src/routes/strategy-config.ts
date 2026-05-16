@@ -23,7 +23,7 @@ router.get('/', async (_req: AuthRequest, res) => {
          sb.username,
          sb.is_active AS bot_active
        FROM strategy_configs sc
-       JOIN strategy_bots sb ON sc.strategy_bot_id = sb.id
+       LEFT JOIN strategy_bots sb ON sc.strategy_bot_id = sb.id
        ORDER BY sc.created_at DESC`,
       []
     );

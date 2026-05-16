@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import * as http from 'http';
 import { connectRedis } from './utils/cache';
@@ -24,7 +25,7 @@ import { startStrategyBotScheduler } from './jobs/strategy-bot-scheduler';
 import { generalLimiter, loginLimiter, webhookLimiter, adminLimiter, initLimiters } from './middleware/rateLimiter';
 import { botManager } from './services/bot-manager.service';
 import { runMigrations } from './db/migrate';
-import { waitForDb } from './db';
+import { waitForDb, query as dbQuery } from './db';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -118,6 +119,22 @@ function staticCacheHeaders(res: express.Response, filePath: string) {
   } else {
     // Other static assets (images, fonts, etc.) — short cache
     res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+}
+
+async function ensureStrategyTables() {
+  const sqlPath = path.join(__dirname, 'db/migrations/add_strategy_bot.sql');
+  if (!fs.existsSync(sqlPath)) {
+    console.warn(`[startup] Strategy migration file not found: ${sqlPath}`);
+    return;
+  }
+
+  try {
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    await dbQuery(sql);
+    console.log('✓ [startup] Strategy tables ensured');
+  } catch (err: any) {
+    console.error('[startup] Strategy tables migration error:', err?.message || err);
   }
 }
 
@@ -249,6 +266,9 @@ const startServer = async () => {
 
     // 3. Run database migrations (auto-create all tables)
     await runMigrations();
+
+    // 3.1 Ensure strategy-related tables exist even if migration tracking was inconsistent
+    await ensureStrategyTables();
 
     // Initialise rate limiters (requires Redis; skipped gracefully if Redis is unavailable)
     if (redisAvailable) {
