@@ -36,15 +36,17 @@ router.post('/', async (req: AuthRequest, res) => {
 
     let botInfo: any;
     try {
-      const safeToken = encodeURIComponent(token);
-      const telegramUrl = `https://api.telegram.org/bot${safeToken}/getMe`;
+      // Token is validated by regex above — safe to embed directly.
+      // encodeURIComponent would encode `:` as `%3A` which Telegram rejects.
+      const telegramUrl = `https://api.telegram.org/bot${token}/getMe`;
       const response = await axios.get(telegramUrl, { timeout: 15000 });
       if (!response.data?.ok) {
         return res.status(400).json({ error: 'Invalid bot token' });
       }
       botInfo = response.data.result;
-    } catch {
-      return res.status(400).json({ error: 'Failed to validate bot token with Telegram API' });
+    } catch (err: any) {
+      const detail = err?.response?.data?.description || err?.message || 'unknown error';
+      return res.status(400).json({ error: `Failed to validate bot token with Telegram API: ${detail}` });
     }
 
     const existing = await query('SELECT id FROM strategy_bots WHERE bot_token = $1', [token]);
@@ -135,8 +137,9 @@ router.post('/:id/groups', async (req: AuthRequest, res) => {
     if (!chatId) {
       return res.status(400).json({ error: 'chat_id is required' });
     }
-    if (!/^-100\d+$/.test(chatId)) {
-      return res.status(400).json({ error: 'chat_id format is invalid, expected -100xxx' });
+    // Accept both -100xxx (supergroup) and regular negative IDs
+    if (!/^-\d+$/.test(chatId)) {
+      return res.status(400).json({ error: 'chat_id must be a negative number (e.g. -1001234567890)' });
     }
 
     const inserted = await query(
