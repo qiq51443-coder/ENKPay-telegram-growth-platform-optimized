@@ -9,6 +9,14 @@ const router = express.Router();
 router.use(adminLimiter);
 router.use(authenticateAdmin);
 
+function handleInternalError(res: express.Response, logPrefix: string, error: any) {
+  console.error(`${logPrefix}:`, error?.message || error);
+  res.status(500).json({
+    error: 'Internal server error',
+    detail: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
+  });
+}
+
 router.get('/', async (_req: AuthRequest, res) => {
   try {
     const result = await query(
@@ -19,8 +27,7 @@ router.get('/', async (_req: AuthRequest, res) => {
     );
     res.json({ bots: result.rows });
   } catch (error) {
-    console.error('Get strategy bots error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Get strategy bots error', error);
   }
 });
 
@@ -61,8 +68,7 @@ router.post('/', async (req: AuthRequest, res) => {
 
     res.json({ bot: created.rows[0] });
   } catch (error) {
-    console.error('Create strategy bot error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Create strategy bot error', error);
   }
 });
 
@@ -89,8 +95,7 @@ router.patch('/:id', async (req: AuthRequest, res) => {
 
     res.json({ bot: updated.rows[0] });
   } catch (error) {
-    console.error('Update strategy bot error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Update strategy bot error', error);
   }
 });
 
@@ -103,8 +108,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete strategy bot error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Delete strategy bot error', error);
   }
 });
 
@@ -120,8 +124,7 @@ router.get('/:id/groups', async (req: AuthRequest, res) => {
     );
     res.json({ groups: result.rows });
   } catch (error) {
-    console.error('Get strategy bot groups error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Get strategy bot groups error', error);
   }
 });
 
@@ -153,8 +156,7 @@ router.post('/:id/groups', async (req: AuthRequest, res) => {
 
     res.json({ group: inserted.rows[0] });
   } catch (error) {
-    console.error('Create strategy bot group error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Create strategy bot group error', error);
   }
 });
 
@@ -197,8 +199,7 @@ router.patch('/:id/groups/:groupId', async (req: AuthRequest, res) => {
 
     res.json({ group: updated.rows[0] });
   } catch (error) {
-    console.error('Update strategy bot group error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Update strategy bot group error', error);
   }
 });
 
@@ -216,8 +217,7 @@ router.delete('/:id/groups/:groupId', async (req: AuthRequest, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete strategy bot group error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleInternalError(res, 'Delete strategy bot group error', error);
   }
 });
 

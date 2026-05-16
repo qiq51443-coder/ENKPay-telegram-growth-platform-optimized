@@ -131,7 +131,22 @@ async function ensureStrategyTables() {
 
   try {
     const sql = fs.readFileSync(sqlPath, 'utf8');
-    await dbQuery(sql);
+    const statements = sql
+      .replace(/^\s*--.*$/gm, '')
+      .split(';')
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.length > 0);
+
+    for (const statement of statements) {
+      try {
+        await dbQuery(statement);
+      } catch (err: any) {
+        if (!String(err?.message || '').includes('already exists')) {
+          console.error('[startup] Strategy table stmt error:', err?.message || err);
+        }
+      }
+    }
+
     console.log('✓ [startup] Strategy tables ensured');
   } catch (err: any) {
     console.error('[startup] Strategy tables migration error:', err?.message || err);
