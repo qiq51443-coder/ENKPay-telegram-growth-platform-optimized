@@ -36,14 +36,14 @@ router.post('/', async (req: AuthRequest, res) => {
 
     let botInfo: any;
     try {
-      const safeToken = encodeURIComponent(token);
-      const telegramUrl = `https://api.telegram.org/bot${safeToken}/getMe`;
+      const telegramUrl = `https://api.telegram.org/bot${token}/getMe`;
       const response = await axios.get(telegramUrl, { timeout: 15000 });
       if (!response.data?.ok) {
         return res.status(400).json({ error: 'Invalid bot token' });
       }
       botInfo = response.data.result;
-    } catch {
+    } catch (err: any) {
+      console.error('Telegram API validation failed:', err?.response?.data || err?.message || err);
       return res.status(400).json({ error: 'Failed to validate bot token with Telegram API' });
     }
 
