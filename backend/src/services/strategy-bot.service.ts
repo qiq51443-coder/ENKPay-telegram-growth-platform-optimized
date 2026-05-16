@@ -288,10 +288,14 @@ export async function sendStrategyMessage(configId: string) {
   }
 
   const translations = toTranslations(row.custom_text_translations);
-  const timeframeMinutes = Math.max(1, Math.floor(timeFrame / 60));
+  // Most clients store time_frame in seconds (60/300/600), but some legacy data may already be minutes.
+  const timeframeMinutes = timeFrame >= 60
+    ? Math.max(1, Math.floor(timeFrame / 60))
+    : Math.max(1, Math.floor(timeFrame));
 
   let cachedFileId = row.media_telegram_file_id || null;
   let successCount = 0;
+  const sendErrors: Array<{ chatId: string; error: string }> = [];
 
   for (const group of groups) {
     const lang = normalizeLanguage(group.language);
@@ -307,6 +311,7 @@ export async function sendStrategyMessage(configId: string) {
       lang === 'zh'
         ? (row.custom_text || '')
         : (translations[lang] ?? row.custom_text ?? '');
+    const escapedCustomText = htmlEscape(customText || '');
 
     const messageText = [
       `📊 ${htmlEscape(String(symbolRaw))} · ${timeframeMinutes}${labels.timeframeUnit}`,
@@ -315,7 +320,7 @@ export async function sendStrategyMessage(configId: string) {
       `${labels.signal}：${labels.direction}`,
       `🎯 ${labels.probability}：${probability}%`,
       '',
-      `💬 ${customText || ''}`,
+      `💬 ${escapedCustomText}`,
     ].join('\n');
 
     try {
@@ -337,7 +342,9 @@ export async function sendStrategyMessage(configId: string) {
       }
       successCount += 1;
     } catch (err: any) {
-      console.error(`[strategy-send] Failed for group ${group.chat_id}:`, err.message || err);
+      const errMsg = err?.response?.data?.description || err?.message || String(err);
+      console.error(`[strategy-send] Failed for group ${group.chat_id}:`, errMsg);
+      sendErrors.push({ chatId: group.chat_id, error: errMsg });
     }
   }
 
@@ -354,6 +361,8 @@ export async function sendStrategyMessage(configId: string) {
     direction,
     probability,
     groupCount: successCount,
+    failureCount: sendErrors.length,
+    sendErrors: sendErrors.length > 0 ? sendErrors : undefined,
     coin: {
       pair_id: selectedCoin.pair_id || null,
       symbol: selectedCoin.symbol || null,
