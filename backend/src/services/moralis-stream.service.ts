@@ -3,6 +3,21 @@ import axios from 'axios';
 
 const MORALIS_STREAMS_BASE = 'https://api.moralis-streams.com';
 
+const ERC20_TRANSFER_ABI = [
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'Transfer',
+    type: 'event',
+  },
+];
+
+const ERC20_TRANSFER_TOPIC0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
 /**
  * Create a new Moralis Stream.
  * @returns The created stream's id.
@@ -13,20 +28,23 @@ export async function createMoralisStream(
   tag: string,
   chains: string[]
 ): Promise<{ id: string }> {
+  // Sanitize tag: Moralis only allows alphanumeric, hyphens, and underscores; max 64 chars
+  const safeTag = tag.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+
   // Moralis Streams API uses PUT (not POST) for stream creation — this is the documented API contract.
   // See: https://api.moralis-streams.com (PUT /streams/evm)
   const response = await axios.put(
     `${MORALIS_STREAMS_BASE}/streams/evm`,
     {
       webhookUrl,
-      description: tag,
-      tag,
+      description: safeTag,
+      tag: safeTag,
       chains,
       includeNativeTxs: false,
-      includeContractLogs: false,
+      includeContractLogs: true,   // Must be true to capture ERC20 Transfer events
       includeInternalTxs: false,
-      abi: [],
-      topic0: [],
+      abi: ERC20_TRANSFER_ABI,
+      topic0: [ERC20_TRANSFER_TOPIC0],
     },
     {
       headers: {
