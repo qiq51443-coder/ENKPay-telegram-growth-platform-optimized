@@ -931,7 +931,10 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
     }
   } catch (error: any) {
     console.error('Stream setup error:', error);
-    res.status(500).json({ error: error.message });
+    const upstreamData = error.response?.data;
+    const upstreamMsg = upstreamData?.message || upstreamData?.error || (typeof upstreamData === 'string' ? upstreamData : null);
+    const errMsg = upstreamMsg ? `${error.message} — ${upstreamMsg}` : error.message;
+    res.status(500).json({ error: errMsg, details: upstreamData });
   }
 });
 
