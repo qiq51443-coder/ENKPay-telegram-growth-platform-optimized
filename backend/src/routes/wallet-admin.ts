@@ -849,7 +849,7 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
     }
 
     const networkResult = await query(
-      `SELECT id, network_name, chain_name FROM deposit_networks WHERE id = $1`,
+      `SELECT id, network_name, chain_name, contract_address FROM deposit_networks WHERE id = $1`,
       [id]
     );
     if (networkResult.rows.length === 0) {
@@ -870,7 +870,8 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
         moralis_api_key,
         webhook_url,
         `${network.network_name}-deposit`,
-        [moralisChain]
+        [moralisChain],
+        network.contract_address || undefined
       );
 
       const encryptedApiKey = encrypt(moralis_api_key);
