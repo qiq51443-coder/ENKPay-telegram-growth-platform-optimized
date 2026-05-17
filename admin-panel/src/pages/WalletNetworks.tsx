@@ -222,10 +222,6 @@ export const WalletNetworks: React.FC = () => {
   const handleStreamSetup = async () => {
     if (!editingNetwork) return;
     const values = form.getFieldsValue(['moralis_api_key', 'trongrid_api_key', 'webhook_url']);
-    if (!values.webhook_url) {
-      message.error('请输入 Webhook URL');
-      return;
-    }
     const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
     const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
     if (isTron && !values.trongrid_api_key) {

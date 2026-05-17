@@ -3,13 +3,30 @@ import axios from 'axios';
 
 const MORALIS_STREAMS_BASE = 'https://api.moralis-streams.com';
 
+// ERC20 Transfer event: keccak256("Transfer(address,address,uint256)")
+const ERC20_TRANSFER_TOPIC0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+// Minimal ERC20 Transfer event ABI — used by Moralis to decode log data
+const ERC20_TRANSFER_ABI = [
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'from', type: 'address' },
+      { indexed: true, name: 'to', type: 'address' },
+      { indexed: false, name: 'value', type: 'uint256' },
+    ],
+    name: 'Transfer',
+    type: 'event',
+  },
+];
+
 /**
- * Create a new Moralis Stream (type: wallet).
+ * Create a new Moralis EVM Stream to capture ERC20 transfers (e.g. USDT deposits).
  *
- * For wallet-type streams, Moralis automatically captures ERC20 transfers
- * and populates the `erc20Transfers` array in the webhook payload.
- * Do NOT include `abi` or `topic0` — they are only for contract-type streams
- * and will cause a 422 Validation Failed if sent with type: 'wallet'.
+ * Valid fields for PUT /streams/evm (Moralis Streams v2):
+ *   webhookUrl, description, tag, topic0, allAddresses, includeNativeTxs,
+ *   includeContractLogs, includeInternalTxs, abi, chains, advancedOptions.
+ * Note: there is NO `type` field — passing unknown fields causes 422 Validation Failed.
  *
  * @returns The created stream's id.
  */
@@ -31,12 +48,11 @@ export async function createMoralisStream(
       description: safeTag,
       tag: safeTag,
       chains,
-      // wallet type: Moralis auto-captures ERC20 transfers → erc20Transfers[]
-      // Do NOT add abi/topic0 here — incompatible with type:'wallet', causes 422
-      type: 'wallet',
       includeNativeTxs: false,
-      includeContractLogs: false, // not needed for wallet-type streams
+      includeContractLogs: true, // required to receive ERC20 Transfer logs
       includeInternalTxs: false,
+      topic0: [ERC20_TRANSFER_TOPIC0], // filter to ERC20 Transfer events only
+      abi: ERC20_TRANSFER_ABI,         // lets Moralis decode Transfer log fields
     },
     {
       headers: {
