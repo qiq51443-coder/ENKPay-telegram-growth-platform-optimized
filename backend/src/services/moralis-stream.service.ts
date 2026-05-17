@@ -40,6 +40,7 @@ export async function createMoralisStream(
       description: safeTag,
       tag: safeTag,
       chains,
+      type: 'wallet',
       includeNativeTxs: false,
       includeContractLogs: true,   // Must be true to capture ERC20 Transfer events
       includeInternalTxs: false,
