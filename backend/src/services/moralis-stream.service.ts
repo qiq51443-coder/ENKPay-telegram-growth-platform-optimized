@@ -3,23 +3,14 @@ import axios from 'axios';
 
 const MORALIS_STREAMS_BASE = 'https://api.moralis-streams.com';
 
-const ERC20_TRANSFER_ABI = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
-      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
-      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
-    ],
-    name: 'Transfer',
-    type: 'event',
-  },
-];
-
-const ERC20_TRANSFER_TOPIC0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-
 /**
- * Create a new Moralis Stream.
+ * Create a new Moralis Stream (type: wallet).
+ *
+ * For wallet-type streams, Moralis automatically captures ERC20 transfers
+ * and populates the `erc20Transfers` array in the webhook payload.
+ * Do NOT include `abi` or `topic0` — they are only for contract-type streams
+ * and will cause a 422 Validation Failed if sent with type: 'wallet'.
+ *
  * @returns The created stream's id.
  */
 export async function createMoralisStream(
@@ -40,12 +31,12 @@ export async function createMoralisStream(
       description: safeTag,
       tag: safeTag,
       chains,
+      // wallet type: Moralis auto-captures ERC20 transfers → erc20Transfers[]
+      // Do NOT add abi/topic0 here — incompatible with type:'wallet', causes 422
       type: 'wallet',
       includeNativeTxs: false,
-      includeContractLogs: true,   // Must be true to capture ERC20 Transfer events
+      includeContractLogs: false, // not needed for wallet-type streams
       includeInternalTxs: false,
-      abi: ERC20_TRANSFER_ABI,
-      topic0: [ERC20_TRANSFER_TOPIC0],
     },
     {
       headers: {
