@@ -45,6 +45,16 @@ interface DerivedAddress {
   network_display?: string;
 }
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+function getBackendOrigin(): string {
+  try {
+    if (API_BASE.startsWith('http')) {
+      return new URL(API_BASE).origin;
+    }
+  } catch {}
+  return window.location.origin;
+}
+
 export const WalletNetworks: React.FC = () => {
   const [networks, setNetworks] = useState<WalletNetwork[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
@@ -60,16 +70,16 @@ export const WalletNetworks: React.FC = () => {
   const [streamSyncLoading, setStreamSyncLoading] = useState(false);
   const [streamDeleteLoading, setStreamDeleteLoading] = useState(false);
 
-  // When switching to stream mode on an EVM network, pre-fill the webhook_url field
+  // When switching to stream mode, pre-fill the webhook_url field
   const handleListenerModeChange = (mode: 'polling' | 'stream') => {
     setListenerMode(mode);
     if (mode === 'stream' && editingNetwork) {
       const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
       const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
-      if (!isTron) {
-        const webhookUrl = `${window.location.origin}/webhook/deposit/moralis`;
-        form.setFieldsValue({ webhook_url: webhookUrl });
-      }
+      const webhookUrl = isTron
+        ? `${getBackendOrigin()}/webhook/deposit/tron`
+        : `${getBackendOrigin()}/webhook/deposit/moralis`;
+      form.setFieldsValue({ webhook_url: webhookUrl });
     }
   };
 
@@ -123,6 +133,14 @@ export const WalletNetworks: React.FC = () => {
       // Map deposit_fee to form field deposit_fee_percent for display
       form.setFieldsValue({ ...formValues, deposit_fee_percent: network.deposit_fee, bot_ids: bot_bindings || [] });
       setListenerMode(network.listener_mode || 'polling');
+      if (network.listener_mode === 'stream') {
+        const chainUpper = (network.chain_name || '').toUpperCase();
+        const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
+        const autoWebhookUrl = isTron
+          ? `${getBackendOrigin()}/webhook/deposit/tron`
+          : `${getBackendOrigin()}/webhook/deposit/moralis`;
+        setTimeout(() => form.setFieldsValue({ webhook_url: autoWebhookUrl }), 0);
+      }
     } else {
       setEditingNetwork(null);
       form.resetFields();
@@ -220,8 +238,8 @@ export const WalletNetworks: React.FC = () => {
     }
     // Use form value for webhook_url, or fall back to the derived URL
     const defaultWebhookUrl = isTron
-      ? `${window.location.origin}/webhook/deposit/tron`
-      : `${window.location.origin}/webhook/deposit/moralis`;
+      ? `${getBackendOrigin()}/webhook/deposit/tron`
+      : `${getBackendOrigin()}/webhook/deposit/moralis`;
     setStreamSetupLoading(true);
     try {
       const result = await apiClient.setupNetworkStream(editingNetwork.id, {
@@ -232,7 +250,12 @@ export const WalletNetworks: React.FC = () => {
       message.success(result.message || '配置成功');
       fetchNetworks();
     } catch (error: any) {
-      message.error(error.response?.data?.error || '配置失败');
+      const details = error.response?.data?.details;
+      message.error(
+        error.response?.data?.error ||
+        (typeof details === 'string' ? details : details ? JSON.stringify(details) : null) ||
+        '配置失败'
+      );
     } finally {
       setStreamSetupLoading(false);
     }
@@ -757,7 +780,7 @@ export const WalletNetworks: React.FC = () => {
               {listenerMode === 'stream' && (() => {
                 const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
                 const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
-                const baseUrl = window.location.origin;
+                const baseUrl = getBackendOrigin();
                 const webhookUrl = isTron
                   ? `${baseUrl}/webhook/deposit/tron`
                   : `${baseUrl}/webhook/deposit/moralis`;
