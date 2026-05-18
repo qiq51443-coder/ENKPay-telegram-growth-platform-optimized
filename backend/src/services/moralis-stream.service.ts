@@ -76,6 +76,12 @@ export async function createMoralisStream(
     };
   }
 
+  // 如果配置了 MORALIS_STREAMS_SECRET，将其作为 stream secret 传给 Moralis
+  // 这样 Moralis 才会对发出的 webhook 请求签名，test ping 也会携带正确签名
+  if (process.env.MORALIS_STREAMS_SECRET) {
+    body.secret = process.env.MORALIS_STREAMS_SECRET;
+  }
+
   // Moralis Streams API uses PUT (not POST) for stream creation — this is the documented API contract.
   // See: https://api.moralis-streams.com (PUT /streams/evm)
   const response = await axios.put(
