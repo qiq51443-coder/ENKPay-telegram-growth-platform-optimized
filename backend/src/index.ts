@@ -231,10 +231,8 @@ app.use('/api/bot-auth', botAuthRoutes);
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/strategy-bots', strategyBotRoutes);
 app.use('/api/strategy-configs', strategyConfigRoutes);
-app.use('/webhook', webhookRoutes);
-
-// Deposit webhook routes (for blockchain notifications)
 app.use('/webhook/deposit', depositWebhookRoutes);
+app.use('/webhook', webhookRoutes);
 
 // New NFT platform routes
 app.use('/api/nft', nftRoutes);
