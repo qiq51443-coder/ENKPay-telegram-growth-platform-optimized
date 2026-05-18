@@ -219,7 +219,7 @@ export const ar: Record<string, string> = {
   charity_ambassador_msg: '❤️ نشاط خيري جديد: {name}. انضم إلينا!',
 
   // Notification templates (backend-triggered)
-  deposit_credited_notify: '✅ *تم إيداع المبلغ*\n\n💰 المبلغ: {amount} USDT\n🌐 الشبكة: {network}\n🔗 هاش المعاملة: `{txHash}`\n\n💳 الرصيد الحالي: *{balance} USDT*\n\nشكراً على إيداعك!',
+  deposit_credited_notify: '✅ *تم إيداع المبلغ*\n\n💰 المبلغ: {amount} USDT\n🌐 الشبكة: {network}\n🔗 هاش المعاملة: `{txHash}`\n\n💳 الرصيد الحالي: *{balance} USDT*',
   withdraw_approved_notify: '✅ *تمت الموافقة على السحب*\n\n📋 الطلب: `{order_id}`\n🌐 الشبكة: {network}\n💰 المبلغ: {amount} USDT\n💸 الرسوم: {fee} USDT\n📤 الصافي: {actual} USDT\n📍 العنوان: {address}\n🕐 وقت الإرسال: {created_at}\n🕐 وقت المراجعة: {time}\n\n💳 الرصيد الحالي: *{balance} USDT*\n\n⚠️ تم السحب بنجاح. يرجى العلم أن المبلغ الفعلي المستلم قد خُصم منه 2% كرسوم معالجة.',
   withdraw_rejected_notify: '❌ *تم رفض السحب*\n\n📋 الطلب: `{order_id}`\n🌐 الشبكة: {network}\n💰 المبلغ: {amount} USDT\n📍 العنوان: {address}\n🕐 وقت الإرسال: {created_at}\n🕐 الوقت: {time}\n\n💳 تمت استعادة الرصيد: *{balance} USDT*\n\n📝 السبب: {reason}\n\n⚠️ فشل السحب. تم إعادة الأموال إلى حسابك في ENK.',
   transfer_sent_notify: '📤 *تم إرسال التحويل*\n\n👤 إلى: {recipient}\n💵 المبلغ: {amount} USDT\n💸 الرسوم: {fee} USDT\n✅ المستلم: {actual} USDT\n\n💳 الرصيد الحالي: *{balance} USDT*',

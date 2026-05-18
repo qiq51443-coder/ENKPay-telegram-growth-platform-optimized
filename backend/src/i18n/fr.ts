@@ -227,7 +227,7 @@ export const fr: Record<string, string> = {
   charity_ambassador_msg: '❤️ Nouvelle activité caritative : {name}. Rejoignez-nous !',
 
   // Notification templates (backend-triggered)
-  deposit_credited_notify: '✅ *Dépôt Crédité*\n\n💰 Montant : {amount} USDT\n🌐 Réseau : {network}\n🔗 Hash TX : `{txHash}`\n\n💳 Solde Actuel : *{balance} USDT*\n\nMerci pour votre dépôt !',
+  deposit_credited_notify: '✅ *Dépôt Crédité*\n\n💰 Montant : {amount} USDT\n🌐 Réseau : {network}\n🔗 Hash TX : `{txHash}`\n\n💳 Solde Actuel : *{balance} USDT*',
   withdraw_approved_notify: '✅ *Retrait Approuvé*\n\n📋 Commande: `{order_id}`\n🌐 Réseau: {network}\n💰 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n📤 Net : {actual} USDT\n📍 Adresse : {address}\n🕐 Soumis: {created_at}\n🕐 Révisé: {time}\n\n💳 Solde Actuel : *{balance} USDT*\n\n⚠️ Retrait réussi. Le montant réel reçu a été déduit de 2% de frais de traitement.',
   withdraw_rejected_notify: '❌ *Retrait Rejeté*\n\n📋 Commande: `{order_id}`\n🌐 Réseau: {network}\n💰 Montant : {amount} USDT\n📍 Adresse: {address}\n🕐 Soumis: {created_at}\n🕐 Heure: {time}\n\n💳 Solde Restauré : *{balance} USDT*\n\n📝 Raison : {reason}\n\n⚠️ Retrait échoué. Les fonds ont été retournés à votre compte ENK.',
   transfer_sent_notify: '📤 *Transfert Envoyé*\n\n👤 Vers : {recipient}\n💵 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n✅ Livré : {actual} USDT\n\n💳 Solde Actuel : *{balance} USDT*',
