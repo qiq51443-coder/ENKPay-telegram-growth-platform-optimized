@@ -93,7 +93,7 @@ export const DepositRecords: React.FC = () => {
       width: 120,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#52c41a' }}>
-          {amount.toFixed(2)} USDT
+          {Number(amount).toFixed(2)} USDT
         </span>
       ),
     },

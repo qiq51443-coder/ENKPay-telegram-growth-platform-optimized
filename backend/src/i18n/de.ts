@@ -227,7 +227,7 @@ export const de: Record<string, string> = {
   charity_ambassador_msg: '❤️ Neue Wohltätigkeitsaktivität: {name}. Machen Sie mit!',
 
   // Notification templates (backend-triggered)
-  deposit_credited_notify: '✅ *Einzahlung Gutgeschrieben*\n\n💰 Betrag: {amount} USDT\n🌐 Netzwerk: {network}\n🔗 TX-Hash: `{txHash}`\n\n💳 Aktuelles Guthaben: *{balance} USDT*\n\nVielen Dank für Ihre Einzahlung!',
+  deposit_credited_notify: '✅ *Einzahlung Gutgeschrieben*\n\n💰 Betrag: {amount} USDT\n🌐 Netzwerk: {network}\n🔗 TX-Hash: `{txHash}`\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
   withdraw_approved_notify: '✅ *Auszahlung Genehmigt*\n\n📋 Bestellung: `{order_id}`\n🌐 Netzwerk: {network}\n💰 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n📤 Auszahlung: {actual} USDT\n📍 Adresse: {address}\n🕐 Eingereicht: {created_at}\n🕐 Geprüft: {time}\n\n💳 Aktuelles Guthaben: *{balance} USDT*\n\n⚠️ Auszahlung erfolgreich. Bitte beachten Sie, dass vom tatsächlich erhaltenen Betrag 2% Bearbeitungsgebühr abgezogen wurde.',
   withdraw_rejected_notify: '❌ *Auszahlung Abgelehnt*\n\n📋 Bestellung: `{order_id}`\n🌐 Netzwerk: {network}\n💰 Betrag: {amount} USDT\n📍 Adresse: {address}\n🕐 Eingereicht: {created_at}\n🕐 Zeit: {time}\n\n💳 Guthaben Wiederhergestellt: *{balance} USDT*\n\n📝 Grund: {reason}\n\n⚠️ Auszahlung fehlgeschlagen. Das Guthaben wurde auf Ihr ENK-Konto zurückgebucht.',
   transfer_sent_notify: '📤 *Überweisung Gesendet*\n\n👤 An: {recipient}\n💵 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n✅ Übermittelt: {actual} USDT\n\n💳 Aktuelles Guthaben: *{balance} USDT*',

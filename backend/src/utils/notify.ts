@@ -8,7 +8,7 @@
 const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   zh: {
     deposit_credited_notify:
-      '✅ *充值成功*\n\n💰 金额：{amount} USDT\n🌐 网络：{network}\n🔗 交易哈希：`{txHash}`\n\n💳 当前余额：*{balance} USDT*\n\n感谢您的充值！',
+      '✅ *充值成功*\n\n💰 金额：{amount} USDT\n🌐 网络：{network}\n🔗 交易哈希：`{txHash}`\n\n💳 当前余额：*{balance} USDT*',
     withdraw_approved_notify:
       '✅ *提现已批准*\n\n📋 订单号：`{order_id}`\n🌐 网络：{network}\n💰 提现金额：{amount} USDT\n💸 手续费：{fee} USDT\n📤 实际到账：{actual} USDT\n📍 到账地址：{address}\n🕐 申请时间：{created_at}\n🕐 审核时间：{time}\n\n💳 当前余额：*{balance} USDT*\n\n⚠️ 提现成功，实际到账金额已扣除2%手续费用，请知晓。',
     withdraw_rejected_notify:
@@ -21,7 +21,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   en: {
     deposit_credited_notify:
-      '✅ *Deposit Credited*\n\n💰 Amount: {amount} USDT\n🌐 Network: {network}\n🔗 TX Hash: `{txHash}`\n\n💳 Current Balance: *{balance} USDT*\n\nThank you for your deposit!',
+      '✅ *Deposit Credited*\n\n💰 Amount: {amount} USDT\n🌐 Network: {network}\n🔗 TX Hash: `{txHash}`\n\n💳 Current Balance: *{balance} USDT*',
     withdraw_approved_notify:
       '✅ *Withdrawal Approved*\n\n📋 Order: `{order_id}`\n🌐 Network: {network}\n💰 Amount: {amount} USDT\n💸 Fee: {fee} USDT\n📤 Actual: {actual} USDT\n📍 To: {address}\n🕐 Submitted: {created_at}\n🕐 Reviewed: {time}\n\n💳 Current Balance: *{balance} USDT*\n\n⚠️ Withdrawal successful. Please note that the actual amount received has been deducted by a 2% handling fee.',
     withdraw_rejected_notify:
@@ -34,7 +34,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   fr: {
     deposit_credited_notify:
-      '✅ *Dépôt Crédité*\n\n💰 Montant : {amount} USDT\n🌐 Réseau : {network}\n🔗 Hash TX : `{txHash}`\n\n💳 Solde Actuel : *{balance} USDT*\n\nMerci pour votre dépôt !',
+      '✅ *Dépôt Crédité*\n\n💰 Montant : {amount} USDT\n🌐 Réseau : {network}\n🔗 Hash TX : `{txHash}`\n\n💳 Solde Actuel : *{balance} USDT*',
     withdraw_approved_notify:
       '✅ *Retrait Approuvé*\n\n📋 Commande: `{order_id}`\n🌐 Réseau: {network}\n💰 Montant : {amount} USDT\n💸 Frais : {fee} USDT\n📤 Net : {actual} USDT\n📍 Adresse : {address}\n🕐 Soumis: {created_at}\n🕐 Examiné: {time}\n\n💳 Solde Actuel : *{balance} USDT*\n\n⚠️ Retrait réussi. Veuillez noter que le montant réel reçu a été déduit de 2% de frais de traitement.',
     withdraw_rejected_notify:
@@ -47,7 +47,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   de: {
     deposit_credited_notify:
-      '✅ *Einzahlung Gutgeschrieben*\n\n💰 Betrag: {amount} USDT\n🌐 Netzwerk: {network}\n🔗 TX-Hash: `{txHash}`\n\n💳 Aktuelles Guthaben: *{balance} USDT*\n\nVielen Dank für Ihre Einzahlung!',
+      '✅ *Einzahlung Gutgeschrieben*\n\n💰 Betrag: {amount} USDT\n🌐 Netzwerk: {network}\n🔗 TX-Hash: `{txHash}`\n\n💳 Aktuelles Guthaben: *{balance} USDT*',
     withdraw_approved_notify:
       '✅ *Auszahlung Genehmigt*\n\n📋 Bestellung: `{order_id}`\n🌐 Netzwerk: {network}\n💰 Betrag: {amount} USDT\n💸 Gebühr: {fee} USDT\n📤 Auszahlung: {actual} USDT\n📍 Adresse: {address}\n🕐 Eingereicht: {created_at}\n🕐 Geprüft: {time}\n\n💳 Aktuelles Guthaben: *{balance} USDT*\n\n⚠️ Auszahlung erfolgreich. Bitte beachten Sie, dass vom tatsächlich erhaltenen Betrag 2% Bearbeitungsgebühr abgezogen wurde.',
     withdraw_rejected_notify:
@@ -60,7 +60,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   es: {
     deposit_credited_notify:
-      '✅ *Depósito Acreditado*\n\n💰 Monto: {amount} USDT\n🌐 Red: {network}\n🔗 Hash TX: `{txHash}`\n\n💳 Saldo Actual: *{balance} USDT*\n\n¡Gracias por tu depósito!',
+      '✅ *Depósito Acreditado*\n\n💰 Monto: {amount} USDT\n🌐 Red: {network}\n🔗 Hash TX: `{txHash}`\n\n💳 Saldo Actual: *{balance} USDT*',
     withdraw_approved_notify:
       '✅ *Retiro Aprobado*\n\n📋 Pedido: `{order_id}`\n🌐 Red: {network}\n💰 Monto: {amount} USDT\n💸 Tarifa: {fee} USDT\n📤 Neto: {actual} USDT\n📍 Dirección: {address}\n🕐 Enviado: {created_at}\n🕐 Revisado: {time}\n\n💳 Saldo Actual: *{balance} USDT*\n\n⚠️ Retiro exitoso. Tenga en cuenta que el monto real recibido ha sido deducido por una tarifa de manejo del 2%.',
     withdraw_rejected_notify:
@@ -73,7 +73,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   ar: {
     deposit_credited_notify:
-      '✅ *تم إيداع المبلغ*\n\n💰 المبلغ: {amount} USDT\n🌐 الشبكة: {network}\n🔗 هاش المعاملة: `{txHash}`\n\n💳 الرصيد الحالي: *{balance} USDT*\n\nشكراً على إيداعك!',
+      '✅ *تم إيداع المبلغ*\n\n💰 المبلغ: {amount} USDT\n🌐 الشبكة: {network}\n🔗 هاش المعاملة: `{txHash}`\n\n💳 الرصيد الحالي: *{balance} USDT*',
     withdraw_approved_notify:
       '✅ *تمت الموافقة على السحب*\n\n📋 الطلب: `{order_id}`\n🌐 الشبكة: {network}\n💰 المبلغ: {amount} USDT\n💸 الرسوم: {fee} USDT\n📤 الصافي: {actual} USDT\n📍 العنوان: {address}\n🕐 وقت الإرسال: {created_at}\n🕐 وقت المراجعة: {time}\n\n💳 الرصيد الحالي: *{balance} USDT*\n\n⚠️ تم السحب بنجاح. يرجى العلم أن المبلغ الفعلي المستلم قد خُصم منه 2% كرسوم معالجة.',
     withdraw_rejected_notify:
@@ -86,7 +86,7 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
   },
   ja: {
     deposit_credited_notify:
-      '✅ *入金が反映されました*\n\n💰 金額：{amount} USDT\n🌐 ネットワーク：{network}\n🔗 TXハッシュ：`{txHash}`\n\n💳 現在の残高：*{balance} USDT*\n\nご入金ありがとうございます！',
+      '✅ *入金が反映されました*\n\n💰 金額：{amount} USDT\n🌐 ネットワーク：{network}\n🔗 TXハッシュ：`{txHash}`\n\n💳 現在の残高：*{balance} USDT*',
     withdraw_approved_notify:
       '✅ *出金が承認されました*\n\n📋 注文番号：`{order_id}`\n🌐 ネットワーク：{network}\n💰 金額：{amount} USDT\n💸 手数料：{fee} USDT\n📤 実際の金額：{actual} USDT\n📍 アドレス：{address}\n🕐 申請時間：{created_at}\n🕐 審査時間：{time}\n\n💳 現在の残高：*{balance} USDT*\n\n⚠️ 出金が成功しました。実際の受取金額には2%の手数料が差し引かれていることをご確認ください。',
     withdraw_rejected_notify:
