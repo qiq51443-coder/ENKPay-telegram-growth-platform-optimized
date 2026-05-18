@@ -74,10 +74,12 @@ router.post('/moralis', async (req, res) => {
 
     // Moralis always calls even for unconfirmed; only process confirmed transactions
     if (!confirmed) {
+      console.log('[moralis-webhook] unconfirmed transaction, skipping');
       return res.status(200).json({ message: 'Unconfirmed transaction ignored' });
     }
 
     if (!streamId || !Array.isArray(erc20Transfers) || erc20Transfers.length === 0) {
+      console.log(`[moralis-webhook] no erc20Transfers in payload, streamId=${streamId}, confirmed=${confirmed}`);
       return res.status(200).json({ message: 'No transfers to process' });
     }
 
@@ -91,6 +93,7 @@ router.post('/moralis', async (req, res) => {
 
     if (networkResult.rows.length === 0) {
       // Unknown stream — acknowledge to avoid Moralis retries
+      console.warn(`[moralis-webhook] streamId ${streamId} not associated with any network`);
       return res.status(200).json({ message: 'Stream not associated with any network' });
     }
 
@@ -107,7 +110,10 @@ router.post('/moralis', async (req, res) => {
         const fromAddress: string = transfer.from || '';
         const txHash: string = transfer.transactionHash || '';
 
-        if (!toAddress || !txHash) continue;
+        if (!toAddress || !txHash) {
+          console.warn(`[moralis-webhook] missing toAddress or txHash, to=${toAddress}, txHash=${txHash}`);
+          continue;
+        }
 
         const effectiveDecimals = transfer.tokenDecimals != null
           ? Number(transfer.tokenDecimals)
@@ -118,11 +124,15 @@ router.post('/moralis', async (req, res) => {
         // Find user owning this address
         const addrResult = await query(
           `SELECT user_id FROM user_deposit_addresses
-           WHERE address = $1 AND network_id = $2 AND is_active = true`,
+           WHERE LOWER(address) = LOWER($1) AND network_id = $2 AND is_active = true`,
           [toAddress, networkId]
         );
-        if (addrResult.rows.length === 0) continue;
+        if (addrResult.rows.length === 0) {
+          console.warn(`[moralis-webhook] toAddress ${toAddress} not found in network ${networkId}`);
+          continue;
+        }
         const userId = addrResult.rows[0].user_id;
+        console.log(`[moralis-webhook] processing transfer: ${txHash}, to=${toAddress}, amount=${amount}, userId=${userId}`);
 
         // Moralis confirmed = true means the tx has passed the required confirmations
         await processDeposit(
