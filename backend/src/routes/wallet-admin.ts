@@ -932,6 +932,9 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
     }
   } catch (error: any) {
     console.error('Stream setup error:', error);
+    if (error.response?.status === 422) {
+      console.error('Moralis 422 details:', JSON.stringify(error.response.data?.details));
+    }
     const upstreamData = error.response?.data;
     const upstreamMsg = upstreamData?.message || upstreamData?.error || (typeof upstreamData === 'string' ? upstreamData : null);
     const errMsg = upstreamMsg ? `${error.message} — ${upstreamMsg}` : error.message;

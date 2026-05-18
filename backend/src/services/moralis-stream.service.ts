@@ -46,6 +46,7 @@ export async function createMoralisStream(
 ): Promise<{ id: string }> {
   // Sanitize tag: Moralis only allows alphanumeric, hyphens, and underscores; max 64 chars
   const safeTag = tag.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+  const moralisChains = chains.map((chainId) => ({ chainId }));
 
   // Build request body depending on whether this is an ERC20 or native-coin stream.
   let body: Record<string, unknown>;
@@ -55,7 +56,7 @@ export async function createMoralisStream(
       webhookUrl,
       description: safeTag,
       tag: safeTag,
-      chains,
+      chains: moralisChains,
       includeNativeTxs: false,
       includeContractLogs: true,
       includeInternalTxs: false,
@@ -69,7 +70,7 @@ export async function createMoralisStream(
       webhookUrl,
       description: safeTag,
       tag: safeTag,
-      chains,
+      chains: moralisChains,
       includeNativeTxs: true,
       includeContractLogs: false,
       includeInternalTxs: false,
