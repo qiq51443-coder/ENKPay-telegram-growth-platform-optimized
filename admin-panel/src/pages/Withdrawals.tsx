@@ -135,7 +135,7 @@ export const Withdrawals: React.FC = () => {
       width: 100,
       render: (amount: number) => (
         <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-          ${parseFloat(String(amount ?? 0)).toFixed(2)}
+          {parseFloat(String(amount ?? 0)).toFixed(2)} USDT
         </span>
       ),
     },
@@ -186,7 +186,7 @@ export const Withdrawals: React.FC = () => {
       width: 100,
       render: (_: any, record: Withdrawal) => (
         <span style={{ fontFamily: 'monospace' }}>
-          ${record.user?.wallet_balance?.toFixed(2) || '0.00'}
+          {record.user?.wallet_balance?.toFixed(2) || '0.00'} USDT
         </span>
       ),
     },
@@ -324,7 +324,7 @@ export const Withdrawals: React.FC = () => {
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: '#666', marginBottom: 4 }}>提现金额</div>
               <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                ${parseFloat(String(selectedWithdrawal.amount ?? 0)).toFixed(2)}
+                {parseFloat(String(selectedWithdrawal.amount ?? 0)).toFixed(2)} USDT
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>
@@ -349,7 +349,7 @@ export const Withdrawals: React.FC = () => {
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: '#666', marginBottom: 4 }}>用户余额</div>
               <div style={{ fontFamily: 'monospace' }}>
-                ${selectedWithdrawal.user?.wallet_balance?.toFixed(2) || '0.00'}
+                {selectedWithdrawal.user?.wallet_balance?.toFixed(2) || '0.00'} USDT
               </div>
             </div>
             <div>

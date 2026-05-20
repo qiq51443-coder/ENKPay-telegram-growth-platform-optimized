@@ -173,7 +173,7 @@ export const RedPackets: React.FC = () => {
       key: 'total_amount',
       width: 100,
       render: (amount: number) => (
-        <span style={{ fontFamily: 'monospace' }}>${parseFloat(String(amount ?? 0)).toFixed(2)}</span>
+        <span style={{ fontFamily: 'monospace' }}>{parseFloat(String(amount ?? 0)).toFixed(2)} USDT</span>
       ),
     },
     {
@@ -195,7 +195,7 @@ export const RedPackets: React.FC = () => {
             {record.claimed_count} / {record.total_count} 个
           </div>
           <div style={{ fontSize: '12px', color: '#666' }}>
-            ${parseFloat(String(record.claimed_amount ?? 0)).toFixed(2)} / ${parseFloat(String(record.total_amount ?? 0)).toFixed(2)}
+            {parseFloat(String(record.claimed_amount ?? 0)).toFixed(2)} / {parseFloat(String(record.total_amount ?? 0)).toFixed(2)} USDT
           </div>
         </div>
       ),
@@ -288,7 +288,7 @@ export const RedPackets: React.FC = () => {
       dataIndex: 'amount',
       key: 'amount',
       render: (amount: number) => (
-        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>${parseFloat(String(amount ?? 0)).toFixed(2)}</span>
+        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{parseFloat(String(amount ?? 0)).toFixed(2)} USDT</span>
       ),
     },
     {

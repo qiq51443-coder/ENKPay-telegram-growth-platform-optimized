@@ -247,7 +247,7 @@ const UsersPage: React.FC = () => {
       width: 100,
       render: (_: any, record: User) => {
         const balance = record.wallet_balance ?? record.balance ?? 0;
-        return <span style={{ fontFamily: 'monospace' }}>${Number(balance).toFixed(2)}</span>;
+        return <span style={{ fontFamily: 'monospace' }}>{Number(balance).toFixed(2)} USDT</span>;
       },
     },
     {
@@ -255,7 +255,7 @@ const UsersPage: React.FC = () => {
       dataIndex: 'red_packet_balance',
       key: 'red_packet_balance',
       width: 120,
-      render: (v: any) => <span style={{ fontFamily: 'monospace' }}>${parseFloat(v || 0).toFixed(2)}</span>,
+      render: (v: any) => <span style={{ fontFamily: 'monospace' }}>{parseFloat(v || 0).toFixed(2)} USDT</span>,
     },
     {
       title: '账号状态',
@@ -343,7 +343,7 @@ const UsersPage: React.FC = () => {
           <div style={{ color: '#52c41a', fontSize: 14, marginTop: 8 }}>
             用户总数: <strong>{stats.total_users}</strong>
             &nbsp;&nbsp;&nbsp;充值用户数: <strong>{stats.recharged_users}</strong>
-            &nbsp;&nbsp;&nbsp;充值总额: <strong>${stats.total_recharged_amount.toFixed(2)}</strong>
+            &nbsp;&nbsp;&nbsp;充值总额: <strong>{stats.total_recharged_amount.toFixed(2)} USDT</strong>
             {selectedBotName && (
               <span style={{ marginLeft: 16 }}>Bot: <strong>{selectedBotName}</strong></span>
             )}
