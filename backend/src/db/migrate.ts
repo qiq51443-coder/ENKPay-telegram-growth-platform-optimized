@@ -43,8 +43,15 @@ export async function runMigrations(): Promise<void> {
         console.log(`  🔄  Force-running ${filename} (zzz_ safety-net)...`);
       }
 
-      console.log(`  ▶️  Applying ${filename}...`);
       const sql = fs.readFileSync(filePath, 'utf8');
+      const isManualOnly = /@manual-only\b/i.test(sql);
+
+      if (isManualOnly) {
+        console.log(`  ⏭️  Skipping ${filename} (manual-only migration)`);
+        return;
+      }
+
+      console.log(`  ▶️  Applying ${filename}...`);
 
       try {
         await client.query('BEGIN');
