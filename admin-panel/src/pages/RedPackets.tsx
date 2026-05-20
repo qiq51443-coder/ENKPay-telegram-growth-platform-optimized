@@ -356,10 +356,11 @@ export const RedPackets: React.FC = () => {
                   <Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>
                 </div>
                 <Table
-                  dataSource={recentClaims}
+                  dataSource={[]}
                   rowKey="id"
                   size="small"
                   loading={claimsLoading}
+                  locale={{ emptyText: '暂无数据' }}
                   pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条` }}
                   columns={[
                     {
@@ -585,8 +586,9 @@ export const RedPackets: React.FC = () => {
       >
         <Table
           columns={claimsColumns}
-          dataSource={claims}
+          dataSource={[]}
           rowKey="id"
+          locale={{ emptyText: '暂无数据' }}
           pagination={{ pageSize: 10 }}
         />
       </Modal>

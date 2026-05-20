@@ -370,10 +370,6 @@ export const UserDetail: React.FC = () => {
     );
   }
 
-  // wallet_balance is the operational balance; nft_balance is NFT asset value (display only)
-  const walletBalance = parseFloat(String(user.wallet_balance ?? user.balance ?? 0));
-  const nftBalance = parseFloat(String(user.nft_balance ?? 0));
-
   return (
     <div>
       <Button
@@ -443,25 +439,10 @@ export const UserDetail: React.FC = () => {
               </Space>
             }
           >
-            <Descriptions bordered column={2}>
-              <Descriptions.Item label="钱包余额 (USDT)">
-                <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  ${walletBalance.toFixed(2)}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="NFT 藏品价值 (不可转账)">
-                <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  ${nftBalance.toFixed(2)}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<span>红包余额 (USDT) <span style={{ fontSize: '12px', color: '#999', fontWeight: 'normal' }}>不可提现 · 交易打码可解锁</span></span>}>
-                <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                  ${parseFloat(String(user.red_packet_balance ?? 0)).toFixed(2)}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="提现密码状态">
-                <span style={{ marginRight: 8 }}>
-                  {user.withdraw_password_set ? (
+              <Descriptions bordered column={2}>
+                <Descriptions.Item label="提现密码状态">
+                  <span style={{ marginRight: 8 }}>
+                    {user.withdraw_password_set ? (
                     <Tag color="blue">已设置</Tag>
                   ) : (
                     <Tag color="default">未设置</Tag>
@@ -486,14 +467,6 @@ export const UserDetail: React.FC = () => {
             </Descriptions>
           </Card>
 
-          <Card title="最近交易记录" style={{ marginTop: 16 }}>
-            <Table
-              columns={transactionColumns}
-              dataSource={transactions}
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-            />
-          </Card>
         </TabPane>
 
         <TabPane tab="邀请统计" key="invitations">
@@ -557,13 +530,6 @@ export const UserDetail: React.FC = () => {
         cancelText="取消"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
-          <Descriptions bordered column={1} size="small" style={{ marginBottom: 16 }}>
-            <Descriptions.Item label="当前余额">
-              <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>
-                ${walletBalance.toFixed(2)} USDT
-              </span>
-            </Descriptions.Item>
-          </Descriptions>
           <Form.Item
             name="add_amount"
             label="增加余额 (USDT)"

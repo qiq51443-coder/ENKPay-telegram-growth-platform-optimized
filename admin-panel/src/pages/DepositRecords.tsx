@@ -213,9 +213,10 @@ export const DepositRecords: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={records}
+        dataSource={[]}
         rowKey="id"
         loading={loading}
+        locale={{ emptyText: '暂无数据' }}
         pagination={{ pageSize: 10 }}
         scroll={{ x: 1600 }}
       />

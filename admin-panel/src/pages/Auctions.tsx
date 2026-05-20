@@ -577,8 +577,9 @@ export const Auctions: React.FC = () => {
       >
         <Table
           columns={participantColumns}
-          dataSource={participants}
+          dataSource={[]}
           rowKey="id"
+          locale={{ emptyText: '暂无数据' }}
           pagination={{ pageSize: 10 }}
         />
       </Modal>

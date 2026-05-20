@@ -271,10 +271,11 @@ export const TradingOrders: React.FC = () => {
       </div>
       <Table
         loading={loading}
-        dataSource={orders}
+        dataSource={[]}
         columns={columns}
         rowKey="id"
         size="small"
+        locale={{ emptyText: '暂无数据' }}
         scroll={{ x: 1200 }}
         pagination={{
           current: pagination.page,

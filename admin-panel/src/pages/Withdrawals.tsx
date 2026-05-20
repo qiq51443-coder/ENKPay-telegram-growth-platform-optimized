@@ -268,9 +268,10 @@ export const Withdrawals: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={filteredWithdrawals}
+        dataSource={[]}
         rowKey="id"
         loading={loading}
+        locale={{ emptyText: '暂无数据' }}
         pagination={{ pageSize: 10 }}
         scroll={{ x: 1200 }}
       />

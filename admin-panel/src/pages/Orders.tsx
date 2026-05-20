@@ -245,9 +245,10 @@ export const Orders: React.FC = () => {
 
         <Table
           columns={columns}
-          dataSource={orders}
+          dataSource={[]}
           rowKey="id"
           loading={loading}
+          locale={{ emptyText: '暂无数据' }}
           onRow={(record) => ({ onClick: () => setSelectedOrder(record), style: { cursor: 'pointer' } })}
           pagination={{
             current: pagination.page,

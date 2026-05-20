@@ -249,9 +249,10 @@ export const TransferRecords: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={filteredRecords}
+        dataSource={[]}
         rowKey="id"
         loading={loading}
+        locale={{ emptyText: '暂无数据' }}
         pagination={{ pageSize: 10 }}
         scroll={{ x: 1200 }}
       />

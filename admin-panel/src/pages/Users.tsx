@@ -242,15 +242,6 @@ const UsersPage: React.FC = () => {
       render: (id?: string) => id || '-',
     },
     {
-      title: '余额',
-      key: 'balance',
-      width: 100,
-      render: (_: any, record: User) => {
-        const balance = record.wallet_balance ?? record.balance ?? 0;
-        return <span style={{ fontFamily: 'monospace' }}>{Number(balance).toFixed(2)} USDT</span>;
-      },
-    },
-    {
       title: '红包余额(USDT)',
       dataIndex: 'red_packet_balance',
       key: 'red_packet_balance',

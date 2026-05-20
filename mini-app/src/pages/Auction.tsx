@@ -363,7 +363,6 @@ export const Auction: React.FC = () => {
         <h1 style={{ color: theme.text, fontSize: '20px', margin: 0 }}>{t('auction_title')}</h1>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => setView('results')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'results' ? '#F0B90B' : 'transparent', color: view === 'results' ? '#000' : theme.textSecondary, cursor: 'pointer' }}>{t('auction_tab_results')}</button>
-          <button onClick={() => setView('my')} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: view === 'my' ? '#F0B90B' : 'transparent', color: view === 'my' ? '#000' : theme.textSecondary, cursor: 'pointer' }}>{t('auction_tab_my')}</button>
         </div>
       </div>
 
@@ -411,45 +410,7 @@ export const Auction: React.FC = () => {
       {view === 'my' && (
         <>
           <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: '16px', fontWeight: '700', padding: 0, marginBottom: '12px' }}>{t('back')}</button>
-          {loading
-            ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('loading')}</div>
-            : myAuctions.length === 0
-              ? <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>{t('auction_no_my')}</div>
-              : myAuctions.map(a => {
-                let statusText = t('loading');
-                let statusColor = theme.textSecondary;
-                if (a.refunded) { statusText = t('auction_refunded'); statusColor = '#6b7280'; }
-                else if (a.is_winner && a.is_redeemed) { statusText = t('auction_redeemed'); statusColor = '#22c55e'; }
-                else if (a.is_winner) { statusText = t('auction_won_label'); statusColor = '#f59e0b'; }
-                else if (a.auction_status === 'completed') { statusText = t('auction_lost_label'); statusColor = '#6b7280'; }
-                else if (a.auction_status === 'expired') { statusText = t('auction_refunded'); statusColor = '#6b7280'; }
-
-                return (
-                  <div key={a.id} style={{ backgroundColor: theme.bgCard, borderRadius: '10px', padding: '14px', border: `1px solid ${theme.border}`, marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                      <div style={{ color: theme.text, fontWeight: '600', flex: 1 }}>{a.title}</div>
-                      <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', backgroundColor: statusColor, color: '#fff', marginLeft: '8px' }}>{statusText}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: theme.textSecondary }}>
-                      <span>{t('auction_qty')}: {a.quantity} · ${parseFloat(String(a.amount)).toFixed(2)} USDT</span>
-                    </div>
-                    {a.is_winner && !a.is_redeemed && a.result_id && (
-                      <button
-                        onClick={() => handleRedeem(a.result_id!)}
-                        disabled={redeeming === a.result_id}
-                        style={{
-                          marginTop: '10px', width: '100%', padding: '8px',
-                          backgroundColor: '#f59e0b', color: '#fff', border: 'none',
-                          borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
-                        }}
-                      >
-                        {redeeming === a.result_id ? t('processing') : `💰 ${t('auction_redeem')} ${parseFloat(String(a.winner_payout || 0)).toFixed(2)} USDT`}
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-          }
+          <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '40px' }}>暂无数据</div>
         </>
       )}
     </div>
