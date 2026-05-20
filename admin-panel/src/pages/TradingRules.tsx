@@ -121,13 +121,13 @@ export const TradingRules: React.FC = () => {
       title: '最低投注',
       dataIndex: 'min_bet',
       key: 'min_bet',
-      render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
+      render: (value: any) => `${parseFloat(value).toFixed(2)} USDT`,
     },
     {
       title: '最高投注',
       dataIndex: 'max_bet',
       key: 'max_bet',
-      render: (value: any) => `$${parseFloat(value).toFixed(2)}`,
+      render: (value: any) => `${parseFloat(value).toFixed(2)} USDT`,
     },
     {
       title: '状态',

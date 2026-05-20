@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Dropdown, Avatar } from 'antd';
+import { Layout, Menu, Button, Dropdown, Avatar, Badge } from 'antd';
 import {
   UserOutlined,
   RobotOutlined,
@@ -19,6 +19,8 @@ import {
   HeartOutlined,
   WalletOutlined,
   ThunderboltOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
 import { Users } from './pages/Users';
@@ -63,11 +65,38 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [selectedKey, setSelectedKey] = useState('analytics');
+  const [depositCount, setDepositCount] = useState(0);
+  const [withdrawalCount, setWithdrawalCount] = useState(0);
 
   useEffect(() => {
     const path = location.pathname.split('/')[1] || 'analytics';
     setSelectedKey(path);
   }, [location]);
+
+  const fetchNotificationCounts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const [depositRes, withdrawalRes] = await Promise.all([
+        fetch('/api/admin/wallet/deposits?status=pending&limit=1', { headers }).then(r => r.json()).catch(() => null),
+        fetch('/api/admin/wallet/withdrawals?status=pending&limit=1', { headers }).then(r => r.json()).catch(() => null),
+      ]);
+      if (depositRes?.pagination?.total != null) {
+        setDepositCount(depositRes.pagination.total);
+      }
+      if (withdrawalRes?.pagination?.total != null) {
+        setWithdrawalCount(withdrawalRes.pagination.total);
+      }
+    } catch {
+      // silently ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchNotificationCounts();
+    const interval = setInterval(fetchNotificationCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -284,12 +313,32 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
             onClick={() => setCollapsed(!collapsed)}
             style={{ fontSize: '16px', width: 64, height: 64 }}
           />
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Avatar icon={<UserOutlined />} />
-              <span>管理员</span>
-            </div>
-          </Dropdown>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <Badge count={depositCount} size="small">
+              <Button
+                type="text"
+                icon={<ArrowDownOutlined />}
+                onClick={() => navigate('/deposit-records')}
+                title="待处理充值"
+                style={{ display: 'flex', alignItems: 'center' }}
+              />
+            </Badge>
+            <Badge count={withdrawalCount} size="small">
+              <Button
+                type="text"
+                icon={<ArrowUpOutlined />}
+                onClick={() => navigate('/withdrawals')}
+                title="待处理提现"
+                style={{ display: 'flex', alignItems: 'center' }}
+              />
+            </Badge>
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Avatar icon={<UserOutlined />} />
+                <span>管理员</span>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
         <Content
           style={{

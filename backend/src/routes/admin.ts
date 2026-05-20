@@ -435,7 +435,6 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
       query(`
         SELECT COALESCE(SUM(amount), 0) as total_withdrawals
         FROM withdrawal_records
-        WHERE status = 'completed'
       `)
     ]);
 

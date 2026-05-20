@@ -155,7 +155,7 @@ export const Analytics: React.FC = () => {
               value={Number(stats?.total_deposits || 0).toFixed(2)}
               prefix={<ArrowDownOutlined />}
               valueStyle={{ color: '#52c41a' }}
-              suffix="$"
+              suffix=" USDT"
             />
           </Card>
         </Col>
@@ -167,7 +167,7 @@ export const Analytics: React.FC = () => {
               value={Number(stats?.total_withdrawals || 0).toFixed(2)}
               prefix={<ArrowUpOutlined />}
               valueStyle={{ color: '#faad14' }}
-              suffix="$"
+              suffix=" USDT"
             />
           </Card>
         </Col>
@@ -179,7 +179,7 @@ export const Analytics: React.FC = () => {
               value={Number(stats?.total_rewards || 0).toFixed(2)}
               prefix={<WalletOutlined />}
               valueStyle={{ color: '#722ed1' }}
-              suffix="$"
+              suffix=" USDT"
             />
           </Card>
         </Col>
@@ -191,7 +191,7 @@ export const Analytics: React.FC = () => {
               value={Number(stats?.total_red_packet_amount || 0).toFixed(2)}
               prefix={<GiftOutlined />}
               valueStyle={{ color: '#cf1322' }}
-              suffix="$"
+              suffix=" USDT"
             />
           </Card>
         </Col>
@@ -203,7 +203,7 @@ export const Analytics: React.FC = () => {
               value={Number(stats?.total_claimed_amount || 0).toFixed(2)}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#eb2f96' }}
-              suffix="$"
+              suffix=" USDT"
             />
           </Card>
         </Col>
