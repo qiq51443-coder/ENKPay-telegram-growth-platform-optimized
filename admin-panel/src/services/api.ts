@@ -146,6 +146,11 @@ class ApiClient {
     return response.data;
   }
 
+  async deleteRedPacket(id: string) {
+    const response = await this.client.delete(`/redpackets/${id}`);
+    return response.data;
+  }
+
   // Screenshots
   async getScreenshots(params?: any) {
     const response = await this.client.get('/screenshots', { params });
@@ -839,6 +844,11 @@ class ApiClient {
 
   async deleteCharityBanner(id: string) {
     const response = await this.client.delete(`/charity/banners/${id}`);
+    return response.data;
+  }
+
+  async deleteCharityProject(id: string | number) {
+    const response = await this.client.delete(`/charity/projects/${id}`);
     return response.data;
   }
 

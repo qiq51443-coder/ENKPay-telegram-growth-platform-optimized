@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch, Upload, Collapse } from 'antd';
-import { PlusOutlined, EditOutlined, PictureOutlined, UploadOutlined, TranslationOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker, Progress, Select, Switch, Upload, Collapse, Popconfirm } from 'antd';
+import { PlusOutlined, EditOutlined, PictureOutlined, UploadOutlined, TranslationOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -253,6 +253,16 @@ export const CharityProjects: React.FC = () => {
     }
   };
 
+  const handleDeleteProject = async (id: string | number) => {
+    try {
+      await apiClient.deleteCharityProject(id);
+      message.success('删除成功');
+      fetchProjects();
+    } catch {
+      message.error('删除失败');
+    }
+  };
+
   const columns = [
     {
       title: 'ID',
@@ -399,6 +409,16 @@ export const CharityProjects: React.FC = () => {
               </Button>
             </>
           )}
+          <Popconfirm
+            title="确认删除该公益项目？删除后不可恢复！"
+            onConfirm={() => handleDeleteProject(record.id)}
+            okText="确认"
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
