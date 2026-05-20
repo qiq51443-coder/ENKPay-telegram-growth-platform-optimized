@@ -1,10 +1,11 @@
 import { Context, Markup } from 'telegraf';
-import { getOrCreateUser } from '../services/user';
+import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { getUser as getUserAPI } from '../services/api';
 import { getSettings } from '../services/settings';
 import { t, isSupportedLang } from '../i18n';
 import { clearUserState } from '../utils/state';
 import { sendInviteCard } from './invite';
+import { getMainKeyboard } from '../keyboards/main';
 import axios from 'axios';
 import crypto from 'crypto';
 
@@ -57,18 +58,23 @@ export const handleStart = async (ctx: Context) => {
       console.error('Failed to clear user state on /start:', err)
     );
 
-    // Language priority: Telegram user language (if supported) > Bot default_language > 'en'
+    // Language priority: backend-stored user language > Telegram client language > Bot default_language > 'en'
     let lang = 'en';
-    const telegramLang = ctx.from.language_code;
-    if (telegramLang && isSupportedLang(telegramLang)) {
-      lang = telegramLang;
+    const storedUserLang = getUserLanguage(user);
+    if (storedUserLang && isSupportedLang(storedUserLang)) {
+      lang = storedUserLang;
     } else {
-      try {
-        const botRes = await axios.get(`${backendUrl}/api/bots/${botId}`);
-        if (botRes.data?.bot?.default_language) {
-          lang = botRes.data.bot.default_language;
-        }
-      } catch {}
+      const telegramLang = ctx.from.language_code;
+      if (telegramLang && isSupportedLang(telegramLang)) {
+        lang = telegramLang;
+      } else {
+        try {
+          const botRes = await axios.get(`${backendUrl}/api/bots/${botId}`);
+          if (botRes.data?.bot?.default_language) {
+            lang = botRes.data.bot.default_language;
+          }
+        } catch {}
+      }
     }
 
     // Get bot settings (welcome message + webapp url)
@@ -173,9 +179,7 @@ export const handleStart = async (ctx: Context) => {
       ? Markup.inlineKeyboard(officialLinkButtons.map(btn => [btn]))
       : undefined;
 
-    const replyKeyboard = Markup.keyboard([
-      [Markup.button.text(t(lang, 'btn_my_wallet')), Markup.button.text(t(lang, 'btn_invite'))],
-    ]).resize().persistent();
+    const replyKeyboard = getMainKeyboard(lang, webAppUrl);
 
     // Send welcome content (photo or text) with reply keyboard, then optional official links
     const imageUrl: string | undefined = (settings as any).welcome_image_url || undefined;

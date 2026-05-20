@@ -15,17 +15,18 @@ const LanguageContext = createContext<LanguageContextValue>({
 });
 
 function resolveInitialLang(): LangCode {
-  // 1. Saved user preference
-  const saved = localStorage.getItem('userLang');
   const supportedCodes = SUPPORTED_LANGUAGES.map(l => l.code as string);
-  if (saved && supportedCodes.includes(saved)) {
-    return saved as LangCode;
-  }
 
-  // 2. Telegram user language
+  // 1. Telegram user language — reflects language set via the bot
   const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
   if (tgLang && supportedCodes.includes(tgLang)) {
     return tgLang as LangCode;
+  }
+
+  // 2. Saved user preference (localStorage fallback)
+  const saved = localStorage.getItem('userLang');
+  if (saved && supportedCodes.includes(saved)) {
+    return saved as LangCode;
   }
 
   return 'en';
