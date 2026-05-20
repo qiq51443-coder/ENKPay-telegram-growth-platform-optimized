@@ -1314,27 +1314,21 @@ export const Profile: React.FC = () => {
           </div>
         )}
 
-        {/* Tip message */}
-        {profile?.wallet_tip_message ? (
-          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.border}`, color: theme.textSecondary, fontSize: '12px', textAlign: 'center' }}>
-            💡 {profile.wallet_tip_message}
-          </div>
-        ) : null}
       </div>
 
       {/* Scan to Pay button */}
       <div
         onClick={handleScanQR}
         style={{
-          backgroundColor: theme.accent, borderRadius: '12px', padding: '16px',
-          marginBottom: '10px',
+          backgroundColor: theme.bgCard, borderRadius: '12px', padding: '16px',
+          marginBottom: '10px', border: `1px solid ${theme.border}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           cursor: scanLoading ? 'not-allowed' : 'pointer',
           opacity: scanLoading ? 0.7 : 1,
         }}
       >
-        <span style={{ color: '#fff', fontWeight: '600' }}>{t('scan_to_pay')}</span>
-        <span style={{ color: 'rgba(255,255,255,0.8)' }}>›</span>
+        <span style={{ color: theme.text }}>{t('scan_to_pay')}</span>
+        <span style={{ color: theme.textSecondary }}>›</span>
       </div>
 
       {/* Menu items */}

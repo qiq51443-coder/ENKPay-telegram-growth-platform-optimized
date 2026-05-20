@@ -25,7 +25,18 @@
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline skeleton screen — shown while React JS bundle loads, replaced when React mounts -->
+      <div id="app-skeleton" style="position:fixed;inset:0;background:#0A1628;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:9999;">
+        <style>
+          @keyframes sk-spin { to { transform: rotate(360deg); } }
+          @keyframes sk-pulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+        </style>
+        <div style="color:#4FC3F7;font-size:30px;font-weight:bold;letter-spacing:3px;animation:sk-pulse 1.5s ease-in-out infinite;">ENKPay</div>
+        <div style="width:36px;height:36px;border:3px solid rgba(79,195,247,0.2);border-top-color:#4FC3F7;border-radius:50%;animation:sk-spin 0.8s linear infinite;"></div>
+        <div style="color:rgba(224,230,240,0.5);font-size:13px;">加载中，请稍候...</div>
+      </div>
+    </div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

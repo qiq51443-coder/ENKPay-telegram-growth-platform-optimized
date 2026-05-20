@@ -17,6 +17,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ progress }) => {
       justifyContent: 'center',
       gap: '24px',
     }}>
+      <style>{`
+        @keyframes enkpay-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       {/* Pixel art logo */}
       <div style={{ textAlign: 'center' }}>
         <div style={{
@@ -49,6 +54,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ progress }) => {
         </div>
       </div>
 
+      {/* Spinner */}
+      <div style={{
+        width: '32px',
+        height: '32px',
+        border: `3px solid ${theme.bgCard}`,
+        borderTopColor: theme.accent,
+        borderRadius: '50%',
+        animation: 'enkpay-spin 0.8s linear infinite',
+      }} />
+
       {/* Progress bar */}
       <div style={{
         width: '200px',
@@ -69,6 +84,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ progress }) => {
 
       <div style={{ color: theme.textSecondary, fontSize: '14px' }}>
         {progress}%
+      </div>
+
+      <div style={{ color: theme.textSecondary, fontSize: '12px', opacity: 0.7 }}>
+        加载中，请稍候... / Loading, please wait...
       </div>
     </div>
   );

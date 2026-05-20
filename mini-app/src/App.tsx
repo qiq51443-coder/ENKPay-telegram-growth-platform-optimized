@@ -79,9 +79,9 @@ function AppContent() {
           clearInterval(interval);
           return 90;
         }
-        return prev + 15;
+        return prev + 20;
       });
-    }, 50);
+    }, 30);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -121,8 +121,8 @@ function AppContent() {
   // JT_AUTH_TIMEOUT_MS must exceed fastApi's axios timeout (8s) so that the
   // HTTP request can fail/succeed and be reported before this safety net fires.
   useEffect(() => {
-    const JT_AUTH_TIMEOUT_MS = 10000;    // > fastApi axios timeout (8s): lets HTTP finish first
-    const FALLBACK_AUTH_TIMEOUT_MS = 12000; // Without jt token: allow time for SDK + initData
+    const JT_AUTH_TIMEOUT_MS = 8000;    // > fastApi axios timeout (8s): lets HTTP finish first
+    const FALLBACK_AUTH_TIMEOUT_MS = 9000; // Without jt token: allow time for SDK + initData
     const timeoutMs = getUrlParam('jt') ? JT_AUTH_TIMEOUT_MS : FALLBACK_AUTH_TIMEOUT_MS;
     const timer = setTimeout(() => {
       if (!authSucceededRef.current) {
