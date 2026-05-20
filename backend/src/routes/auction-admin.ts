@@ -284,27 +284,20 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * DELETE /api/admin/auctions/:id
- * Delete auction (only active with no participants)
+ * Delete auction (any status - admin force delete)
  */
 router.delete('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
     const auctionResult = await query(
-      `SELECT status, current_participants FROM lucky_auctions WHERE id = $1`,
+      `SELECT id FROM lucky_auctions WHERE id = $1`,
       [id]
     );
     if (auctionResult.rows.length === 0) return res.status(404).json({ error: 'Auction not found' });
-    const auction = auctionResult.rows[0];
 
-    if (auction.status === 'active') {
-      if (auction.current_participants > 0) {
-        return res.status(400).json({ error: 'Cannot delete active auction with participants. Please cancel it first.' });
-      }
-    } else if (auction.status !== 'expired') {
-      return res.status(400).json({ error: 'Only active (no participants) or expired auctions can be deleted' });
-    }
-
+    // Delete associated participants first
+    await query(`DELETE FROM lucky_auction_participants WHERE auction_id = $1`, [id]);
     await query(`DELETE FROM lucky_auctions WHERE id = $1`, [id]);
     res.json({ success: true, message: 'Auction deleted' });
   } catch (error: any) {

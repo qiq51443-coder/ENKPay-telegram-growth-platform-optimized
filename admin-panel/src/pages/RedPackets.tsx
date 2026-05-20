@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs } from 'antd';
-import { PlusOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs, Popconfirm } from 'antd';
+import { PlusOutlined, EyeOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
 
@@ -154,6 +154,16 @@ export const RedPackets: React.FC = () => {
     setClaimsModalOpen(true);
   };
 
+  const handleDeleteRedPacket = async (id: string) => {
+    try {
+      await apiClient.deleteRedPacket(id);
+      message.success('删除成功');
+      fetchRedPackets();
+    } catch {
+      message.error('删除失败');
+    }
+  };
+
   const columns = [
     {
       title: 'ID',
@@ -250,16 +260,28 @@ export const RedPackets: React.FC = () => {
       title: '操作',
       key: 'actions',
       fixed: 'right' as const,
-      width: 100,
+      width: 160,
       render: (_: any, record: RedPacket) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewClaims(record)}
-        >
-          领取记录
-        </Button>
+        <Space>
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewClaims(record)}
+          >
+            领取记录
+          </Button>
+          <Popconfirm
+            title="确认删除该红包？此操作不可恢复！"
+            onConfirm={() => handleDeleteRedPacket(record.id)}
+            okText="确认"
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];

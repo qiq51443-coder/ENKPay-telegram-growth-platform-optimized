@@ -328,9 +328,8 @@ export const Auctions: React.FC = () => {
               编辑
             </Button>
           )}
-          {((record.status === 'active' && record.current_participants === 0) || record.status === 'expired') && (
-            <Popconfirm
-              title="确认删除该夺宝活动？"
+          <Popconfirm
+              title="确认删除该夺宝活动？此操作不可恢复！"
               onConfirm={() => handleDelete(record)}
               okText="确认"
               cancelText="取消"
@@ -339,7 +338,6 @@ export const Auctions: React.FC = () => {
                 删除
               </Button>
             </Popconfirm>
-          )}
           {record.status === 'active' && (
             <Popconfirm
               title="取消后将退款给所有参与者，确认取消？"

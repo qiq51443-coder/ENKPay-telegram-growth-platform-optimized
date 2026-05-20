@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
 import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
 
@@ -546,6 +547,23 @@ router.get('/:id/claims', authenticateAdmin, async (req: AuthRequest, res) => {
     res.json({ claims });
   } catch (error) {
     console.error('Get claims error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete red packet (admin)
+router.delete('/:id', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    // Delete associated claims first
+    await query(`DELETE FROM red_packet_claims WHERE red_packet_id = $1`, [id]);
+    const result = await query(`DELETE FROM red_packets WHERE id = $1 RETURNING id`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Red packet not found' });
+    }
+    res.json({ success: true, message: 'Red packet deleted' });
+  } catch (error) {
+    console.error('Delete red packet error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
