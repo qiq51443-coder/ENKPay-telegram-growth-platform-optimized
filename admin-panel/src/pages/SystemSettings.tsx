@@ -142,6 +142,14 @@ export const SystemSettings: React.FC = () => {
   const [qrExpiresMonths, setQrExpiresMonths] = useState(1);
   const [qrStyle, setQrStyle] = useState<'standard' | 'dark' | 'gradient'>('standard');
   const [qrErrorLevel, setQrErrorLevel] = useState<'L' | 'M' | 'Q' | 'H'>('M');
+  // 文案设置
+  const [qrPlatformName, setQrPlatformName] = useState('ENKPay');
+  const [qrPlatformFontSize, setQrPlatformFontSize] = useState(22);
+  const [qrPlatformColor, setQrPlatformColor] = useState('#1a1a2e');
+  const [qrSubtitleText, setQrSubtitleText] = useState('');
+  const [qrSubtitleEdited, setQrSubtitleEdited] = useState(false);
+  const [qrSubtitleFontSize, setQrSubtitleFontSize] = useState(16);
+  const [qrSubtitleColor, setQrSubtitleColor] = useState('#595959');
 
   // ── 网页管理 Tab 状态 ──────────────────────────────────────────────────
   const [activeMainTab, setActiveMainTab]       = useState('user_agreement');
@@ -751,20 +759,57 @@ export const SystemSettings: React.FC = () => {
     }
   };
 
-  const handleDownloadUserQR = (size: number) => {
+  const handleDownloadUserQR = (qrSize: number) => {
     if (!qrImageDataUrl) return;
+
+    const platformName = qrPlatformName || 'ENKPay';
+    const subtitle = qrSubtitleText || qrSelectedUser?.first_name || qrSelectedUser?.username || '';
+    const scale = qrSize / 256; // scale factor relative to base 256
+
+    // Poster layout: padding + title + qr + subtitle
+    const padding = Math.round(32 * scale);
+    const titleFontSize = Math.round(qrPlatformFontSize * scale);
+    const subtitleFontPx = Math.round(qrSubtitleFontSize * scale);
+    const titleHeight = titleFontSize + Math.round(24 * scale);
+    const subtitleHeight = subtitleFontPx + Math.round(24 * scale);
+    const canvasWidth = qrSize + padding * 2;
+    const canvasHeight = padding + titleHeight + qrSize + subtitleHeight + padding;
+
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     const ctx = canvas.getContext('2d')!;
+
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Platform name
+    ctx.font = `700 ${titleFontSize}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`;
+    ctx.fillStyle = qrPlatformColor || '#1a1a2e';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(platformName, canvasWidth / 2, padding);
+
+    // QR code image
     const img = new Image();
     img.onload = () => {
-      ctx.drawImage(img, 0, 0, size, size);
+      ctx.drawImage(img, padding, padding + titleHeight, qrSize, qrSize);
+
+      // Subtitle
+      if (subtitle) {
+        ctx.font = `500 ${subtitleFontPx}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`;
+        ctx.fillStyle = qrSubtitleColor || '#595959';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(subtitle, canvasWidth / 2, padding + titleHeight + qrSize + Math.round(12 * scale));
+      }
+
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       const safeName = (qrSelectedUser?.first_name || qrSelectedUser?.username || 'user')
         .replace(/[/\\?%*:|"<>\x00-\x1f]/g, '_');
-      a.download = `enkpay_收款码_${safeName}_${size}px.png`;
+      a.download = `enkpay_收款码_${safeName}_${qrSize}px.png`;
       a.click();
     };
     img.src = qrImageDataUrl;
@@ -820,7 +865,13 @@ export const SystemSettings: React.FC = () => {
               renderItem={(user: any) => (
                 <List.Item
                   style={{ cursor: 'pointer', background: qrSelectedUser?.id === user.id ? '#e6f4ff' : undefined }}
-                  onClick={() => { setQrSelectedUser(user); setQrSearchResults(null); }}
+                  onClick={() => {
+                    setQrSelectedUser(user);
+                    setQrSearchResults(null);
+                    if (!qrSubtitleEdited) {
+                      setQrSubtitleText(user.first_name || user.username || '');
+                    }
+                  }}
                 >
                   <Space>
                     <div style={{
@@ -873,7 +924,12 @@ export const SystemSettings: React.FC = () => {
                   </Tag>
                 </Space>
               </div>
-              <Button size="small" onClick={() => { setQrSelectedUser(null); setQrImageDataUrl(''); }}>重新选择</Button>
+              <Button size="small" onClick={() => {
+                setQrSelectedUser(null);
+                setQrImageDataUrl('');
+                setQrSubtitleEdited(false);
+                setQrSubtitleText('');
+              }}>重新选择</Button>
             </div>
           )}
         </Card>
@@ -972,6 +1028,78 @@ export const SystemSettings: React.FC = () => {
             </Space>
           </div>
 
+          {/* 文案设置 */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#595959', marginBottom: 10, fontWeight: 600 }}>✏️ 文案设置</div>
+
+            {/* 平台名称 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 6 }}>平台名称</div>
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  value={qrPlatformName}
+                  onChange={(e) => setQrPlatformName(e.target.value)}
+                  placeholder="ENKPay"
+                  maxLength={30}
+                  style={{ flex: 1 }}
+                />
+                <InputNumber
+                  min={12}
+                  max={36}
+                  value={qrPlatformFontSize}
+                  onChange={(v) => setQrPlatformFontSize(v || 22)}
+                  addonAfter="px"
+                  style={{ width: 88 }}
+                />
+                <input
+                  type="color"
+                  value={qrPlatformColor}
+                  onChange={(e) => setQrPlatformColor(e.target.value)}
+                  title="平台名称字体颜色"
+                  style={{
+                   width: 36, height: 32, border: '1px solid #d9d9d9', borderRadius: '0 6px 6px 0',
+                   padding: 2, cursor: 'pointer', background: 'white', flexShrink: 0,
+                  }}
+                />
+              </Space.Compact>
+            </div>
+
+            {/* 底部姓名 / 提示语 */}
+            <div>
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 6 }}>底部姓名 / 提示语</div>
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  value={qrSubtitleText}
+                  onChange={(e) => {
+                   setQrSubtitleText(e.target.value);
+                   setQrSubtitleEdited(true);
+                  }}
+                  placeholder={qrSelectedUser?.first_name || qrSelectedUser?.username || '用户姓名或提示语'}
+                  maxLength={60}
+                  style={{ flex: 1 }}
+                />
+                <InputNumber
+                  min={12}
+                  max={36}
+                  value={qrSubtitleFontSize}
+                  onChange={(v) => setQrSubtitleFontSize(v || 16)}
+                  addonAfter="px"
+                  style={{ width: 88 }}
+                />
+                <input
+                  type="color"
+                  value={qrSubtitleColor}
+                  onChange={(e) => setQrSubtitleColor(e.target.value)}
+                  title="底部文字字体颜色"
+                  style={{
+                   width: 36, height: 32, border: '1px solid #d9d9d9', borderRadius: '0 6px 6px 0',
+                   padding: 2, cursor: 'pointer', background: 'white', flexShrink: 0,
+                  }}
+                />
+              </Space.Compact>
+            </div>
+          </div>
+
           {/* 生成按钮 */}
           <Button
             type="primary"
@@ -992,47 +1120,83 @@ export const SystemSettings: React.FC = () => {
       </div>
 
       {/* 右栏：预览区 */}
-      <div style={{ width: 300, flexShrink: 0, position: 'sticky', top: 24 }}>
+      <div style={{ width: 440, flexShrink: 0, position: 'sticky', top: 24 }}>
         <Card
           title={<span><QrcodeOutlined style={{ marginRight: 8 }} />收款码预览</span>}
           style={{ borderRadius: 12 }}
-          styles={{ body: { padding: '20px 16px' } }}
+          styles={{ body: { padding: '24px 20px' } }}
         >
           {!qrImageDataUrl ? (
             <div style={{
-              width: 256, height: 256, margin: '0 auto 16px',
-              border: '2px dashed #d9d9d9', borderRadius: 8,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              color: '#bfbfbf', background: '#fafafa',
+              background: '#fff', borderRadius: 16,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+              padding: '28px 24px', textAlign: 'center',
             }}>
-              <QrcodeOutlined style={{ fontSize: 48, marginBottom: 8 }} />
-              <div style={{ fontSize: 13 }}>选择用户后点击生成</div>
+              {/* 空态平台名占位 */}
+              <div style={{
+                fontSize: qrPlatformFontSize, fontWeight: 700,
+                color: qrPlatformColor || '#bfbfbf',
+                marginBottom: 20, letterSpacing: 1,
+                opacity: qrPlatformName ? 1 : 0.35,
+              }}>
+                {qrPlatformName || 'ENKPay'}
+              </div>
+              {/* 空态二维码占位 */}
+              <div style={{
+                width: 320, height: 320, margin: '0 auto 20px',
+                border: '2px dashed #d9d9d9', borderRadius: 12,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                color: '#bfbfbf', background: '#fafafa',
+              }}>
+                <QrcodeOutlined style={{ fontSize: 64, marginBottom: 12 }} />
+                <div style={{ fontSize: 14 }}>选择用户后点击生成</div>
+              </div>
+              {/* 空态底部文字占位 */}
+              <div style={{
+                fontSize: qrSubtitleFontSize, color: qrSubtitleColor || '#d9d9d9',
+                opacity: qrSubtitleText ? 1 : 0.35,
+              }}>
+                {qrSubtitleText || (qrSelectedUser ? (qrSelectedUser.first_name || qrSelectedUser.username) : '用户姓名 / 提示语')}
+              </div>
             </div>
           ) : (
             <div style={{ textAlign: 'center' }}>
+              {/* 海报式预览卡片 */}
               <div style={{
-                width: 256, height: 256, margin: '0 auto 16px',
-                borderRadius: 10, overflow: 'hidden',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                border: '1px solid #f0f0f0',
+                background: '#fff', borderRadius: 16,
+                boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+                padding: '24px 20px 20px', marginBottom: 16,
               }}>
-                <img src={qrImageDataUrl} alt="Payment QR Code" width={256} height={256} style={{ display: 'block' }} />
+                {/* 顶部平台名称 */}
+                <div style={{
+                  fontSize: qrPlatformFontSize, fontWeight: 700,
+                  color: qrPlatformColor, marginBottom: 18,
+                  letterSpacing: 1,
+                }}>
+                  {qrPlatformName || 'ENKPay'}
+                </div>
+
+                {/* 中间二维码 */}
+                <div style={{
+                  width: 320, height: 320, margin: '0 auto 18px',
+                  borderRadius: 12, overflow: 'hidden',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  border: '1px solid #f0f0f0',
+                }}>
+                  <img src={qrImageDataUrl} alt="Payment QR Code" width={320} height={320} style={{ display: 'block' }} />
+                </div>
+
+                {/* 底部姓名 / 提示语 */}
+                <div style={{
+                  fontSize: qrSubtitleFontSize, color: qrSubtitleColor, fontWeight: 500,
+                }}>
+                  {qrSubtitleText || qrSelectedUser?.first_name || qrSelectedUser?.username || ''}
+                </div>
               </div>
 
-              <div style={{
-                background: '#f5f5f5', borderRadius: 8, padding: '10px 12px', marginBottom: 12, textAlign: 'left',
-              }}>
-                <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>收款方</div>
-                <div style={{ fontWeight: 600, color: '#262626' }}>
-                  {qrSelectedUser?.first_name || qrSelectedUser?.username || '—'}
-                </div>
-                <div style={{ fontSize: 12, color: '#595959', marginTop: 2 }}>
-                  UID: #{qrSelectedUser?.unique_id || qrSelectedUser?.id}
-                </div>
-              </div>
-
+              {/* 辅助信息区 */}
               {qrExpiresAt && (
-                <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 12, color: '#8c8c8c' }}>有效期至</span>
                   <Tag color="orange">{new Date(qrExpiresAt).toLocaleDateString('zh-CN')}</Tag>
                 </div>
@@ -1041,9 +1205,9 @@ export const SystemSettings: React.FC = () => {
               {qrContent && (
                 <div
                   style={{
-                    background: '#f5f5f5', borderRadius: 6, padding: '8px 10px', marginBottom: 16,
+                    background: '#f5f5f5', borderRadius: 6, padding: '8px 10px', marginBottom: 14,
                     fontSize: 11, fontFamily: 'monospace', color: '#595959',
-                    wordBreak: 'break-all', lineHeight: 1.5, cursor: 'pointer',
+                    wordBreak: 'break-all', lineHeight: 1.5, cursor: 'pointer', textAlign: 'left',
                   }}
                   title="点击复制"
                   onClick={() => {
