@@ -147,8 +147,9 @@ const AuctionCard: React.FC<{ auction: Auction; onClick: () => void }> = ({ auct
 
 const AuctionDetail: React.FC<{
   auctionId: string;
+  lang: string;
   onBack: () => void;
-}> = ({ auctionId, onBack }) => {
+}> = ({ auctionId, lang, onBack }) => {
   const { t } = useLang();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,8 +159,8 @@ const AuctionDetail: React.FC<{
   const countdown = useCountdown(auction?.expires_at || new Date().toISOString(), t('auction_expired_label'));
 
   useEffect(() => {
-    getAuctionDetail(auctionId).then(d => setAuction(d.data)).catch(() => {}).finally(() => setLoading(false));
-  }, [auctionId]);
+    getAuctionDetail(auctionId, lang).then(d => setAuction(d.data)).catch(() => {}).finally(() => setLoading(false));
+  }, [auctionId, lang]);
 
   const handleJoin = async () => {
     if (!auction) return;
@@ -168,7 +169,7 @@ const AuctionDetail: React.FC<{
     try {
       await joinAuction(auctionId, qty);
       setMsg('✅ ' + t('auction_join_success'));
-      const d = await getAuctionDetail(auctionId);
+      const d = await getAuctionDetail(auctionId, lang);
       setAuction(d.data);
     } catch (e: any) {
       setMsg(`❌ ${e.response?.data?.error || t('auction_join_failed')}`);
@@ -281,7 +282,7 @@ const AuctionDetail: React.FC<{
 };
 
 export const Auction: React.FC = () => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const bgUrl = useMiniAppBg('auction');
   const [view, setView] = useState<AuctionView>('list');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -296,8 +297,8 @@ export const Auction: React.FC = () => {
     setLoading(true);
     try {
       const [activeData, completedData] = await Promise.all([
-        getAuctions('active'),
-        getAuctions('completed'),
+        getAuctions('active', lang),
+        getAuctions('completed', lang),
       ]);
       setAuctions([...(activeData.data || []), ...(completedData.data || [])]);
     } catch {
@@ -305,7 +306,7 @@ export const Auction: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [lang]);
 
   const fetchResults = useCallback(async () => {
     setLoading(true);
@@ -352,7 +353,7 @@ export const Auction: React.FC = () => {
   if (view === 'detail') {
     return (
       <div style={pageBgStyle}>
-        <AuctionDetail auctionId={selectedId} onBack={() => setView('list')} />
+        <AuctionDetail auctionId={selectedId} lang={lang} onBack={() => setView('list')} />
       </div>
     );
   }
