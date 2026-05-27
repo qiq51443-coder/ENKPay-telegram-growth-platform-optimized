@@ -164,13 +164,13 @@ export async function updateLanguage(langCode: string) {
 }
 
 // ─── Auctions ────────────────────────────────────────────────────────────────
-export async function getAuctions(status = 'active') {
-  const response = await api.get('/auctions', { params: { status } });
+export async function getAuctions(status = 'active', lang?: string) {
+  const response = await api.get('/auctions', { params: { status, lang } });
   return response.data;
 }
 
-export async function getAuctionDetail(id: string) {
-  const response = await api.get(`/auctions/${id}`);
+export async function getAuctionDetail(id: string, lang?: string) {
+  const response = await api.get(`/auctions/${id}`, { params: { lang } });
   return response.data;
 }
 

@@ -521,6 +521,14 @@ class ApiClient {
     return response.data;
   }
 
+  async translateToSevenLanguages(text: string) {
+    const response = await this.client.post('/admin/translate', {
+      text,
+      languages: ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'],
+    });
+    return response.data;
+  }
+
   async getLuckyAuctionResults(params?: any) {
     const response = await this.client.get('/admin/auctions/results/all', { params });
     return response.data;

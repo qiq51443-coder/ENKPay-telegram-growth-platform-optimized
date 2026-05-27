@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, message, Tag, Space, DatePicker,
-  Upload, Tabs, Popconfirm, Switch,
+  Upload, Tabs, Popconfirm, Switch, Collapse,
 } from 'antd';
 import type { FormInstance } from 'antd';
-import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined, EditOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons';
+import { PlusOutlined, TrophyOutlined, EyeOutlined, UploadOutlined, EditOutlined, DeleteOutlined, StopOutlined, TranslationOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import dayjs from 'dayjs';
 import { apiClient } from '../services/api';
@@ -13,6 +13,7 @@ interface Auction {
   id: string;
   title: string;
   description?: string;
+  description_i18n?: Record<string, string>;
   image_url?: string;
   product_value: number;
   participant_count: number;
@@ -27,6 +28,16 @@ interface Auction {
   show_in_mini_app?: boolean;
   created_at: string;
 }
+
+const LANG_LABELS: Record<string, string> = {
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+  ja: '日本語',
+};
 
 interface Participant {
   id: string;
@@ -50,6 +61,10 @@ export const Auctions: React.FC = () => {
   const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
   const [editImageFileList, setEditImageFileList] = useState<UploadFile[]>([]);
   const [pricePreview, setPricePreview] = useState<string | null>(null);
+  const [translatingCreate, setTranslatingCreate] = useState(false);
+  const [translatingEdit, setTranslatingEdit] = useState(false);
+  const [createTranslations, setCreateTranslations] = useState<Record<string, string> | null>(null);
+  const [editTranslations, setEditTranslations] = useState<Record<string, string> | null>(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
@@ -74,6 +89,7 @@ export const Auctions: React.FC = () => {
     form.resetFields();
     setImageFileList([]);
     setPricePreview(null);
+    setCreateTranslations(null);
     setModalOpen(true);
   };
 
@@ -86,6 +102,7 @@ export const Auctions: React.FC = () => {
       if (values.product_value && values.participant_count) {
         values.per_person_cost = parseFloat((values.product_value / values.participant_count).toFixed(2));
       }
+      if (createTranslations) values.description_i18n = createTranslations;
       values.platform_fee_percent = 30;
       values.winner_payout = parseFloat((values.product_value * 0.7).toFixed(2));
 
@@ -95,6 +112,7 @@ export const Auctions: React.FC = () => {
       form.resetFields();
       setImageFileList([]);
       setPricePreview(null);
+      setCreateTranslations(null);
       fetchAuctions();
     } catch (error: any) {
       console.error('Failed to create auction:', error);
@@ -111,8 +129,10 @@ export const Auctions: React.FC = () => {
       max_purchases_per_user: auction.max_purchases_per_user,
       expires_at: auction.expires_at ? dayjs(auction.expires_at) : undefined,
       preset_winner_unique_id: auction.preset_winner_unique_id || '',
+      description_i18n: auction.description_i18n || {},
     });
     setEditImageFileList([]);
+    setEditTranslations(auction.description_i18n || null);
     setEditModalOpen(true);
   };
 
@@ -123,11 +143,13 @@ export const Auctions: React.FC = () => {
       if (values.expires_at) {
         values.expires_at = values.expires_at.toISOString();
       }
+      if (editTranslations) values.description_i18n = editTranslations;
       await apiClient.updateLuckyAuction(selectedAuction.id, values);
       message.success('编辑成功');
       setEditModalOpen(false);
       editForm.resetFields();
       setEditImageFileList([]);
+      setEditTranslations(null);
       fetchAuctions();
     } catch (error: any) {
       console.error('Failed to edit auction:', error);
@@ -208,6 +230,46 @@ export const Auctions: React.FC = () => {
       setPricePreview(price);
     } else {
       setPricePreview(null);
+    }
+  };
+
+  const handleTranslateCreate = async () => {
+    const description = form.getFieldValue('description');
+    if (!description?.trim()) {
+      message.warning('请先输入描述');
+      return;
+    }
+    setTranslatingCreate(true);
+    try {
+      const result = await apiClient.translateToSevenLanguages(description);
+      const next = result.translations || {};
+      setCreateTranslations(next);
+      form.setFieldValue('description_i18n', next);
+      message.success('描述翻译成功');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '翻译失败');
+    } finally {
+      setTranslatingCreate(false);
+    }
+  };
+
+  const handleTranslateEdit = async () => {
+    const description = editForm.getFieldValue('description');
+    if (!description?.trim()) {
+      message.warning('请先输入描述');
+      return;
+    }
+    setTranslatingEdit(true);
+    try {
+      const result = await apiClient.translateToSevenLanguages(description);
+      const next = result.translations || {};
+      setEditTranslations(next);
+      editForm.setFieldValue('description_i18n', next);
+      message.success('描述翻译成功');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || '翻译失败');
+    } finally {
+      setTranslatingEdit(false);
     }
   };
 
@@ -446,7 +508,7 @@ export const Auctions: React.FC = () => {
         title="创建夺宝"
         open={modalOpen}
         onOk={handleSubmit}
-        onCancel={() => { setModalOpen(false); form.resetFields(); setPricePreview(null); }}
+        onCancel={() => { setModalOpen(false); form.resetFields(); setPricePreview(null); setCreateTranslations(null); }}
         okText="创建"
         cancelText="取消"
         width={600}
@@ -491,6 +553,40 @@ export const Auctions: React.FC = () => {
           <Form.Item name="description" label="描述（可选）">
             <Input.TextArea rows={3} placeholder="藏品说明..." />
           </Form.Item>
+          <Form.Item label=" " colon={false}>
+            <Button
+              icon={translatingCreate ? <LoadingOutlined /> : <TranslationOutlined />}
+              onClick={handleTranslateCreate}
+              loading={translatingCreate}
+            >
+              翻译为7种语言
+            </Button>
+            {createTranslations && (
+              <Collapse
+                size="small"
+                style={{ marginTop: 8 }}
+                items={[
+                  {
+                    key: 'create-translations',
+                    label: '查看翻译预览',
+                    children: (
+                      <div>
+                        {Object.entries(createTranslations).map(([lang, text]) => (
+                          <div key={lang} style={{ marginBottom: 8 }}>
+                            <Tag>{LANG_LABELS[lang] || lang}</Tag>
+                            <span style={{ fontSize: 12, color: '#555' }}>{text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Form.Item>
+          <Form.Item name="description_i18n" hidden>
+            <Input />
+          </Form.Item>
           <Form.Item
             name="preset_winner_unique_id"
             label="预定中奖者 unique_id（可选）"
@@ -506,7 +602,7 @@ export const Auctions: React.FC = () => {
         title={`编辑夺宝 - ${selectedAuction?.title}`}
         open={editModalOpen}
         onOk={handleEditSubmit}
-        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); }}
+        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); setEditTranslations(null); }}
         okText="保存"
         cancelText="取消"
         width={600}
@@ -542,6 +638,40 @@ export const Auctions: React.FC = () => {
           )}
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item label=" " colon={false}>
+            <Button
+              icon={translatingEdit ? <LoadingOutlined /> : <TranslationOutlined />}
+              onClick={handleTranslateEdit}
+              loading={translatingEdit}
+            >
+              翻译为7种语言
+            </Button>
+            {editTranslations && (
+              <Collapse
+                size="small"
+                style={{ marginTop: 8 }}
+                items={[
+                  {
+                    key: 'edit-translations',
+                    label: '查看翻译预览',
+                    children: (
+                      <div>
+                        {Object.entries(editTranslations).map(([lang, text]) => (
+                          <div key={lang} style={{ marginBottom: 8 }}>
+                            <Tag>{LANG_LABELS[lang] || lang}</Tag>
+                            <span style={{ fontSize: 12, color: '#555' }}>{text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Form.Item>
+          <Form.Item name="description_i18n" hidden>
+            <Input />
           </Form.Item>
         </Form>
       </Modal>

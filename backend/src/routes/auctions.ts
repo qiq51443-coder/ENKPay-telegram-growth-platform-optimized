@@ -7,17 +7,38 @@ import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
 
+function parseI18nObject(input: unknown): Record<string, string> | null {
+  if (!input) return null;
+  try {
+    const parsed = typeof input === 'string' ? JSON.parse(input) : input;
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, string>;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function localizeDescription(row: any, langCode: string | null) {
+  if (!langCode) return row;
+  const i18n = parseI18nObject(row.description_i18n);
+  if (!i18n || Object.keys(i18n).length === 0) return row;
+  const localized = i18n[langCode] || row.description || i18n.en || i18n.zh;
+  if (localized) row.description = localized;
+  return row;
+}
+
 /**
  * GET /api/auctions
  * List active (and recent) auctions for users
  */
 router.get('/', async (req, res) => {
   try {
-    const { status = 'active', page = 1, limit = 20 } = req.query;
+    const { status = 'active', page = 1, limit = 20, lang } = req.query;
+    const langCode = typeof lang === 'string' ? lang.split('-')[0] : null;
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await query(
-      `SELECT a.id, a.product_id, a.title, a.description, a.image_url, a.product_value,
+      `SELECT a.id, a.product_id, a.title, a.description, a.description_i18n, a.image_url, a.product_value,
               a.participant_count, a.per_person_cost, a.max_purchases_per_user,
               a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
               a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
@@ -31,6 +52,8 @@ router.get('/', async (req, res) => {
       [status, Number(limit), offset]
     );
 
+    const localizedRows = result.rows.map((row: any) => localizeDescription(row, langCode));
+
     const countResult = await query(
       `SELECT COUNT(*) FROM lucky_auctions WHERE status = $1`,
       [status]
@@ -38,7 +61,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows,
+      data: localizedRows,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -130,9 +153,10 @@ router.get('/my', authenticateMiniApp, async (req: MiniAppAuthRequest, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const langCode = typeof req.query.lang === 'string' ? req.query.lang.split('-')[0] : null;
 
     const auctionResult = await query(
-      `SELECT a.id, a.product_id, a.title, a.description, a.image_url, a.product_value,
+      `SELECT a.id, a.product_id, a.title, a.description, a.description_i18n, a.image_url, a.product_value,
               a.participant_count, a.per_person_cost, a.max_purchases_per_user,
               a.platform_fee_percent, a.winner_payout, a.current_participants, a.status,
               a.winner_id, a.winner_unique_id, a.drawn_at, a.expires_at, a.notify_channels,
@@ -148,7 +172,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Auction not found' });
     }
 
-    res.json({ success: true, data: auctionResult.rows[0] });
+    res.json({ success: true, data: localizeDescription(auctionResult.rows[0], langCode) });
   } catch (error: any) {
     console.error('Get auction detail error:', error);
     res.status(500).json({ error: error.message });

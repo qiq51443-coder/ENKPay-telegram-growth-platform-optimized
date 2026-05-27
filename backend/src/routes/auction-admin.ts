@@ -41,6 +41,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       product_id,
       title,
       description,
+      description_i18n,
       image_url,
       product_value,
       participant_count,
@@ -63,15 +64,16 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(
       `INSERT INTO lucky_auctions
-         (product_id, title, description, image_url, product_value, participant_count,
+         (product_id, title, description, description_i18n, image_url, product_value, participant_count,
           per_person_cost, max_purchases_per_user, platform_fee_percent, winner_payout,
           expires_at, notify_channels, preset_winner_unique_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         product_id || null,
         title,
         description || null,
+        description_i18n ? JSON.stringify(description_i18n) : '{}',
         image_url || null,
         value,
         count,
@@ -229,7 +231,7 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const {
-      title, description, image_url, max_purchases_per_user, expires_at, notify_channels,
+      title, description, description_i18n, image_url, max_purchases_per_user, expires_at, notify_channels,
       preset_winner_unique_id, show_in_mini_app,
     } = req.body;
 
@@ -250,28 +252,47 @@ router.put('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
         `UPDATE lucky_auctions
          SET title = COALESCE($1, title),
              description = COALESCE($2, description),
-             image_url = COALESCE($3, image_url),
-             show_in_mini_app = COALESCE($4, show_in_mini_app),
+             description_i18n = COALESCE($3, description_i18n),
+             image_url = COALESCE($4, image_url),
+             show_in_mini_app = COALESCE($5, show_in_mini_app),
              updated_at = NOW()
-         WHERE id = $5
+         WHERE id = $6
          RETURNING *`,
-        [title, description, image_url, show_in_mini_app, id]
+        [
+          title,
+          description,
+          description_i18n ? JSON.stringify(description_i18n) : null,
+          image_url,
+          show_in_mini_app,
+          id,
+        ]
       );
     } else {
       result = await query(
         `UPDATE lucky_auctions
          SET title = COALESCE($1, title),
              description = COALESCE($2, description),
-             image_url = COALESCE($3, image_url),
-             max_purchases_per_user = COALESCE($4, max_purchases_per_user),
-             expires_at = COALESCE($5, expires_at),
-             notify_channels = COALESCE($6, notify_channels),
-             preset_winner_unique_id = CASE WHEN $7 THEN $8 ELSE preset_winner_unique_id END,
+             description_i18n = COALESCE($3, description_i18n),
+             image_url = COALESCE($4, image_url),
+             max_purchases_per_user = COALESCE($5, max_purchases_per_user),
+             expires_at = COALESCE($6, expires_at),
+             notify_channels = COALESCE($7, notify_channels),
+             preset_winner_unique_id = CASE WHEN $8 THEN $9 ELSE preset_winner_unique_id END,
              updated_at = NOW()
-         WHERE id = $9
+         WHERE id = $10
          RETURNING *`,
-        [title, description, image_url, max_purchases_per_user, expires_at, notify_channels,
-          'preset_winner_unique_id' in req.body, preset_winner_unique_id || null, id]
+        [
+          title,
+          description,
+          description_i18n ? JSON.stringify(description_i18n) : null,
+          image_url,
+          max_purchases_per_user,
+          expires_at,
+          notify_channels,
+          'preset_winner_unique_id' in req.body,
+          preset_winner_unique_id || null,
+          id,
+        ]
       );
     }
 

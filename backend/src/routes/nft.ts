@@ -18,6 +18,30 @@ const router = express.Router();
 // UUID format validation regex (compiled once at module level)
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function parseI18nObject(input: unknown): Record<string, string> | null {
+  if (!input) return null;
+  try {
+    const parsed = typeof input === 'string' ? JSON.parse(input) : input;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, string>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function resolveLocalizedText(
+  original: string | null | undefined,
+  i18nRaw: unknown,
+  langCode: string | null
+): string | null | undefined {
+  if (!langCode) return original;
+  const i18n = parseI18nObject(i18nRaw);
+  if (!i18n || Object.keys(i18n).length === 0) return original;
+  return i18n[langCode] || original || i18n.en || i18n.zh;
+}
+
 // ─── Image upload setup ───────────────────────────────────────────────────────
 
 const storage = multer.memoryStorage();
@@ -193,16 +217,8 @@ router.get('/products', async (req, res) => {
     // Map description based on requested language
     const langCode = typeof lang === 'string' ? lang.split('-')[0] : null;
     const rows = result.rows.map((row: any) => {
-      if (langCode && row.description_i18n) {
-        const i18n = typeof row.description_i18n === 'string'
-          ? JSON.parse(row.description_i18n)
-          : row.description_i18n;
-        // Only apply i18n if the object has actual language keys
-        if (i18n && typeof i18n === 'object' && Object.keys(i18n).length > 0) {
-          const localDesc = i18n[langCode] || i18n['en'] || row.description;
-          if (localDesc) row.description = localDesc;
-        }
-      }
+      const localizedDescription = resolveLocalizedText(row.description, row.description_i18n, langCode);
+      if (localizedDescription) row.description = localizedDescription;
       return row;
     });
 
@@ -242,6 +258,7 @@ router.get('/products', async (req, res) => {
 router.get('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const langCode = typeof req.query.lang === 'string' ? req.query.lang.split('-')[0] : null;
 
     const fullQuery = `
       SELECT
@@ -293,9 +310,13 @@ router.get('/products/:id', async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
+    const row = result.rows[0];
+    const localizedDescription = resolveLocalizedText(row.description, row.description_i18n, langCode);
+    if (localizedDescription) row.description = localizedDescription;
+
     res.json({
       success: true,
-      data: result.rows[0],
+      data: row,
     });
   } catch (error: any) {
     console.error('Get product error:', error);
