@@ -13,6 +13,8 @@ import { generateUserDepositAddress } from './deposit.service';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const JT_TOKEN_TTL = 86400; // 24 hours — jt token validity for Mini App auth
+const GROUP_MEMBER_COUNT_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const groupMemberCountSyncCache = new Map<string, number>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Interfaces
@@ -72,6 +74,49 @@ function getUserState(userId: string): UserState | undefined {
 
 function clearUserState(userId: string): void {
   userStates.delete(userId);
+}
+
+function shouldSyncGroupMemberCount(botId: string, chatId: number | string): boolean {
+  const key = `${botId}:${chatId}`;
+  const lastSyncedAt = groupMemberCountSyncCache.get(key) || 0;
+  return (Date.now() - lastSyncedAt) >= GROUP_MEMBER_COUNT_SYNC_INTERVAL_MS;
+}
+
+function markGroupMemberCountSynced(botId: string, chatId: number | string): void {
+  groupMemberCountSyncCache.set(`${botId}:${chatId}`, Date.now());
+}
+
+async function fetchGroupMemberCount(bot: Telegraf, botId: string, chatId: number | string): Promise<number | null> {
+  try {
+    return await bot.telegram.callApi('getChatMemberCount', { chat_id: chatId });
+  } catch (error) {
+    console.warn(`[bot ${botId}] Failed to get member count for ${chatId}:`, error);
+    return null;
+  }
+}
+
+async function upsertAuthorizedGroup(
+  botId: string,
+  chat: { id: number | string; type?: string; title?: string },
+  memberCount: number | null
+): Promise<void> {
+  await query(
+    `INSERT INTO authorized_groups (
+       bot_id, group_id, group_name, group_type, is_active, member_count, member_count_updated_at
+     )
+     VALUES ($1, $2, $3, $4, true, $5, CASE WHEN $5 IS NULL THEN NULL ELSE NOW() END)
+     ON CONFLICT (bot_id, group_id) DO UPDATE SET
+       group_name = EXCLUDED.group_name,
+       group_type = EXCLUDED.group_type,
+       is_active = true,
+       updated_at = NOW(),
+       member_count = COALESCE(EXCLUDED.member_count, authorized_groups.member_count),
+       member_count_updated_at = CASE
+         WHEN EXCLUDED.member_count IS NULL THEN authorized_groups.member_count_updated_at
+         ELSE NOW()
+       END`,
+    [botId, chat.id, chat.title || '', chat.type || 'group', memberCount]
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -757,6 +802,21 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
     try {
       const chatType = ctx.chat?.type;
       if (chatType !== 'group' && chatType !== 'supergroup') return next();
+
+      if (ctx.chat && shouldSyncGroupMemberCount(botId, ctx.chat.id)) {
+        try {
+          markGroupMemberCountSynced(botId, ctx.chat.id);
+          const memberCount = await fetchGroupMemberCount(bot, botId, ctx.chat.id);
+          await upsertAuthorizedGroup(botId, {
+            id: ctx.chat.id,
+            type: ctx.chat.type,
+            title: (ctx.chat as any).title || '',
+          }, memberCount);
+        } catch (syncErr) {
+          console.warn(`[bot ${botId}] Group member count sync skipped for ${ctx.chat.id}:`, syncErr);
+        }
+      }
+
       const text = (ctx.message as any).text?.trim() || '';
       if (!/^(ENK|\/enk(@\S+)?)$/i.test(text)) return next();
 
@@ -1638,15 +1698,13 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (chat && (chat.type === 'group' || chat.type === 'supergroup' || chat.type === 'channel')) {
         const newStatus = ctx.myChatMember.new_chat_member?.status;
         if (newStatus === 'member' || newStatus === 'administrator') {
-          await query(
-            `INSERT INTO authorized_groups (bot_id, group_id, group_name, group_type, is_active)
-             VALUES ($1, $2, $3, $4, true)
-             ON CONFLICT (bot_id, group_id) DO UPDATE SET
-               group_name = EXCLUDED.group_name,
-               is_active = true,
-               updated_at = NOW()`,
-            [botId, chat.id, (chat as any).title || '', chat.type]
-          );
+          markGroupMemberCountSynced(botId, chat.id);
+          const memberCount = await fetchGroupMemberCount(bot, botId, chat.id);
+          await upsertAuthorizedGroup(botId, {
+            id: chat.id,
+            type: chat.type,
+            title: (chat as any).title || '',
+          }, memberCount);
         } else if (newStatus === 'kicked' || newStatus === 'left') {
           await query(
             `UPDATE authorized_groups SET is_active = false, updated_at = NOW()
