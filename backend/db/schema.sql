@@ -333,6 +333,7 @@ CREATE TABLE IF NOT EXISTS authorized_groups (
   country TEXT,
   language TEXT,
   member_count INTEGER,
+  member_count_updated_at TIMESTAMPTZ,
   is_active BOOLEAN DEFAULT true,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

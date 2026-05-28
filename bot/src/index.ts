@@ -47,6 +47,20 @@ interface BotEntry {
   username?: string;
 }
 
+const GROUP_MEMBER_COUNT_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const groupMemberCountSyncCache = new Map<string, number>();
+
+function shouldSyncGroupMemberCount(botId: string, chatId: number | string, force = false): boolean {
+  if (force) return true;
+  const key = `${botId}:${chatId}`;
+  const lastSyncedAt = groupMemberCountSyncCache.get(key) || 0;
+  return (Date.now() - lastSyncedAt) >= GROUP_MEMBER_COUNT_SYNC_INTERVAL_MS;
+}
+
+function markGroupMemberCountSynced(botId: string, chatId: number | string): void {
+  groupMemberCountSyncCache.set(`${botId}:${chatId}`, Date.now());
+}
+
 function createBotInstance(entry: BotEntry): Telegraf {
   const BOT_ID = entry.id;
   const BOT_USERNAME = entry.username || '';
@@ -64,6 +78,28 @@ function createBotInstance(entry: BotEntry): Telegraf {
   // Text message handler
   bot.on(message('text'), async (ctx) => {
     try {
+      const chat = ctx.chat;
+      if (chat && (chat.type === 'group' || chat.type === 'supergroup') && shouldSyncGroupMemberCount(BOT_ID, chat.id)) {
+        markGroupMemberCountSynced(BOT_ID, chat.id);
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+        try {
+          const memberCount = await ctx.telegram.callApi('getChatMemberCount', { chat_id: chat.id });
+          await axios.post(`${backendUrl}/api/bot-auth/groups/register`, {
+            bot_id: BOT_ID,
+            bot_username: BOT_USERNAME,
+            group_id: chat.id,
+            group_name: (chat as any).title || '',
+            group_type: chat.type,
+            member_count: memberCount,
+          }, {
+            headers: { 'X-Bot-Id': BOT_ID },
+            timeout: 8000,
+          });
+        } catch (e) {
+          console.warn(`[bot ${BOT_ID}] Failed to sync member count for ${chat.id}:`, (e as any)?.message || e);
+        }
+      }
+
       const user = await getOrCreateUser(ctx, BOT_ID);
       const state = await getUserState(user.id.toString());
 
@@ -273,8 +309,9 @@ function createBotInstance(entry: BotEntry): Telegraf {
         if (newStatus === 'member' || newStatus === 'administrator') {
           // Fetch member count before registering (best-effort)
           let memberCount: number | null = null;
+          markGroupMemberCountSynced(BOT_ID, chat.id);
           try {
-            memberCount = await ctx.telegram.getChatMembersCount(chat.id);
+            memberCount = await ctx.telegram.callApi('getChatMemberCount', { chat_id: chat.id });
           } catch (e) {
             console.warn(`[bot ${BOT_ID}] Failed to get member count for ${chat.id}:`, e);
           }
