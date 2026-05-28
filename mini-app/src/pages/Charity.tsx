@@ -48,6 +48,14 @@ const getDisplayPercent = (project: CharityProject): number => {
   return calcFundingPercent(project.raised_amount, project.goal_amount);
 };
 
+const getDisplayRaisedAmount = (project: CharityProject): number => {
+  const goal = Number(project.goal_amount || 0);
+  const raised = Number(project.raised_amount || 0);
+  if (raised > 0 || goal <= 0) return Math.max(0, raised);
+  const percent = Math.min(100, Math.max(0, getDisplayPercent(project)));
+  return Number(((percent / 100) * goal).toFixed(2));
+};
+
 export const Charity: React.FC = () => {
   const { t, lang } = useLang();
   const bgUrl = useMiniAppBg('charity');
@@ -138,7 +146,7 @@ export const Charity: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div>
                   <div style={{ fontSize: '11px', color: theme.textSecondary }}>{t('charity_raised')}</div>
-                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#F0B90B' }}>{Number(selected.raised_amount || 0).toFixed(2)} <span style={{ fontSize: '11px' }}>USDT</span></div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#F0B90B' }}>{getDisplayRaisedAmount(selected).toFixed(2)} <span style={{ fontSize: '11px' }}>USDT</span></div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '11px', color: theme.textSecondary }}>{t('charity_goal')}</div>
@@ -311,7 +319,7 @@ export const Charity: React.FC = () => {
                   {(project.goal_amount || project.raised_amount) && (
                     <div style={{ marginTop: '4px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: theme.textSecondary, marginBottom: '2px' }}>
-                        <span>{Number(project.raised_amount || 0).toFixed(2)} USDT</span>
+                        <span>{getDisplayRaisedAmount(project).toFixed(2)} USDT</span>
                         <span>{t('charity_goal')}: {Number(project.goal_amount || 0).toFixed(2)}</span>
                       </div>
                       <div style={{ height: '3px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
