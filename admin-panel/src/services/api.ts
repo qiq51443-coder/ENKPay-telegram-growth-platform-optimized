@@ -555,6 +555,11 @@ class ApiClient {
     return response.data;
   }
 
+  async resetCustomPrice(pairId: string, price: number) {
+    const response = await this.client.post(`/admin/trading/pairs/${pairId}/reset-price`, { price });
+    return response.data;
+  }
+
   async toggleTradingPair(id: string) {
     const response = await this.client.patch(`/admin/trading/pairs/${id}/toggle`);
     return response.data;

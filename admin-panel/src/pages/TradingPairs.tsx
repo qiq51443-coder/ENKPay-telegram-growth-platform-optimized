@@ -25,6 +25,8 @@ interface TradingPair {
   external_symbol?: string;
   price_source?: string;
   custom_initial_price?: number;
+  price_min?: number | null;
+  price_max?: number | null;
   is_active: boolean;
   icon_url?: string;
   sort_order?: number;
@@ -68,6 +70,10 @@ export const TradingPairs: React.FC = () => {
   // Custom form icon upload state
   const [customIconFileList, setCustomIconFileList] = useState<UploadFile[]>([]);
   const [customIconUrl, setCustomIconUrl] = useState<string | null>(null);
+
+  // Reset price state
+  const [resetPrice, setResetPrice] = useState<number | null>(null);
+  const [resetPriceLoading, setResetPriceLoading] = useState(false);
 
   useEffect(() => {
     fetchPairs();
@@ -195,8 +201,14 @@ export const TradingPairs: React.FC = () => {
 
   const handleOpenEditModal = (pair: TradingPair) => {
     setEditingPair(pair);
-    editForm.setFieldsValue({ ...pair, name: pair.display_name || pair.name });
+    editForm.setFieldsValue({
+      ...pair,
+      name: pair.display_name || pair.name,
+      price_min: pair.price_min ?? undefined,
+      price_max: pair.price_max ?? undefined,
+    });
     setIconFileList([]);
+    setResetPrice(null);
     setEditModalOpen(true);
   };
 
@@ -205,8 +217,15 @@ export const TradingPairs: React.FC = () => {
     
     try {
       const values = await editForm.validateFields();
-      const { name, ...rest } = values;
-      await apiClient.updateTradingPair(editingPair.id, { ...rest, display_name: name });
+      const { name, price_min, price_max, ...rest } = values;
+      await apiClient.updateTradingPair(editingPair.id, {
+        ...rest,
+        display_name: name,
+        ...(editingPair.pair_type === 'custom' ? {
+          price_min: price_min ?? null,
+          price_max: price_max ?? null,
+        } : {}),
+      });
       message.success('交易对更新成功');
       
       setEditModalOpen(false);
@@ -227,6 +246,22 @@ export const TradingPairs: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to delete pair:', error);
       message.error(error.response?.data?.error || '删除失败');
+    }
+  };
+
+  const handleResetPrice = async () => {
+    if (!editingPair || resetPrice == null) return;
+    setResetPriceLoading(true);
+    try {
+      await apiClient.resetCustomPrice(editingPair.id, resetPrice);
+      message.success('价格已重置');
+      setResetPrice(null);
+      fetchPairs();
+    } catch (error: any) {
+      console.error('Failed to reset price:', error);
+      message.error(error.response?.data?.error || '重置价格失败');
+    } finally {
+      setResetPriceLoading(false);
     }
   };
 
@@ -781,6 +816,7 @@ export const TradingPairs: React.FC = () => {
           setEditingPair(null);
           editForm.resetFields();
           setIconFileList([]);
+          setResetPrice(null);
         }}
         okText="保存"
         cancelText="取消"
@@ -807,6 +843,48 @@ export const TradingPairs: React.FC = () => {
               <Select.Option value={false}>禁用</Select.Option>
             </Select>
           </Form.Item>
+
+          {/* Price range and reset — only for custom pairs */}
+          {editingPair?.pair_type === 'custom' && (
+            <>
+              <Form.Item
+                name="price_min"
+                label="价格下限（price_min）"
+                extra="留空则不限制"
+              >
+                <InputNumber min={0} step={0.0001} style={{ width: '100%' }} placeholder="如 0.08，留空不限制" />
+              </Form.Item>
+
+              <Form.Item
+                name="price_max"
+                label="价格上限（price_max）"
+                extra="留空则不限制"
+              >
+                <InputNumber min={0} step={0.0001} style={{ width: '100%' }} placeholder="如 0.12，留空不限制" />
+              </Form.Item>
+
+              <Form.Item label="重置当前价格">
+                <Space.Compact style={{ width: '100%' }}>
+                  <InputNumber
+                    min={0.00000001}
+                    step={0.0001}
+                    style={{ flex: 1 }}
+                    placeholder="输入新价格"
+                    value={resetPrice ?? undefined}
+                    onChange={(v) => setResetPrice(v)}
+                  />
+                  <Button
+                    type="primary"
+                    loading={resetPriceLoading}
+                    disabled={resetPrice == null}
+                    onClick={handleResetPrice}
+                  >
+                    立即重置
+                  </Button>
+                </Space.Compact>
+              </Form.Item>
+            </>
+          )}
 
           {/* Icon management section */}
           <Form.Item label="币种图标">
