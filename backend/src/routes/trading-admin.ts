@@ -217,6 +217,9 @@ router.put('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => {
       'base_currency',
       'quote_currency',
       'is_active',
+      'price_min',
+      'price_max',
+      'custom_initial_price',
     ];
 
     for (const field of allowedFields) {
@@ -255,6 +258,52 @@ router.put('/pairs/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('Update pair error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/trading/pairs/:id/reset-price
+ * Reset the current price of a custom trading pair to a specified value.
+ * Body: { price: number }
+ */
+router.post('/pairs/:id/reset-price', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { price } = req.body;
+
+    if (price == null || isNaN(Number(price)) || Number(price) <= 0) {
+      return res.status(400).json({ error: 'price must be a positive number' });
+    }
+
+    const pairResult = await query(
+      `SELECT id, pair_type FROM trading_pairs WHERE id = $1`,
+      [id]
+    );
+
+    if (pairResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trading pair not found' });
+    }
+
+    if (pairResult.rows[0].pair_type !== 'custom') {
+      return res.status(400).json({ error: 'Only custom trading pairs support price reset' });
+    }
+
+    const numericPrice = parseFloat(String(price));
+
+    await query(
+      'INSERT INTO price_points (pair_id, price, timestamp) VALUES ($1, $2, NOW())',
+      [id, numericPrice]
+    );
+
+    await query(
+      `UPDATE trading_pairs SET current_price = $1, last_price_update = NOW() WHERE id = $2`,
+      [numericPrice, id]
+    );
+
+    res.json({ success: true, data: { current_price: numericPrice } });
+  } catch (error: any) {
+    console.error('Reset price error:', error);
     res.status(500).json({ error: error.message });
   }
 });

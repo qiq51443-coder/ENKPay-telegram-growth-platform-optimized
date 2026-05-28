@@ -18,8 +18,14 @@ let timer: ReturnType<typeof setInterval> | null = null;
 /**
  * Generate the next price for a custom pair.
  * Checks for an active preset first; falls back to random walk.
+ * If priceMin / priceMax are set, applies mean-reversion and hard clamps the result.
  */
-async function generateNextPrice(pairId: number, lastPrice: number): Promise<number> {
+async function generateNextPrice(
+  pairId: number,
+  lastPrice: number,
+  priceMin?: number | null,
+  priceMax?: number | null
+): Promise<number> {
   // Check for an active price preset
   try {
     const presetResult = await query(
@@ -65,8 +71,22 @@ async function generateNextPrice(pairId: number, lastPrice: number): Promise<num
     // Preset check failed — fall through to random walk
   }
 
-  // Random walk: new_price = last_price * (1 + random_fluctuation)
-  const fluctuation = (Math.random() * 2 - 1) * MAX_FLUCTUATION;
+  // Random walk with optional mean-reversion and range clamp
+  let fluctuation = (Math.random() * 2 - 1) * MAX_FLUCTUATION;
+
+  if (priceMin != null && priceMax != null && priceMin < priceMax) {
+    // Apply mean-reversion force: pulls price back toward the midpoint
+    const mid = (priceMin + priceMax) / 2;
+    const rangeHalf = (priceMax - priceMin) / 2;
+    const bias = (lastPrice - mid) / rangeHalf; // -1 ~ +1
+    const reversionForce = -bias * 0.003;
+    fluctuation += reversionForce;
+
+    const rawPrice = lastPrice * (1 + fluctuation);
+    const newPrice = Math.min(priceMax, Math.max(priceMin, rawPrice));
+    return parseFloat(newPrice.toFixed(8));
+  }
+
   const newPrice = lastPrice * (1 + fluctuation);
   return parseFloat(newPrice.toFixed(8));
 }
@@ -78,7 +98,7 @@ async function tick(): Promise<void> {
   try {
     // Fetch all active custom pairs
     const pairsResult = await query(
-      `SELECT id, custom_initial_price, current_price
+      `SELECT id, custom_initial_price, current_price, price_min, price_max
        FROM trading_pairs
        WHERE pair_type = 'custom' AND is_active = true`
     );
@@ -102,7 +122,9 @@ async function tick(): Promise<void> {
           lastPrice = 1.0; // default fallback
         }
 
-        const newPrice = await generateNextPrice(pair.id, lastPrice);
+        const priceMin = pair.price_min != null ? parseFloat(String(pair.price_min)) : null;
+        const priceMax = pair.price_max != null ? parseFloat(String(pair.price_max)) : null;
+        const newPrice = await generateNextPrice(pair.id, lastPrice, priceMin, priceMax);
 
         // Insert the new price point
         await query(
