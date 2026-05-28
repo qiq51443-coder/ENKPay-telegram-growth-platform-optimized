@@ -90,7 +90,7 @@ async function fetchGroupMemberCount(bot: Telegraf, botId: string, chatId: numbe
   try {
     return await bot.telegram.callApi('getChatMemberCount', { chat_id: chatId });
   } catch (error) {
-    console.warn(`[bot ${botId}] Failed to get member count for ${chatId}:`, error);
+    console.warn('[bot]', botId, 'Failed to get member count for chat', chatId, error);
     return null;
   }
 }
@@ -813,7 +813,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             title: (ctx.chat as any).title || '',
           }, memberCount);
         } catch (syncErr) {
-          console.warn(`[bot ${botId}] Group member count sync skipped for ${ctx.chat.id}:`, syncErr);
+          console.warn('[bot]', botId, 'Group member count sync skipped for chat', ctx.chat.id, syncErr);
         }
       }
 
