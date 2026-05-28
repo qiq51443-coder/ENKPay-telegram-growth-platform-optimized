@@ -29,6 +29,22 @@ interface CharityProject {
   created_at: string;
 }
 
+const getDisplayPercent = (project: CharityProject): number => {
+  if (project.status === 'completed') return 100;
+  if (project.progress_override != null) return Math.min(100, Math.max(0, Number(project.progress_override)));
+  const goalAmount = Number(project.goal_amount);
+  const raisedAmount = Number(project.raised_amount);
+  return goalAmount > 0 ? Math.min((raisedAmount / goalAmount) * 100, 100) : 0;
+};
+
+const getDisplayRaisedAmount = (project: CharityProject): number => {
+  const goalAmount = Number(project.goal_amount || 0);
+  const raisedAmount = Number(project.raised_amount || 0);
+  if (raisedAmount > 0 || goalAmount <= 0) return Math.max(0, raisedAmount);
+  const percent = Math.min(100, Math.max(0, getDisplayPercent(project)));
+  return Number(((percent / 100) * goalAmount).toFixed(2));
+};
+
 const resolveAdminImageUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
@@ -312,9 +328,9 @@ export const CharityProjects: React.FC = () => {
       dataIndex: 'raised_amount',
       key: 'raised_amount',
       width: 120,
-      render: (amount: number) => (
+      render: (_: number, record: CharityProject) => (
         <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
-          {Number(amount).toFixed(2)} USDT
+          {getDisplayRaisedAmount(record).toFixed(2)} USDT
         </span>
       ),
     },
@@ -323,16 +339,7 @@ export const CharityProjects: React.FC = () => {
       key: 'progress',
       width: 150,
       render: (_: any, record: CharityProject) => {
-        let percent: number;
-        if (record.status === 'completed') {
-          percent = 100;
-        } else if (record.progress_override != null) {
-          percent = Math.min(100, Math.max(0, Number(record.progress_override)));
-        } else {
-          const ga = Number(record.goal_amount);
-          const ra = Number(record.raised_amount);
-          percent = ga > 0 ? Math.min((ra / ga) * 100, 100) : 0;
-        }
+        const percent = getDisplayPercent(record);
         return (
           <Progress 
             percent={Number(percent.toFixed(1))} 
