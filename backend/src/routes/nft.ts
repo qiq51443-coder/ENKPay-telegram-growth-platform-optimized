@@ -5,6 +5,7 @@ import { translateToAllLangs } from '../utils/translate';
 import { query, transaction } from '../db';
 import { authenticateBot, authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-auth';
+import { adminLimiter } from '../middleware/rateLimiter';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { runNFTDailySettle } from '../jobs/nft-daily-settle';
 import {
@@ -137,7 +138,7 @@ router.get('/products', async (req, res) => {
     // front-end mini-app passes status=active explicitly when needed.
 
     params.push(Number(limit), offset);
-    const paginationClause = ` ORDER BY p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const paginationClause = ` ORDER BY p.sort_order ASC, p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
     // Primary query: LEFT JOIN aggregation instead of correlated subqueries so
     // the query remains valid even when the holdings tables have zero rows.
@@ -421,6 +422,34 @@ router.post('/products', authenticateAdmin, async (req: AuthRequest, res) => {
 });
 
 /**
+ * PUT /api/nft/products/sort-order
+ * Batch update sort_order for NFT products (admin)
+ */
+router.put('/products/sort-order', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { orders } = req.body;
+    // orders: Array<{ id: number | string; sort_order: number }>
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ error: 'orders array is required' });
+    }
+
+    await transaction(async (client) => {
+      for (const item of orders) {
+        await client.query(
+          `UPDATE nft_products SET sort_order = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [item.sort_order, item.id]
+        );
+      }
+    });
+
+    res.json({ success: true, message: 'Sort order updated successfully' });
+  } catch (error: any) {
+    console.error('Update sort order error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * PUT /api/nft/products/:id
  * Update NFT product (admin)
  */
@@ -458,6 +487,7 @@ router.put('/products/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       'settlement_type',
       'settlement_description',
       'display_holders_count',
+      'sort_order',
     ];
 
     for (const field of allowedFields) {

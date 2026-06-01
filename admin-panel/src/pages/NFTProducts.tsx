@@ -6,6 +6,7 @@ import {
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, TranslationOutlined,
   TeamOutlined, LoadingOutlined, ThunderboltOutlined, CheckCircleOutlined,
+  ArrowUpOutlined, ArrowDownOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs from 'dayjs';
@@ -47,6 +48,7 @@ interface NFTProduct {
   total_holders_count?: number | null;
   current_holders?: number | null;
   category?: { name: string };
+  sort_order?: number | null;
 }
 
 interface NFTCategory {
@@ -229,6 +231,34 @@ export const NFTProducts: React.FC = () => {
     }
   };
 
+  const handleMoveProduct = async (index: number, direction: 'up' | 'down') => {
+    const newProducts = [...products];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newProducts.length) return;
+
+    // Swap the two items
+    [newProducts[index], newProducts[swapIndex]] = [newProducts[swapIndex], newProducts[index]];
+
+    // Reassign sort_order based on new position
+    const updatedOrders = newProducts.map((p, i) => ({
+      id: p.id,
+      sort_order: i + 1,
+    }));
+
+    // Update local state immediately for responsive UI
+    const updatedProducts = newProducts.map((p, i) => ({ ...p, sort_order: i + 1 }));
+    setProducts(updatedProducts);
+
+    try {
+      await apiClient.updateNFTProductsSortOrder(updatedOrders);
+      message.success('排序已更新，迷你APP将同步显示新顺序');
+    } catch (error: any) {
+      message.error('排序保存失败');
+      // Revert on error
+      fetchProducts();
+    }
+  };
+
   const handleShowHolders = async (product: NFTProduct) => {
     setHoldersProduct(product);
     setHoldersModalOpen(true);
@@ -282,6 +312,31 @@ export const NFTProducts: React.FC = () => {
       key: 'id',
       width: 80,
       render: (id: string) => String(id ?? '').substring(0, 8),
+    },
+    {
+      title: '排序',
+      dataIndex: 'sort_order',
+      key: 'sort_order',
+      width: 80,
+      render: (sortOrder: number | null | undefined, _record: NFTProduct, index: number) => (
+        <Space direction="vertical" size={0}>
+          <Button
+            type="text"
+            size="small"
+            icon={<ArrowUpOutlined />}
+            disabled={index === 0}
+            onClick={() => handleMoveProduct(index, 'up')}
+          />
+          <div style={{ textAlign: 'center', fontSize: 12, color: '#999' }}>{sortOrder ?? index}</div>
+          <Button
+            type="text"
+            size="small"
+            icon={<ArrowDownOutlined />}
+            disabled={index === products.length - 1}
+            onClick={() => handleMoveProduct(index, 'down')}
+          />
+        </Space>
+      ),
     },
     {
       title: '封面',
@@ -897,6 +952,10 @@ export const NFTProducts: React.FC = () => {
               <Select.Option value="active">上架</Select.Option>
               <Select.Option value="inactive">下架</Select.Option>
             </Select>
+          </Form.Item>
+
+          <Form.Item name="sort_order" label="显示排序" tooltip="数字越小越靠前显示，迷你APP中的展示顺序与此一致">
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
           </Form.Item>
         </Form>
       </Drawer>
