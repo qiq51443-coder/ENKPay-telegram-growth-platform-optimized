@@ -427,6 +427,11 @@ class ApiClient {
     return response.data;
   }
 
+  async updateNFTProductsSortOrder(orders: Array<{ id: number | string; sort_order: number }>) {
+    const response = await this.client.put('/nft/products/sort-order', { orders });
+    return response.data;
+  }
+
   async getNFTProductHolders(id: string) {
     const response = await this.client.get(`/nft/products/${id}/holders`);
     return response.data;
