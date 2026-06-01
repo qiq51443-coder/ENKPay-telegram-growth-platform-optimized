@@ -1,17 +1,41 @@
 import express from 'express';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import { drawWinner } from '../services/auction.service';
+import { UPLOAD_ROOT } from '../services/storage.service';
 
-// Memory storage for auction image uploads (base64 persisted in DB)
+const AUCTION_MEDIA_DIR = path.join(UPLOAD_ROOT, 'auction-media');
+if (!fs.existsSync(AUCTION_MEDIA_DIR)) {
+  fs.mkdirSync(AUCTION_MEDIA_DIR, { recursive: true });
+}
+
+// Disk storage for auction media uploads (image, GIF, video)
 const auctionUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      if (!fs.existsSync(AUCTION_MEDIA_DIR)) {
+        fs.mkdirSync(AUCTION_MEDIA_DIR, { recursive: true });
+      }
+      cb(null, AUCTION_MEDIA_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${uuidv4()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
+    const allowedMimes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (file.mimetype.startsWith('image/') || allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image, GIF, or video files (MP4/WebM/MOV) are allowed'));
+    }
   },
 });
 
@@ -26,8 +50,7 @@ router.use(adminLimiter);
  */
 router.post('/upload-image', authenticateAdmin, auctionUpload.single('file'), (req: AuthRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const base64 = req.file.buffer.toString('base64');
-  const url = `data:${req.file.mimetype};base64,${base64}`;
+  const url = `/uploads/auction-media/${req.file.filename}`;
   res.json({ success: true, url });
 });
 

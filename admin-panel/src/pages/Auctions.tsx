@@ -460,7 +460,7 @@ export const Auctions: React.FC = () => {
   const imageUploadProps = (fileList: UploadFile[], setFileList: (fl: UploadFile[]) => void, fieldName: string, targetForm: FormInstance) => ({
     name: 'file',
     action: '/api/admin/auctions/upload-image',
-    headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+    headers: { Authorization: `******'token') || ''}` },
     listType: 'picture' as const,
     fileList,
     maxCount: 1,
@@ -468,14 +468,18 @@ export const Auctions: React.FC = () => {
       setFileList(fl);
       if (file.status === 'done' && file.response?.url) {
         targetForm.setFieldValue(fieldName, file.response.url);
-        message.success('图片上传成功');
+        message.success('媒体文件上传成功');
       } else if (file.status === 'error') {
-        message.error('图片上传失败');
+        message.error('媒体文件上传失败');
       }
     },
     beforeUpload: (file: File) => {
-      if (!file.type.startsWith('image/')) { message.error('只能上传图片文件'); return false; }
-      if (file.size / 1024 / 1024 > 5) { message.error('图片大小不能超过5MB'); return false; }
+      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+      if (!file.type.startsWith('image/') && !allowedVideoTypes.includes(file.type)) {
+        message.error('只能上传图片、GIF 或视频文件（MP4/WebM/MOV）');
+        return false;
+      }
+      if (file.size / 1024 / 1024 > 50) { message.error('文件大小不能超过50MB'); return false; }
       return true;
     },
   });
@@ -517,13 +521,13 @@ export const Auctions: React.FC = () => {
           <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
             <Input placeholder="例如：限量藏品 No.001" />
           </Form.Item>
-          <Form.Item label="藏品图片（上传）">
+          <Form.Item label="藏品图片/GIF/视频（上传）">
             <Upload {...imageUploadProps(imageFileList, setImageFileList, 'image_url', form)}>
-              <Button icon={<UploadOutlined />}>点击上传图片</Button>
+              <Button icon={<UploadOutlined />}>点击上传图片/GIF/视频</Button>
             </Upload>
           </Form.Item>
           <Form.Item name="image_url" label="藏品图片 URL（或直接填写）">
-            <Input placeholder="https://example.com/image.jpg" />
+            <Input placeholder="https://example.com/image.jpg 或 video.mp4" />
           </Form.Item>
           <Form.Item
             name="product_value"
@@ -611,13 +615,13 @@ export const Auctions: React.FC = () => {
           <Form.Item name="title" label="藏品名称" rules={[{ required: true, message: '请输入藏品名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="藏品图片（上传）">
+          <Form.Item label="藏品图片/GIF/视频（上传）">
             <Upload {...imageUploadProps(editImageFileList, setEditImageFileList, 'image_url', editForm)}>
-              <Button icon={<UploadOutlined />}>点击上传图片</Button>
+              <Button icon={<UploadOutlined />}>点击上传图片/GIF/视频</Button>
             </Upload>
           </Form.Item>
           <Form.Item name="image_url" label="藏品图片 URL">
-            <Input placeholder="https://example.com/image.jpg" />
+            <Input placeholder="https://example.com/image.jpg 或 video.mp4" />
           </Form.Item>
           {selectedAuction?.status !== 'completed' && selectedAuction?.status !== 'expired' && (
             <>
