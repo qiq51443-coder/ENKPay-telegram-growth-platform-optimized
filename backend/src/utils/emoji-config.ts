@@ -16,6 +16,11 @@ export interface EmojiConfig {
   field_time: string;
   field_fee: string;
   field_balance: string;
+  field_wallet_title: string;
+  field_id: string;
+  field_nft: string;
+  field_redpacket: string;
+  field_account_status: string;
   field_txhash: string;
   field_deposit: string;
   field_withdraw: string;
@@ -40,6 +45,11 @@ export const DEFAULT_EMOJI_CONFIG: EmojiConfig = {
   field_time: '🕐',
   field_fee: '💸',
   field_balance: '💳',
+  field_wallet_title: '💰',
+  field_id: '🆔',
+  field_nft: '💎',
+  field_redpacket: '🧧',
+  field_account_status: '📊',
   field_txhash: '🔗',
   field_deposit: '📥',
   field_withdraw: '📤',
@@ -119,11 +129,14 @@ export function renderHeader(config: EmojiConfig): string {
   if (!config.header_enabled) return '';
 
   const emoji = config.header_emoji_id
-    ? `<tg-emoji emoji-id="${config.header_emoji_id}">${config.header_emoji_fallback || '💎'}</tg-emoji>`
-    : (config.header_emoji_fallback || '💎');
+    ? `<tg-emoji emoji-id="${config.header_emoji_id}">${config.header_emoji_fallback || ''}</tg-emoji>`
+    : (config.header_emoji_fallback || '');
 
-  const text = config.header_text || 'ENKPAY';
-  return `${emoji} <b>${text}</b>\n──────\n`;
+  const text = (config.header_text || '').trim();
+  if (!emoji && !text) return '';
+
+  const titlePart = text ? `${emoji ? `${emoji} ` : ''}<b>${text}</b>` : emoji;
+  return `${titlePart}\n──────\n`;
 }
 
 export function getEmoji(config: EmojiConfig, field: keyof EmojiConfig | string): string {

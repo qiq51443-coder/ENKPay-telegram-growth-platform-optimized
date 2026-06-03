@@ -1780,12 +1780,12 @@ async function buildWalletCardText(user: User, lang: string): Promise<string> {
   } catch {/* non-critical */}
 
   let text =
-    `💼 <b>${t(lang, 'wallet_title')}</b>\n\n` +
-    `🆔 ID: <code>${displayId}</code>\n` +
+    `${getEmoji(emojiConfig, 'field_wallet_title')} <b>${t(lang, 'wallet_title')}</b>\n\n` +
+    `${getEmoji(emojiConfig, 'field_id')} ID: <code>${displayId}</code>\n` +
     `${getEmoji(emojiConfig, 'field_balance')} ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n` +
-    `💎 NFT: <b>${nftBalance} USDT</b>\n` +
-    `🧧 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance} USDT</b>\n` +
-    `📊 ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
+    `${getEmoji(emojiConfig, 'field_nft')} NFT: <b>${nftBalance} USDT</b>\n` +
+    `${getEmoji(emojiConfig, 'field_redpacket')} ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance} USDT</b>\n` +
+    `${getEmoji(emojiConfig, 'field_account_status')} ${t(lang, 'account_account_status')}: ${t(lang, accountStatusKey)}\n`;
 
   if (tipMessage) {
     text += `\n${getEmoji(emojiConfig, 'field_min')} ${tipMessage}`;
