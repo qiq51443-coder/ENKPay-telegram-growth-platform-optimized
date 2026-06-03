@@ -3,7 +3,7 @@ import {
   Button, Input, Modal, Space, Tag, Tooltip, message, Spin, Divider, Empty,
 } from 'antd';
 import {
-  SmileOutlined, PlusOutlined, DeleteOutlined, DownloadOutlined, SettingOutlined,
+  PlusOutlined, DownloadOutlined, SettingOutlined,
 } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -13,6 +13,7 @@ interface CustomEmoji {
   id: string;
   fallback: string;
   label: string;
+  thumbnailFileId?: string;
 }
 
 interface AnimatedEmojiPanelProps {
@@ -44,12 +45,69 @@ const saveToDisk = (emojis: CustomEmoji[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(emojis));
 };
 
+const TelegramEmojiImage: React.FC<{ emoji: Pick<CustomEmoji, 'fallback' | 'thumbnailFileId'>; size?: number }> = ({ emoji, size = 32 }) => {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    const loadThumbnail = async () => {
+      setImgError(false);
+      setImgSrc(null);
+
+      if (!emoji.thumbnailFileId) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`/api/admin/sticker-file/${encodeURIComponent(emoji.thumbnailFileId)}`, {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+          responseType: 'blob',
+        });
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(res.data);
+        setImgSrc(objectUrl);
+      } catch (_err) {
+        if (!cancelled) {
+          setImgError(true);
+        }
+      }
+    };
+
+    loadThumbnail();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [emoji.thumbnailFileId]);
+
+  if (imgSrc && !imgError) {
+    return (
+      <img
+        src={imgSrc}
+        alt={emoji.fallback}
+        width={size}
+        height={size}
+        style={{ objectFit: 'contain', display: 'block' }}
+        onError={() => {
+          setImgError(true);
+          setImgSrc(null);
+        }}
+      />
+    );
+  }
+
+  return <span style={{ fontSize: size * 0.75, lineHeight: 1 }}>{emoji.fallback}</span>;
+};
+
 export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert }) => {
   const [emojis, setEmojis] = useState<CustomEmoji[]>(loadSaved);
   const [manageOpen, setManageOpen] = useState(false);
   const [packName, setPackName] = useState('');
   const [fetchLoading, setFetchLoading] = useState(false);
-  const [fetchedEmojis, setFetchedEmojis] = useState<Array<{ id: string; fallback: string }>>([]);
+  const [fetchedEmojis, setFetchedEmojis] = useState<Array<{ id: string; fallback: string; thumbnail_file_id?: string }>>([]);
   const [fetchedTitle, setFetchedTitle] = useState('');
   const [manualId, setManualId] = useState('');
   const [manualFallback, setManualFallback] = useState('');
@@ -102,6 +160,7 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       id: e.id,
       fallback: e.fallback,
       label: `${e.fallback} ${fetchedTitle}-${i + 1}`,
+      thumbnailFileId: e.thumbnail_file_id || undefined,
     }));
     // Deduplicate by id
     const existing = new Set(emojis.map((e) => e.id));
@@ -114,14 +173,19 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
     message.success(`已导入 ${toAdd.length} 个表情`);
   };
 
-  const handleImportOne = (e: { id: string; fallback: string }, idx: number) => {
+  const handleImportOne = (e: { id: string; fallback: string; thumbnail_file_id?: string }, idx: number) => {
     if (emojis.some((x) => x.id === e.id)) {
       message.info('该表情已在列表中');
       return;
     }
     setEmojis((prev) => [
       ...prev,
-      { id: e.id, fallback: e.fallback, label: `${e.fallback} ${fetchedTitle}-${idx + 1}` },
+      {
+        id: e.id,
+        fallback: e.fallback,
+        label: `${e.fallback} ${fetchedTitle}-${idx + 1}`,
+        thumbnailFileId: e.thumbnail_file_id || undefined,
+      },
     ]);
     message.success('已添加');
   };
@@ -160,20 +224,40 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
 
   return (
     <div>
-      {/* Quick-insert buttons */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {/* Quick-insert emoji grid */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
         {emojis.length === 0 && (
           <span style={{ color: '#999', fontSize: 12 }}>暂无表情，点击右侧"管理"添加</span>
         )}
         {emojis.map((e) => (
-          <Tooltip key={e.id} title={`ID: ${e.id}`} placement="top">
-            <Button
-              size="small"
+          <Tooltip key={e.id} title={e.label} placement="top">
+            <button
+              type="button"
               onClick={() => handleInsert(e)}
-              style={{ padding: '0 8px' }}
+              style={{
+                width: 36,
+                height: 36,
+                padding: 2,
+                border: '1px solid transparent',
+                borderRadius: 6,
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+              onMouseEnter={(e2) => {
+                e2.currentTarget.style.borderColor = '#1677ff';
+                e2.currentTarget.style.background = '#e6f4ff';
+              }}
+              onMouseLeave={(e2) => {
+                e2.currentTarget.style.borderColor = 'transparent';
+                e2.currentTarget.style.background = 'transparent';
+              }}
             >
-              {e.label}
-            </Button>
+              <TelegramEmojiImage emoji={e} size={28} />
+            </button>
           </Tooltip>
         ))}
         <Button
@@ -242,16 +326,38 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
                   全部导入
                 </Button>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, overflowY: 'auto', padding: 4, border: '1px solid #f0f0f0', borderRadius: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 240, overflowY: 'auto', padding: 4, border: '1px solid #f0f0f0', borderRadius: 6 }}>
                 {fetchedEmojis.map((e, i) => (
-                  <Tooltip key={e.id} title={`ID: ${e.id}`}>
-                    <Button
-                      size="small"
-                      icon={<PlusOutlined />}
+                  <Tooltip key={e.id} title={`点击添加 | ID: ${e.id}`}>
+                    <button
+                      type="button"
                       onClick={() => handleImportOne(e, i)}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        padding: 4,
+                        border: '1px solid #d9d9d9',
+                        borderRadius: 8,
+                        background: '#fafafa',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e2) => {
+                        e2.currentTarget.style.borderColor = '#1677ff';
+                        e2.currentTarget.style.background = '#e6f4ff';
+                      }}
+                      onMouseLeave={(e2) => {
+                        e2.currentTarget.style.borderColor = '#d9d9d9';
+                        e2.currentTarget.style.background = '#fafafa';
+                      }}
                     >
-                      {e.fallback}
-                    </Button>
+                      <TelegramEmojiImage emoji={{ fallback: e.fallback, thumbnailFileId: e.thumbnail_file_id }} size={32} />
+                      <span style={{ position: 'absolute', top: 3, right: 4, fontSize: 10, color: '#1677ff', fontWeight: 600 }}>+</span>
+                    </button>
                   </Tooltip>
                 ))}
               </div>
@@ -306,17 +412,38 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
           {emojis.length === 0 ? (
             <Empty description="暂无表情" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
               {emojis.map((e) => (
-                <Tag
-                  key={e.id}
-                  closable
-                  onClose={() => handleDelete(e.id)}
-                  icon={<DeleteOutlined />}
-                  style={{ cursor: 'default', fontSize: 12 }}
-                >
-                  {e.label}
-                </Tag>
+                <Tooltip key={e.id} title={`${e.label} | ID: ${e.id}`}>
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <div style={{ width: 48, height: 48, border: '1px solid #d9d9d9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
+                      <TelegramEmojiImage emoji={e} size={36} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(e.id)}
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -6,
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#ff4d4f',
+                        color: '#fff',
+                        fontSize: 10,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </Tooltip>
               ))}
             </div>
           )}

@@ -1131,6 +1131,7 @@ router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: Au
       .map((s: any) => ({
         id: s.custom_emoji_id,
         fallback: s.emoji || '⭐',
+        thumbnail_file_id: s.thumbnail?.file_id || s.thumb?.file_id || null,
       }));
 
     res.json({
@@ -1144,6 +1145,48 @@ router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: Au
     console.error('Get sticker set error:', error);
     const detail = error.response?.data?.description || error.message;
     res.status(500).json({ error: `获取 Sticker Pack 失败: ${detail}` });
+  }
+});
+
+/**
+ * GET /api/admin/sticker-file/:fileId
+ * Proxy Telegram sticker thumbnail file for admin panel emoji preview
+ */
+router.get('/sticker-file/:fileId', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!/^[A-Za-z0-9_-]+$/.test(fileId)) {
+      return res.status(400).json({ error: 'Invalid file ID' });
+    }
+
+    const botResult = await query(
+      'SELECT token FROM bots WHERE is_active = true ORDER BY created_at ASC LIMIT 1'
+    );
+    if (botResult.rows.length === 0) {
+      return res.status(400).json({ error: '没有可用的 Bot，请先添加并激活一个 Bot' });
+    }
+
+    const token = botResult.rows[0].token;
+    if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+      return res.status(500).json({ error: '无效的 Bot Token 格式' });
+    }
+
+    const fileInfoUrl = `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`;
+    const fileInfoRes = await axios.get(fileInfoUrl, { timeout: 10000 });
+    if (!fileInfoRes.data?.ok || !fileInfoRes.data?.result?.file_path) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const filePath = fileInfoRes.data.result.file_path;
+    const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    const fileRes = await axios.get(fileUrl, { responseType: 'stream', timeout: 15000 });
+
+    res.setHeader('Content-Type', fileRes.headers['content-type'] || 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    fileRes.data.pipe(res);
+  } catch (error: any) {
+    console.error('Sticker file proxy error:', error);
+    res.status(500).json({ error: 'Failed to fetch sticker file' });
   }
 });
 
