@@ -37,6 +37,7 @@ import {
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs, { Dayjs } from 'dayjs';
+import AnimatedEmojiPanel from '../components/AnimatedEmojiPanel';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -103,6 +104,70 @@ const MINIAPP_BG_FIELDS: Array<{ key: MiniAppBgKey; label: string }> = [
 
 /** Maximum characters shown in the Collapse panel header preview */
 const PREVIEW_TEXT_LENGTH = 30;
+
+interface BotMessageEmojiConfig {
+  header_enabled: boolean;
+  header_emoji_id: string;
+  header_emoji_fallback: string;
+  header_text: string;
+  emoji_success: string;
+  emoji_reject: string;
+  emoji_pending: string;
+  emoji_warning: string;
+  field_order_id: string;
+  field_network: string;
+  field_amount: string;
+  field_address: string;
+  field_time: string;
+  field_fee: string;
+  field_balance: string;
+  field_txhash: string;
+  field_deposit: string;
+  field_withdraw: string;
+  field_transfer_send: string;
+  field_transfer_recv: string;
+  field_min: string;
+}
+
+const DEFAULT_BOT_MESSAGE_EMOJI_CONFIG: BotMessageEmojiConfig = {
+  header_enabled: false,
+  header_emoji_id: '',
+  header_emoji_fallback: '💎',
+  header_text: 'ENKPAY',
+  emoji_success: '✅',
+  emoji_reject: '❌',
+  emoji_pending: '⏳',
+  emoji_warning: '⚠️',
+  field_order_id: '📋',
+  field_network: '🌐',
+  field_amount: '💰',
+  field_address: '📍',
+  field_time: '🕐',
+  field_fee: '💸',
+  field_balance: '💳',
+  field_txhash: '🔗',
+  field_deposit: '📥',
+  field_withdraw: '📤',
+  field_transfer_send: '📤',
+  field_transfer_recv: '💰',
+  field_min: '💡',
+};
+
+const FIELD_EMOJI_ITEMS: Array<{ key: keyof BotMessageEmojiConfig; label: string }> = [
+  { key: 'field_order_id', label: '订单号' },
+  { key: 'field_network', label: '网络' },
+  { key: 'field_amount', label: '金额' },
+  { key: 'field_address', label: '地址' },
+  { key: 'field_time', label: '时间' },
+  { key: 'field_fee', label: '手续费' },
+  { key: 'field_balance', label: '余额' },
+  { key: 'field_txhash', label: '交易哈希' },
+  { key: 'field_deposit', label: '充值标题' },
+  { key: 'field_withdraw', label: '提现标题' },
+  { key: 'field_transfer_send', label: '转账发送' },
+  { key: 'field_transfer_recv', label: '转账收到' },
+  { key: 'field_min', label: '最小金额' },
+];
 
 /** Unwrap a value that may be stored as a JSON-encoded string (e.g. `"\"text\""`) */
 function unwrapJsonString(v: any): string {
@@ -203,6 +268,8 @@ export const SystemSettings: React.FC = () => {
   const [miniAppBgLoading, setMiniAppBgLoading]         = useState(false);
   const [miniAppBgSaving, setMiniAppBgSaving]           = useState(false);
   const [miniAppBgUploadingMap, setMiniAppBgUploadingMap] = useState<Record<string, boolean>>({});
+  const [botEmojiConfig, setBotEmojiConfig] = useState<BotMessageEmojiConfig>(DEFAULT_BOT_MESSAGE_EMOJI_CONFIG);
+  const [botEmojiSaving, setBotEmojiSaving] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -238,6 +305,23 @@ export const SystemSettings: React.FC = () => {
       if (inviteAmount?.value !== undefined) {
         const parsed = parseFloat(unwrapJsonString(inviteAmount.value));
         if (!isNaN(parsed)) setInviteRewardAmount(parsed);
+      }
+
+      const botEmojiSetting = settingsData.find((s: SystemSetting) => s.key === 'bot_message_emoji_config');
+      if (botEmojiSetting?.value !== undefined) {
+        let parsed: any = botEmojiSetting.value;
+        if (typeof parsed === 'string') {
+          try { parsed = JSON.parse(parsed); } catch { parsed = null; }
+        }
+        if (parsed && typeof parsed === 'object') {
+          setBotEmojiConfig({
+            ...DEFAULT_BOT_MESSAGE_EMOJI_CONFIG,
+            ...parsed,
+            header_enabled: Boolean(parsed.header_enabled),
+          });
+        }
+      } else {
+        setBotEmojiConfig(DEFAULT_BOT_MESSAGE_EMOJI_CONFIG);
       }
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
@@ -319,6 +403,31 @@ export const SystemSettings: React.FC = () => {
     } catch (e: any) {
       message.error(e?.response?.data?.error || '保存失败');
     } finally { setTermsSaving(false); }
+  };
+
+  const handleBotEmojiFieldChange = (key: keyof BotMessageEmojiConfig, value: string | boolean) => {
+    setBotEmojiConfig((prev) => ({ ...prev, [key]: value } as BotMessageEmojiConfig));
+  };
+
+  const handleBotEmojiInsert = (key: keyof BotMessageEmojiConfig, tag: string) => {
+    setBotEmojiConfig((prev) => ({ ...prev, [key]: String((prev as any)[key] || '') + tag } as BotMessageEmojiConfig));
+  };
+
+  const handleSaveBotEmojiConfig = async () => {
+    setBotEmojiSaving(true);
+    try {
+      await apiClient.updateSystemSetting('bot_message_emoji_config', {
+        value: botEmojiConfig,
+        category: 'bot',
+        description: 'Global bot message emoji and header style config',
+      });
+      message.success('Bot 消息样式保存成功');
+      await fetchSettings();
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || '保存失败');
+    } finally {
+      setBotEmojiSaving(false);
+    }
   };
 
   const fetchPreviewData = async () => {
@@ -1622,6 +1731,92 @@ export const SystemSettings: React.FC = () => {
     );
   };
 
+  const renderBotEmojiTab = () => {
+    return (
+      <Space direction="vertical" style={{ width: '100%' }} size={16}>
+        <Card title="品牌标题头设置">
+          <Form layout="vertical">
+            <Form.Item label="启用标题头">
+              <Switch
+                checked={botEmojiConfig.header_enabled}
+                onChange={(checked) => handleBotEmojiFieldChange('header_enabled', checked)}
+              />
+            </Form.Item>
+            <Form.Item label="Header Emoji ID（可选）">
+              <Input
+                value={botEmojiConfig.header_emoji_id}
+                onChange={(e) => handleBotEmojiFieldChange('header_emoji_id', e.target.value)}
+                placeholder="5471952986970267163"
+              />
+            </Form.Item>
+            <Form.Item label="Header Emoji Fallback">
+              <Input
+                value={botEmojiConfig.header_emoji_fallback}
+                onChange={(e) => handleBotEmojiFieldChange('header_emoji_fallback', e.target.value)}
+                placeholder="💎"
+              />
+            </Form.Item>
+            <Form.Item label="Header 标题文字">
+              <Input
+                value={botEmojiConfig.header_text}
+                onChange={(e) => handleBotEmojiFieldChange('header_text', e.target.value)}
+                placeholder="ENKPAY"
+              />
+            </Form.Item>
+            <Form.Item label="插入 Header 动态表情到 Fallback">
+              <AnimatedEmojiPanel onInsert={(tag) => handleBotEmojiInsert('header_emoji_fallback', tag)} />
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <Card title="消息状态表情">
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {[
+              ['emoji_success', '成功'],
+              ['emoji_reject', '失败'],
+              ['emoji_pending', '待审核'],
+              ['emoji_warning', '警告'],
+            ].map(([key, label]) => (
+              <div key={key} style={{ paddingBottom: 8, borderBottom: '1px dashed #f0f0f0' }}>
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>{label}</div>
+                <Input
+                  value={(botEmojiConfig as any)[key] || ''}
+                  onChange={(e) => handleBotEmojiFieldChange(key as keyof BotMessageEmojiConfig, e.target.value)}
+                />
+                <div style={{ marginTop: 8 }}>
+                  <AnimatedEmojiPanel onInsert={(tag) => handleBotEmojiInsert(key as keyof BotMessageEmojiConfig, tag)} />
+                </div>
+              </div>
+            ))}
+          </Space>
+        </Card>
+
+        <Card title="字段表情配置">
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {FIELD_EMOJI_ITEMS.map((item) => (
+              <div key={item.key} style={{ paddingBottom: 8, borderBottom: '1px dashed #f0f0f0' }}>
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>{item.label}</div>
+                <Input
+                  value={botEmojiConfig[item.key] || ''}
+                  onChange={(e) => handleBotEmojiFieldChange(item.key, e.target.value)}
+                />
+                <div style={{ marginTop: 8 }}>
+                  <AnimatedEmojiPanel onInsert={(tag) => handleBotEmojiInsert(item.key, tag)} />
+                </div>
+              </div>
+            ))}
+          </Space>
+        </Card>
+
+        <div style={{ textAlign: 'right' }}>
+          <Button type="primary" icon={<SaveOutlined />} loading={botEmojiSaving} onClick={handleSaveBotEmojiConfig}>
+            保存 Bot 消息样式
+          </Button>
+        </div>
+      </Space>
+    );
+  };
+
   const tabItems = [
     {
       key: 'user_agreement',
@@ -1647,6 +1842,11 @@ export const SystemSettings: React.FC = () => {
       key: 'miniapp_bg',
       label: '迷你APP背景设置',
       children: renderMiniAppBgTab(),
+    },
+    {
+      key: 'bot_emoji',
+      label: '🎨 Bot 消息样式',
+      children: renderBotEmojiTab(),
     },
   ];
 

@@ -13,7 +13,7 @@ router.get('/public/:key', async (req, res) => {
   try {
     const { key } = req.params;
     const lang = (req.query.lang as string) || 'en';
-    const allowed = ['user_agreement', 'announcement'];
+    const allowed = ['user_agreement', 'announcement', 'bot_message_emoji_config'];
     if (!allowed.includes(key)) {
       return res.status(403).json({ error: 'Forbidden' });
     }

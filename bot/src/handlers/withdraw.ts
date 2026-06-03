@@ -4,6 +4,7 @@ import { setUserState, clearUserState, getUserState } from '../utils/state';
 import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword, getWalletNetworks, getUserBalance } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
+import { getBotMessageEmojiConfig, getEmoji, renderHeader } from '../utils/emoji-config';
 
 interface NetworkInfo {
   id: number;
@@ -405,15 +406,17 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
     const orderId: string = result?.data?.order_id || result?.order_id || '-';
     const networkLabel = data?.networkLabel || data?.networkId || '-';
     const submitTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const emojiConfig = await getBotMessageEmojiConfig();
 
     const successMessage =
-      `⏳ <b>${t(lang, 'withdraw_submitted')}</b>\n\n` +
+      `${renderHeader(emojiConfig)}` +
+      `${getEmoji(emojiConfig, 'emoji_pending')} <b>${t(lang, 'withdraw_submitted')}</b>\n\n` +
       `┌─────────────────────────\n` +
-      `│ 📋 ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
-      `│ 💰 ${t(lang, 'withdraw_success_amount')}: <b>${Number(data?.amount).toFixed(2)} USDT</b>\n` +
-      `│ 🌐 ${t(lang, 'withdraw_success_network')}: <b>${networkLabel}</b>\n` +
-      `│ 📤 ${t(lang, 'withdraw_success_address')}: <code>${data?.address}</code>\n` +
-      `│ 🕐 ${t(lang, 'withdraw_submitted_time')}: ${submitTime}\n` +
+      `│ ${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
+      `│ ${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'withdraw_success_amount')}: <b>${Number(data?.amount).toFixed(2)} USDT</b>\n` +
+      `│ ${getEmoji(emojiConfig, 'field_network')} ${t(lang, 'withdraw_success_network')}: <b>${networkLabel}</b>\n` +
+      `│ ${getEmoji(emojiConfig, 'field_address')} ${t(lang, 'withdraw_success_address')}: <code>${data?.address}</code>\n` +
+      `│ ${getEmoji(emojiConfig, 'field_time')} ${t(lang, 'withdraw_submitted_time')}: ${submitTime}\n` +
       `└─────────────────────────\n\n` +
       `ℹ️ ${t(lang, 'withdraw_pending_info')}`;
 

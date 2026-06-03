@@ -2,6 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { api, getSettings } from '../services/api';
 import { t } from '../i18n';
+import { getBotMessageEmojiConfig, getEmoji, renderHeader } from '../utils/emoji-config';
 
 // Simple in-memory cache for the networks list to avoid a backend round-trip on every address display
 let networksCache: { data: any[]; ts: number } | null = null;
@@ -40,6 +41,8 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
+    const emojiConfig = await getBotMessageEmojiConfig();
+    const header = renderHeader(emojiConfig);
 
     // Dynamically load active networks from backend (cached)
     let networkButtons: ReturnType<typeof Markup.button.callback>[][] = [];
@@ -57,7 +60,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     }
 
     if (networkButtons.length === 0) {
-      const msg = `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n⚠️ No deposit networks configured.`;
+      const msg = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${getEmoji(emojiConfig, 'emoji_warning')} No deposit networks configured.`;
       try {
         await ctx.editMessageText(msg, {
           parse_mode: 'HTML',
@@ -71,7 +74,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
 
     networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
 
-    const msgText = `📥 <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`;
+    const msgText = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`;
     try {
       await ctx.editMessageText(msgText, {
         parse_mode: 'HTML',
@@ -94,9 +97,11 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
+    const emojiConfig = await getBotMessageEmojiConfig();
+    const header = renderHeader(emojiConfig);
 
     // Show loading state immediately; track the sent message so we can edit it later
-    const loadingMsg = `📥 <b>${t(lang, 'deposit_address')}</b>\n\n⏳ ${t(lang, 'deposit_generating_address')}`;
+    const loadingMsg = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`;
     let loadingSent: { chat: { id: number }; message_id: number } | null = null;
     try {
       await ctx.editMessageText(loadingMsg, { parse_mode: 'HTML' });
@@ -133,7 +138,7 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
       if (net) {
         networkLabel = net.network_display || net.network_name;
         if (net.min_deposit_amount) {
-          minDeposit = `\n💡 Min: <b>${parseFloat(String(net.min_deposit_amount)).toFixed(2)} USDT</b>`;
+          minDeposit = `\n${getEmoji(emojiConfig, 'field_min')} Min: <b>${parseFloat(String(net.min_deposit_amount)).toFixed(2)} USDT</b>`;
         }
       }
     } catch {}
@@ -152,9 +157,9 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
 
     if (!address) {
       const errMsg =
-        `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
-        `🌐 ${networkLabel}${minDeposit}\n\n` +
-        `⚠️ ${t(lang, 'deposit_address_not_available')}`;
+        `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+        `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
+        `${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`;
       await editOrReply(errMsg, Markup.inlineKeyboard([
         [
           Markup.button.callback(t(lang, 'deposit_retry'), `deposit_net_${networkId}`),
@@ -174,9 +179,9 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     const copyHint = botSettings.wallet_tip_message || t(lang, 'deposit_copy_hint');
 
     const message =
-      `📥 <b>${t(lang, 'deposit_address')}</b>\n\n` +
-      `🌐 ${networkLabel}${minDeposit}\n\n` +
-      `📋 ${t(lang, 'deposit_address_hint')}\n\n` +
+      `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+      `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
+      `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'deposit_address_hint')}\n\n` +
       `<code>${address}</code>\n\n` +
       `${copyHint}`;
 
