@@ -7,7 +7,7 @@ import { query, transaction } from '../db';
 import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES, tClaimConditionNotMet } from '../i18n';
 import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
-import { getBotMessageEmojiConfig, getEmoji, renderHeader } from '../utils/emoji-config';
+import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -602,8 +602,7 @@ async function processWithdrawal(ctx: Context, user: User, lang: string, data: a
 
     const emojiConfig = await getBotMessageEmojiConfig();
     await ctx.replyWithHTML(
-      `${renderHeader(emojiConfig)}` +
-      `${getEmoji(emojiConfig, 'emoji_pending')} <b>${t(lang, 'withdraw_submitted')}</b>\n\n` +
+      `${renderHeaderTitle(emojiConfig, 'emoji_pending', t(lang, 'withdraw_submitted'))}\n\n` +
       `┌─────────────────────────\n` +
       `│ ${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'withdraw_success_order')}: <code>${orderId}</code>\n` +
       `│ ${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'withdraw_success_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
@@ -690,13 +689,14 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
     });
 
     const transferTime = new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+    const emojiConfig = await getBotMessageEmojiConfig();
 
     await ctx.replyWithHTML(
-      `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
-      `📋 ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
-      `👤 ${t(lang, 'transfer_to')}: <b>${data.recipientName || data.recipientUniqueId || '-'}</b>\n` +
-      `💵 ${t(lang, 'transfer_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
-      `🕐 ${t(lang, 'transfer_time')}: ${transferTime}`
+      `${renderHeaderTitle(emojiConfig, 'emoji_success', t(lang, 'transfer_success'))}\n\n` +
+      `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+      `${getEmoji(emojiConfig, 'field_id')} ${t(lang, 'transfer_to')}: <b>${data.recipientName || data.recipientUniqueId || '-'}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'transfer_amount')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
+      `${getEmoji(emojiConfig, 'field_time')} ${t(lang, 'transfer_time')}: ${transferTime}`
     );
 
     // Notify recipient
@@ -704,11 +704,11 @@ async function processTransfer(ctx: Context, user: User, lang: string, data: any
       try {
         const rLang = data.recipientLanguage || 'en';
         const notifyMsg =
-          `💰 <b>${t(rLang, 'transfer_received')}</b>\n\n` +
-          `📋 ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
-          `👤 ${t(rLang, 'transfer_from')}: <b>${user.first_name || user.username || '-'}</b>\n` +
-          `✅ ${t(rLang, 'transfer_delivered')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
-          `🕐 ${t(rLang, 'transfer_time')}: ${transferTime}`;
+          `${renderHeaderTitle(emojiConfig, 'field_transfer_recv', t(rLang, 'transfer_received'))}\n\n` +
+          `${getEmoji(emojiConfig, 'field_order_id')} ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+          `${getEmoji(emojiConfig, 'field_id')} ${t(rLang, 'transfer_from')}: <b>${user.first_name || user.username || '-'}</b>\n` +
+          `${getEmoji(emojiConfig, 'emoji_success')} ${t(rLang, 'transfer_delivered')}: <b>${Number(data.amount).toFixed(2)} USDT</b>\n` +
+          `${getEmoji(emojiConfig, 'field_time')} ${t(rLang, 'transfer_time')}: ${transferTime}`;
         await ctx.telegram.sendMessage(data.recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
       } catch {}
     }
@@ -954,13 +954,14 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
             const d: Record<string, any> = { ...state.data, amount };
             setUserState(userId, { step: 'withdraw_need_password', data: d });
+            const emojiConfig = await getBotMessageEmojiConfig();
 
             const confirmMsg =
-              `📤 <b>${t(lang, 'withdraw_confirm_info')}</b>\n\n` +
-              `🌐 ${t(lang, 'withdraw_success_network')}: <b>${d.networkName || d.networkId}</b>\n` +
-              `📍 ${t(lang, 'withdraw_success_address')}: <code>${d.address}</code>\n` +
-              `💵 ${t(lang, 'withdraw_success_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
-              `💸 ${t(lang, 'withdraw_fee_hint').replace('{fee}', fee.toFixed(2)).replace('{fee_rate}', (feeRate * 100).toFixed(0)).replace('{actual}', actualAmount.toFixed(2))}`;
+              `${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'withdraw_confirm_info'))}\n\n` +
+              `${getEmoji(emojiConfig, 'field_network')} ${t(lang, 'withdraw_success_network')}: <b>${d.networkName || d.networkId}</b>\n` +
+              `${getEmoji(emojiConfig, 'field_address')} ${t(lang, 'withdraw_success_address')}: <code>${d.address}</code>\n` +
+              `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'withdraw_success_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
+              `${getEmoji(emojiConfig, 'field_fee')} ${t(lang, 'withdraw_fee_hint').replace('{fee}', fee.toFixed(2)).replace('{fee_rate}', (feeRate * 100).toFixed(0)).replace('{actual}', actualAmount.toFixed(2))}`;
 
             await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
               [
@@ -1007,10 +1008,11 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               },
             });
 
+            const emojiConfig = await getBotMessageEmojiConfig();
             const confirmMsg =
-              `👤 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
-              `🆔 ID: <b>${recipientUniqueId}</b>\n` +
-              `👤 Name: <b>${recipient.first_name || recipient.username || '-'}</b>`;
+              `${renderHeaderTitle(emojiConfig, 'field_transfer_send', t(lang, 'transfer_confirm_recipient'))}\n\n` +
+              `${getEmoji(emojiConfig, 'field_id')} ID: <b>${recipientUniqueId}</b>\n` +
+              `${getEmoji(emojiConfig, 'field_transfer_recv')} Name: <b>${recipient.first_name || recipient.username || '-'}</b>`;
 
             await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
               [
@@ -1030,11 +1032,12 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             }
             const d: Record<string, any> = { ...state.data, amount };
             setUserState(userId, { step: 'transfer_need_password', data: d });
+            const emojiConfig = await getBotMessageEmojiConfig();
 
             const confirmMsg =
-              `💸 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
-              `👤 To: <b>${d.recipientName || d.recipientUniqueId}</b>\n` +
-              `💵 Amount: <b>${amount.toFixed(2)} USDT</b>`;
+              `${renderHeaderTitle(emojiConfig, 'field_transfer_send', t(lang, 'transfer_confirm_recipient'))}\n\n` +
+              `${getEmoji(emojiConfig, 'field_id')} ${t(lang, 'transfer_to')}: <b>${d.recipientName || d.recipientUniqueId}</b>\n` +
+              `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'transfer_amount')}: <b>${amount.toFixed(2)} USDT</b>`;
 
             await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
               [
@@ -1107,7 +1110,6 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data === 'wallet_deposit') {
         await ctx.answerCbQuery().catch(() => {});
         const emojiConfig = await getBotMessageEmojiConfig();
-        const header = renderHeader(emojiConfig);
 
         let networkButtons: any[] = [];
         try {
@@ -1126,7 +1128,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         if (networkButtons.length === 0) {
           try { await ctx.deleteMessage(); } catch {}
           await ctx.replyWithHTML(
-            `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'no_networks_configured')}`,
+            `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'no_networks_configured')}`,
             Markup.inlineKeyboard([
               [Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')],
             ])
@@ -1137,7 +1139,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
         try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
-          `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`,
+          `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${t(lang, 'deposit_select_network_title')}`,
           Markup.inlineKeyboard(networkButtons)
         );
         return;
@@ -1148,11 +1150,10 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         await ctx.answerCbQuery().catch(() => {});
         const rawNetworkId = data.replace('deposit_net_', '');
         const emojiConfig = await getBotMessageEmojiConfig();
-        const header = renderHeader(emojiConfig);
 
         // Show loading state immediately
         const loadingText =
-          `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+          `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
           `${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`;
         try { await ctx.deleteMessage(); } catch {}
         const loadingMsg = await ctx.replyWithHTML(loadingText).catch(() => null);
@@ -1175,7 +1176,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           const numericId = await resolveNetworkId(rawNetworkId);
           if (!numericId) {
             await editOrReply(
-              `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`,
+              `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`,
               Markup.inlineKeyboard([
                 [
                   Markup.button.callback(t(lang, 'deposit_retry'), data),
@@ -1192,7 +1193,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           );
           if (netResult.rows.length === 0) {
             await editOrReply(
-              `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`,
+              `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`,
               Markup.inlineKeyboard([
                 [
                   Markup.button.callback(t(lang, 'deposit_retry'), data),
@@ -1229,7 +1230,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
           if (!address) {
             await editOrReply(
-              `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+              `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
               `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
               `${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`,
               Markup.inlineKeyboard([
@@ -1242,7 +1243,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
             );
           } else {
             await editOrReply(
-              `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+              `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
               `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
               `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'deposit_address_hint')}\n\n` +
               `<code>${address}</code>\n\n` +
@@ -1264,6 +1265,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data === 'wallet_withdraw') {
         await ctx.answerCbQuery();
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        const emojiConfig = await getBotMessageEmojiConfig();
 
         let networkButtons: any[] = [];
         try {
@@ -1280,7 +1282,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         if (networkButtons.length === 0) {
           try { await ctx.deleteMessage(); } catch {}
           await ctx.replyWithHTML(
-            `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n⚠️ ${t(lang, 'no_networks_configured')}`,
+            `${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'no_networks_configured')}`,
             Markup.inlineKeyboard([
               [Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')],
             ])
@@ -1291,8 +1293,8 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
         networkButtons.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
         try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
-          `📤 <b>${t(lang, 'btn_withdraw')}</b>\n\n` +
-          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
+          `${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n` +
+          `${getEmoji(emojiConfig, 'field_balance')} ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
           `${t(lang, 'withdraw_select_network')}:`,
           Markup.inlineKeyboard(networkButtons)
         );
@@ -1357,11 +1359,12 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       if (data === 'wallet_transfer') {
         await ctx.answerCbQuery();
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
+        const emojiConfig = await getBotMessageEmojiConfig();
         setUserState(user.id, { step: 'transfer_enter_id', data: {} });
         try { await ctx.deleteMessage(); } catch {}
         await ctx.replyWithHTML(
-          `💸 <b>${t(lang, 'btn_transfer')}</b>\n\n` +
-          `💰 ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
+          `${renderHeaderTitle(emojiConfig, 'field_transfer_send', t(lang, 'btn_transfer'))}\n\n` +
+          `${getEmoji(emojiConfig, 'field_balance')} ${t(lang, 'wallet_balance')}: <b>${balance} USDT</b>\n\n` +
           t(lang, 'transfer_enter_id'),
           Markup.inlineKeyboard([
             [Markup.button.callback(t(lang, 'btn_cancel'), 'wallet_back_to_wallet')],

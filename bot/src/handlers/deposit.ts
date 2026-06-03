@@ -2,7 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { api, getSettings } from '../services/api';
 import { t } from '../i18n';
-import { getBotMessageEmojiConfig, getEmoji, renderHeader } from '../utils/emoji-config';
+import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 
 // Simple in-memory cache for the networks list to avoid a backend round-trip on every address display
 let networksCache: { data: any[]; ts: number } | null = null;
@@ -42,7 +42,6 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const emojiConfig = await getBotMessageEmojiConfig();
-    const header = renderHeader(emojiConfig);
 
     // Dynamically load active networks from backend (cached)
     let networkButtons: ReturnType<typeof Markup.button.callback>[][] = [];
@@ -60,7 +59,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     }
 
     if (networkButtons.length === 0) {
-      const msg = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${getEmoji(emojiConfig, 'emoji_warning')} No deposit networks configured.`;
+      const msg = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} No deposit networks configured.`;
       try {
         await ctx.editMessageText(msg, {
           parse_mode: 'HTML',
@@ -74,7 +73,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
 
     networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
 
-    const msgText = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'btn_deposit')}</b>\n\n${t(lang, 'deposit_select_network_title')}`;
+    const msgText = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${t(lang, 'deposit_select_network_title')}`;
     try {
       await ctx.editMessageText(msgText, {
         parse_mode: 'HTML',
@@ -98,10 +97,9 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     const user = await getOrCreateUser(ctx, botId);
     const lang = getUserLanguage(user);
     const emojiConfig = await getBotMessageEmojiConfig();
-    const header = renderHeader(emojiConfig);
 
     // Show loading state immediately; track the sent message so we can edit it later
-    const loadingMsg = `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`;
+    const loadingMsg = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`;
     let loadingSent: { chat: { id: number }; message_id: number } | null = null;
     try {
       await ctx.editMessageText(loadingMsg, { parse_mode: 'HTML' });
@@ -157,7 +155,7 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
 
     if (!address) {
       const errMsg =
-        `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+        `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
         `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
         `${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`;
       await editOrReply(errMsg, Markup.inlineKeyboard([
@@ -179,7 +177,7 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     const copyHint = botSettings.wallet_tip_message || t(lang, 'deposit_copy_hint');
 
     const message =
-      `${header}${getEmoji(emojiConfig, 'field_deposit')} <b>${t(lang, 'deposit_address')}</b>\n\n` +
+      `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
       `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
       `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'deposit_address_hint')}\n\n` +
       `<code>${address}</code>\n\n` +

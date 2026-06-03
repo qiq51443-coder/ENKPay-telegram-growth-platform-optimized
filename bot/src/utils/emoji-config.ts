@@ -94,6 +94,16 @@ export function renderHeader(config: EmojiConfig): string {
   return `${titlePart}\n──────\n`;
 }
 
+export function renderHeaderTitle(
+  config: EmojiConfig,
+  field: keyof EmojiConfig | string,
+  title: string
+): string {
+  const header = renderHeader(config);
+  const prefix = header ? '' : `${getEmoji(config, field)} `;
+  return `${header}${prefix}<b>${title}</b>`;
+}
+
 export function getEmoji(config: EmojiConfig, field: keyof EmojiConfig | string): string {
   const value = (config as any)?.[field];
   if (typeof value === 'string' && value.trim()) return value;

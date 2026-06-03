@@ -17,9 +17,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *提现已拒绝*\n\n{__field_order_id__} 订单号：`{order_id}`\n{__field_network__} 网络：{network}\n{__field_amount__} 提现金额：{amount} USDT\n{__field_address__} 地址：{address}\n{__field_time__} 申请时间：{created_at}\n{__field_time__} 时间：{time}\n\n{__field_balance__} 余额已退回：*{balance} USDT*\n\n📝 拒绝原因：{reason}\n\n{__emoji_warning__} 提现失败，资金已退回你的ENK账户。',
     transfer_sent_notify:
-      '{__field_transfer_send__} *转账成功*\n\n{__field_order_id__} 订单号：`{order_id}`\n👤 收款方：{recipient}\n{__field_amount__} 转账金额：{amount} USDT\n{__field_fee__} 手续费：{fee} USDT\n{__emoji_success__} 实际到账：{actual} USDT\n\n{__field_balance__} 当前余额：*{balance} USDT*',
+      '{__field_transfer_send__} *转账成功*\n\n{__field_order_id__} 订单号：`{order_id}`\n{__field_id__} 收款方：{recipient}\n{__field_amount__} 转账金额：{amount} USDT\n{__field_fee__} 手续费：{fee} USDT\n{__emoji_success__} 实际到账：{actual} USDT\n\n{__field_balance__} 当前余额：*{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *收到转账*\n\n{__field_order_id__} 订单号：`{order_id}`\n👤 汇款方：{sender}\n{__emoji_success__} 到账金额：{amount} USDT\n\n{__field_balance__} 当前余额：*{balance} USDT*',
+      '{__field_transfer_recv__} *收到转账*\n\n{__field_order_id__} 订单号：`{order_id}`\n{__field_id__} 汇款方：{sender}\n{__emoji_success__} 到账金额：{amount} USDT\n\n{__field_balance__} 当前余额：*{balance} USDT*',
     scan_transfer_type_label: '📲 类型：扫码转账',
   },
   en: {
@@ -30,9 +30,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *Withdrawal Rejected*\n\n{__field_order_id__} Order: `{order_id}`\n{__field_network__} Network: {network}\n{__field_amount__} Amount: {amount} USDT\n{__field_address__} Address: {address}\n{__field_time__} Submitted: {created_at}\n{__field_time__} Time: {time}\n\n{__field_balance__} Balance Restored: *{balance} USDT*\n\n📝 Reason: {reason}\n\n{__emoji_warning__} Withdrawal failed. Funds have been returned to your ENK account.',
     transfer_sent_notify:
-      '{__field_transfer_send__} *Transfer Sent*\n\n{__field_order_id__} Order: `{order_id}`\n👤 To: {recipient}\n{__field_amount__} Amount: {amount} USDT\n{__field_fee__} Fee: {fee} USDT\n{__emoji_success__} Delivered: {actual} USDT\n\n{__field_balance__} Current Balance: *{balance} USDT*',
+      '{__field_transfer_send__} *Transfer Sent*\n\n{__field_order_id__} Order: `{order_id}`\n{__field_id__} To: {recipient}\n{__field_amount__} Amount: {amount} USDT\n{__field_fee__} Fee: {fee} USDT\n{__emoji_success__} Delivered: {actual} USDT\n\n{__field_balance__} Current Balance: *{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *Transfer Received*\n\n{__field_order_id__} Order: `{order_id}`\n👤 From: {sender}\n{__emoji_success__} Amount: {amount} USDT\n\n{__field_balance__} Current Balance: *{balance} USDT*',
+      '{__field_transfer_recv__} *Transfer Received*\n\n{__field_order_id__} Order: `{order_id}`\n{__field_id__} From: {sender}\n{__emoji_success__} Amount: {amount} USDT\n\n{__field_balance__} Current Balance: *{balance} USDT*',
     scan_transfer_type_label: '📲 Type: QR Code Transfer',
   },
   fr: {
@@ -43,9 +43,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *Retrait Rejeté*\n\n{__field_order_id__} Commande: `{order_id}`\n{__field_network__} Réseau: {network}\n{__field_amount__} Montant : {amount} USDT\n{__field_address__} Adresse: {address}\n{__field_time__} Soumis: {created_at}\n{__field_time__} Heure: {time}\n\n{__field_balance__} Solde Restauré : *{balance} USDT*\n\n📝 Raison : {reason}\n\n{__emoji_warning__} Retrait échoué. Les fonds ont été retournés à votre compte ENK.',
     transfer_sent_notify:
-      '{__field_transfer_send__} *Transfert Envoyé*\n\n{__field_order_id__} Commande: `{order_id}`\n👤 Vers : {recipient}\n{__field_amount__} Montant : {amount} USDT\n{__field_fee__} Frais : {fee} USDT\n{__emoji_success__} Livré : {actual} USDT\n\n{__field_balance__} Solde Actuel : *{balance} USDT*',
+      '{__field_transfer_send__} *Transfert Envoyé*\n\n{__field_order_id__} Commande: `{order_id}`\n{__field_id__} Vers : {recipient}\n{__field_amount__} Montant : {amount} USDT\n{__field_fee__} Frais : {fee} USDT\n{__emoji_success__} Livré : {actual} USDT\n\n{__field_balance__} Solde Actuel : *{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *Transfert Reçu*\n\n{__field_order_id__} Commande: `{order_id}`\n👤 De : {sender}\n{__emoji_success__} Montant : {amount} USDT\n\n{__field_balance__} Solde Actuel : *{balance} USDT*',
+      '{__field_transfer_recv__} *Transfert Reçu*\n\n{__field_order_id__} Commande: `{order_id}`\n{__field_id__} De : {sender}\n{__emoji_success__} Montant : {amount} USDT\n\n{__field_balance__} Solde Actuel : *{balance} USDT*',
     scan_transfer_type_label: '📲 Type : Transfert par QR Code',
   },
   de: {
@@ -56,9 +56,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *Auszahlung Abgelehnt*\n\n{__field_order_id__} Bestellung: `{order_id}`\n{__field_network__} Netzwerk: {network}\n{__field_amount__} Betrag: {amount} USDT\n{__field_address__} Adresse: {address}\n{__field_time__} Eingereicht: {created_at}\n{__field_time__} Zeit: {time}\n\n{__field_balance__} Guthaben Wiederhergestellt: *{balance} USDT*\n\n📝 Grund: {reason}\n\n{__emoji_warning__} Auszahlung fehlgeschlagen. Das Guthaben wurde auf Ihr ENK-Konto zurückgebucht.',
     transfer_sent_notify:
-      '{__field_transfer_send__} *Überweisung Gesendet*\n\n{__field_order_id__} Bestellung: `{order_id}`\n👤 An: {recipient}\n{__field_amount__} Betrag: {amount} USDT\n{__field_fee__} Gebühr: {fee} USDT\n{__emoji_success__} Übermittelt: {actual} USDT\n\n{__field_balance__} Aktuelles Guthaben: *{balance} USDT*',
+      '{__field_transfer_send__} *Überweisung Gesendet*\n\n{__field_order_id__} Bestellung: `{order_id}`\n{__field_id__} An: {recipient}\n{__field_amount__} Betrag: {amount} USDT\n{__field_fee__} Gebühr: {fee} USDT\n{__emoji_success__} Übermittelt: {actual} USDT\n\n{__field_balance__} Aktuelles Guthaben: *{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *Überweisung Erhalten*\n\n{__field_order_id__} Bestellung: `{order_id}`\n👤 Von: {sender}\n{__emoji_success__} Betrag: {amount} USDT\n\n{__field_balance__} Aktuelles Guthaben: *{balance} USDT*',
+      '{__field_transfer_recv__} *Überweisung Erhalten*\n\n{__field_order_id__} Bestellung: `{order_id}`\n{__field_id__} Von: {sender}\n{__emoji_success__} Betrag: {amount} USDT\n\n{__field_balance__} Aktuelles Guthaben: *{balance} USDT*',
     scan_transfer_type_label: '📲 Typ: QR-Code-Überweisung',
   },
   es: {
@@ -69,9 +69,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *Retiro Rechazado*\n\n{__field_order_id__} Pedido: `{order_id}`\n{__field_network__} Red: {network}\n{__field_amount__} Monto: {amount} USDT\n{__field_address__} Dirección: {address}\n{__field_time__} Enviado: {created_at}\n{__field_time__} Hora: {time}\n\n{__field_balance__} Saldo Restaurado: *{balance} USDT*\n\n📝 Razón: {reason}\n\n{__emoji_warning__} Retiro fallido. Los fondos han sido devueltos a tu cuenta ENK.',
     transfer_sent_notify:
-      '{__field_transfer_send__} *Transferencia Enviada*\n\n{__field_order_id__} Pedido: `{order_id}`\n👤 Para: {recipient}\n{__field_amount__} Monto: {amount} USDT\n{__field_fee__} Tarifa: {fee} USDT\n{__emoji_success__} Entregado: {actual} USDT\n\n{__field_balance__} Saldo Actual: *{balance} USDT*',
+      '{__field_transfer_send__} *Transferencia Enviada*\n\n{__field_order_id__} Pedido: `{order_id}`\n{__field_id__} Para: {recipient}\n{__field_amount__} Monto: {amount} USDT\n{__field_fee__} Tarifa: {fee} USDT\n{__emoji_success__} Entregado: {actual} USDT\n\n{__field_balance__} Saldo Actual: *{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *Transferencia Recibida*\n\n{__field_order_id__} Pedido: `{order_id}`\n👤 De: {sender}\n{__emoji_success__} Monto: {amount} USDT\n\n{__field_balance__} Saldo Actual: *{balance} USDT*',
+      '{__field_transfer_recv__} *Transferencia Recibida*\n\n{__field_order_id__} Pedido: `{order_id}`\n{__field_id__} De: {sender}\n{__emoji_success__} Monto: {amount} USDT\n\n{__field_balance__} Saldo Actual: *{balance} USDT*',
     scan_transfer_type_label: '📲 Tipo: Transferencia QR',
   },
   ar: {
@@ -82,9 +82,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *تم رفض السحب*\n\n{__field_order_id__} الطلب: `{order_id}`\n{__field_network__} الشبكة: {network}\n{__field_amount__} المبلغ: {amount} USDT\n{__field_address__} العنوان: {address}\n{__field_time__} وقت الإرسال: {created_at}\n{__field_time__} الوقت: {time}\n\n{__field_balance__} تمت استعادة الرصيد: *{balance} USDT*\n\n📝 السبب: {reason}\n\n{__emoji_warning__} فشل السحب. تم إعادة الأموال إلى حسابك في ENK.',
     transfer_sent_notify:
-      '{__field_transfer_send__} *تم إرسال التحويل*\n\n{__field_order_id__} الطلب: `{order_id}`\n👤 إلى: {recipient}\n{__field_amount__} المبلغ: {amount} USDT\n{__field_fee__} الرسوم: {fee} USDT\n{__emoji_success__} المستلم: {actual} USDT\n\n{__field_balance__} الرصيد الحالي: *{balance} USDT*',
+      '{__field_transfer_send__} *تم إرسال التحويل*\n\n{__field_order_id__} الطلب: `{order_id}`\n{__field_id__} إلى: {recipient}\n{__field_amount__} المبلغ: {amount} USDT\n{__field_fee__} الرسوم: {fee} USDT\n{__emoji_success__} المستلم: {actual} USDT\n\n{__field_balance__} الرصيد الحالي: *{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *تم استلام تحويل*\n\n{__field_order_id__} الطلب: `{order_id}`\n👤 من: {sender}\n{__emoji_success__} المبلغ: {amount} USDT\n\n{__field_balance__} الرصيد الحالي: *{balance} USDT*',
+      '{__field_transfer_recv__} *تم استلام تحويل*\n\n{__field_order_id__} الطلب: `{order_id}`\n{__field_id__} من: {sender}\n{__emoji_success__} المبلغ: {amount} USDT\n\n{__field_balance__} الرصيد الحالي: *{balance} USDT*',
     scan_transfer_type_label: '📲 النوع: تحويل QR',
   },
   ja: {
@@ -95,9 +95,9 @@ const NOTIFY_TEMPLATES: Record<string, Record<string, string>> = {
     withdraw_rejected_notify:
       '{__emoji_reject__} *出金が拒否されました*\n\n{__field_order_id__} 注文番号：`{order_id}`\n{__field_network__} ネットワーク：{network}\n{__field_amount__} 金額：{amount} USDT\n{__field_address__} アドレス：{address}\n{__field_time__} 申請時間：{created_at}\n{__field_time__} 時間：{time}\n\n{__field_balance__} 残高が復元されました：*{balance} USDT*\n\n📝 理由：{reason}\n\n{__emoji_warning__} 出金が失敗しました。資金はENKアカウントに返還されました。',
     transfer_sent_notify:
-      '{__field_transfer_send__} *送金が完了しました*\n\n{__field_order_id__} 注文番号：`{order_id}`\n👤 送先：{recipient}\n{__field_amount__} 金額：{amount} USDT\n{__field_fee__} 手数料：{fee} USDT\n{__emoji_success__} 到達金額：{actual} USDT\n\n{__field_balance__} 現在の残高：*{balance} USDT*',
+      '{__field_transfer_send__} *送金が完了しました*\n\n{__field_order_id__} 注文番号：`{order_id}`\n{__field_id__} 送先：{recipient}\n{__field_amount__} 金額：{amount} USDT\n{__field_fee__} 手数料：{fee} USDT\n{__emoji_success__} 到達金額：{actual} USDT\n\n{__field_balance__} 現在の残高：*{balance} USDT*',
     transfer_received_notify:
-      '{__field_transfer_recv__} *送金を受け取りました*\n\n{__field_order_id__} 注文番号：`{order_id}`\n👤 送信者：{sender}\n{__emoji_success__} 金額：{amount} USDT\n\n{__field_balance__} 現在の残高：*{balance} USDT*',
+      '{__field_transfer_recv__} *送金を受け取りました*\n\n{__field_order_id__} 注文番号：`{order_id}`\n{__field_id__} 送信者：{sender}\n{__emoji_success__} 金額：{amount} USDT\n\n{__field_balance__} 現在の残高：*{balance} USDT*',
     scan_transfer_type_label: '📲 種類：QRコード送金',
   },
 };
@@ -114,6 +114,7 @@ const EMOJI_TOKENS: Record<string, keyof EmojiConfig> = {
   '{__field_time__}': 'field_time',
   '{__field_fee__}': 'field_fee',
   '{__field_balance__}': 'field_balance',
+  '{__field_id__}': 'field_id',
   '{__field_txhash__}': 'field_txhash',
   '{__field_deposit__}': 'field_deposit',
   '{__field_withdraw__}': 'field_withdraw',

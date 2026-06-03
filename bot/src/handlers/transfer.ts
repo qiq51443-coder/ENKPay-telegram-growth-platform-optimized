@@ -4,6 +4,7 @@ import { setUserState, clearUserState, getUserState } from '../utils/state';
 import { submitTransfer, getUserByUniqueId } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
+import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 
 export const handleTransferStart = async (ctx: Context) => {
   try {
@@ -66,10 +67,11 @@ export const handleTransferEnterId = async (ctx: Context, user: any, recipientId
       },
     });
 
+    const emojiConfig = await getBotMessageEmojiConfig();
     const confirmMsg =
-      `👤 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
-      `🆔 ID: <b>${trimmedId}</b>\n` +
-      `👤 Name: <b>${recipient.first_name || recipient.username || '-'}</b>`;
+      `${renderHeaderTitle(emojiConfig, 'field_transfer_send', t(lang, 'transfer_confirm_recipient'))}\n\n` +
+      `${getEmoji(emojiConfig, 'field_id')} ID: <b>${trimmedId}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_transfer_recv')} Name: <b>${recipient.first_name || recipient.username || '-'}</b>`;
 
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
       [
@@ -121,10 +123,11 @@ export const handleTransferEnterAmount = async (ctx: Context, user: any, amount:
     });
 
     const d = state?.data || {};
+    const emojiConfig = await getBotMessageEmojiConfig();
     const confirmMsg =
-      `💸 <b>${t(lang, 'transfer_confirm_recipient')}</b>\n\n` +
-      `👤 To: <b>${d.recipientName || d.recipientUniqueId || ''}</b>\n` +
-      `💵 Amount: <b>${numAmount.toFixed(2)} USDT</b>`;
+      `${renderHeaderTitle(emojiConfig, 'field_transfer_send', t(lang, 'transfer_confirm_recipient'))}\n\n` +
+      `${getEmoji(emojiConfig, 'field_id')} ${t(lang, 'transfer_to')}: <b>${d.recipientName || d.recipientUniqueId || ''}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'transfer_amount')}: <b>${numAmount.toFixed(2)} USDT</b>`;
 
     await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
       [
@@ -170,14 +173,15 @@ export const handleTransferConfirm = async (ctx: Context) => {
       const fee: number = result?.data?.fee ?? 0;
       const actualReceived: number = result?.data?.actual_received ?? amount;
       const orderId: string = result?.data?.order_id || '-';
+      const emojiConfig = await getBotMessageEmojiConfig();
 
       const successMsg =
-        `✅ <b>${t(lang, 'transfer_success')}</b>\n\n` +
-        `📋 ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
-        `👤 ${t(lang, 'transfer_to')}: <b>${recipientName || recipientUniqueId || '-'}</b>\n` +
-        `💵 ${t(lang, 'transfer_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
-        `💸 ${t(lang, 'transfer_fee')}: <b>${fee.toFixed(2)} USDT</b>\n` +
-        `✅ ${t(lang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
+        `${renderHeaderTitle(emojiConfig, 'emoji_success', t(lang, 'transfer_success'))}\n\n` +
+        `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+        `${getEmoji(emojiConfig, 'field_id')} ${t(lang, 'transfer_to')}: <b>${recipientName || recipientUniqueId || '-'}</b>\n` +
+        `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'transfer_amount')}: <b>${amount.toFixed(2)} USDT</b>\n` +
+        `${getEmoji(emojiConfig, 'field_fee')} ${t(lang, 'transfer_fee')}: <b>${fee.toFixed(2)} USDT</b>\n` +
+        `${getEmoji(emojiConfig, 'emoji_success')} ${t(lang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
 
       await ctx.replyWithHTML(successMsg);
 
@@ -186,10 +190,10 @@ export const handleTransferConfirm = async (ctx: Context) => {
         try {
           const rLang = recipientLanguage || 'en';
           const notifyMsg =
-            `💰 <b>${t(rLang, 'transfer_received')}</b>\n\n` +
-            `📋 ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
-            `👤 ${t(rLang, 'transfer_from')}: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
-            `✅ ${t(rLang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
+            `${renderHeaderTitle(emojiConfig, 'field_transfer_recv', t(rLang, 'transfer_received'))}\n\n` +
+            `${getEmoji(emojiConfig, 'field_order_id')} ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
+            `${getEmoji(emojiConfig, 'field_id')} ${t(rLang, 'transfer_from')}: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
+            `${getEmoji(emojiConfig, 'emoji_success')} ${t(rLang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
           await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
         } catch (notifyErr) {
           console.error('Failed to notify recipient:', notifyErr);
