@@ -4,6 +4,7 @@ import type { UploadFile, UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload/interface';
 import { SaveOutlined, UploadOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
+import AnimatedEmojiPanel from '../components/AnimatedEmojiPanel';
 
 const { TabPane } = Tabs;
 
@@ -248,6 +249,14 @@ export const BotSettings: React.FC = () => {
                 <Form.Item name="welcome_message" label="欢迎语文字（Markdown 支持，显示在固定信息下方）">
                   <Input.TextArea rows={8} placeholder="欢迎来到平台..." />
                 </Form.Item>
+                <Form.Item label="欢迎语动态表情" extra="点击插入动态表情到欢迎语末尾">
+                  <AnimatedEmojiPanel
+                    onInsert={(tag) => {
+                      const current = welcomeForm.getFieldValue('welcome_message') || '';
+                      welcomeForm.setFieldValue('welcome_message', current + tag);
+                    }}
+                  />
+                </Form.Item>
                 <Form.Item label="欢迎图片（留空则不发图）">
                   <Upload {...uploadProps}>
                     <Button icon={<UploadOutlined />}>点击上传图片</Button>
@@ -343,6 +352,14 @@ export const BotSettings: React.FC = () => {
                   extra="用户在 Bot 查看充值地址时，该提示语会显示在地址下方，例如：请复制地址并向该地址转账，转账完成后大约1-3分钟系统将自动确认"
                 >
                   <Input.TextArea rows={3} placeholder="请复制地址并向该地址转账，转账完成后大约1-3分钟系统将自动确认" />
+                </Form.Item>
+                <Form.Item label="充值提示语动态表情" extra="点击插入动态表情到充值提示语末尾">
+                  <AnimatedEmojiPanel
+                    onInsert={(tag) => {
+                      const current = walletForm.getFieldValue('wallet_tip_message') || '';
+                      walletForm.setFieldValue('wallet_tip_message', current + tag);
+                    }}
+                  />
                 </Form.Item>
                 <Form.Item name="transfer_min_amount" label="最小转账金额 (USDT)">
                   <InputNumber min={0} step={0.01} style={{ width: '100%' }} />

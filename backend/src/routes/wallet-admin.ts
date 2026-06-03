@@ -6,7 +6,8 @@ import { createMoralisStream, addAddressToStream, deleteStream } from '../servic
 import { resolveChainType, MORALIS_CHAIN_IDS } from '../utils/chain';
 import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
-import { getNotifyTemplate, formatNotification } from '../utils/notify';
+import { buildNotifyMessage } from '../utils/notify';
+import { getBotMessageEmojiConfig } from '../utils/emoji-config';
 
 const router = express.Router();
 
@@ -690,6 +691,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
         const { telegram_id, language_code, bot_token } = userResult.rows[0];
         const lang = language_code || 'en';
         const tg = new TelegramAPI(bot_token);
+        const emojiConfig = await getBotMessageEmojiConfig();
 
         // Resolve network display name for notification
         let networkDisplay = '-';
@@ -716,8 +718,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             [result.withdrawal.user_id]
           );
           const currentBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
-          const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
-          const message = formatNotification(template, {
+          const message = buildNotifyMessage(lang, 'withdraw_approved_notify', {
             order_id: result.withdrawal.order_id || '-',
             amount: parseFloat(result.withdrawal.amount).toFixed(2),
             fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
@@ -727,7 +728,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             time: reviewedAt,
             created_at: createdAt,
             balance: currentBalance,
-          });
+          }, emojiConfig);
           await tg.sendMessage(telegram_id, message);
         } else {
           const updatedUser = await query(
@@ -735,8 +736,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             [result.withdrawal.user_id]
           );
           const restoredBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
-          const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
-          const msg = formatNotification(template, {
+          const msg = buildNotifyMessage(lang, 'withdraw_rejected_notify', {
             order_id: result.withdrawal.order_id || '-',
             amount: parseFloat(result.withdrawal.amount).toFixed(2),
             address: result.withdrawal.to_address || '',
@@ -745,7 +745,7 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             created_at: createdAt,
             balance: restoredBalance,
             reason: admin_note || '-',
-          });
+          }, emojiConfig);
           await tg.sendMessage(telegram_id, msg);
         }
       }

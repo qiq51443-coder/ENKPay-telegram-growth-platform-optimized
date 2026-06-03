@@ -530,19 +530,20 @@ async function notifyUserDeposit(
     const { telegram_id, bot_token, language_code, wallet_balance } = userResult.rows[0];
     if (!telegram_id || !bot_token) return;
 
-    const { getNotifyTemplate, formatNotification } = await import('../utils/notify');
-    const template = getNotifyTemplate(language_code || 'en', 'deposit_credited_notify');
-    const message = formatNotification(template, {
+    const { getBotMessageEmojiConfig } = await import('../utils/emoji-config');
+    const { buildNotifyMessage } = await import('../utils/notify');
+    const emojiConfig = await getBotMessageEmojiConfig();
+    const message = buildNotifyMessage(language_code || 'en', 'deposit_credited_notify', {
       amount: parseFloat(amount.toString()).toFixed(2),
       network: networkName,
       txHash,
       balance: parseFloat(wallet_balance || '0').toFixed(2),
-    });
+    }, emojiConfig);
 
     await axios.post(`https://api.telegram.org/bot${bot_token}/sendMessage`, {
       chat_id: telegram_id,
       text: message,
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
     });
   } catch (err) {
     console.error(`Failed to notify user ${userId} of deposit:`, err);

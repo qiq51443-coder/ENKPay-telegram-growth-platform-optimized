@@ -7,7 +7,8 @@ import { getUserBalance, validateTransfer, validateWithdrawal } from '../service
 import { generateUserDepositAddress, getUserDepositAddresses } from '../services/deposit.service';
 import { walletLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
-import { getNotifyTemplate, formatNotification } from '../utils/notify';
+import { buildNotifyMessage, getNotifyTemplate } from '../utils/notify';
+import { getBotMessageEmojiConfig } from '../utils/emoji-config';
 import { generateOrderId } from '../utils/orderId';
 
 const router = express.Router();
@@ -125,6 +126,7 @@ async function notifyTransferParties(
   orderId: string,
   transferType?: string
 ): Promise<void> {
+  const emojiConfig = await getBotMessageEmojiConfig();
   // Fetch sender info (telegram_id, language_code, updated balance, bot_token)
   const senderResult = await query(
     `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name, u.username,
@@ -170,15 +172,14 @@ async function notifyTransferParties(
     if (telegram_id && bot_token) {
       try {
         const lang = language_code || 'en';
-        const template = getNotifyTemplate(lang, 'transfer_sent_notify');
-        let message = formatNotification(template, {
+        let message = buildNotifyMessage(lang, 'transfer_sent_notify', {
           order_id: orderId,
           recipient: recipientDisplayName,
           amount: amount.toFixed(2),
           fee: fee.toFixed(2),
           actual: actualReceived.toFixed(2),
           balance: parseFloat(wallet_balance || '0').toFixed(2),
-        });
+        }, emojiConfig);
         if (transferType === 'scan_transfer') {
           message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
         }
@@ -199,13 +200,12 @@ async function notifyTransferParties(
         const senderDisplay = senderResult.rows.length > 0
           ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
           : String(senderId);
-        const template = getNotifyTemplate(lang, 'transfer_received_notify');
-        let message = formatNotification(template, {
+        let message = buildNotifyMessage(lang, 'transfer_received_notify', {
           order_id: orderId,
           sender: senderDisplay,
           amount: actualReceived.toFixed(2),
           balance: parseFloat(wallet_balance || '0').toFixed(2),
-        });
+        }, emojiConfig);
         if (transferType === 'scan_transfer') {
           message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
         }

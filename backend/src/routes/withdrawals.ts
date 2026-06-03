@@ -2,7 +2,8 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import TelegramAPI from '../utils/telegram';
-import { getNotifyTemplate, formatNotification } from '../utils/notify';
+import { buildNotifyMessage } from '../utils/notify';
+import { getBotMessageEmojiConfig } from '../utils/emoji-config';
 
 /**
  * @deprecated This router operates on the legacy `withdrawals` table.
@@ -144,6 +145,7 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
         if (userResult.rows.length > 0) {
           const { telegram_id, language_code, wallet_balance } = userResult.rows[0];
           const lang = language_code || 'en';
+          const emojiConfig = await getBotMessageEmojiConfig();
           const currentBalance = parseFloat(wallet_balance || '0').toFixed(2);
           const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
           const fee = parseFloat(withdrawal.fee || '0').toFixed(2);
@@ -157,8 +159,7 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
 
           let notificationMessage: string;
           if (status === 'approved') {
-            const template = getNotifyTemplate(lang, 'withdraw_approved_notify');
-            notificationMessage = formatNotification(template, {
+            notificationMessage = buildNotifyMessage(lang, 'withdraw_approved_notify', {
               order_id: withdrawal.order_id || '-',
               amount: withdrawAmount,
               fee,
@@ -168,10 +169,9 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
               time: reviewedAt,
               created_at: createdAt,
               balance: currentBalance,
-            });
+            }, emojiConfig);
           } else {
-            const template = getNotifyTemplate(lang, 'withdraw_rejected_notify');
-            notificationMessage = formatNotification(template, {
+            notificationMessage = buildNotifyMessage(lang, 'withdraw_rejected_notify', {
               order_id: withdrawal.order_id || '-',
               amount: withdrawAmount,
               address: withdrawal.wallet_address || '',
@@ -180,7 +180,7 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
               created_at: createdAt,
               balance: currentBalance,
               reason: admin_note || '-',
-            });
+            }, emojiConfig);
           }
 
           await telegram.sendMessage(telegram_id, notificationMessage);

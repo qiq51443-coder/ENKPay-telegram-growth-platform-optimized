@@ -207,7 +207,38 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
     );
 
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Setting not found' });
+      const insertResult = await query(
+        `INSERT INTO system_settings (key, value, description, category, is_public, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+          key,
+          toJsonValue(value),
+          description || null,
+          category || null,
+          is_public ?? false,
+          req.user?.id,
+        ]
+      );
+
+      await logAuditAction({
+        adminUserId: req.user!.id,
+        action: AuditActions.UPDATE_SETTINGS,
+        resourceType: 'system_setting',
+        resourceId: key,
+        details: {
+          key,
+          old_value: null,
+          new_value: value,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      return res.json({
+        setting: insertResult.rows[0],
+        message: 'Setting created successfully',
+      });
     }
 
     const updates: string[] = [];
