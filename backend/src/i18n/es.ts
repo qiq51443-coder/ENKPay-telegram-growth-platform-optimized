@@ -187,8 +187,8 @@ export const es: Record<string, string> = {
   transfer_enter_id: 'Por favor ingresa el ID ENK del destinatario',
   transfer_confirm_recipient: 'Confirmar transferencia a este usuario',
   transfer_enter_amount: 'Por favor ingresa el monto de transferencia',
-  transfer_success: '✅ Transferencia exitosa',
-  transfer_received: '💰 Recibiste una transferencia',
+  transfer_success: 'Transferencia exitosa',
+  transfer_received: 'Recibiste una transferencia',
   transfer_notify_sender: '📤 Detalles de transferencia (Remitente)',
   transfer_notify_receiver: '📥 Detalles de transferencia (Destinatario)',
 
@@ -207,7 +207,7 @@ export const es: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ Saldo insuficiente. Tu saldo disponible es: {balance} USDT',
   transfer_insufficient_balance: '❌ Saldo insuficiente para la transferencia. Disponible: {balance} USDT',
-  transfer_time: '🕐 Hora',
+  transfer_time: 'Hora',
 
   // Invalid address
   invalid_address: '❌ Formato de dirección inválido para {network}. Por favor ingresa una dirección válida.',

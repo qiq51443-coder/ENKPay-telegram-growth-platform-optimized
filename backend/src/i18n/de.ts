@@ -181,8 +181,8 @@ export const de: Record<string, string> = {
   transfer_enter_id: 'Bitte ENK-Konto-ID des Empfängers eingeben',
   transfer_confirm_recipient: 'Überweisung an diesen Benutzer bestätigen',
   transfer_enter_amount: 'Bitte Überweisungsbetrag eingeben',
-  transfer_success: '✅ Überweisung erfolgreich',
-  transfer_received: '💰 Sie haben eine Überweisung erhalten',
+  transfer_success: 'Überweisung erfolgreich',
+  transfer_received: 'Sie haben eine Überweisung erhalten',
   transfer_notify_sender: '📤 Überweisungsdetails (Absender)',
   transfer_notify_receiver: '📥 Überweisungsdetails (Empfänger)',
 
@@ -201,7 +201,7 @@ export const de: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ Unzureichendes Guthaben. Ihr verfügbares Guthaben beträgt: {balance} USDT',
   transfer_insufficient_balance: '❌ Unzureichendes Guthaben für Überweisung. Verfügbar: {balance} USDT',
-  transfer_time: '🕐 Zeit',
+  transfer_time: 'Zeit',
 
   // Invalid address
   invalid_address: '❌ Ungültiges Adressformat für {network}. Bitte geben Sie eine gültige Adresse ein.',

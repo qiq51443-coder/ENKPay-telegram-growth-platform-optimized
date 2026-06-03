@@ -181,8 +181,8 @@ export const ja: Record<string, string> = {
   transfer_enter_id: '受取人のENKアカウントIDを入力してください',
   transfer_confirm_recipient: 'このユーザーへの送金を確認',
   transfer_enter_amount: '送金金額を入力してください',
-  transfer_success: '✅ 送金成功',
-  transfer_received: '💰 送金を受け取りました',
+  transfer_success: '送金成功',
+  transfer_received: '送金を受け取りました',
   transfer_notify_sender: '📤 送金詳細（送信者）',
   transfer_notify_receiver: '📥 送金詳細（受信者）',
 
@@ -201,7 +201,7 @@ export const ja: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ 残高不足です。利用可能残高：{balance} USDT',
   transfer_insufficient_balance: '❌ 送金のための残高が不足しています。利用可能：{balance} USDT',
-  transfer_time: '🕐 時間',
+  transfer_time: '時間',
 
   // Invalid address
   invalid_address: '❌ {network}のアドレス形式が無効です。有効なアドレスを入力してください。',
