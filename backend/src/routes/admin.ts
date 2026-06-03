@@ -1095,6 +1095,11 @@ router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthReque
 router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { name } = req.params;
+    let stickerSetName = name;
+    const urlMatch = stickerSetName.match(/(?:https?:\/\/)?(?:t\.me\/(?:addemoji|addstickers)\/)([A-Za-z0-9_]+)/i);
+    if (urlMatch) {
+      stickerSetName = urlMatch[1];
+    }
 
     // Get first active bot token
     const botResult = await query(
@@ -1109,7 +1114,7 @@ router.get('/sticker-set/:name', adminLimiter, authenticateAdmin, async (req: Au
     if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
       return res.status(500).json({ error: '无效的 Bot Token 格式' });
     }
-    const telegramUrl = `https://api.telegram.org/bot${token}/getStickerSet?name=${encodeURIComponent(name)}`;
+    const telegramUrl = `https://api.telegram.org/bot${token}/getStickerSet?name=${encodeURIComponent(stickerSetName)}`;
 
     const response = await axios.get(telegramUrl, { timeout: 10000 });
     const data = response.data;

@@ -69,16 +69,21 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       message.warning('请输入 Sticker Pack 名称');
       return;
     }
+    let name = packName.trim();
+    const urlMatch = name.match(/(?:https?:\/\/)?(?:t\.me\/(?:addemoji|addstickers)\/)([A-Za-z0-9_]+)/i);
+    if (urlMatch) {
+      name = urlMatch[1];
+    }
     setFetchLoading(true);
     setFetchedEmojis([]);
     setFetchedTitle('');
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`/api/admin/sticker-set/${encodeURIComponent(packName.trim())}`, {
+      const res = await axios.get(`/api/admin/sticker-set/${encodeURIComponent(name)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setFetchedEmojis(res.data.emojis || []);
-      setFetchedTitle(res.data.title || packName);
+      setFetchedTitle(res.data.title || name);
       if ((res.data.emojis || []).length === 0) {
         message.warning('该 Pack 中没有找到 Custom Emoji 类型的贴纸（只支持 custom_emoji 类型）');
       } else {
@@ -203,11 +208,12 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
           </div>
           <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
             输入 Telegram Sticker Pack 的名称（t.me/addstickers/<b>名称</b>），点击拉取获取所有 Custom Emoji ID。
+            也可直接粘贴完整 t.me 链接。
             只支持 <b>custom_emoji</b> 类型的贴纸包（普通贴纸包不含 emoji ID）。
           </div>
           <Space.Compact style={{ width: '100%' }}>
             <Input
-              placeholder="Pack 名称，例如：LedScreenEmoji"
+              placeholder="Pack 名称或链接，例如：LedScreenEmoji 或 https://t.me/addemoji/PackName"
               value={packName}
               onChange={(e) => setPackName(e.target.value)}
               onPressEnter={handleFetchPack}
