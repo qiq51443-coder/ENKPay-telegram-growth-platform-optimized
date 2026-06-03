@@ -121,6 +121,11 @@ interface BotMessageEmojiConfig {
   field_time: string;
   field_fee: string;
   field_balance: string;
+  field_wallet_title: string;
+  field_id: string;
+  field_nft: string;
+  field_redpacket: string;
+  field_account_status: string;
   field_txhash: string;
   field_deposit: string;
   field_withdraw: string;
@@ -145,6 +150,11 @@ const DEFAULT_BOT_MESSAGE_EMOJI_CONFIG: BotMessageEmojiConfig = {
   field_time: '🕐',
   field_fee: '💸',
   field_balance: '💳',
+  field_wallet_title: '💰',
+  field_id: '🆔',
+  field_nft: '💎',
+  field_redpacket: '🧧',
+  field_account_status: '📊',
   field_txhash: '🔗',
   field_deposit: '📥',
   field_withdraw: '📤',
@@ -161,6 +171,11 @@ const FIELD_EMOJI_ITEMS: Array<{ key: keyof BotMessageEmojiConfig; label: string
   { key: 'field_time', label: '时间' },
   { key: 'field_fee', label: '手续费' },
   { key: 'field_balance', label: '余额' },
+  { key: 'field_wallet_title', label: '钱包标题' },
+  { key: 'field_id', label: '钱包ID' },
+  { key: 'field_nft', label: 'NFT' },
+  { key: 'field_redpacket', label: '红包余额' },
+  { key: 'field_account_status', label: '账户状态' },
   { key: 'field_txhash', label: '交易哈希' },
   { key: 'field_deposit', label: '充值标题' },
   { key: 'field_withdraw', label: '提现标题' },

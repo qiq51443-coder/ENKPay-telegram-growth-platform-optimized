@@ -4,6 +4,7 @@ import { getSettings } from '../services/settings';
 import { t } from '../i18n';
 import axios from 'axios';
 import crypto from 'crypto';
+import { getBotMessageEmojiConfig, getEmoji } from '../utils/emoji-config';
 
 const JT_TOKEN_TTL = 86400; // 24 hours
 
@@ -85,12 +86,13 @@ export const handleWallet = async (ctx: Context, preloadedUser?: User) => {
     } catch {}
 
     const displayId = user.unique_id || user.robot_user_id || String(ctx.from.id);
+    const emojiConfig = await getBotMessageEmojiConfig();
     const message =
-      `💰 <b>${t(lang, 'wallet_title')}</b>\n\n` +
-      `🆔 ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
-      `💵 ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
-      `🎁 ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance.toFixed(2)}</b>\n` +
-      `🖼 ${t(lang, 'nft_holdings')} (USDT): <b>${nftBalance.toFixed(2)}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_wallet_title')} <b>${t(lang, 'wallet_title')}</b>\n\n` +
+      `${getEmoji(emojiConfig, 'field_id')} ${t(lang, 'your_unique_id')}: <code>${displayId}</code>\n` +
+      `${getEmoji(emojiConfig, 'field_balance')} ${t(lang, 'wallet_balance')} (USDT): <b>${balance.toFixed(2)}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_redpacket')} ${t(lang, 'redpacket_balance')}: <b>${redPacketBalance.toFixed(2)}</b>\n` +
+      `${getEmoji(emojiConfig, 'field_nft')} ${t(lang, 'nft_holdings')} (USDT): <b>${nftBalance.toFixed(2)}</b>\n` +
       (balanceFetchFailed ? `\n${t(lang, 'balance_stale_warning')}` : '');
 
     const supportButton = supportUsername
