@@ -1,3 +1,5 @@
+import { animateEmojis } from '../utils/animated-emojis';
+
 // NFT-specific notification templates for bot messages.
 // Used by the NFT daily settlement job.
 
@@ -37,12 +39,12 @@ export function buildNFTDailyIncomeNotification(params: {
   term_days: number;
 }): string {
   const tpl = NFT_DAILY_INCOME_TEMPLATES[params.lang] || NFT_DAILY_INCOME_TEMPLATES['en'];
-  return fill(tpl, {
+  return animateEmojis(fill(tpl, {
     amount: params.amount,
     product_name: params.product_name,
     current_day: String(params.current_day),
     term_days: String(params.term_days),
-  });
+  }));
 }
 
 export function buildNFTMaturityReturnNotification(params: {
@@ -51,10 +53,10 @@ export function buildNFTMaturityReturnNotification(params: {
   product_name: string;
 }): string {
   const tpl = NFT_MATURITY_RETURN_TEMPLATES[params.lang] || NFT_MATURITY_RETURN_TEMPLATES['en'];
-  return fill(tpl, {
+  return animateEmojis(fill(tpl, {
     amount: params.amount,
     product_name: params.product_name,
-  });
+  }));
 }
 
 // ── Transaction description templates ─────────────────────────────────────────

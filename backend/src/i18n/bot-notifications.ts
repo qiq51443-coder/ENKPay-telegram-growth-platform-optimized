@@ -1,3 +1,5 @@
+import { animateEmojis } from '../utils/animated-emojis';
+
 // Notification templates for bot private messages after red packet claim.
 // Used by bot-manager.service.ts.
 
@@ -47,12 +49,15 @@ export function buildRedPacketClaimNotification(params: {
   expiryHours?: number | null;
 }): string {
   const tpl = CLAIM_NOTIFICATION_TEMPLATES[params.lang] || CLAIM_NOTIFICATION_TEMPLATES['en'];
+  let text: string;
   if (!params.expiryHours) {
-    return fill(tpl.permanent, { amount: params.amount, multiplier: params.multiplier });
+    text = fill(tpl.permanent, { amount: params.amount, multiplier: params.multiplier });
+  } else {
+    text = fill(tpl.timed, {
+      amount: params.amount,
+      multiplier: params.multiplier,
+      days: String(Math.ceil(params.expiryHours / 24)),
+    });
   }
-  return fill(tpl.timed, {
-    amount: params.amount,
-    multiplier: params.multiplier,
-    days: String(Math.ceil(params.expiryHours / 24)),
-  });
+  return animateEmojis(text);
 }
