@@ -1,3 +1,5 @@
+import { animateEmojis } from '../utils/animated-emojis';
+
 interface RedPacketMessages {
   title: string;
   labelTotal: string;
@@ -96,7 +98,7 @@ export function buildRedPacketMessage(params: {
   lines.push('━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
   lines.push(`✨ ${msgs.clickToClaimInstruction}`);
-  return lines.join('\n');
+  return animateEmojis(lines.join('\n'));
 }
 
 export { REDPACKET_I18N };
