@@ -27,6 +27,16 @@ export interface EmojiConfig {
   field_transfer_send: string;
   field_transfer_recv: string;
   field_min: string;
+  notify_gift: string;
+  notify_people: string;
+  notify_sparkles: string;
+  notify_alarm: string;
+  notify_pin: string;
+  notify_clock: string;
+  notify_memo: string;
+  notify_number: string;
+  notify_target: string;
+  notify_speech: string;
 }
 
 export const DEFAULT_EMOJI_CONFIG: EmojiConfig = {
@@ -56,6 +66,16 @@ export const DEFAULT_EMOJI_CONFIG: EmojiConfig = {
   field_transfer_send: '📤',
   field_transfer_recv: '💰',
   field_min: '💡',
+  notify_gift: '🎁',
+  notify_people: '👥',
+  notify_sparkles: '✨',
+  notify_alarm: '⏰',
+  notify_pin: '📌',
+  notify_clock: '🕙',
+  notify_memo: '📝',
+  notify_number: '🔢',
+  notify_target: '🎯',
+  notify_speech: '💬',
 };
 
 const CACHE_TTL = 60 * 1000;

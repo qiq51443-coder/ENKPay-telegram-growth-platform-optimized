@@ -132,6 +132,16 @@ interface BotMessageEmojiConfig {
   field_transfer_send: string;
   field_transfer_recv: string;
   field_min: string;
+  notify_gift: string;
+  notify_people: string;
+  notify_sparkles: string;
+  notify_alarm: string;
+  notify_pin: string;
+  notify_clock: string;
+  notify_memo: string;
+  notify_number: string;
+  notify_target: string;
+  notify_speech: string;
 }
 
 const DEFAULT_BOT_MESSAGE_EMOJI_CONFIG: BotMessageEmojiConfig = {
@@ -161,6 +171,16 @@ const DEFAULT_BOT_MESSAGE_EMOJI_CONFIG: BotMessageEmojiConfig = {
   field_transfer_send: '📤',
   field_transfer_recv: '💰',
   field_min: '💡',
+  notify_gift: '🎁',
+  notify_people: '👥',
+  notify_sparkles: '✨',
+  notify_alarm: '⏰',
+  notify_pin: '📌',
+  notify_clock: '🕙',
+  notify_memo: '📝',
+  notify_number: '🔢',
+  notify_target: '🎯',
+  notify_speech: '💬',
 };
 
 const FIELD_EMOJI_ITEMS: Array<{ key: keyof BotMessageEmojiConfig; label: string }> = [
@@ -182,6 +202,44 @@ const FIELD_EMOJI_ITEMS: Array<{ key: keyof BotMessageEmojiConfig; label: string
   { key: 'field_transfer_send', label: '转账发送' },
   { key: 'field_transfer_recv', label: '转账收到' },
   { key: 'field_min', label: '最小金额' },
+];
+
+const NOTIFICATION_EMOJI_SECTIONS: Array<{
+  title: string;
+  items: Array<{ key: keyof BotMessageEmojiConfig; label: string }>;
+}> = [
+  {
+    title: '红包消息',
+    items: [
+      { key: 'notify_people', label: '👥 数量' },
+      { key: 'notify_alarm', label: '⏰ 有效期' },
+      { key: 'notify_sparkles', label: '✨ 领取引导' },
+    ],
+  },
+  {
+    title: '领取红包通知',
+    items: [{ key: 'notify_gift', label: '🎁 标题' }],
+  },
+  {
+    title: '收益结算通知',
+    items: [{ key: 'notify_clock', label: '🕙 结算时间' }],
+  },
+  {
+    title: '收益结算 / 本金返还通知',
+    items: [{ key: 'notify_pin', label: '📌 来源/标注' }],
+  },
+  {
+    title: '本金返还通知',
+    items: [{ key: 'notify_memo', label: '📝 说明' }],
+  },
+  {
+    title: '交易策略信号',
+    items: [
+      { key: 'notify_number', label: '🔢 期号' },
+      { key: 'notify_target', label: '🎯 概率' },
+      { key: 'notify_speech', label: '💬 自定义文案' },
+    ],
+  },
 ];
 
 /** Unwrap a value that may be stored as a JSON-encoded string (e.g. `"\"text\""`) */
@@ -1818,6 +1876,36 @@ export const SystemSettings: React.FC = () => {
                 <div style={{ marginTop: 8 }}>
                   <AnimatedEmojiPanel onInsert={(tag) => handleBotEmojiInsert(item.key, tag)} />
                 </div>
+              </div>
+            ))}
+          </Space>
+        </Card>
+
+        <Card title="通知消息动态表情">
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Alert
+              type="info"
+              showIcon
+              message="以下仅配置通知消息新增字段。复用 emoji（如 🧧/💰/📊/✅/⏳）请在上方“消息状态表情 / 字段表情配置”中设置，避免多来源冲突。"
+            />
+            {NOTIFICATION_EMOJI_SECTIONS.map((section, sectionIndex) => (
+              <div key={section.title}>
+                {sectionIndex > 0 && <Divider style={{ margin: '8px 0 12px' }} />}
+                <div style={{ marginBottom: 8, fontWeight: 600 }}>{section.title}</div>
+                <Space direction="vertical" style={{ width: '100%' }} size={10}>
+                  {section.items.map((item) => (
+                    <div key={item.key} style={{ paddingBottom: 8, borderBottom: '1px dashed #f0f0f0' }}>
+                      <div style={{ marginBottom: 8, fontWeight: 500 }}>{item.label}</div>
+                      <Input
+                        value={botEmojiConfig[item.key] || ''}
+                        onChange={(e) => handleBotEmojiFieldChange(item.key, e.target.value)}
+                      />
+                      <div style={{ marginTop: 8 }}>
+                        <AnimatedEmojiPanel onInsert={(tag) => handleBotEmojiInsert(item.key, tag)} />
+                      </div>
+                    </div>
+                  ))}
+                </Space>
               </div>
             ))}
           </Space>
