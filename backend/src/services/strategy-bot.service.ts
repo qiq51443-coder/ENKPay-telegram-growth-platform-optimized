@@ -372,6 +372,7 @@ export async function sendStrategyMessage(configId: string) {
       direction: I18N_LABELS[direction][lang],
       timeframeUnit: I18N_LABELS.timeframe_min[lang],
     };
+    const directionEmoji = direction === 'up' ? '📈' : '📉';
 
     const customText =
       lang === 'zh'
@@ -383,7 +384,7 @@ export async function sendStrategyMessage(configId: string) {
       `📊 ${htmlEscape(String(symbolRaw))} · ${timeframeMinutes}${labels.timeframeUnit}`,
       '',
       `🔢 ${labels.issue}：${htmlEscape(periodLabel)}`,
-      `${labels.signal}：${labels.direction}`,
+      `${directionEmoji} ${labels.signal}：${labels.direction}`,
       `🎯 ${labels.probability}：${probability}%`,
       '',
       `💬 ${escapedCustomText}`,

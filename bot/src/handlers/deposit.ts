@@ -3,6 +3,7 @@ import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { api, getSettings } from '../services/api';
 import { t } from '../i18n';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
+import { animateEmojis } from '../utils/animate-emojis';
 
 // Simple in-memory cache for the networks list to avoid a backend round-trip on every address display
 let networksCache: { data: any[]; ts: number } | null = null;
@@ -59,7 +60,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
     }
 
     if (networkButtons.length === 0) {
-      const msg = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} No deposit networks configured.`;
+      const msg = await animateEmojis(`${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${getEmoji(emojiConfig, 'emoji_warning')} No deposit networks configured.`);
       try {
         await ctx.editMessageText(msg, {
           parse_mode: 'HTML',
@@ -73,7 +74,7 @@ export const handleDepositSelectNetwork = async (ctx: Context) => {
 
     networkButtons.push([Markup.button.callback(t(lang, 'deposit_back_to_wallet'), 'wallet_back_to_wallet')]);
 
-    const msgText = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${t(lang, 'deposit_select_network_title')}`;
+    const msgText = await animateEmojis(`${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'btn_deposit'))}\n\n${t(lang, 'deposit_select_network_title')}`);
     try {
       await ctx.editMessageText(msgText, {
         parse_mode: 'HTML',
@@ -99,7 +100,7 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     const emojiConfig = await getBotMessageEmojiConfig();
 
     // Show loading state immediately; track the sent message so we can edit it later
-    const loadingMsg = `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`;
+    const loadingMsg = await animateEmojis(`${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n${getEmoji(emojiConfig, 'emoji_pending')} ${t(lang, 'deposit_generating_address')}`);
     let loadingSent: { chat: { id: number }; message_id: number } | null = null;
     try {
       await ctx.editMessageText(loadingMsg, { parse_mode: 'HTML' });
@@ -154,10 +155,11 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     }
 
     if (!address) {
-      const errMsg =
+      const errMsg = await animateEmojis(
         `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
         `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
-        `${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`;
+        `${getEmoji(emojiConfig, 'emoji_warning')} ${t(lang, 'deposit_address_not_available')}`
+      );
       await editOrReply(errMsg, Markup.inlineKeyboard([
         [
           Markup.button.callback(t(lang, 'deposit_retry'), `deposit_net_${networkId}`),
@@ -176,12 +178,13 @@ export const handleDepositShowAddress = async (ctx: Context, networkId: string) 
     }
     const copyHint = botSettings.wallet_tip_message || t(lang, 'deposit_copy_hint');
 
-    const message =
+    const message = await animateEmojis(
       `${renderHeaderTitle(emojiConfig, 'field_deposit', t(lang, 'deposit_address'))}\n\n` +
       `${getEmoji(emojiConfig, 'field_network')} ${networkLabel}${minDeposit}\n\n` +
       `${getEmoji(emojiConfig, 'field_order_id')} ${t(lang, 'deposit_address_hint')}\n\n` +
       `<code>${address}</code>\n\n` +
-      `${copyHint}`;
+      `${copyHint}`
+    );
 
     await editOrReply(message, Markup.inlineKeyboard([
       [Markup.button.callback(t(lang, 'deposit_change_network'), 'wallet_deposit')],

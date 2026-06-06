@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { invalidateSettings, publishSettingsUpdate } from '../utils/cache';
+import { getAnimatedEmojiMappings } from '../utils/animated-emojis';
 
 const router = express.Router();
 
@@ -58,6 +59,17 @@ router.get('/public/:key', async (req, res) => {
   } catch (error) {
     console.error('Get public setting error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get animated emoji mappings for bot process
+router.get('/emoji-mappings', async (_req, res) => {
+  try {
+    const mappings = await getAnimatedEmojiMappings();
+    res.json({ mappings });
+  } catch (error) {
+    console.error('Get emoji mappings error:', error);
+    res.status(500).json({ mappings: {} });
   }
 });
 

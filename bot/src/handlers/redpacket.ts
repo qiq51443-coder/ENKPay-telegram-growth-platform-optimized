@@ -2,6 +2,7 @@ import { Context } from 'telegraf';
 import { User, getUserLanguage } from '../services/user';
 import { getRedPacket, claimRedPacket } from '../services/api';
 import { t, tClaimConditionNotMet } from '../i18n';
+import { animateEmojis } from '../utils/animate-emojis';
 
 export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string, options?: { isNew?: boolean; defaultLanguage?: string }) => {
   const lang = getUserLanguage(user);
@@ -34,7 +35,8 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
           days: String(Math.ceil(expiryHours / 24)),
         });
       }
-      await ctx.telegram.sendMessage(ctx.from!.id, notifText, { parse_mode: 'HTML' }).catch(() => {});
+      const animatedNotifText = await animateEmojis(notifText);
+      await ctx.telegram.sendMessage(ctx.from!.id, animatedNotifText, { parse_mode: 'HTML' }).catch(() => {});
 
       // Send extra notification for newly auto-registered users
       if (options?.isNew) {
@@ -44,7 +46,8 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
             amount: amountStr,
             multiplier: String(wagMultiplier ?? 2),
           });
-          await ctx.telegram.sendMessage(ctx.from!.id, newUserText, { parse_mode: 'HTML' }).catch(() => {});
+          const animatedNewUserText = await animateEmojis(newUserText);
+          await ctx.telegram.sendMessage(ctx.from!.id, animatedNewUserText, { parse_mode: 'HTML' }).catch(() => {});
         } catch (_) {}
       }
     } catch (_) {}

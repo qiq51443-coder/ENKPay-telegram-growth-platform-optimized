@@ -13,18 +13,30 @@ function extractMappingsFromConfig(config: Record<string, any>): Record<string, 
   const mappings: Record<string, string> = {};
 
   for (const value of Object.values(config)) {
-    if (typeof value !== 'string' || !value.includes('<tg-emoji')) continue;
-
-    TG_EMOJI_VALUE_RE.lastIndex = 0;
-    let match = TG_EMOJI_VALUE_RE.exec(value);
-    while (match) {
-      const [, emojiId, fallback] = match;
-      const safeFallback = String(fallback || '').trim();
-      const safeId = String(emojiId || '').trim();
-      if (safeFallback && safeId) {
-        mappings[safeFallback] = safeId;
+    if (typeof value === 'string' && value.includes('<tg-emoji')) {
+      TG_EMOJI_VALUE_RE.lastIndex = 0;
+      let match = TG_EMOJI_VALUE_RE.exec(value);
+      while (match) {
+        const [, emojiId, fallback] = match;
+        const safeFallback = String(fallback || '').trim();
+        const safeId = String(emojiId || '').trim();
+        if (safeFallback && safeId) {
+          mappings[safeFallback] = safeId;
+        }
+        match = TG_EMOJI_VALUE_RE.exec(value);
       }
-      match = TG_EMOJI_VALUE_RE.exec(value);
+    }
+
+    if (!value || typeof value !== 'object') continue;
+
+    const fallback = typeof value.header_emoji_fallback === 'string'
+      ? value.header_emoji_fallback.trim()
+      : '';
+    const id = typeof value.header_emoji_id === 'string'
+      ? value.header_emoji_id.trim()
+      : '';
+    if (fallback && id && !fallback.includes('<tg-emoji')) {
+      mappings[fallback] = id;
     }
   }
 
@@ -60,7 +72,7 @@ async function loadAnimatedEmojiMappings(): Promise<Record<string, string>> {
   };
 }
 
-async function getAnimatedEmojiMappings(): Promise<Record<string, string>> {
+export async function getAnimatedEmojiMappings(): Promise<Record<string, string>> {
   const now = Date.now();
   if (cachedMappings && now - cachedAt < CACHE_TTL) return cachedMappings;
   if (inFlight) return inFlight;
