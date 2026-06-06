@@ -126,7 +126,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       const redPacketLang = language || 'en';
       const msgs = getRedPacketMessages(redPacketLang);
       
-      const message = buildRedPacketMessage({
+      const message = await buildRedPacketMessage({
         language: redPacketLang,
         title,
         totalAmount: amount,

@@ -163,7 +163,7 @@ export const Analytics: React.FC = () => {
         <Col xs={24} sm={12} lg={8}>
           <Card>
             <Statistic
-              title="提现总数"
+              title="已提现资金"
               value={Number(stats?.total_withdrawals || 0).toFixed(2)}
               prefix={<ArrowUpOutlined />}
               valueStyle={{ color: '#faad14' }}

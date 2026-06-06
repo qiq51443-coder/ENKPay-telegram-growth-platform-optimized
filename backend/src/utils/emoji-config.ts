@@ -125,6 +125,12 @@ export async function getBotMessageEmojiConfig(): Promise<EmojiConfig> {
   return inFlight;
 }
 
+export function invalidateBotMessageEmojiConfigCache() {
+  cachedConfig = null;
+  cachedAt = 0;
+  inFlight = null;
+}
+
 export function renderHeader(config: EmojiConfig): string {
   if (!config.header_enabled) return '';
 

@@ -31,10 +31,44 @@ const DEFAULT_EMOJIS: CustomEmoji[] = [
   { id: '5346026631252222062', fallback: '🚀', label: '🚀 火箭' },
 ];
 
+const normalizeEmoji = (raw: any): CustomEmoji | null => {
+  const id = typeof raw?.id === 'string' ? raw.id.trim() : '';
+  if (!id) return null;
+
+  const fallback = typeof raw?.fallback === 'string' && raw.fallback.trim()
+    ? raw.fallback.trim()
+    : '⭐';
+  const label = typeof raw?.label === 'string' && raw.label.trim()
+    ? raw.label.trim()
+    : `${fallback} 自定义表情`;
+  const thumbnailRaw = typeof raw?.thumbnailFileId === 'string'
+    ? raw.thumbnailFileId
+    : raw?.thumbnail_file_id;
+  const thumbnailFileId = typeof thumbnailRaw === 'string' && thumbnailRaw.trim()
+    ? thumbnailRaw.trim()
+    : undefined;
+
+  return { id, fallback, label, thumbnailFileId };
+};
+
+const normalizeEmojiList = (raw: any): CustomEmoji[] => {
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set<string>();
+  const emojis: CustomEmoji[] = [];
+  raw.forEach((item) => {
+    const emoji = normalizeEmoji(item);
+    if (!emoji || seen.has(emoji.id)) return;
+    seen.add(emoji.id);
+    emojis.push(emoji);
+  });
+  return emojis;
+};
+
 const loadSaved = (): CustomEmoji[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return normalizeEmojiList(JSON.parse(raw));
   } catch (err) {
     console.warn('Failed to load emoji list from localStorage, using defaults:', err);
   }
@@ -104,6 +138,7 @@ const TelegramEmojiImage: React.FC<{ emoji: Pick<CustomEmoji, 'fallback' | 'thum
 
 export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert }) => {
   const [emojis, setEmojis] = useState<CustomEmoji[]>(loadSaved);
+  const [libraryLoading, setLibraryLoading] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [packName, setPackName] = useState('');
   const [fetchLoading, setFetchLoading] = useState(false);
@@ -112,10 +147,80 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
   const [manualId, setManualId] = useState('');
   const [manualFallback, setManualFallback] = useState('');
   const [manualLabel, setManualLabel] = useState('');
+  const [hadLocalCache] = useState(() => localStorage.getItem(STORAGE_KEY) !== null);
 
   useEffect(() => {
     saveToDisk(emojis);
   }, [emojis]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncLibrary = async () => {
+      setLibraryLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: 'Bearer ' + token } : {};
+        const res = await axios.get('/api/admin/custom-emojis', { headers });
+
+        if (cancelled) return;
+
+        const remoteList = normalizeEmojiList(res.data?.emojis);
+        const localList = loadSaved();
+        const nextList = res.data?.exists === false
+          ? (remoteList.length > 0 ? remoteList : DEFAULT_EMOJIS)
+          : remoteList;
+
+        if (res.data?.exists === false && hadLocalCache) {
+          setEmojis(localList);
+          saveToDisk(localList);
+
+          try {
+            await axios.put('/api/admin/custom-emojis', { emojis: localList }, { headers });
+          } catch (saveError) {
+            console.warn('Failed to migrate cached emoji library to backend:', saveError);
+          }
+          return;
+        }
+
+        setEmojis(nextList);
+        saveToDisk(nextList);
+      } catch (error) {
+        console.warn('Failed to load emoji library from backend, using local cache:', error);
+      } finally {
+        if (!cancelled) {
+          setLibraryLoading(false);
+        }
+      }
+    };
+
+    syncLibrary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hadLocalCache]);
+
+  const persistEmojiLibrary = async (nextEmojis: CustomEmoji[], successText?: string) => {
+    const normalized = normalizeEmojiList(nextEmojis);
+    setEmojis(normalized);
+    saveToDisk(normalized);
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        '/api/admin/custom-emojis',
+        { emojis: normalized },
+        { headers: token ? { Authorization: 'Bearer ' + token } : {} }
+      );
+      if (successText) {
+        message.success(successText);
+      }
+    } catch (error: any) {
+      console.warn('Failed to save emoji library to backend:', error);
+      message.warning(error.response?.data?.error || '已保存到本地缓存，但同步后端失败');
+    }
+  };
 
   const handleInsert = (emoji: CustomEmoji) => {
     const tag = `<tg-emoji emoji-id="${emoji.id}">${emoji.fallback}</tg-emoji>`;
@@ -169,8 +274,7 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       message.info('所有表情已存在，无需重复添加');
       return;
     }
-    setEmojis((prev) => [...prev, ...toAdd]);
-    message.success(`已导入 ${toAdd.length} 个表情`);
+    void persistEmojiLibrary([...emojis, ...toAdd], `已导入 ${toAdd.length} 个表情`);
   };
 
   const handleImportOne = (e: { id: string; fallback: string; thumbnail_file_id?: string }, idx: number) => {
@@ -178,16 +282,15 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       message.info('该表情已在列表中');
       return;
     }
-    setEmojis((prev) => [
-      ...prev,
+    void persistEmojiLibrary([
+      ...emojis,
       {
         id: e.id,
         fallback: e.fallback,
         label: `${e.fallback} ${fetchedTitle}-${idx + 1}`,
         thumbnailFileId: e.thumbnail_file_id || undefined,
       },
-    ]);
-    message.success('已添加');
+    ], '已添加');
   };
 
   const handleManualAdd = () => {
@@ -199,27 +302,25 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
       message.warning('该 Emoji ID 已存在');
       return;
     }
-    setEmojis((prev) => [
-      ...prev,
+    void persistEmojiLibrary([
+      ...emojis,
       {
         id: manualId.trim(),
         fallback: manualFallback.trim() || '⭐',
         label: manualLabel.trim() || `自定义表情 #${emojis.length + 1}`,
       },
-    ]);
+    ], '已添加');
     setManualId('');
     setManualFallback('');
     setManualLabel('');
-    message.success('已添加');
   };
 
   const handleDelete = (id: string) => {
-    setEmojis((prev) => prev.filter((e) => e.id !== id));
+    void persistEmojiLibrary(emojis.filter((e) => e.id !== id));
   };
 
   const handleReset = () => {
-    setEmojis(DEFAULT_EMOJIS);
-    message.success('已重置为默认表情列表');
+    void persistEmojiLibrary(DEFAULT_EMOJIS, '已重置为默认表情列表');
   };
 
   return (
@@ -229,6 +330,7 @@ export const AnimatedEmojiPanel: React.FC<AnimatedEmojiPanelProps> = ({ onInsert
         {emojis.length === 0 && (
           <span style={{ color: '#999', fontSize: 12 }}>暂无表情，点击右侧"管理"添加</span>
         )}
+        {libraryLoading && emojis.length === 0 && <Spin size="small" />}
         {emojis.map((e) => (
           <Tooltip key={e.id} title={e.label} placement="top">
             <button

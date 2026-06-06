@@ -5,6 +5,7 @@ import FormData from 'form-data';
 import { query } from '../db';
 import { getNextPeriod } from './period.service';
 import { UPLOAD_ROOT } from './storage.service';
+import { animateEmojis } from '../utils/animated-emojis';
 
 const TELEGRAM_BASE = 'https://api.telegram.org';
 
@@ -107,6 +108,27 @@ function htmlEscape(raw: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function escapeHtmlPreservingTelegramEmoji(raw: string): string {
+  const preservedTags: string[] = [];
+  const placeholderPrefix = '__TG_EMOJI_PLACEHOLDER__';
+
+  const withPlaceholders = raw.replace(
+    /<tg-emoji\s+emoji-id="(\d+)"\s*>([\s\S]*?)<\/tg-emoji>/gi,
+    (_match, emojiId: string, fallback: string) => {
+      const placeholder = `${placeholderPrefix}${preservedTags.length}__`;
+      preservedTags.push(`<tg-emoji emoji-id="${emojiId}">${htmlEscape(fallback || '')}</tg-emoji>`);
+      return placeholder;
+    }
+  );
+
+  let escaped = htmlEscape(withPlaceholders);
+  preservedTags.forEach((tag, index) => {
+    escaped = escaped.replace(`${placeholderPrefix}${index}__`, tag);
+  });
+
+  return escaped;
 }
 
 function normalizeLanguage(lang?: string | null): LanguageCode {
@@ -355,9 +377,9 @@ export async function sendStrategyMessage(configId: string) {
       lang === 'zh'
         ? (row.custom_text || '')
         : (translations[lang] ?? row.custom_text ?? '');
-    const escapedCustomText = htmlEscape(customText || '');
+    const escapedCustomText = escapeHtmlPreservingTelegramEmoji(customText || '');
 
-    const messageText = [
+    const messageText = await animateEmojis([
       `📊 ${htmlEscape(String(symbolRaw))} · ${timeframeMinutes}${labels.timeframeUnit}`,
       '',
       `🔢 ${labels.issue}：${htmlEscape(periodLabel)}`,
@@ -365,7 +387,7 @@ export async function sendStrategyMessage(configId: string) {
       `🎯 ${labels.probability}：${probability}%`,
       '',
       `💬 ${escapedCustomText}`,
-    ].join('\n');
+    ].join('\n'));
 
     try {
       if (cachedFileId) {

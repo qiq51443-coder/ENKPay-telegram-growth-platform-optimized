@@ -31,13 +31,13 @@ function fill(template: string, vars: Record<string, string>): string {
   return s;
 }
 
-export function buildNFTDailyIncomeNotification(params: {
+export async function buildNFTDailyIncomeNotification(params: {
   lang: string;
   amount: string;
   product_name: string;
   current_day: number;
   term_days: number;
-}): string {
+}): Promise<string> {
   const tpl = NFT_DAILY_INCOME_TEMPLATES[params.lang] || NFT_DAILY_INCOME_TEMPLATES['en'];
   return animateEmojis(fill(tpl, {
     amount: params.amount,
@@ -47,11 +47,11 @@ export function buildNFTDailyIncomeNotification(params: {
   }));
 }
 
-export function buildNFTMaturityReturnNotification(params: {
+export async function buildNFTMaturityReturnNotification(params: {
   lang: string;
   amount: string;
   product_name: string;
-}): string {
+}): Promise<string> {
   const tpl = NFT_MATURITY_RETURN_TEMPLATES[params.lang] || NFT_MATURITY_RETURN_TEMPLATES['en'];
   return animateEmojis(fill(tpl, {
     amount: params.amount,
