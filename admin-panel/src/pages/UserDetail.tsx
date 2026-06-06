@@ -21,6 +21,8 @@ interface UserDetail {
   nft_balance?: number;
   red_packet_balance?: number;
   red_packet_credits?: number;
+  real_deposit_total?: number;
+  approved_withdrawal_total?: number;
   account_status: string;
   created_at: string;
   last_active_at?: string;
@@ -443,6 +445,27 @@ export const UserDetail: React.FC = () => {
               </Space>
             }
           >
+            <div style={{
+              display: 'flex',
+              borderBottom: '1px solid #f0f0f0',
+              marginBottom: 16,
+              paddingBottom: 16,
+            }}>
+              <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>充值总额</div>
+                <div style={{ fontSize: 22, fontWeight: 'bold', fontFamily: 'monospace', color: '#1890ff' }}>
+                  ${parseFloat(String(user.real_deposit_total ?? 0)).toFixed(2)}
+                </div>
+                <div style={{ fontSize: 11, color: '#999' }}>真实充值</div>
+              </div>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>提现总额</div>
+                <div style={{ fontSize: 22, fontWeight: 'bold', fontFamily: 'monospace', color: '#ff4d4f' }}>
+                  ${parseFloat(String(user.approved_withdrawal_total ?? 0)).toFixed(2)}
+                </div>
+                <div style={{ fontSize: 11, color: '#999' }}>已审批通过</div>
+              </div>
+            </div>
             <Descriptions bordered column={2}>
               <Descriptions.Item label="钱包余额 (USDT)">
                 <span style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>

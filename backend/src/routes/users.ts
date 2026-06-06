@@ -181,6 +181,8 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
 router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    let realDepositTotal = 0;
+    let approvedWithdrawalTotal = 0;
 
     const result = await query(
       `SELECT u.*,
@@ -210,6 +212,36 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    try {
+      const depositTotalResult = await query(
+        `SELECT COALESCE(SUM(amount), 0) AS real_deposit_total
+         FROM deposit_records
+         WHERE user_id = $1 AND status IN ('credited', 'confirmed')`,
+        [id]
+      );
+      realDepositTotal = parseFloat(String(depositTotalResult.rows[0]?.real_deposit_total ?? 0));
+    } catch (depositError) {
+      console.warn('Failed to fetch real deposit total for user', id, depositError);
+    }
+
+    try {
+      const withdrawalTotalResult = await query(
+        `SELECT COALESCE(SUM(amount), 0) AS approved_withdrawal_total
+         FROM withdrawal_records
+         WHERE user_id = $1 AND status IN ('approved', 'completed')`,
+        [id]
+      );
+      approvedWithdrawalTotal = parseFloat(String(withdrawalTotalResult.rows[0]?.approved_withdrawal_total ?? 0));
+    } catch (withdrawalError) {
+      console.warn('Failed to fetch approved withdrawal total for user', id, withdrawalError);
+    }
+
+    const user = {
+      ...result.rows[0],
+      real_deposit_total: realDepositTotal,
+      approved_withdrawal_total: approvedWithdrawalTotal,
+    };
 
     // Attempt to fetch transaction history; don't fail the whole request if tables don't exist yet
     let transactionRows: any[] = [];
@@ -315,7 +347,7 @@ router.get('/:id', authenticateAdmin, async (req: AuthRequest, res) => {
     transactionRows = transactionRows.slice(0, 100);
 
     res.json({
-      user: result.rows[0],
+      user,
       transactions: transactionRows,
     });
   } catch (error) {
