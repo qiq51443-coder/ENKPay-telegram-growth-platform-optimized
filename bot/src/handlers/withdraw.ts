@@ -5,6 +5,7 @@ import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdra
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
+import { animateEmojis } from '../utils/animate-emojis';
 
 interface NetworkInfo {
   id: number;
@@ -87,8 +88,9 @@ export const handleWithdrawSelectNetwork = async (ctx: Context) => {
 
     const networks = await getActiveNetworks(botId);
     if (!networks || networks.length === 0) {
+      const noNetworkText = await animateEmojis(`${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n${t(lang, 'error')}`);
       await ctx.editMessageText(
-        `${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n${t(lang, 'error')}`,
+        noNetworkText,
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]]) }
       );
       return;
@@ -101,8 +103,9 @@ export const handleWithdrawSelectNetwork = async (ctx: Context) => {
     }
     rows.push([Markup.button.callback(t(lang, 'btn_back'), 'wallet_back_to_wallet')]);
 
+    const selectNetworkText = await animateEmojis(`${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n${t(lang, 'withdraw_select_network')}`);
     await ctx.editMessageText(
-      `${renderHeaderTitle(emojiConfig, 'field_withdraw', t(lang, 'btn_withdraw'))}\n\n${t(lang, 'withdraw_select_network')}`,
+      selectNetworkText,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard(rows),
@@ -211,7 +214,8 @@ export const handleWithdrawEnterAmount = async (ctx: Context, user: any, amount:
       `${getEmoji(emojiConfig, 'field_address')} ${t(lang, 'withdraw_success_address')}: <code>${d.address || ''}</code>\n` +
       `${getEmoji(emojiConfig, 'field_amount')} ${t(lang, 'withdraw_success_amount')}: <b>${numAmount.toFixed(2)} USDT</b>`;
 
-    await ctx.replyWithHTML(confirmMsg, Markup.inlineKeyboard([
+    const animatedConfirmMsg = await animateEmojis(confirmMsg);
+    await ctx.replyWithHTML(animatedConfirmMsg, Markup.inlineKeyboard([
       [
         Markup.button.callback(t(lang, 'btn_confirm'), 'withdraw_confirm'),
         Markup.button.callback(t(lang, 'btn_cancel'), 'withdraw_cancel'),
@@ -421,7 +425,8 @@ async function processWithdrawal(ctx: Context, user: any, lang: string, botId: s
       `└─────────────────────────\n\n` +
       `ℹ️ ${t(lang, 'withdraw_pending_info')}`;
 
-    await ctx.replyWithHTML(successMessage);
+    const animatedSuccessMessage = await animateEmojis(successMessage);
+    await ctx.replyWithHTML(animatedSuccessMessage);
   } catch (err: any) {
     console.error('Submit withdrawal error:', err);
     const apiError: string = err.response?.data?.error || '';

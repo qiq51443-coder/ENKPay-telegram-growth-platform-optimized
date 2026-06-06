@@ -5,6 +5,7 @@ import { submitTransfer, getUserByUniqueId } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
+import { animateEmojis } from '../utils/animate-emojis';
 
 export const handleTransferStart = async (ctx: Context) => {
   try {
@@ -183,7 +184,8 @@ export const handleTransferConfirm = async (ctx: Context) => {
         `${getEmoji(emojiConfig, 'field_fee')} ${t(lang, 'transfer_fee')}: <b>${fee.toFixed(2)} USDT</b>\n` +
         `${getEmoji(emojiConfig, 'emoji_success')} ${t(lang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
 
-      await ctx.replyWithHTML(successMsg);
+      const animatedSuccessMsg = await animateEmojis(successMsg);
+      await ctx.replyWithHTML(animatedSuccessMsg);
 
       // Notify recipient if we have their telegram_id
       if (recipientTelegramId) {
@@ -194,7 +196,8 @@ export const handleTransferConfirm = async (ctx: Context) => {
             `${getEmoji(emojiConfig, 'field_order_id')} ${t(rLang, 'transfer_order_id')}: <code>${orderId}</code>\n` +
             `${getEmoji(emojiConfig, 'field_id')} ${t(rLang, 'transfer_from')}: <b>${(user as any).first_name || (user as any).username || '-'}</b>\n` +
             `${getEmoji(emojiConfig, 'emoji_success')} ${t(rLang, 'transfer_delivered')}: <b>${actualReceived.toFixed(2)} USDT</b>`;
-          await ctx.telegram.sendMessage(recipientTelegramId, notifyMsg, { parse_mode: 'HTML' });
+          const animatedNotifyMsg = await animateEmojis(notifyMsg);
+          await ctx.telegram.sendMessage(recipientTelegramId, animatedNotifyMsg, { parse_mode: 'HTML' });
         } catch (notifyErr) {
           console.error('Failed to notify recipient:', notifyErr);
         }

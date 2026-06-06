@@ -194,3 +194,13 @@ export const getSystemSetting = async (key: string) => {
     return null;
   }
 };
+
+export async function fetchEmojiMappings(): Promise<Record<string, string>> {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+    const response = await axios.get(`${backendUrl}/api/settings/emoji-mappings`, { timeout: 5000 });
+    return response.data?.mappings || {};
+  } catch {
+    return {};
+  }
+}

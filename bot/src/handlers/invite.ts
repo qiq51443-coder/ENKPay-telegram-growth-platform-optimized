@@ -2,6 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage, User } from '../services/user';
 import { getUser as getUserFromAPI } from '../services/api';
 import { t } from '../i18n';
+import { animateEmojis } from '../utils/animate-emojis';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
@@ -105,6 +106,7 @@ export async function sendInviteCard(
     const inviteText = inviteTemplate
       ? inviteTemplate.replace(/\{invite_link\}/g, inviteLink)
       : buildDefaultInviteText(lang, inviteLink);
+    const animatedInviteText = await animateEmojis(inviteText);
 
     // 5. Build share URL (opens Telegram forward/share dialog) and keyboard
     // Strip {invite_link} placeholder, HTML tags, HTML entities, and extra whitespace
@@ -131,13 +133,13 @@ export async function sendInviteCard(
       try {
         if (isGif) {
           await ctx.replyWithAnimation(mediaUrl, {
-            caption: inviteText,
+          caption: animatedInviteText,
             parse_mode: 'HTML',
             reply_markup: keyboard.reply_markup,
           });
         } else {
           await ctx.replyWithPhoto(mediaUrl, {
-            caption: inviteText,
+          caption: animatedInviteText,
             parse_mode: 'HTML',
             reply_markup: keyboard.reply_markup,
           });
@@ -148,13 +150,14 @@ export async function sendInviteCard(
       }
     }
 
-    await ctx.replyWithHTML(inviteText, keyboard);
+    await ctx.replyWithHTML(animatedInviteText, keyboard);
   } catch (err) {
     console.error('[sendInviteCard] Unexpected error:', err);
     try {
       const uniqueId = user.unique_id || user.robot_user_id || user.invite_code || '';
       const fallbackLink = `https://t.me/${process.env.BOT_USERNAME || 'your_bot'}?start=REF_${uniqueId}`;
-      await ctx.replyWithHTML(buildDefaultInviteText(lang, fallbackLink));
+      const fallbackText = await animateEmojis(buildDefaultInviteText(lang, fallbackLink));
+      await ctx.replyWithHTML(fallbackText);
     } catch {
       // Swallow all fallback errors to ensure this helper never crashes caller flow.
     }
