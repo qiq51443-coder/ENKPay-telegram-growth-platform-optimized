@@ -10,6 +10,12 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
+import {
+  getCustomAnimatedEmojiLibrary,
+  normalizeCustomAnimatedEmojis,
+  invalidateCustomAnimatedEmojiCache,
+} from '../utils/custom-emojis';
+import { invalidateAnimatedEmojiCache } from '../utils/animated-emojis';
 
 const router = express.Router();
 
@@ -435,6 +441,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req: AuthRequest, res) 
       query(`
         SELECT COALESCE(SUM(amount), 0) as total_withdrawals
         FROM withdrawal_records
+        WHERE status IN ('approved', 'completed')
       `)
     ]);
 
@@ -1084,6 +1091,53 @@ router.post('/translate', adminLimiter, authenticateAdmin, async (req: AuthReque
   } catch (error: any) {
     console.error('Translate error:', error);
     res.status(500).json({ error: error.message || 'Translation failed' });
+  }
+});
+
+router.get('/custom-emojis', adminLimiter, authenticateAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const { emojis, exists } = await getCustomAnimatedEmojiLibrary();
+    res.json({ emojis, exists });
+  } catch (error) {
+    console.error('Get custom emojis error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/custom-emojis', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const payload = normalizeCustomAnimatedEmojis(req.body?.emojis ?? req.body);
+
+    await query(
+      `INSERT INTO system_settings (key, value, description, category, is_public, updated_by, updated_at)
+       VALUES ('custom_animated_emojis', $1, 'Custom animated emoji library', 'bot', false, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET
+         value = EXCLUDED.value,
+         description = EXCLUDED.description,
+         category = EXCLUDED.category,
+         is_public = EXCLUDED.is_public,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()`,
+      [JSON.stringify(payload), req.user?.id || null]
+    );
+
+    invalidateCustomAnimatedEmojiCache();
+    invalidateAnimatedEmojiCache();
+
+    await logAuditAction({
+      adminUserId: req.user?.id || '',
+      action: 'update_custom_emojis',
+      resourceType: 'system_setting',
+      resourceId: 'custom_animated_emojis',
+      details: { count: payload.length },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    res.json({ success: true, emojis: payload });
+  } catch (error) {
+    console.error('Save custom emojis error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

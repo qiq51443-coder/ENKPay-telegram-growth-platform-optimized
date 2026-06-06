@@ -1605,7 +1605,7 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           try {
             const wagMultiplier = result.wagering_multiplier;
             const expiryHours = result.balance_expiry_hours;
-            const notifText = buildRedPacketClaimNotification({
+            const notifText = await buildRedPacketClaimNotification({
               lang,
               amount: amountStr,
               multiplier: String(wagMultiplier ?? 2),

@@ -7,6 +7,8 @@ import { adminLimiter } from '../middleware/rateLimiter';
 import { translateToAllLangs } from '../utils/translate';
 import { inviteUpload, miniappBgUpload, toPublicUrl } from '../services/storage.service';
 import { MINIAPP_BG_EMPTY_CONFIG, normalizeMiniAppBgConfig } from '../services/miniapp-bg.service';
+import { invalidateBotMessageEmojiConfigCache } from '../utils/emoji-config';
+import { invalidateAnimatedEmojiCache } from '../utils/animated-emojis';
 
 const router = express.Router();
 
@@ -235,6 +237,11 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
         userAgent: req.headers['user-agent'],
       });
 
+      if (key === 'bot_message_emoji_config') {
+        invalidateBotMessageEmojiConfigCache();
+        invalidateAnimatedEmojiCache();
+      }
+
       return res.json({
         setting: insertResult.rows[0],
         message: 'Setting created successfully',
@@ -295,6 +302,11 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
       userAgent: req.headers['user-agent'],
     });
 
+    if (key === 'bot_message_emoji_config') {
+      invalidateBotMessageEmojiConfigCache();
+      invalidateAnimatedEmojiCache();
+    }
+
     res.json({
       setting: result.rows[0],
       message: 'Setting updated successfully',
@@ -352,6 +364,11 @@ router.post('/', authenticateAdmin, requireRoles(['super_admin']), async (req: A
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
+
+    if (key === 'bot_message_emoji_config') {
+      invalidateBotMessageEmojiConfigCache();
+      invalidateAnimatedEmojiCache();
+    }
 
     res.json({
       setting: result.rows[0],

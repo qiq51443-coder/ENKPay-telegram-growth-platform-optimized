@@ -173,7 +173,7 @@ async function settleDailyIncome(): Promise<number> {
         // Send bot notification
         if (holding.telegram_id && holding.bot_id) {
           const lang = normalizeLang(holding.language_code);
-          const text = buildNFTDailyIncomeNotification({
+          const text = await buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
             product_name: holding.product_name,
@@ -285,7 +285,7 @@ async function settleDailyIncome(): Promise<number> {
 
         if (holding.telegram_id && holding.bot_id) {
           const lang = normalizeLang(holding.language_code);
-          const text = buildNFTDailyIncomeNotification({
+          const text = await buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
             product_name: holding.product_name,
@@ -387,7 +387,7 @@ async function releaseMatureHoldings(): Promise<number> {
         // Send maturity notification
         if (holding.telegram_id && holding.bot_id) {
           const lang = normalizeLang(holding.language_code);
-          const text = buildNFTMaturityReturnNotification({
+          const text = await buildNFTMaturityReturnNotification({
             lang,
             amount: principal.toFixed(2),
             product_name: holding.product_name,
@@ -473,7 +473,7 @@ async function releaseMatureHoldings(): Promise<number> {
 
         if (holding.telegram_id && holding.bot_id) {
           const lang = normalizeLang(holding.language_code);
-          const text = buildNFTMaturityReturnNotification({
+          const text = await buildNFTMaturityReturnNotification({
             lang,
             amount: principal.toFixed(2),
             product_name: holding.product_name,

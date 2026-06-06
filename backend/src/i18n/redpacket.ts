@@ -72,13 +72,13 @@ export function getRedPacketMessages(language: string): RedPacketMessages {
   return REDPACKET_I18N[language] || REDPACKET_I18N['en'];
 }
 
-export function buildRedPacketMessage(params: {
+export async function buildRedPacketMessage(params: {
   language?: string;
   title?: string;
   totalAmount: number;
   totalCount: number;
   expiresHours?: number | null;
-}): string {
+}): Promise<string> {
   const msgs = getRedPacketMessages(params.language || 'en');
   const displayTitle = params.title || msgs.title;
   const amountStr = params.totalAmount.toFixed(2) + ' USDT';

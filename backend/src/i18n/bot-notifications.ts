@@ -42,12 +42,12 @@ function fill(template: string, vars: Record<string, string>): string {
   return s;
 }
 
-export function buildRedPacketClaimNotification(params: {
+export async function buildRedPacketClaimNotification(params: {
   lang: string;
   amount: string;
   multiplier: string;
   expiryHours?: number | null;
-}): string {
+}): Promise<string> {
   const tpl = CLAIM_NOTIFICATION_TEMPLATES[params.lang] || CLAIM_NOTIFICATION_TEMPLATES['en'];
   let text: string;
   if (!params.expiryHours) {

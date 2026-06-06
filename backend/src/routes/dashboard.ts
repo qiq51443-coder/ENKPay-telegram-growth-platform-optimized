@@ -66,7 +66,7 @@ router.get('/overview', authenticateAdmin, async (req: AuthRequest, res) => {
     const withdrawalStats = await query(`
       SELECT 
         COUNT(*) as total_withdrawals,
-        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(SUM(amount) FILTER (WHERE status IN ('approved', 'completed')), 0) as total_amount,
         COUNT(*) FILTER (WHERE status = 'pending') as pending_withdrawals,
         COUNT(*) FILTER (WHERE status = 'approved') as approved_withdrawals,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected_withdrawals,
@@ -327,7 +327,8 @@ router.get('/stats', authenticateAdmin, async (req: AuthRequest, res) => {
     // Withdrawal total
     const withdrawalStats = await query(`
       SELECT COALESCE(SUM(amount), 0) as total_withdrawals
-      FROM transactions WHERE type = 'withdrawal'
+      FROM withdrawal_records
+      WHERE status IN ('approved', 'completed')
     `);
 
     // Total rewards
