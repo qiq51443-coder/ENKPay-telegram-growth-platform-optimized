@@ -180,7 +180,7 @@ export const TradingStrategyBot: React.FC = () => {
     try {
       const res = await axios.get('/api/trading/pairs', { headers: authHeaders() });
       const data: TradingPair[] = res.data?.pairs || res.data?.data || [];
-      setPairs(data.filter((p) => p.pair_type !== 'custom'));
+      setPairs(data);
     } catch (error) {
       console.error(error);
       message.error(apiErrorMessage(error, '获取交易币种失败'));
@@ -712,7 +712,10 @@ export const TradingStrategyBot: React.FC = () => {
                               <Select
                                 style={{ width: 280 }}
                                 placeholder="币种"
-                                options={pairs.map((p) => ({ value: String(p.id), label: `${p.display_name || p.symbol} (${p.symbol})` }))}
+                                options={pairs.map((p) => ({
+                                  value: String(p.id),
+                                  label: `${p.display_name || p.symbol} (${p.symbol})${p.pair_type === 'custom' ? ' · 自定义' : ''}`,
+                                }))}
                                 onChange={(v) => {
                                   const pair = pairs.find((p) => String(p.id) === String(v));
                                   configForm.setFieldValue(['coin_rotation', field.name, 'symbol'], pair?.symbol || '');

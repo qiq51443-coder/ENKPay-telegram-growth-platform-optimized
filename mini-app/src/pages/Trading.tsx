@@ -36,6 +36,7 @@ interface TradingRule {
 
 interface Order {
   id: string;
+  pair_id?: string | number;
   direction: 'up' | 'down';
   amount: number;
   entry_price: number;
@@ -53,6 +54,7 @@ interface Order {
   period_label?: string;
   session_open_price?: number | string;
   session_close_price?: number | string;
+  duration?: number;
 }
 
 
@@ -134,6 +136,50 @@ const STALE_ORDER_GRACE_MS = 30000;
 
 // Duration of the flash-up / flash-down price animation (ms)
 const FLASH_ANIMATION_DURATION_MS = 600;
+
+const getOrderDurationSeconds = (order: Order): number | null => {
+  const directDuration = Number(order.duration);
+  if (!isNaN(directDuration) && directDuration > 0) {
+    return directDuration;
+  }
+
+  if (order.session_start && order.session_end) {
+    const startMs = new Date(order.session_start).getTime();
+    const endMs = new Date(order.session_end).getTime();
+    if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) {
+      return Math.round((endMs - startMs) / 1000);
+    }
+  }
+
+  return null;
+};
+
+const isOrderForSelection = (
+  order: Order,
+  selectedPairId: string,
+  selectedDuration: number,
+  nowMs: number
+): boolean => {
+  if (order.status !== 'active' && order.status !== 'pending') return false;
+  if (order.pair_id == null || String(order.pair_id) !== String(selectedPairId)) return false;
+
+  const inferredDuration = getOrderDurationSeconds(order);
+  if (inferredDuration != null && inferredDuration !== selectedDuration) return false;
+
+  if (order.session_end) {
+    const endMs = new Date(order.session_end).getTime();
+    if (!isNaN(endMs)) {
+      return endMs + STALE_ORDER_GRACE_MS >= nowMs;
+    }
+  }
+
+  const createdAtMs = new Date(order.created_at).getTime();
+  if (isNaN(createdAtMs)) return false;
+
+  const fallbackDuration = inferredDuration ?? selectedDuration;
+  const staleCutoffMs = nowMs - (fallbackDuration * 1000 + STALE_ORDER_GRACE_MS);
+  return createdAtMs >= staleCutoffMs;
+};
 
 export const Trading: React.FC = () => {
   const { t } = useLang();
@@ -259,37 +305,42 @@ export const Trading: React.FC = () => {
   }, [authSyncDone]);
 
   // Track active order from order history
-  // Only consider orders within the current period window to avoid stuck orders from past periods blocking the UI
+  // Only consider active/pending orders for the current selected pair + duration
   useEffect(() => {
+    if (!selectedPair) {
+      setActiveOrder(null);
+      setActiveOrderEntryPrice(null);
+      return;
+    }
+
     const nowMs = Date.now();
-    // Orders created more than (selectedDuration + grace period) ago are likely stuck from a previous period
-    const staleCutoffMs = nowMs - (selectedDuration * 1000 + STALE_ORDER_GRACE_MS);
-    const active = orders.find(o => {
-      if (o.status !== 'active' && o.status !== 'pending') return false;
-      const createdAt = new Date(o.created_at).getTime();
-      // Only treat as blocking if the order was created within current period window
-      return createdAt >= staleCutoffMs;
-    });
+    const active = orders.find((o) =>
+      isOrderForSelection(o, String(selectedPair.id), selectedDuration, nowMs)
+    );
     setActiveOrder(active || null);
     if (!active) setActiveOrderEntryPrice(null);
-  }, [orders, selectedDuration]);
+  }, [orders, selectedDuration, selectedPair?.id]);
 
   // Recover countdown from session_end when returning to the page (countdown lost after tab switch)
   useEffect(() => {
-    if (activeOrder && countdown === null) {
-      const endMs = activeOrder.session_end
-        ? new Date(activeOrder.session_end).getTime()
-        : null;
-      if (endMs && endMs > Date.now()) {
-        startCountdown(endMs, activeOrder.id);
-      }
+    if (!activeOrder) {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      setCountdown(null);
+      return;
     }
-  // countdown is intentionally omitted from deps: we only want to recover on activeOrder change,
-  // not re-run every second as countdown ticks down. The guard (countdown === null) prevents
-  // re-starting an already-running timer. startCountdown is a stable function defined in the
-  // same component render scope and is not expected to change identity in a meaningful way.
+
+    const endMs = activeOrder.session_end
+      ? new Date(activeOrder.session_end).getTime()
+      : null;
+    if (endMs && endMs > Date.now()) {
+      startCountdown(endMs, activeOrder.id);
+      return;
+    }
+
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrder]);
+  }, [activeOrder?.id, activeOrder?.session_end]);
 
   // Restore activeOrderEntryPrice from session_open_price when returning to the page
   // (activeOrderEntryPrice is lost on navigation but session_open_price persists in the order data)
@@ -1158,6 +1209,7 @@ export const Trading: React.FC = () => {
     const priceInfo = prices[selectedPair.id] || { price: 0, change24h: 0 };
     const amountNum = Number(amount) || 0;
     const expectedProfit = amountNum * (selectedOdds - 1);
+    const hasBlockingOrder = !!activeOrder;
 
     return (
       <div style={{ ...pageBgStyle, padding: '16px', paddingBottom: '32px' }}>
@@ -1447,14 +1499,14 @@ export const Trading: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '120px', flexShrink: 0 }}>
               <button
                 onClick={() => openConfirm('up')}
-                disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+                disabled={!amount || Number(amount) <= 0 || hasBlockingOrder}
                 style={{
                   backgroundColor: '#26a69a', color: '#fff',
                   borderRadius: '10px', padding: '0 8px',
                   height: '45px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
-                  cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
-                  opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                  cursor: (!amount || Number(amount) <= 0 || hasBlockingOrder) ? 'not-allowed' : 'pointer',
+                  opacity: (!amount || Number(amount) <= 0 || hasBlockingOrder) ? 0.5 : 1,
                   transition: 'opacity 0.2s', width: '100%',
                 }}
               >
@@ -1462,14 +1514,14 @@ export const Trading: React.FC = () => {
               </button>
               <button
                 onClick={() => openConfirm('down')}
-                disabled={!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder}
+                disabled={!amount || Number(amount) <= 0 || hasBlockingOrder}
                 style={{
                   backgroundColor: '#ef5350', color: '#fff',
                   borderRadius: '10px', padding: '0 8px',
                   height: '45px',
                   fontSize: '15px', fontWeight: 700, border: 'none',
-                  cursor: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 'not-allowed' : 'pointer',
-                  opacity: (!amount || Number(amount) <= 0 || countdown !== null || !!activeOrder) ? 0.5 : 1,
+                  cursor: (!amount || Number(amount) <= 0 || hasBlockingOrder) ? 'not-allowed' : 'pointer',
+                  opacity: (!amount || Number(amount) <= 0 || hasBlockingOrder) ? 0.5 : 1,
                   transition: 'opacity 0.2s', width: '100%',
                 }}
               >
