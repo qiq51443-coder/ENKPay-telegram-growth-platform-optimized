@@ -3,6 +3,18 @@ import axios from 'axios';
 export const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
 export type SupportedLang = typeof SUPPORTED_LANGS[number];
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  '&lt;': '<',
+  '&gt;': '>',
+  '&amp;': '&',
+  '&quot;': '"',
+  '&#39;': '\'',
+};
+
+function decodeHtmlEntities(raw: string): string {
+  return raw.replace(/&lt;|&gt;|&amp;|&quot;|&#39;/g, (entity) => HTML_ENTITY_MAP[entity] || entity);
+}
+
 /**
  * Translate text using Google Translate free API (fallback).
  */
@@ -12,7 +24,8 @@ async function translateWithGoogle(text: string, targetLang: string): Promise<st
     const response = await axios.get(url, { timeout: 10000 });
     const data = response.data;
     if (Array.isArray(data) && Array.isArray(data[0])) {
-      return (data[0] as any[]).map((segment: any) => segment[0] || '').join('') || text;
+      const translated = (data[0] as any[]).map((segment: any) => segment[0] || '').join('') || text;
+      return decodeHtmlEntities(translated);
     }
     return text;
   } catch (err) {
@@ -58,7 +71,7 @@ export async function translateText(text: string, targetLang: string): Promise<s
         { timeout: 15000 }
       );
       const translated = (response.data?.translatedText as string) || '';
-      if (translated && translated !== text) return translated;
+      if (translated && translated !== text) return decodeHtmlEntities(translated);
       // If result is identical to source, fall through to Google
     } catch (err) {
       console.warn(`LibreTranslate failed for lang=${targetLang}, falling back to Google:`, err);
