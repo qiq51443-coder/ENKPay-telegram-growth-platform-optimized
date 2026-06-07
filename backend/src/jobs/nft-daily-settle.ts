@@ -75,6 +75,7 @@ async function sendBotNotification(
 
 /**
  * Settle daily income for all active fixed_term NFT holdings.
+ * Products with settlement_type='expiry' are skipped here (paid at maturity instead).
  * Returns the total number of successfully settled income records.
  */
 async function settleDailyIncome(): Promise<number> {
@@ -99,6 +100,7 @@ async function settleDailyIncome(): Promise<number> {
      JOIN users u ON h.user_id = u.id
      WHERE h.status = 'active'
        AND p.product_type = 'fixed_term'
+       AND (p.settlement_type IS NULL OR p.settlement_type = 'daily')
        AND p.daily_yield_rate IS NOT NULL
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
@@ -214,6 +216,7 @@ async function settleDailyIncome(): Promise<number> {
      JOIN users u ON ph.user_id = u.id
      WHERE ph.status = 'active'
        AND p.product_type = 'fixed_term'
+       AND (p.settlement_type IS NULL OR p.settlement_type = 'daily')
        AND p.daily_yield_rate IS NOT NULL
        AND p.daily_yield_rate > 0
        AND NOT EXISTS (
@@ -312,6 +315,7 @@ async function settleDailyIncome(): Promise<number> {
 
 /**
  * Release matured holdings: return principal from nft_balance to wallet_balance.
+ * For settlement_type='expiry', full accumulated income is also paid here once at maturity.
  * Returns the total number of successfully processed principal returns.
  * Handles both explicit expires_at/end_date and NULL fallback via created_at + term_days.
  */
@@ -323,6 +327,9 @@ async function releaseMatureHoldings(): Promise<number> {
        h.product_id,
        h.purchase_price,
        p.name AS product_name,
+       p.settlement_type,
+       p.daily_yield_rate,
+       p.term_days,
        u.telegram_id,
        u.bot_id,
        u.language_code
@@ -351,6 +358,18 @@ async function releaseMatureHoldings(): Promise<number> {
     for (const holding of matureResult.rows) {
       try {
         const principal = parseFloat(holding.purchase_price);
+        const isExpirySettlement = holding.settlement_type === 'expiry';
+        let expiryIncome = 0;
+        if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
+          const termDays = parseInt(String(holding.term_days), 10);
+          const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
+          const alreadyCredited = await query(
+            `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
+            [holding.id]
+          );
+          const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
+          expiryIncome = Math.max(0, totalIncome - alreadyPaid);
+        }
 
         await transaction(async (client) => {
           // Mark holding as expired
@@ -363,9 +382,9 @@ async function releaseMatureHoldings(): Promise<number> {
           await client.query(
             `UPDATE users
              SET nft_balance = GREATEST(COALESCE(nft_balance, 0) - $1, 0),
-                 wallet_balance = COALESCE(wallet_balance, 0) + $1
-             WHERE id = $2`,
-            [principal, holding.user_id]
+                 wallet_balance = COALESCE(wallet_balance, 0) + $2
+             WHERE id = $3`,
+            [principal, principal + expiryIncome, holding.user_id]
           );
 
           // Decrease current_holders on product
@@ -382,6 +401,27 @@ async function releaseMatureHoldings(): Promise<number> {
              SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
             [holding.user_id, principal, principalDesc, String(holding.id)]
           );
+
+          if (isExpirySettlement && expiryIncome > 0) {
+            const lang = normalizeLang(holding.language_code);
+            const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: parseInt(String(holding.term_days), 10) });
+            await client.query(
+              `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+               SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+              [holding.user_id, expiryIncome, incomeDesc, String(holding.id)]
+            );
+            const today = new Date().toISOString().slice(0, 10);
+            await client.query(
+              `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (holding_id, income_date) DO NOTHING`,
+              [holding.id, holding.user_id, holding.product_id, expiryIncome.toFixed(8), today]
+            );
+            await client.query(
+              'UPDATE nft_holdings SET total_income = COALESCE(total_income, 0) + $1 WHERE id = $2',
+              [expiryIncome, holding.id]
+            );
+          }
         });
 
         // Send maturity notification
@@ -389,13 +429,13 @@ async function releaseMatureHoldings(): Promise<number> {
           const lang = normalizeLang(holding.language_code);
           const text = await buildNFTMaturityReturnNotification({
             lang,
-            amount: principal.toFixed(2),
+            amount: (principal + expiryIncome).toFixed(2),
             product_name: holding.product_name,
           });
           await sendBotNotification(holding.telegram_id, holding.bot_id, text);
         }
 
-        console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned`);
+        console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned${isExpirySettlement && expiryIncome > 0 ? ` + expiry income ${expiryIncome.toFixed(8)} USDT` : ''}`);
         successCount++;
       } catch (err: any) {
         console.error(`NFT mature release error for holding ${holding.id}:`, err.message);
@@ -415,6 +455,9 @@ async function releaseMatureHoldings(): Promise<number> {
        ph.product_id,
        ph.amount AS purchase_price,
        p.name AS product_name,
+       p.settlement_type,
+       p.daily_yield_rate,
+       p.term_days,
        u.telegram_id,
        u.bot_id,
        u.language_code
@@ -441,6 +484,18 @@ async function releaseMatureHoldings(): Promise<number> {
     for (const holding of phMatureResult.rows) {
       try {
         const principal = parseFloat(holding.purchase_price);
+        const isExpirySettlement = holding.settlement_type === 'expiry';
+        let expiryIncome = 0;
+        if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
+          const termDays = parseInt(String(holding.term_days), 10);
+          const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
+          const alreadyCredited = await query(
+            `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
+            [holding.id]
+          );
+          const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
+          expiryIncome = Math.max(0, totalIncome - alreadyPaid);
+        }
 
         await transaction(async (client) => {
           await client.query(
@@ -451,9 +506,9 @@ async function releaseMatureHoldings(): Promise<number> {
           await client.query(
             `UPDATE users
              SET nft_balance = GREATEST(COALESCE(nft_balance, 0) - $1, 0),
-                 wallet_balance = COALESCE(wallet_balance, 0) + $1
-             WHERE id = $2`,
-            [principal, holding.user_id]
+                 wallet_balance = COALESCE(wallet_balance, 0) + $2
+             WHERE id = $3`,
+            [principal, principal + expiryIncome, holding.user_id]
           );
 
           await client.query(
@@ -469,19 +524,40 @@ async function releaseMatureHoldings(): Promise<number> {
              SELECT $1, 'nft_principal_return', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
             [holding.user_id, principal, principalDesc, String(holding.id)]
           );
+
+          if (isExpirySettlement && expiryIncome > 0) {
+            const lang = normalizeLang(holding.language_code);
+            const incomeDesc = buildNFTIncomeDescription({ lang, product_name: holding.product_name, day: parseInt(String(holding.term_days), 10) });
+            await client.query(
+              `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+               SELECT $1, 'nft_income', $2, wallet_balance, $3, $4 FROM users WHERE id = $1`,
+              [holding.user_id, expiryIncome, incomeDesc, String(holding.id)]
+            );
+            const today = new Date().toISOString().slice(0, 10);
+            await client.query(
+              `INSERT INTO nft_income_records (holding_id, user_id, product_id, amount, income_date)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (holding_id, income_date) DO NOTHING`,
+              [holding.id, holding.user_id, holding.product_id, expiryIncome.toFixed(8), today]
+            );
+            await client.query(
+              'UPDATE product_holdings SET total_income = COALESCE(total_income, 0) + $1 WHERE id = $2',
+              [expiryIncome, holding.id]
+            );
+          }
         });
 
         if (holding.telegram_id && holding.bot_id) {
           const lang = normalizeLang(holding.language_code);
           const text = await buildNFTMaturityReturnNotification({
             lang,
-            amount: principal.toFixed(2),
+            amount: (principal + expiryIncome).toFixed(2),
             product_name: holding.product_name,
           });
           await sendBotNotification(holding.telegram_id, holding.bot_id, text);
         }
 
-        console.log(`NFT mature release (product_holdings): holding ${holding.id} principal ${principal} USDT returned`);
+        console.log(`NFT mature release (product_holdings): holding ${holding.id} principal ${principal} USDT returned${isExpirySettlement && expiryIncome > 0 ? ` + expiry income ${expiryIncome.toFixed(8)} USDT` : ''}`);
         phSuccessCount++;
       } catch (err: any) {
         console.error(`NFT mature release (product_holdings) error for holding ${holding.id}:`, err.message);
