@@ -224,6 +224,16 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
       if (typeof val === 'string') { try { return JSON.parse(val); } catch { return {}; } }
       return val as Record<string, string>;
     };
+    const decodeHtmlEntities = (raw: string): string => raw.replace(
+      /&lt;|&gt;|&amp;|&quot;|&#39;/g,
+      (entity) => ({
+        '&lt;': '<',
+        '&gt;': '>',
+        '&amp;': '&',
+        '&quot;': '"',
+        '&#39;': '\'',
+      }[entity] || entity)
+    );
     // Normalise BCP-47 language_code to 2-letter translation key
     // "zh-hans"→"zh", "fr-FR"→"fr", "zh-CN"→"zh", "en-US"→"en"
     const normaliseLang = (raw: string | null | undefined): string | null => {
@@ -238,6 +248,15 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     // Returns true only when both title and content translations exist for the given language
     const hasLang = (l: string | null): l is string =>
       l !== null && contentTranslations[l] !== undefined && titleTranslations[l] !== undefined;
+    const resolveAnnouncementLang = (...preferredLangs: Array<string | null | undefined>): string | null => {
+      for (const preferredLang of preferredLangs) {
+        const normLang = normaliseLang(preferredLang);
+        if (hasLang(normLang)) return normLang;
+      }
+      if (hasLang('en')) return 'en';
+      if (hasLang('zh')) return 'zh';
+      return null;
+    };
 
     let sentCount = 0;
     let failedCount = 0;
@@ -263,20 +282,11 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
     }
 
     const getLocalizedMessage = (lang: string | null): string => {
-      const normLang = normaliseLang(lang);
       // Only use a language when both title and content translations exist for it
 
-      let safeLang: string | null = null;
-      if (hasLang(normLang)) {
-        safeLang = normLang;
-      } else if (hasLang('en')) {
-        safeLang = 'en';
-      } else if (hasLang('zh')) {
-        safeLang = 'zh';
-      }
-
-      const title = (safeLang ? titleTranslations[safeLang] : null) || announcement.title || '';
-      const content = (safeLang ? contentTranslations[safeLang] : null) || announcement.content || '';
+      const safeLang = resolveAnnouncementLang(lang);
+      const title = decodeHtmlEntities((safeLang ? titleTranslations[safeLang] : null) || announcement.title || '');
+      const content = decodeHtmlEntities((safeLang ? contentTranslations[safeLang] : null) || announcement.content || '');
       if (title && content) return `<b>${title}</b>\n\n${content}`;
       if (title) return `<b>${title}</b>`;
       return content;
@@ -401,15 +411,24 @@ router.post('/:id/send', authenticateAdmin, async (req: AuthRequest, res) => {
 
     // Send to groups/channels
     if (targets.includes('groups') && announcement.announcement_bot_id && targetGroupIds.length > 0) {
-      const botResult = await query('SELECT token FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
+      const botResult = await query('SELECT token, default_language FROM bots WHERE id = $1', [announcement.announcement_bot_id]);
       if (botResult.rows.length > 0) {
+        const botDefaultLanguage = botResult.rows[0].default_language || null;
+        const groupLangResult = await query(
+          `SELECT group_id::text AS gid, language
+           FROM authorized_groups
+           WHERE bot_id = $1 AND group_id::text = ANY($2::text[])`,
+          [announcement.announcement_bot_id, targetGroupIds]
+        );
+        const groupLangMap = Object.fromEntries(
+          groupLangResult.rows.map((row: { gid: string; language: string | null }) => [String(row.gid), row.language || null])
+        ) as Record<string, string | null>;
         const telegram = new TelegramAPI(botResult.rows[0].token);
         for (let i = 0; i < targetGroupIds.length; i += BATCH_SIZE) {
           const batch = targetGroupIds.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (chatId) => {
             try {
-              // Groups use default language (zh if available for both title and content, else en)
-              const groupLang = hasLang('zh') ? 'zh' : 'en';
+              const groupLang = resolveAnnouncementLang(groupLangMap[String(chatId)], botDefaultLanguage, 'en');
               const result = await sendToChat(telegram, chatId, groupLang, true);
               if (result) sentMessageIds[String(chatId)] = { message_id: result.message_id, bot_id: announcement.announcement_bot_id };
               sentCount++;
