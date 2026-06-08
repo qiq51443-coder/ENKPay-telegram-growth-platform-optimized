@@ -173,7 +173,7 @@ async function notifyTransferParties(
       },
     });
   } catch (err) {
-    console.error(`Failed to notify sender ${senderId} of transfer:`, err);
+    console.error('Failed to notify sender of transfer:', senderId, err);
   }
 
   // Notify recipient across all bots they interacted with
@@ -194,7 +194,7 @@ async function notifyTransferParties(
       },
     });
   } catch (err) {
-    console.error(`Failed to notify recipient ${recipientId} of transfer:`, err);
+    console.error('Failed to notify recipient of transfer:', recipientId, err);
   }
 }
 

@@ -79,10 +79,11 @@ export async function sendCrossBotNotification(params: {
         parse_mode: params.parseMode || 'HTML',
       });
     } catch (error: any) {
-      console.error(
-        `[cross-bot-notify] failed for user=${params.userId} bot=${recipient.bot_id}:`,
-        error?.message || error
-      );
+      console.error('[cross-bot-notify] failed:', {
+        userId: params.userId,
+        botId: recipient.bot_id,
+        error: error?.message || error,
+      });
     }
   }
 }
