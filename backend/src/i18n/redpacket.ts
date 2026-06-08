@@ -1,4 +1,5 @@
 import { animateEmojis } from '../utils/animated-emojis';
+import { getBotMessageEmojiConfig, getEmoji } from '../utils/emoji-config';
 
 interface RedPacketMessages {
   title: string;
@@ -80,24 +81,30 @@ export async function buildRedPacketMessage(params: {
   expiresHours?: number | null;
 }): Promise<string> {
   const msgs = getRedPacketMessages(params.language || 'en');
+  const emojiConfig = await getBotMessageEmojiConfig();
   const displayTitle = params.title || msgs.title;
   const amountStr = params.totalAmount.toFixed(2) + ' USDT';
   const days = params.expiresHours ? Math.ceil(params.expiresHours / 24) : null;
   const daysStr = days !== null ? (days === 1 ? '1 day' : `${days} days`) : null;
+  const redpacketEmoji = getEmoji(emojiConfig, 'field_redpacket') || '🧧';
+  const amountEmoji = getEmoji(emojiConfig, 'field_amount') || '💰';
+  const peopleEmoji = getEmoji(emojiConfig, 'notify_people') || '👥';
+  const alarmEmoji = getEmoji(emojiConfig, 'notify_alarm') || '⏰';
+  const sparklesEmoji = getEmoji(emojiConfig, 'notify_sparkles') || '✨';
 
   const lines = [
-    `🧧 <b>${displayTitle}</b>`,
+    `${redpacketEmoji} <b>${displayTitle}</b>`,
     '',
     '━━━━━━━━━━━━━━━━━━━━',
-    `💰 ${msgs.labelTotal}: <b>${amountStr}</b>`,
-    `👥 ${msgs.labelCount}: <b>${params.totalCount}</b>`,
+    `${amountEmoji} ${msgs.labelTotal}: <b>${amountStr}</b>`,
+    `${peopleEmoji} ${msgs.labelCount}: <b>${params.totalCount}</b>`,
   ];
   if (daysStr) {
-    lines.push(`⏰ ${msgs.labelExpires}: <b>${daysStr}</b>`);
+    lines.push(`${alarmEmoji} ${msgs.labelExpires}: <b>${daysStr}</b>`);
   }
   lines.push('━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
-  lines.push(`✨ ${msgs.clickToClaimInstruction}`);
+  lines.push(`${sparklesEmoji} ${msgs.clickToClaimInstruction}`);
   return animateEmojis(lines.join('\n'));
 }
 

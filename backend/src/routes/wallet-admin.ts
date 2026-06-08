@@ -5,9 +5,9 @@ import { encrypt, decrypt, addManualDepositAddress, clearMnemonicCache } from '.
 import { createMoralisStream, addAddressToStream, deleteStream } from '../services/moralis-stream.service';
 import { resolveChainType, MORALIS_CHAIN_IDS } from '../utils/chain';
 import { adminLimiter } from '../middleware/rateLimiter';
-import TelegramAPI from '../utils/telegram';
 import { buildNotifyMessage } from '../utils/notify';
 import { getBotMessageEmojiConfig } from '../utils/emoji-config';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 const router = express.Router();
 
@@ -670,27 +670,10 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
       return { action, withdrawal };
     });
 
-    // Notify user via Telegram after transaction completes
+    // Notify user via Telegram after transaction completes (across all user-followed bots)
     try {
-      const userResult = await query(
-        `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name,
-                b.token AS bot_token
-         FROM users u
-         LEFT JOIN bots b ON u.bot_id = b.id
-         WHERE u.id = $1`,
-        [result.withdrawal.user_id]
-      );
+      const userResult = await query('SELECT id FROM users WHERE id = $1', [result.withdrawal.user_id]);
       if (userResult.rows.length > 0) {
-        // Fallback: if bot_token is null, get any active bot token
-        if (!userResult.rows[0].bot_token) {
-          const botRes = await query('SELECT token FROM bots WHERE is_active = true LIMIT 1');
-          if (botRes.rows.length > 0) {
-            userResult.rows[0].bot_token = botRes.rows[0].token;
-          }
-        }
-        const { telegram_id, language_code, bot_token } = userResult.rows[0];
-        const lang = language_code || 'en';
-        const tg = new TelegramAPI(bot_token);
         const emojiConfig = await getBotMessageEmojiConfig();
 
         // Resolve network display name for notification
@@ -718,35 +701,39 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
             [result.withdrawal.user_id]
           );
           const currentBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
-          const message = buildNotifyMessage(lang, 'withdraw_approved_notify', {
-            order_id: result.withdrawal.order_id || '-',
-            amount: parseFloat(result.withdrawal.amount).toFixed(2),
-            fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
-            actual: parseFloat(result.withdrawal.actual_amount || result.withdrawal.amount).toFixed(2),
-            address: result.withdrawal.to_address || '',
-            network: networkDisplay,
-            time: reviewedAt,
-            created_at: createdAt,
-            balance: currentBalance,
-          }, emojiConfig);
-          await tg.sendMessage(telegram_id, message);
+          await sendCrossBotNotification({
+            userId: result.withdrawal.user_id,
+            buildMessage: (lang) => buildNotifyMessage(lang, 'withdraw_approved_notify', {
+              order_id: result.withdrawal.order_id || '-',
+              amount: parseFloat(result.withdrawal.amount).toFixed(2),
+              fee: parseFloat(result.withdrawal.fee || '0').toFixed(2),
+              actual: parseFloat(result.withdrawal.actual_amount || result.withdrawal.amount).toFixed(2),
+              address: result.withdrawal.to_address || '',
+              network: networkDisplay,
+              time: reviewedAt,
+              created_at: createdAt,
+              balance: currentBalance,
+            }, emojiConfig),
+          });
         } else {
           const updatedUser = await query(
             'SELECT wallet_balance FROM users WHERE id = $1',
             [result.withdrawal.user_id]
           );
           const restoredBalance = parseFloat(String(updatedUser.rows[0]?.wallet_balance ?? 0)).toFixed(2);
-          const msg = buildNotifyMessage(lang, 'withdraw_rejected_notify', {
-            order_id: result.withdrawal.order_id || '-',
-            amount: parseFloat(result.withdrawal.amount).toFixed(2),
-            address: result.withdrawal.to_address || '',
-            network: networkDisplay,
-            time: reviewedAt,
-            created_at: createdAt,
-            balance: restoredBalance,
-            reason: admin_note || '-',
-          }, emojiConfig);
-          await tg.sendMessage(telegram_id, msg);
+          await sendCrossBotNotification({
+            userId: result.withdrawal.user_id,
+            buildMessage: (lang) => buildNotifyMessage(lang, 'withdraw_rejected_notify', {
+              order_id: result.withdrawal.order_id || '-',
+              amount: parseFloat(result.withdrawal.amount).toFixed(2),
+              address: result.withdrawal.to_address || '',
+              network: networkDisplay,
+              time: reviewedAt,
+              created_at: createdAt,
+              balance: restoredBalance,
+              reason: admin_note || '-',
+            }, emojiConfig),
+          });
         }
       }
     } catch (notifyErr) {

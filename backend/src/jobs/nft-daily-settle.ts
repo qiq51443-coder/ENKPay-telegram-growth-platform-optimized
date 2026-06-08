@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { query, transaction } from '../db';
-import { TelegramAPI } from '../utils/telegram';
 import { buildNFTDailyIncomeNotification, buildNFTMaturityReturnNotification, buildNFTIncomeDescription, buildNFTPrincipalReturnDescription } from '../i18n/nft-notifications';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 // ── Language normalization ────────────────────────────────────────────────────
 const SUPPORTED_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
@@ -52,24 +52,20 @@ let isRunning = false;
 let isMaturityRunning = false;
 
 /**
- * Send a Telegram message to a user via their bot token.
+ * Send a Telegram notification to all bots the user has interacted with.
  * Errors are swallowed so that one bad notification doesn't block the rest.
  */
 async function sendBotNotification(
-  telegramId: number,
-  botId: string,
-  text: string
+  userId: string,
+  buildText: (lang: string) => Promise<string> | string
 ): Promise<void> {
   try {
-    const botResult = await query(
-      'SELECT token FROM bots WHERE id = $1 AND is_active = true',
-      [botId]
-    );
-    if (botResult.rows.length === 0) return;
-    const api = new TelegramAPI(botResult.rows[0].token);
-    await api.sendMessage(telegramId, text);
+    await sendCrossBotNotification({
+      userId,
+      buildMessage: async (lang) => buildText(normalizeLang(lang)),
+    });
   } catch (err: any) {
-    console.error(`NFT notify error for telegram_id=${telegramId}:`, err.message);
+    console.error(`NFT notify error for user_id=${userId}:`, err.message);
   }
 }
 
@@ -172,17 +168,15 @@ async function settleDailyIncome(): Promise<number> {
 
         if (!incomeActuallySettled) continue;
 
-        // Send bot notification
-        if (holding.telegram_id && holding.bot_id) {
-          const lang = normalizeLang(holding.language_code);
-          const text = await buildNFTDailyIncomeNotification({
+        // Send bot notification to all associated bots
+        if (holding.user_id) {
+          await sendBotNotification(String(holding.user_id), async (lang) => buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
             product_name: holding.product_name,
             current_day: currentDay,
             term_days: termDays,
-          });
-          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+          }));
         }
 
         console.log(`NFT daily settle: holding ${holding.id} credited ${amountStr} USDT`);
@@ -286,16 +280,14 @@ async function settleDailyIncome(): Promise<number> {
           }
         });
 
-        if (holding.telegram_id && holding.bot_id) {
-          const lang = normalizeLang(holding.language_code);
-          const text = await buildNFTDailyIncomeNotification({
+        if (holding.user_id) {
+          await sendBotNotification(String(holding.user_id), async (lang) => buildNFTDailyIncomeNotification({
             lang,
             amount: parseFloat(amountStr).toFixed(2),
             product_name: holding.product_name,
             current_day: currentDay,
             term_days: termDays,
-          });
-          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+          }));
         }
 
         console.log(`NFT daily settle (product_holdings): holding ${holding.id} credited ${amountStr} USDT`);
@@ -424,15 +416,13 @@ async function releaseMatureHoldings(): Promise<number> {
           }
         });
 
-        // Send maturity notification
-        if (holding.telegram_id && holding.bot_id) {
-          const lang = normalizeLang(holding.language_code);
-          const text = await buildNFTMaturityReturnNotification({
+        // Send maturity notification to all associated bots
+        if (holding.user_id) {
+          await sendBotNotification(String(holding.user_id), async (lang) => buildNFTMaturityReturnNotification({
             lang,
             amount: (principal + expiryIncome).toFixed(2),
             product_name: holding.product_name,
-          });
-          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+          }));
         }
 
         console.log(`NFT mature release: holding ${holding.id} principal ${principal} USDT returned${isExpirySettlement && expiryIncome > 0 ? ` + expiry income ${expiryIncome.toFixed(8)} USDT` : ''}`);
@@ -547,14 +537,12 @@ async function releaseMatureHoldings(): Promise<number> {
           }
         });
 
-        if (holding.telegram_id && holding.bot_id) {
-          const lang = normalizeLang(holding.language_code);
-          const text = await buildNFTMaturityReturnNotification({
+        if (holding.user_id) {
+          await sendBotNotification(String(holding.user_id), async (lang) => buildNFTMaturityReturnNotification({
             lang,
             amount: (principal + expiryIncome).toFixed(2),
             product_name: holding.product_name,
-          });
-          await sendBotNotification(holding.telegram_id, holding.bot_id, text);
+          }));
         }
 
         console.log(`NFT mature release (product_holdings): holding ${holding.id} principal ${principal} USDT returned${isExpirySettlement && expiryIncome > 0 ? ` + expiry income ${expiryIncome.toFixed(8)} USDT` : ''}`);

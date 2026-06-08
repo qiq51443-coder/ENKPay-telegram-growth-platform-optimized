@@ -8,6 +8,7 @@ import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES, tClaimConditionNotMet } f
 import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1605,13 +1606,15 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
           try {
             const wagMultiplier = result.wagering_multiplier;
             const expiryHours = result.balance_expiry_hours;
-            const notifText = await buildRedPacketClaimNotification({
-              lang,
-              amount: amountStr,
-              multiplier: String(wagMultiplier ?? 2),
-              expiryHours: expiryHours || null,
+            await sendCrossBotNotification({
+              userId: user.id,
+              buildMessage: async (notifyLang) => buildRedPacketClaimNotification({
+                lang: notifyLang,
+                amount: amountStr,
+                multiplier: String(wagMultiplier ?? 2),
+                expiryHours: expiryHours || null,
+              }),
             });
-            await ctx.telegram.sendMessage(user.telegram_id, notifText, { parse_mode: 'HTML' }).catch(() => {});
 
             // Send extra notification for newly auto-registered users
             if (isNewUserRegistration) {
@@ -1642,9 +1645,13 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
 
               // Use the red packet's configured language for group message text, falling back to claimer language
               const rpLang = rp?.language || lang;
-              const progressLine = isFinished
+              const emojiConfig = await getBotMessageEmojiConfig();
+              const progressEmoji = getEmoji(emojiConfig, 'field_account_status') || '📊';
+              const celebrateEmoji = getEmoji(emojiConfig, 'notify_sparkles') || '🎉';
+              let progressLine = isFinished
                 ? `\n\n${t(rpLang, 'redpacket_all_claimed', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount })}`
                 : `\n\n${t(rpLang, 'redpacket_progress', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount, total_amount: totalAmount })}`;
+              progressLine = progressLine.replace(/📊/g, progressEmoji).replace(/🎉/g, celebrateEmoji);
 
               if ('caption' in cbMessage && cbMessage.caption != null) {
                 const baseCaption = cbMessage.caption.split('\n\n📊')[0].split('\n\n🎉')[0];

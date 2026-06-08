@@ -1,9 +1,9 @@
 import express from 'express';
 import { query } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
-import TelegramAPI from '../utils/telegram';
 import { buildNotifyMessage } from '../utils/notify';
 import { getBotMessageEmojiConfig } from '../utils/emoji-config';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 /**
  * @deprecated This router operates on the legacy `withdrawals` table.
@@ -132,46 +132,42 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
       [status, admin_note, req.user?.id, id]
     );
 
-    // Send notification to user
+    // Send notification to user (across all user-followed bots)
     try {
-      const botResult = await query('SELECT token FROM bots WHERE id = $1', [withdrawal.bot_id]);
-      if (botResult.rows.length > 0) {
-        const telegram = new TelegramAPI(botResult.rows[0].token);
-        const userResult = await query(
-          'SELECT telegram_id, language_code, wallet_balance FROM users WHERE id = $1',
-          [withdrawal.user_id]
-        );
+      const userResult = await query(
+        'SELECT wallet_balance FROM users WHERE id = $1',
+        [withdrawal.user_id]
+      );
+      if (userResult.rows.length > 0) {
+        const emojiConfig = await getBotMessageEmojiConfig();
+        const currentBalance = parseFloat(userResult.rows[0].wallet_balance || '0').toFixed(2);
+        const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
+        const fee = parseFloat(withdrawal.fee || '0').toFixed(2);
+        const actual = (parseFloat(withdrawal.amount) - parseFloat(withdrawal.fee || '0')).toFixed(2);
+        const reviewedAt = withdrawal.reviewed_at
+          ? new Date(withdrawal.reviewed_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+          : new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+        const createdAt = withdrawal.created_at
+          ? new Date(withdrawal.created_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+          : '-';
 
-        if (userResult.rows.length > 0) {
-          const { telegram_id, language_code, wallet_balance } = userResult.rows[0];
-          const lang = language_code || 'en';
-          const emojiConfig = await getBotMessageEmojiConfig();
-          const currentBalance = parseFloat(wallet_balance || '0').toFixed(2);
-          const withdrawAmount = parseFloat(withdrawal.amount).toFixed(2);
-          const fee = parseFloat(withdrawal.fee || '0').toFixed(2);
-          const actual = (parseFloat(withdrawal.amount) - parseFloat(withdrawal.fee || '0')).toFixed(2);
-          const reviewedAt = withdrawal.reviewed_at
-            ? new Date(withdrawal.reviewed_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
-            : new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
-          const createdAt = withdrawal.created_at
-            ? new Date(withdrawal.created_at).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
-            : '-';
-
-          let notificationMessage: string;
-          if (status === 'approved') {
-            notificationMessage = buildNotifyMessage(lang, 'withdraw_approved_notify', {
-              order_id: withdrawal.order_id || '-',
-              amount: withdrawAmount,
-              fee,
-              actual,
-              address: withdrawal.wallet_address || '',
-              network: withdrawal.network_name || '-',
-              time: reviewedAt,
-              created_at: createdAt,
-              balance: currentBalance,
-            }, emojiConfig);
-          } else {
-            notificationMessage = buildNotifyMessage(lang, 'withdraw_rejected_notify', {
+        await sendCrossBotNotification({
+          userId: withdrawal.user_id,
+          buildMessage: (lang) => {
+            if (status === 'approved') {
+              return buildNotifyMessage(lang, 'withdraw_approved_notify', {
+                order_id: withdrawal.order_id || '-',
+                amount: withdrawAmount,
+                fee,
+                actual,
+                address: withdrawal.wallet_address || '',
+                network: withdrawal.network_name || '-',
+                time: reviewedAt,
+                created_at: createdAt,
+                balance: currentBalance,
+              }, emojiConfig);
+            }
+            return buildNotifyMessage(lang, 'withdraw_rejected_notify', {
               order_id: withdrawal.order_id || '-',
               amount: withdrawAmount,
               address: withdrawal.wallet_address || '',
@@ -181,10 +177,8 @@ router.put('/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
               balance: currentBalance,
               reason: admin_note || '-',
             }, emojiConfig);
-          }
-
-          await telegram.sendMessage(telegram_id, notificationMessage);
-        }
+          },
+        });
       }
     } catch (error) {
       console.error('Error sending notification:', error);

@@ -6,10 +6,10 @@ import { authenticateMiniApp, MiniAppAuthRequest } from '../middleware/miniapp-a
 import { getUserBalance, validateTransfer, validateWithdrawal } from '../services/balance.service';
 import { generateUserDepositAddress, getUserDepositAddresses } from '../services/deposit.service';
 import { walletLimiter } from '../middleware/rateLimiter';
-import TelegramAPI from '../utils/telegram';
 import { buildNotifyMessage, getNotifyTemplate } from '../utils/notify';
 import { getBotMessageEmojiConfig } from '../utils/emoji-config';
 import { generateOrderId } from '../utils/orderId';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 const router = express.Router();
 
@@ -127,94 +127,74 @@ async function notifyTransferParties(
   transferType?: string
 ): Promise<void> {
   const emojiConfig = await getBotMessageEmojiConfig();
-  // Fetch sender info (telegram_id, language_code, updated balance, bot_token)
+  // Fetch sender info (updated balance + display fields)
   const senderResult = await query(
-    `SELECT u.telegram_id, u.language_code, u.wallet_balance, u.first_name, u.username,
-            b.token AS bot_token
-     FROM users u
-     LEFT JOIN bots b ON u.bot_id = b.id
-     WHERE u.id = $1`,
+    `SELECT id, telegram_id, wallet_balance, first_name, username
+     FROM users
+     WHERE id = $1`,
     [senderId]
   );
 
-  // Fetch recipient info (telegram_id, language_code, updated balance, bot_token)
+  // Fetch recipient info (updated balance)
   const recipientResult = await query(
-    `SELECT u.telegram_id, u.language_code, u.wallet_balance, b.token AS bot_token
-     FROM users u
-     LEFT JOIN bots b ON u.bot_id = b.id
-     WHERE u.id = $1`,
+    `SELECT id, telegram_id, wallet_balance
+     FROM users
+     WHERE id = $1`,
     [recipientId]
   );
 
-  // Fallback bot token: fetched once if either party lacks a bot_token
-  let fallbackBotToken: string | null = null;
-  const needsFallback =
-    (senderResult.rows.length > 0 && !senderResult.rows[0].bot_token) ||
-    (recipientResult.rows.length > 0 && !recipientResult.rows[0].bot_token);
-  if (needsFallback) {
-    const botRes = await query('SELECT token FROM bots WHERE is_active = true LIMIT 1');
-    if (botRes.rows.length > 0) {
-      fallbackBotToken = botRes.rows[0].token;
-    }
-  }
+  const senderBalance = senderResult.rows.length > 0
+    ? parseFloat(senderResult.rows[0].wallet_balance || '0').toFixed(2)
+    : '0.00';
+  const recipientBalance = recipientResult.rows.length > 0
+    ? parseFloat(recipientResult.rows[0].wallet_balance || '0').toFixed(2)
+    : '0.00';
+  const senderDisplay = senderResult.rows.length > 0
+    ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
+    : String(senderId);
 
-  // Apply fallback token where needed
-  if (senderResult.rows.length > 0 && !senderResult.rows[0].bot_token) {
-    senderResult.rows[0].bot_token = fallbackBotToken;
-  }
-  if (recipientResult.rows.length > 0 && !recipientResult.rows[0].bot_token) {
-    recipientResult.rows[0].bot_token = fallbackBotToken;
-  }
-
-  // Notify sender
-  if (senderResult.rows.length > 0) {
-    const { telegram_id, language_code, wallet_balance, bot_token } = senderResult.rows[0];
-    if (telegram_id && bot_token) {
-      try {
-        const lang = language_code || 'en';
+  // Notify sender across all bots they interacted with
+  try {
+    await sendCrossBotNotification({
+      userId: senderId,
+      buildMessage: (lang) => {
         let message = buildNotifyMessage(lang, 'transfer_sent_notify', {
           order_id: orderId,
           recipient: recipientDisplayName,
           amount: amount.toFixed(2),
           fee: fee.toFixed(2),
           actual: actualReceived.toFixed(2),
-          balance: parseFloat(wallet_balance || '0').toFixed(2),
+          balance: senderBalance,
         }, emojiConfig);
         if (transferType === 'scan_transfer') {
           message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
         }
-        const tg = new TelegramAPI(bot_token);
-        await tg.sendMessage(telegram_id, message);
-      } catch (err) {
-        console.error(`Failed to notify sender ${senderId} of transfer:`, err);
-      }
-    }
+        return message;
+      },
+    });
+  } catch (err) {
+    console.error(`Failed to notify sender ${senderId} of transfer:`, err);
   }
 
-  // Notify recipient
-  if (recipientResult.rows.length > 0) {
-    const { telegram_id, language_code, wallet_balance, bot_token } = recipientResult.rows[0];
-    if (telegram_id && bot_token) {
-      try {
-        const lang = language_code || 'en';
-        const senderDisplay = senderResult.rows.length > 0
-          ? (senderResult.rows[0].first_name || senderResult.rows[0].username || String(senderId))
-          : String(senderId);
+  // Notify recipient across all bots they interacted with
+  try {
+    await sendCrossBotNotification({
+      userId: recipientId,
+      buildMessage: (lang) => {
         let message = buildNotifyMessage(lang, 'transfer_received_notify', {
           order_id: orderId,
           sender: senderDisplay,
           amount: actualReceived.toFixed(2),
-          balance: parseFloat(wallet_balance || '0').toFixed(2),
+          balance: recipientBalance,
         }, emojiConfig);
         if (transferType === 'scan_transfer') {
           message += '\n' + getNotifyTemplate(lang, 'scan_transfer_type_label');
         }
-        const tg = new TelegramAPI(bot_token);
-        await tg.sendMessage(telegram_id, message);
-      } catch (err) {
-        console.error(`Failed to notify recipient ${recipientId} of transfer:`, err);
-      }
-    }
+        return message;
+      },
+    });
+  } catch (err) {
+    console.error(`Failed to notify recipient ${recipientId} of transfer:`, err);
   }
 }
 

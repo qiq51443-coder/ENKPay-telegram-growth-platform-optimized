@@ -35,6 +35,46 @@ interface Announcement {
   title_translations?: Record<string, string>;
 }
 
+type AuthPageLang = 'zh' | 'en' | 'fr' | 'es' | 'ru' | 'ar' | 'pt';
+
+const AUTH_PAGE_I18N: Record<AuthPageLang, { title: string; description: string; button: string }> = {
+  zh: {
+    title: '临时秘钥已过期',
+    description: '看到此页面说明你的临时秘钥已过期，请不用担心，这是我们的安全机制，你只需要返回bot点击"我的钱包"后会自动获取新的秘钥。然后再次点击"打开迷你APP"将恢复正常。',
+    button: '返回 Telegram',
+  },
+  en: {
+    title: 'Temporary key expired',
+    description: 'Seeing this page means your temporary key has expired. Please don\'t worry, this is our security mechanism. You just need to go back to the bot and click "My Wallet" to automatically get a new key. Then click "Open Mini APP" again and everything will return to normal.',
+    button: 'Return to Telegram',
+  },
+  fr: {
+    title: 'Clé temporaire expirée',
+    description: 'Si vous voyez cette page, cela signifie que votre clé temporaire a expiré. Ne vous inquiétez pas, c\'est notre mécanisme de sécurité. Il vous suffit de retourner au bot et de cliquer sur "Mon Portefeuille" pour obtenir automatiquement une nouvelle clé. Cliquez ensuite à nouveau sur "Ouvrir Mini APP" et tout redeviendra normal.',
+    button: 'Retourner à Telegram',
+  },
+  es: {
+    title: 'Clave temporal expirada',
+    description: 'Ver esta página significa que su clave temporal ha expirado. No se preocupe, este es nuestro mecanismo de seguridad. Solo necesita volver al bot y hacer clic en "Mi Billetera" para obtener automáticamente una nueva clave. Luego haga clic en "Abrir Mini APP" nuevamente y todo volverá a la normalidad.',
+    button: 'Volver a Telegram',
+  },
+  ru: {
+    title: 'Временный ключ истёк',
+    description: 'Если вы видите эту страницу, это означает, что ваш временный ключ истёк. Не беспокойтесь, это наш механизм безопасности. Вам просто нужно вернуться к боту и нажать "Мой Кошелёк", чтобы автоматически получить новый ключ. Затем снова нажмите "Открыть Мини APP" и всё вернётся в норму.',
+    button: 'Вернуться в Telegram',
+  },
+  ar: {
+    title: 'انتهت صلاحية المفتاح المؤقت',
+    description: 'رؤية هذه الصفحة تعني أن مفتاحك المؤقت قد انتهت صلاحيته. لا تقلق، هذه آلية الأمان لدينا. ما عليك سوى العودة إلى البوت والنقر على "محفظتي" للحصول تلقائيًا على مفتاح جديد. ثم انقر مرة أخرى على "فتح التطبيق المصغر" وسيعود كل شيء إلى طبيعته.',
+    button: 'العودة إلى Telegram',
+  },
+  pt: {
+    title: 'Chave temporária expirada',
+    description: 'Ver esta página significa que sua chave temporária expirou. Não se preocupe, este é o nosso mecanismo de segurança. Você só precisa voltar ao bot e clicar em "Minha Carteira" para obter automaticamente uma nova chave. Em seguida, clique em "Abrir Mini APP" novamente e tudo voltará ao normal.',
+    button: 'Voltar ao Telegram',
+  },
+};
+
 /** Read a single query-param from the current URL without depending on any framework. */
 function getUrlParam(name: string): string | null {
   try {
@@ -42,6 +82,30 @@ function getUrlParam(name: string): string | null {
   } catch {
     return null;
   }
+}
+
+function normalizeAuthPageLang(raw?: string | null): AuthPageLang {
+  const value = String(raw || '').toLowerCase();
+  if (value.startsWith('zh')) return 'zh';
+  if (value.startsWith('fr')) return 'fr';
+  if (value.startsWith('es')) return 'es';
+  if (value.startsWith('ru')) return 'ru';
+  if (value.startsWith('ar')) return 'ar';
+  if (value.startsWith('pt')) return 'pt';
+  return 'en';
+}
+
+function resolveAuthPageLang(): AuthPageLang {
+  const urlLang = getUrlParam('lang');
+  if (urlLang) return normalizeAuthPageLang(urlLang);
+
+  const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+  if (tgLang) return normalizeAuthPageLang(tgLang);
+
+  const savedLang = localStorage.getItem('userLang');
+  if (savedLang) return normalizeAuthPageLang(savedLang);
+
+  return normalizeAuthPageLang(navigator.language);
 }
 
 function AppContent() {
@@ -281,7 +345,8 @@ function AppContent() {
   }
 
   if (authStatus === 'expired' || authStatus === 'error') {
-    const isExpired = authStatus === 'expired';
+    const authPageLang = resolveAuthPageLang();
+    const authCopy = AUTH_PAGE_I18N[authPageLang];
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: theme.bgPrimary,
@@ -291,9 +356,9 @@ function AppContent() {
       }}>
         <div style={{ fontSize: '48px', textAlign: 'center' }}>🔗</div>
         <div style={{ color: theme.text, fontSize: '16px', textAlign: 'center', lineHeight: '1.6' }}>
-          {isExpired ? '链接已过期' : '认证失败'}<br />
+          {authCopy.title}<br />
           <span style={{ fontSize: '13px', opacity: 0.7 }}>
-            请返回聊天界面，点击「打开应用」按钮重新进入
+            {authCopy.description}
           </span>
         </div>
         <button
@@ -306,7 +371,7 @@ function AppContent() {
             fontSize: '15px', fontWeight: '600', cursor: 'pointer',
           }}
         >
-          返回 Telegram
+          {authCopy.button}
         </button>
       </div>
     );
