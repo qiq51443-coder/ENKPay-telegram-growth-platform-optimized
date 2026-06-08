@@ -7,6 +7,7 @@ import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/a
 import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
 import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
+import { getBotMessageEmojiConfig, getEmoji } from '../utils/emoji-config';
 
 const router = express.Router();
 
@@ -125,6 +126,8 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
       const telegram = new TelegramAPI(botResult.rows[0].token);
       const redPacketLang = language || 'en';
       const msgs = getRedPacketMessages(redPacketLang);
+      const emojiConfig = await getBotMessageEmojiConfig();
+      const redpacketEmoji = getEmoji(emojiConfig, 'field_redpacket') || '🧧';
       
       const message = await buildRedPacketMessage({
         language: redPacketLang,
@@ -136,7 +139,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
       const replyMarkup = {
         inline_keyboard: [[
-          { text: msgs.claimButton, callback_data: `claim_redpacket:${redPacket.id}` }
+          { text: `${redpacketEmoji} ${String(msgs.claimButton || '').replace(/^[^\p{L}\p{N}\u4e00-\u9fff\u0600-\u06FF\u3040-\u30ff]+/u, '').trim()}`, callback_data: `claim_redpacket:${redPacket.id}` }
         ]]
       };
 

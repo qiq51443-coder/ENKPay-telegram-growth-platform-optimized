@@ -1,4 +1,5 @@
 import { animateEmojis } from '../utils/animated-emojis';
+import { getBotMessageEmojiConfig, getEmoji, type EmojiConfig } from '../utils/emoji-config';
 
 // Notification templates for bot private messages after red packet claim.
 // Used by bot-manager.service.ts.
@@ -42,6 +43,22 @@ function fill(template: string, vars: Record<string, string>): string {
   return s;
 }
 
+function applyDynamicEmojis(text: string, config: EmojiConfig): string {
+  const map: Array<[RegExp, string]> = [
+    [/🎁/g, getEmoji(config, 'notify_gift') || '🎁'],
+    [/💰/g, getEmoji(config, 'field_amount') || '💰'],
+    [/📊/g, getEmoji(config, 'field_account_status') || '📊'],
+    [/⏳/g, getEmoji(config, 'emoji_pending') || '⏳'],
+    [/✅/g, getEmoji(config, 'emoji_success') || '✅'],
+    [/⚠️/g, getEmoji(config, 'emoji_warning') || '⚠️'],
+  ];
+  let output = text;
+  for (const [pattern, emoji] of map) {
+    output = output.replace(pattern, emoji);
+  }
+  return output.replace(/\\([^\s\w])/g, '$1');
+}
+
 export async function buildRedPacketClaimNotification(params: {
   lang: string;
   amount: string;
@@ -49,6 +66,7 @@ export async function buildRedPacketClaimNotification(params: {
   expiryHours?: number | null;
 }): Promise<string> {
   const tpl = CLAIM_NOTIFICATION_TEMPLATES[params.lang] || CLAIM_NOTIFICATION_TEMPLATES['en'];
+  const emojiConfig = await getBotMessageEmojiConfig();
   let text: string;
   if (!params.expiryHours) {
     text = fill(tpl.permanent, { amount: params.amount, multiplier: params.multiplier });
@@ -59,5 +77,5 @@ export async function buildRedPacketClaimNotification(params: {
       days: String(Math.ceil(params.expiryHours / 24)),
     });
   }
-  return animateEmojis(text);
+  return animateEmojis(applyDynamicEmojis(text, emojiConfig));
 }

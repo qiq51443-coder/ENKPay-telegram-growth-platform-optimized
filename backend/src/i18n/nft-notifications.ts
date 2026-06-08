@@ -1,4 +1,5 @@
 import { animateEmojis } from '../utils/animated-emojis';
+import { getBotMessageEmojiConfig, getEmoji, type EmojiConfig } from '../utils/emoji-config';
 
 // NFT-specific notification templates for bot messages.
 // Used by the NFT daily settlement job.
@@ -31,6 +32,22 @@ function fill(template: string, vars: Record<string, string>): string {
   return s;
 }
 
+function applyDynamicEmojis(text: string, config: EmojiConfig): string {
+  const map: Array<[RegExp, string]> = [
+    [/💰/g, getEmoji(config, 'field_amount') || '💰'],
+    [/📌/g, getEmoji(config, 'notify_pin') || '📌'],
+    [/⏰/g, getEmoji(config, 'notify_alarm') || '⏰'],
+    [/🕙/g, getEmoji(config, 'notify_clock') || '🕙'],
+    [/✅/g, getEmoji(config, 'emoji_success') || '✅'],
+    [/📝/g, getEmoji(config, 'notify_memo') || '📝'],
+  ];
+  let output = text;
+  for (const [pattern, emoji] of map) {
+    output = output.replace(pattern, emoji);
+  }
+  return output.replace(/\\([^\s\w])/g, '$1');
+}
+
 export async function buildNFTDailyIncomeNotification(params: {
   lang: string;
   amount: string;
@@ -39,12 +56,13 @@ export async function buildNFTDailyIncomeNotification(params: {
   term_days: number;
 }): Promise<string> {
   const tpl = NFT_DAILY_INCOME_TEMPLATES[params.lang] || NFT_DAILY_INCOME_TEMPLATES['en'];
-  return animateEmojis(fill(tpl, {
+  const emojiConfig = await getBotMessageEmojiConfig();
+  return animateEmojis(applyDynamicEmojis(fill(tpl, {
     amount: params.amount,
     product_name: params.product_name,
     current_day: String(params.current_day),
     term_days: String(params.term_days),
-  }));
+  }), emojiConfig));
 }
 
 export async function buildNFTMaturityReturnNotification(params: {
@@ -53,10 +71,11 @@ export async function buildNFTMaturityReturnNotification(params: {
   product_name: string;
 }): Promise<string> {
   const tpl = NFT_MATURITY_RETURN_TEMPLATES[params.lang] || NFT_MATURITY_RETURN_TEMPLATES['en'];
-  return animateEmojis(fill(tpl, {
+  const emojiConfig = await getBotMessageEmojiConfig();
+  return animateEmojis(applyDynamicEmojis(fill(tpl, {
     amount: params.amount,
     product_name: params.product_name,
-  }));
+  }), emojiConfig));
 }
 
 // ── Transaction description templates ─────────────────────────────────────────

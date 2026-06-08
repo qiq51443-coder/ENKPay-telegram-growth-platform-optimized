@@ -4,6 +4,7 @@ import { query, transaction } from '../db';
 import { generateOrderId } from '../utils/orderId';
 import { resolveChainType } from '../utils/chain';
 import { addAddressToStream } from './moralis-stream.service';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 
@@ -520,30 +521,28 @@ async function notifyUserDeposit(
 ): Promise<void> {
   try {
     const userResult = await query(
-      `SELECT u.telegram_id, u.language_code, u.wallet_balance, b.token AS bot_token
-       FROM users u
-       JOIN bots b ON u.bot_id = b.id
-       WHERE u.id = $1 AND b.is_active = true`,
+      `SELECT telegram_id, wallet_balance
+       FROM users
+       WHERE id = $1`,
       [userId]
     );
     if (userResult.rows.length === 0) return;
-    const { telegram_id, bot_token, language_code, wallet_balance } = userResult.rows[0];
-    if (!telegram_id || !bot_token) return;
+    const { telegram_id, wallet_balance } = userResult.rows[0];
+    if (!telegram_id) return;
 
     const { getBotMessageEmojiConfig } = await import('../utils/emoji-config');
     const { buildNotifyMessage } = await import('../utils/notify');
     const emojiConfig = await getBotMessageEmojiConfig();
-    const message = buildNotifyMessage(language_code || 'en', 'deposit_credited_notify', {
-      amount: parseFloat(amount.toString()).toFixed(2),
-      network: networkName,
-      txHash,
-      balance: parseFloat(wallet_balance || '0').toFixed(2),
-    }, emojiConfig);
+    const balanceStr = parseFloat(wallet_balance || '0').toFixed(2);
 
-    await axios.post(`https://api.telegram.org/bot${bot_token}/sendMessage`, {
-      chat_id: telegram_id,
-      text: message,
-      parse_mode: 'HTML',
+    await sendCrossBotNotification({
+      userId,
+      buildMessage: async (lang) => buildNotifyMessage(lang, 'deposit_credited_notify', {
+        amount: parseFloat(amount.toString()).toFixed(2),
+        network: networkName,
+        txHash,
+        balance: balanceStr,
+      }, emojiConfig),
     });
   } catch (err) {
     console.error(`Failed to notify user ${userId} of deposit:`, err);
