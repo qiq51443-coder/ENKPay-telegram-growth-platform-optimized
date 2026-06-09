@@ -3,6 +3,29 @@ import { User, getUserLanguage } from '../services/user';
 import { getRedPacket, claimRedPacket } from '../services/api';
 import { t, tClaimConditionNotMet } from '../i18n';
 import { animateEmojis } from '../utils/animate-emojis';
+import { entitiesToHtml } from '../utils/entities-to-html';
+
+const TG_EMOJI_TAG_RE = /<tg-emoji\b[^>]*>([\s\S]*?)<\/tg-emoji>/gi;
+
+function stripProgressSection(content: string, markers: string[]): string {
+  let cutIndex = content.length;
+  for (const marker of markers) {
+    const index = content.indexOf(`\n\n${marker}`);
+    if (index !== -1 && index < cutIndex) {
+      cutIndex = index;
+    }
+  }
+  return content.slice(0, cutIndex).trimEnd();
+}
+
+function toPlainTextWithEmojiFallback(content: string): string {
+  return content.replace(TG_EMOJI_TAG_RE, '$1');
+}
+
+function isHtmlParseError(error: any): boolean {
+  const description = String(error?.response?.description || error?.description || error?.message || '');
+  return description.toLowerCase().includes("can't parse entities");
+}
 
 export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId: string, botId?: string, options?: { isNew?: boolean; defaultLanguage?: string }) => {
   const lang = getUserLanguage(user);
@@ -71,23 +94,45 @@ export const handleRedPacketClaim = async (ctx: Context, user: User, redPacketId
         const progressLine = isFinished
           ? `\n\n${t(rpLang, 'redpacket_all_claimed', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount })}`
           : `\n\n${t(rpLang, 'redpacket_progress', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount, total_amount: totalAmount })}`;
+        const animatedProgressLine = await animateEmojis(progressLine);
+        const plainProgressLine = toPlainTextWithEmojiFallback(animatedProgressLine);
+        const progressMarkers = ['📊', '🎉', '<tg-emoji', '&lt;tg-emoji'];
+        const replyMarkup = isFinished
+          ? { inline_keyboard: [] }
+          : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] };
 
         if ('caption' in cbMessage && cbMessage.caption != null) {
           // Photo message: update caption
-          const baseCaption = cbMessage.caption.split('\n\n📊')[0].split('\n\n🎉')[0];
-          await ctx.editMessageCaption(baseCaption + progressLine, {
-            reply_markup: isFinished
-              ? { inline_keyboard: [] }
-              : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
-          }).catch(() => {});
+          const baseCaptionHtml = stripProgressSection(
+            entitiesToHtml(cbMessage.caption, (cbMessage as any).caption_entities),
+            progressMarkers
+          );
+          const baseCaptionText = stripProgressSection(cbMessage.caption, progressMarkers);
+          await ctx.editMessageCaption(baseCaptionHtml + animatedProgressLine, {
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          }).catch(async (err) => {
+            if (!isHtmlParseError(err)) return;
+            await ctx.editMessageCaption(baseCaptionText + plainProgressLine, {
+              reply_markup: replyMarkup,
+            }).catch(() => {});
+          });
         } else if ('text' in cbMessage) {
           // Text message: update text
-          const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
-          await ctx.editMessageText(baseText + progressLine, {
-            reply_markup: isFinished
-              ? { inline_keyboard: [] }
-              : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
-          }).catch(() => {});
+          const baseTextHtml = stripProgressSection(
+            entitiesToHtml(cbMessage.text, (cbMessage as any).entities),
+            progressMarkers
+          );
+          const baseText = stripProgressSection(cbMessage.text, progressMarkers);
+          await ctx.editMessageText(baseTextHtml + animatedProgressLine, {
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          }).catch(async (err) => {
+            if (!isHtmlParseError(err)) return;
+            await ctx.editMessageText(baseText + plainProgressLine, {
+              reply_markup: replyMarkup,
+            }).catch(() => {});
+          });
         }
       }
     } catch (updateErr) {
