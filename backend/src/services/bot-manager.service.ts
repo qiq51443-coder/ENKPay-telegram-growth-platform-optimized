@@ -9,6 +9,7 @@ import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { generateUserDepositAddress } from './deposit.service';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 import { sendCrossBotNotification } from '../utils/cross-bot-notify';
+import { entitiesToHtml } from '../utils/entities-to-html';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -17,6 +18,32 @@ import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 const JT_TOKEN_TTL = 86400; // 24 hours — jt token validity for Mini App auth
 const GROUP_MEMBER_COUNT_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 const groupMemberCountSyncCache = new Map<string, number>();
+const TG_EMOJI_TAG_RE = /<tg-emoji\b[^>]*>([\s\S]*?)<\/tg-emoji>/gi;
+
+function stripProgressSection(content: string, markers: string[]): string {
+  let cutIndex = content.length;
+  for (const marker of markers) {
+    const index = content.indexOf(`\n\n${marker}`);
+    if (index !== -1 && index < cutIndex) {
+      cutIndex = index;
+    }
+  }
+  return content.slice(0, cutIndex).trimEnd();
+}
+
+function extractEmojiFallback(emoji: string): string {
+  const match = emoji.match(/<tg-emoji\b[^>]*>([\s\S]*?)<\/tg-emoji>/i);
+  return (match?.[1] || emoji).trim();
+}
+
+function toPlainTextWithEmojiFallback(content: string): string {
+  return content.replace(TG_EMOJI_TAG_RE, '$1');
+}
+
+function isHtmlParseError(error: any): boolean {
+  const description = String(error?.response?.description || error?.description || error?.message || '');
+  return description.toLowerCase().includes("can't parse entities");
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Interfaces
@@ -1652,21 +1679,46 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
                 ? `\n\n${t(rpLang, 'redpacket_all_claimed', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount })}`
                 : `\n\n${t(rpLang, 'redpacket_progress', { claimed: String(claimedCount), total: String(totalCount), claimed_amount: claimedAmount, total_amount: totalAmount })}`;
               progressLine = progressLine.replace(/📊/g, progressEmoji).replace(/🎉/g, celebrateEmoji);
+              const plainProgressLine = toPlainTextWithEmojiFallback(progressLine);
+              const progressMarkers = ['📊', '🎉', '<tg-emoji', '&lt;tg-emoji'];
+              const progressEmojiFallback = extractEmojiFallback(progressEmoji);
+              const celebrateEmojiFallback = extractEmojiFallback(celebrateEmoji);
+              if (progressEmojiFallback) progressMarkers.push(progressEmojiFallback);
+              if (celebrateEmojiFallback) progressMarkers.push(celebrateEmojiFallback);
+              const replyMarkup = isFinished
+                ? { inline_keyboard: [] }
+                : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] };
 
               if ('caption' in cbMessage && cbMessage.caption != null) {
-                const baseCaption = cbMessage.caption.split('\n\n📊')[0].split('\n\n🎉')[0];
-                await ctx.editMessageCaption(baseCaption + progressLine, {
-                  reply_markup: isFinished
-                    ? { inline_keyboard: [] }
-                    : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
-                }).catch(() => {});
+                const baseCaptionHtml = stripProgressSection(
+                  entitiesToHtml(cbMessage.caption, (cbMessage as any).caption_entities),
+                  progressMarkers
+                );
+                const baseCaptionText = stripProgressSection(cbMessage.caption, progressMarkers);
+                await ctx.editMessageCaption(baseCaptionHtml + progressLine, {
+                  parse_mode: 'HTML',
+                  reply_markup: replyMarkup,
+                }).catch(async (err) => {
+                  if (!isHtmlParseError(err)) return;
+                  await ctx.editMessageCaption(baseCaptionText + plainProgressLine, {
+                    reply_markup: replyMarkup,
+                  }).catch(() => {});
+                });
               } else if ('text' in cbMessage) {
-                const baseText = cbMessage.text.split('\n\n📊')[0].split('\n\n🎉')[0];
-                await ctx.editMessageText(baseText + progressLine, {
-                  reply_markup: isFinished
-                    ? { inline_keyboard: [] }
-                    : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] },
-                }).catch(() => {});
+                const baseTextHtml = stripProgressSection(
+                  entitiesToHtml(cbMessage.text, (cbMessage as any).entities),
+                  progressMarkers
+                );
+                const baseText = stripProgressSection(cbMessage.text, progressMarkers);
+                await ctx.editMessageText(baseTextHtml + progressLine, {
+                  parse_mode: 'HTML',
+                  reply_markup: replyMarkup,
+                }).catch(async (err) => {
+                  if (!isHtmlParseError(err)) return;
+                  await ctx.editMessageText(baseText + plainProgressLine, {
+                    reply_markup: replyMarkup,
+                  }).catch(() => {});
+                });
               }
             }
           } catch (updateErr) {
