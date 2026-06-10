@@ -161,6 +161,7 @@ router.get('/config', async (_req, res) => {
           telegram:  settings['landing_social_telegram']  || null,
           youtube:   settings['landing_social_youtube']   || null,
           instagram: settings['landing_social_instagram'] || null,
+          corporate_email: settings['landing_social_corporate_email'] || null,
         }).filter(([_, v]) => v != null)
       ),
       contact: { telegram: settings['landing_contact_telegram'] ?? '' },

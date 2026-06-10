@@ -34,6 +34,7 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   PlusOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 import dayjs, { Dayjs } from 'dayjs';
@@ -69,6 +70,7 @@ const SOCIAL_CONFIG = [
   { key: 'telegram',  label: 'Telegram 官方频道',   icon: '✈️', placeholder: 'https://t.me/yourchannel 或 yourchannel' },
   { key: 'youtube',   label: 'YouTube',         icon: '▶️', placeholder: 'https://youtube.com/@yourchannel' },
   { key: 'instagram', label: 'Instagram',       icon: '📷', placeholder: 'https://instagram.com/youraccount' },
+  { key: 'corporate_email', label: '企业邮箱', icon: <MailOutlined />, placeholder: 'mailto:business@yourcompany.com 或 business@yourcompany.com' },
 ];
 
 interface SystemSetting {
@@ -307,7 +309,7 @@ export const SystemSettings: React.FC = () => {
 
   // 社交
   const [socialLinks, setSocialLinks]           = useState<Record<string, string>>(
-    { facebook: '', tiktok: '', twitter: '', telegram: '', youtube: '', instagram: '' }
+    { facebook: '', tiktok: '', twitter: '', telegram: '', youtube: '', instagram: '', corporate_email: '' }
   );
   const [contactTelegram, setContactTelegram]   = useState('');
   const [socialSaving, setSocialSaving]         = useState(false);

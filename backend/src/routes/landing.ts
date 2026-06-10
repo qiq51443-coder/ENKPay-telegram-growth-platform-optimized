@@ -6,7 +6,7 @@ import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 const router = express.Router();
 
 const LANDING_LANGS = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja'] as const;
-const SOCIAL_PLATFORMS = ['facebook', 'tiktok', 'twitter', 'telegram', 'youtube', 'instagram'] as const;
+const SOCIAL_PLATFORMS = ['facebook', 'tiktok', 'twitter', 'telegram', 'youtube', 'instagram', 'corporate_email'] as const;
 
 /** 解析 system_settings value 字段（JSON 字符串 → 原始值） */
 function parseSettingValue(raw: string): any {
@@ -158,6 +158,7 @@ router.get('/config', async (_req, res) => {
         telegram:  settings['landing_social_telegram']  ?? '',
         youtube:   settings['landing_social_youtube']   ?? '',
         instagram: settings['landing_social_instagram'] ?? '',
+        corporate_email: settings['landing_social_corporate_email'] ?? '',
       },
       contact: {
         telegram: settings['landing_contact_telegram'] ?? '',

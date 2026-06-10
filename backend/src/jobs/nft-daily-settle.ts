@@ -334,7 +334,7 @@ async function releaseMatureHoldings(): Promise<number> {
        AND (
          (h.expires_at IS NOT NULL AND h.expires_at <= NOW())
          OR
-         (h.expires_at IS NULL AND (h.created_at + (p.term_days || ' days')::interval + interval '10 hours 5 minutes') <= NOW())
+         (h.expires_at IS NULL AND (((h.created_at AT TIME ZONE 'UTC')::date + p.term_days)::timestamp + interval '10 hours 5 minutes') <= (NOW() AT TIME ZONE 'UTC'))
        )`,
     []
   );
@@ -351,24 +351,32 @@ async function releaseMatureHoldings(): Promise<number> {
       try {
         const principal = parseFloat(holding.purchase_price);
         const isExpirySettlement = holding.settlement_type === 'expiry';
-        let expiryIncome = 0;
-        if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
-          const termDays = parseInt(String(holding.term_days), 10);
-          const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
-          const alreadyCredited = await query(
-            `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
-            [holding.id]
-          );
-          const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
-          expiryIncome = Math.max(0, totalIncome - alreadyPaid);
-        }
 
-        await transaction(async (client) => {
-          // Mark holding as expired
-          await client.query(
-            `UPDATE nft_holdings SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        const settleResult = await transaction(async (client) => {
+          // Idempotency guard: only one worker can settle this active holding
+          const markResult = await client.query(
+            `UPDATE nft_holdings
+             SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'active'
+             RETURNING id`,
             [holding.id]
           );
+
+          if ((markResult.rowCount ?? 0) === 0) {
+            return { settled: false, expiryIncome: 0 };
+          }
+
+          let expiryIncome = 0;
+          if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
+            const termDays = parseInt(String(holding.term_days), 10);
+            const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
+            const alreadyCredited = await client.query(
+             `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
+             [holding.id]
+            );
+            const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
+            expiryIncome = Math.max(0, totalIncome - alreadyPaid);
+          }
 
           // Decrease nft_balance and increase wallet_balance
           await client.query(
@@ -414,7 +422,15 @@ async function releaseMatureHoldings(): Promise<number> {
               [expiryIncome, holding.id]
             );
           }
+
+          return { settled: true, expiryIncome };
         });
+
+        if (!settleResult.settled) {
+          console.log(`NFT mature release: holding ${holding.id} already settled, skipping`);
+          continue;
+        }
+        const expiryIncome = settleResult.expiryIncome;
 
         // Send maturity notification to all associated bots
         if (holding.user_id) {
@@ -460,7 +476,7 @@ async function releaseMatureHoldings(): Promise<number> {
        AND (
          (ph.end_date IS NOT NULL AND ph.end_date::timestamp + interval '10 hours 5 minutes' <= NOW())
          OR
-         (ph.end_date IS NULL AND (ph.created_at + (p.term_days || ' days')::interval + interval '10 hours 5 minutes') <= NOW())
+         (ph.end_date IS NULL AND (((ph.created_at AT TIME ZONE 'UTC')::date + p.term_days)::timestamp + interval '10 hours 5 minutes') <= (NOW() AT TIME ZONE 'UTC'))
        )`,
     []
   );
@@ -475,23 +491,32 @@ async function releaseMatureHoldings(): Promise<number> {
       try {
         const principal = parseFloat(holding.purchase_price);
         const isExpirySettlement = holding.settlement_type === 'expiry';
-        let expiryIncome = 0;
-        if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
-          const termDays = parseInt(String(holding.term_days), 10);
-          const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
-          const alreadyCredited = await query(
-            `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
-            [holding.id]
-          );
-          const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
-          expiryIncome = Math.max(0, totalIncome - alreadyPaid);
-        }
 
-        await transaction(async (client) => {
-          await client.query(
-            `UPDATE product_holdings SET status = 'expired' WHERE id = $1`,
+        const settleResult = await transaction(async (client) => {
+          // Idempotency guard: only one worker can settle this active holding
+          const markResult = await client.query(
+            `UPDATE product_holdings
+             SET status = 'expired'
+             WHERE id = $1 AND status = 'active'
+             RETURNING id`,
             [holding.id]
           );
+
+          if ((markResult.rowCount ?? 0) === 0) {
+            return { settled: false, expiryIncome: 0 };
+          }
+
+          let expiryIncome = 0;
+          if (isExpirySettlement && holding.daily_yield_rate && holding.term_days) {
+            const termDays = parseInt(String(holding.term_days), 10);
+            const totalIncome = principal * parseFloat(holding.daily_yield_rate) * termDays;
+            const alreadyCredited = await client.query(
+             `SELECT COALESCE(SUM(amount), 0) AS total FROM nft_income_records WHERE holding_id = $1`,
+             [holding.id]
+            );
+            const alreadyPaid = parseFloat(alreadyCredited.rows[0]?.total ?? '0');
+            expiryIncome = Math.max(0, totalIncome - alreadyPaid);
+          }
 
           await client.query(
             `UPDATE users
@@ -535,7 +560,15 @@ async function releaseMatureHoldings(): Promise<number> {
               [expiryIncome, holding.id]
             );
           }
+
+          return { settled: true, expiryIncome };
         });
+
+        if (!settleResult.settled) {
+          console.log(`NFT mature release (product_holdings): holding ${holding.id} already settled, skipping`);
+          continue;
+        }
+        const expiryIncome = settleResult.expiryIncome;
 
         if (holding.user_id) {
           await sendBotNotification(String(holding.user_id), async (lang) => buildNFTMaturityReturnNotification({
