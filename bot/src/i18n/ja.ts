@@ -181,6 +181,7 @@ export const ja: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ 残高不足です。利用可能残高：{balance} USDT',
   transfer_insufficient_balance: '❌ 送金のための残高が不足しています。利用可能：{balance} USDT',
+  withdraw_below_min: '❌ 最低出金額は {min} USDT です。より大きな金額を入力してください。',
   transfer_time: '時間',
 
   // Invalid address

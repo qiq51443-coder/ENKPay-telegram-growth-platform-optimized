@@ -887,7 +887,7 @@ export const Trading: React.FC = () => {
   const submitOrder = async () => {
     if (!selectedPair || !amount || submitting) return;
     if (!tgUser?.id) {
-      setOrderError('用户未登录，请重新打开应用');
+      setOrderError(t('order_error_not_logged_in'));
       setConfirmOpen(false);
       return;
     }
@@ -1025,19 +1025,19 @@ export const Trading: React.FC = () => {
 
       let displayMsg = errMsg;
       if (status === 401 || /Invalid init data|Authentication/i.test(errMsg)) {
-        displayMsg = '登录状态已过期，请重新打开 App';
+        displayMsg = t('order_error_session_expired');
       } else if (status === 402 || /Insufficient balance|余额不足/i.test(errMsg)) {
-        displayMsg = '余额不足，请充值后再试';
+        displayMsg = t('order_error_insufficient_balance');
       } else if (status === 503 || /missing_migration|Trading feature is not ready/i.test(errMsg)) {
-        displayMsg = '交易功能暂不可用，请联系管理员';
+        displayMsg = t('order_error_trading_unavailable');
       } else if (/period_start is out of acceptable range/i.test(errMsg)) {
-        displayMsg = '下单时机不佳，请稍后重试';
+        displayMsg = t('order_error_bad_timing');
       } else if (/Invalid amount/i.test(errMsg)) {
-        displayMsg = '请输入有效金额';
+        displayMsg = t('order_error_invalid_amount');
       } else if (/No active trading rule/i.test(errMsg)) {
-        displayMsg = '当前交易对暂无可用规则，请稍后再试';
+        displayMsg = t('order_error_no_rule');
       } else if (status === 400) {
-        displayMsg = `参数错误: ${errMsg}`;
+        displayMsg = `${t('order_error_bad_param')}: ${errMsg}`;
       }
 
       setOrderError(displayMsg);

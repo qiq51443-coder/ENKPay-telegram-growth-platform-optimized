@@ -1,7 +1,7 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
-import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword, getWalletNetworks, getUserBalance } from '../services/api';
+import { getWithdrawPassword, setWithdrawPassword, submitWithdraw, verifyWithdrawPassword, getWalletNetworks, getUserBalance, getSettings } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
@@ -184,6 +184,20 @@ export const handleWithdrawEnterAmount = async (ctx: Context, user: any, amount:
     if (isNaN(numAmount) || numAmount <= 0) {
       await ctx.reply(t(lang, 'error'));
       return;
+    }
+
+    // Check minimum withdrawal amount from bot settings
+    try {
+      const settings = await getSettings(botId);
+      const minAmount = parseFloat(String(settings?.withdraw_min_amount ?? 0));
+      if (minAmount > 0 && numAmount < minAmount) {
+        await ctx.reply(
+          t(lang, 'withdraw_below_min').replace('{min}', minAmount.toFixed(2))
+        );
+        return;
+      }
+    } catch {
+      // If settings fetch fails, let the backend validate
     }
 
     // Check balance before proceeding

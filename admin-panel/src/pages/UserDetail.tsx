@@ -345,15 +345,59 @@ export const UserDetail: React.FC = () => {
     },
     {
       title: '邀请奖励',
-      dataIndex: 'reward_paid',
-      key: 'reward_paid',
-      render: (paid: boolean, record: any) => {
-        if (paid) {
-        const rewardAmt = record.reward_amount != null ? Number(record.reward_amount) : NaN;
-        const amountStr = !isNaN(rewardAmt) ? ` +${rewardAmt.toFixed(2)} USDT` : '';
-        return <Tag color="success">已到账 ✅{amountStr}</Tag>;
+      key: 'reward_status',
+      render: (_: any, record: any) => {
+        if (record.reward_paid) {
+          const rewardAmt = record.reward_amount != null ? Number(record.reward_amount) : NaN;
+          const amountStr = !isNaN(rewardAmt) ? ` +${rewardAmt.toFixed(2)} USDT` : '';
+          return <Tag color="success">已到账 ✅{amountStr}</Tag>;
+        }
+        if (record.ignore_reward) {
+          return <Tag color="default">已忽略</Tag>;
+        }
+        if (record.first_deposit_at) {
+          return <Tag color="orange">已充值待奖励 ⚠️</Tag>;
         }
         return <Tag color="warning">待充值 ⏳</Tag>;
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: any) => {
+        if (record.reward_paid || record.ignore_reward) return null;
+        return (
+          <Space>
+            <Popconfirm
+              title="确认手动下发邀请奖励给邀请者？"
+              onConfirm={async () => {
+                try {
+                  await apiClient.grantInviteReward(String(user?.id), String(record.id));
+                  message.success('奖励已下发');
+                  fetchInvitees();
+                } catch {
+                  message.error('下发失败');
+                }
+              }}
+            >
+              <Button size="small" type="primary">手动下发奖励</Button>
+            </Popconfirm>
+            <Popconfirm
+              title="确认忽略该邀请奖励？"
+              onConfirm={async () => {
+                try {
+                  await apiClient.ignoreInviteReward(String(user?.id), String(record.id));
+                  message.success('已忽略');
+                  fetchInvitees();
+                } catch {
+                  message.error('操作失败');
+                }
+              }}
+            >
+              <Button size="small" danger>忽略</Button>
+            </Popconfirm>
+          </Space>
+        );
       },
     },
     {
