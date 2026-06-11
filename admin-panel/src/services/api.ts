@@ -730,6 +730,16 @@ class ApiClient {
     return response.data;
   }
 
+  async grantInviteReward(userId: string, inviteeId: string) {
+    const response = await this.client.post(`/users/${userId}/invitees/${inviteeId}/grant-reward`);
+    return response.data;
+  }
+
+  async ignoreInviteReward(userId: string, inviteeId: string) {
+    const response = await this.client.post(`/users/${userId}/invitees/${inviteeId}/ignore-reward`);
+    return response.data;
+  }
+
   async getUserStats() {
     const response = await this.client.get('/admin/stats/users');
     return response.data;

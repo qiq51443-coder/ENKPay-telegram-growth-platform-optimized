@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
-import { query } from '../db';
+import { query, transaction } from '../db';
+import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 
@@ -436,6 +437,29 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
           u.created_at, u.account_status,
           COALESCE(inv.reward_paid, false) AS reward_paid,
           COALESCE(inv.reward_amount, 0) AS reward_amount,
+        COALESCE(inv.ignore_reward, false) AS ignore_reward,
+        inv.id AS invitation_id,
+        (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
+       FROM users u
+       LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
+       WHERE u.invited_by = $1 OR inv.inviter_id = $1
+       ORDER BY u.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [id, Number(limit), offset]
+      );
+      inviteeRows = result.rows;
+    } catch (qErr: any) {
+      // PostgreSQL error 42703 = "undefined_column": reward_amount column may not
+      // exist yet if migration 1051 hasn't been applied – degrade gracefully
+      if (qErr.code === '42703') {
+      const fallback = await query(
+        `SELECT 
+          u.id, u.telegram_id, u.username, u.first_name, u.last_name, 
+          u.created_at, u.account_status,
+          COALESCE(inv.reward_paid, false) AS reward_paid,
+          0 AS reward_amount,
+          false AS ignore_reward,
+          inv.id AS invitation_id,
           (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
          FROM users u
          LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
@@ -444,28 +468,9 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
          LIMIT $2 OFFSET $3`,
         [id, Number(limit), offset]
       );
-      inviteeRows = result.rows;
-    } catch (qErr: any) {
-      // PostgreSQL error 42703 = "undefined_column": reward_amount column may not
-      // exist yet if migration 1051 hasn't been applied – degrade gracefully
-      if (qErr.code === '42703') {
-        const fallback = await query(
-          `SELECT 
-            u.id, u.telegram_id, u.username, u.first_name, u.last_name, 
-            u.created_at, u.account_status,
-            COALESCE(inv.reward_paid, false) AS reward_paid,
-            0 AS reward_amount,
-            (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
-           FROM users u
-           LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
-           WHERE u.invited_by = $1 OR inv.inviter_id = $1
-           ORDER BY u.created_at DESC
-           LIMIT $2 OFFSET $3`,
-          [id, Number(limit), offset]
-        );
-        inviteeRows = fallback.rows;
+      inviteeRows = fallback.rows;
       } else {
-        throw qErr;
+      throw qErr;
       }
     }
 
@@ -484,6 +489,40 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
     });
   } catch (error) {
     console.error('Get invitees error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Manually grant invite reward to an invitee's inviter
+router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { inviteeId } = req.params;
+    await transaction(async (client) => {
+      await triggerFirstTradeReward(client, inviteeId);
+      // Clear ignore flag if it was set
+      await client.query(
+        `UPDATE invitations SET ignore_reward = false WHERE invitee_id = $1`,
+        [inviteeId]
+      );
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Grant invite reward error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark an invitation reward as ignored (skip granting it)
+router.post('/:id/invitees/:inviteeId/ignore-reward', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { inviteeId } = req.params;
+    await query(
+      `UPDATE invitations SET ignore_reward = true WHERE invitee_id = $1`,
+      [inviteeId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Ignore invite reward error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -259,6 +259,14 @@ const zh: Translations = {
   detail_order_time: '下单时间',
   detail_settle_time: '结算时间',
   detail_withdraw_address: '提现地址',
+  order_error_not_logged_in: '用户未登录，请重新打开应用',
+  order_error_session_expired: '登录状态已过期，请重新打开 App',
+  order_error_insufficient_balance: '余额不足，请充值后再试',
+  order_error_trading_unavailable: '交易功能暂不可用，请联系管理员',
+  order_error_bad_timing: '下单时机不佳，请稍后重试',
+  order_error_invalid_amount: '请输入有效金额',
+  order_error_no_rule: '当前交易对暂无可用规则，请稍后再试',
+  order_error_bad_param: '参数错误',
 };
 
 const en: Translations = {
@@ -509,6 +517,14 @@ const en: Translations = {
   detail_order_time: 'Order Time',
   detail_settle_time: 'Settle Time',
   detail_withdraw_address: 'Withdrawal Address',
+  order_error_not_logged_in: 'User not logged in, please reopen the app',
+  order_error_session_expired: 'Session expired, please reopen the App',
+  order_error_insufficient_balance: 'Insufficient balance, please top up and try again',
+  order_error_trading_unavailable: 'Trading is temporarily unavailable, please contact admin',
+  order_error_bad_timing: 'Poor timing, please try again shortly',
+  order_error_invalid_amount: 'Please enter a valid amount',
+  order_error_no_rule: 'No active trading rule for this pair, please try later',
+  order_error_bad_param: 'Invalid parameter',
 };
 
 const fr: Translations = {
@@ -743,6 +759,14 @@ const fr: Translations = {
   detail_order_time: "Heure d'ordre",
   detail_settle_time: 'Heure de règlement',
   detail_withdraw_address: 'Adresse de retrait',
+  order_error_not_logged_in: "Utilisateur non connecté, veuillez rouvrir l'application",
+  order_error_session_expired: "Session expirée, veuillez rouvrir l'App",
+  order_error_insufficient_balance: 'Solde insuffisant, veuillez recharger et réessayer',
+  order_error_trading_unavailable: 'Fonctionnalité de trading temporairement indisponible, contactez l\'administrateur',
+  order_error_bad_timing: 'Moment inopportun, veuillez réessayer dans quelques instants',
+  order_error_invalid_amount: 'Veuillez entrer un montant valide',
+  order_error_no_rule: 'Aucune règle active pour cette paire, veuillez réessayer plus tard',
+  order_error_bad_param: 'Paramètre invalide',
 };
 
 const de: Translations = {
@@ -977,6 +1001,14 @@ const de: Translations = {
   detail_order_time: 'Bestellzeit',
   detail_settle_time: 'Abrechnungszeit',
   detail_withdraw_address: 'Auszahlungsadresse',
+  order_error_not_logged_in: 'Benutzer nicht angemeldet, bitte App neu öffnen',
+  order_error_session_expired: 'Sitzung abgelaufen, bitte App neu öffnen',
+  order_error_insufficient_balance: 'Guthaben unzureichend, bitte aufladen und erneut versuchen',
+  order_error_trading_unavailable: 'Handelsfunktion vorübergehend nicht verfügbar, bitte Administrator kontaktieren',
+  order_error_bad_timing: 'Ungünstiger Zeitpunkt, bitte kurz warten und erneut versuchen',
+  order_error_invalid_amount: 'Bitte gültigen Betrag eingeben',
+  order_error_no_rule: 'Keine aktive Handelsregel für dieses Paar, bitte später versuchen',
+  order_error_bad_param: 'Ungültiger Parameter',
 };
 
 const es: Translations = {
@@ -1211,6 +1243,14 @@ const es: Translations = {
   detail_order_time: 'Hora de orden',
   detail_settle_time: 'Hora de liquidación',
   detail_withdraw_address: 'Dirección de retiro',
+  order_error_not_logged_in: 'Usuario no conectado, por favor reabra la aplicación',
+  order_error_session_expired: 'Sesión expirada, por favor reabra la App',
+  order_error_insufficient_balance: 'Saldo insuficiente, por favor recargue e intente de nuevo',
+  order_error_trading_unavailable: 'Función de trading temporalmente no disponible, contacte al administrador',
+  order_error_bad_timing: 'Momento inoportuno, por favor intente de nuevo en breve',
+  order_error_invalid_amount: 'Por favor ingrese un monto válido',
+  order_error_no_rule: 'No hay regla activa para este par, intente más tarde',
+  order_error_bad_param: 'Parámetro inválido',
 };
 
 const ar: Translations = {
@@ -1445,6 +1485,14 @@ const ar: Translations = {
   detail_order_time: 'وقت الطلب',
   detail_settle_time: 'وقت التسوية',
   detail_withdraw_address: 'عنوان السحب',
+  order_error_not_logged_in: 'المستخدم غير مسجّل الدخول، يرجى إعادة فتح التطبيق',
+  order_error_session_expired: 'انتهت الجلسة، يرجى إعادة فتح التطبيق',
+  order_error_insufficient_balance: 'رصيد غير كافٍ، يرجى الشحن والمحاولة مجدداً',
+  order_error_trading_unavailable: 'ميزة التداول غير متاحة مؤقتاً، يرجى التواصل مع المسؤول',
+  order_error_bad_timing: 'توقيت غير مناسب، يرجى المحاولة بعد لحظة',
+  order_error_invalid_amount: 'يرجى إدخال مبلغ صحيح',
+  order_error_no_rule: 'لا توجد قاعدة تداول نشطة لهذا الزوج، يرجى المحاولة لاحقاً',
+  order_error_bad_param: 'معامل غير صالح',
 };
 
 const ja: Translations = {
@@ -1679,6 +1727,14 @@ const ja: Translations = {
   detail_order_time: '注文時刻',
   detail_settle_time: '決済時刻',
   detail_withdraw_address: '出金アドレス',
+  order_error_not_logged_in: 'ログインしていません。アプリを再度開いてください',
+  order_error_session_expired: 'セッションが期限切れです。アプリを再度開いてください',
+  order_error_insufficient_balance: '残高不足です。チャージして再試行してください',
+  order_error_trading_unavailable: '取引機能は一時的に利用できません。管理者にお問い合わせください',
+  order_error_bad_timing: 'タイミングが悪いです。しばらくしてから再試行してください',
+  order_error_invalid_amount: '有効な金額を入力してください',
+  order_error_no_rule: 'このペアのアクティブな取引ルールがありません。後で再試行してください',
+  order_error_bad_param: '無効なパラメータ',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };

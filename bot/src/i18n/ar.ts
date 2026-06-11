@@ -194,6 +194,7 @@ export const ar: Record<string, string> = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ رصيد غير كافٍ. رصيدك المتاح: {balance} USDT',
   transfer_insufficient_balance: '❌ رصيد غير كافٍ للتحويل. المتاح: {balance} USDT',
+  withdraw_below_min: '❌ الحد الأدنى لمبلغ السحب هو {min} USDT. يرجى إدخال مبلغ أكبر.',
 
   // Invalid address
   invalid_address: '❌ صيغة عنوان {network} غير صحيحة. يرجى إدخال عنوان صالح.',

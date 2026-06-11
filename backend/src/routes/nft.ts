@@ -631,6 +631,22 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
         throw new Error('Insufficient balance');
       }
 
+      // Cross-table purchase limit check: prevent duplicate holdings across nft_holdings and product_holdings
+      if (product.is_purchase_limited) {
+        const existingNft = await client.query(
+          `SELECT COUNT(*) AS cnt FROM nft_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+          [user_id, product_id]
+        );
+        const existingPh = await client.query(
+          `SELECT COUNT(*) AS cnt FROM product_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+          [user_id, product_id]
+        );
+        const totalHeld = parseInt(existingNft.rows[0].cnt) + parseInt(existingPh.rows[0].cnt);
+        if (totalHeld >= (product.max_purchases_per_user ?? 1)) {
+          throw new Error('Purchase limit reached');
+        }
+      }
+
       // Deduct from wallet_balance; for fixed_term products lock in nft_balance
       const isFixedTerm = product.product_type === 'fixed_term';
       if (isFixedTerm) {
@@ -833,12 +849,18 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       if (currentHolders >= maxHolders) throw new Error('Product is sold out');
 
       if (product.is_purchase_limited) {
-        const purchaseCount = await client.query(
+        const phCount = await client.query(
           `SELECT COUNT(*) AS total_count FROM product_holdings
-           WHERE user_id = $1 AND product_id = $2`,
+           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
           [user.id, productId]
         );
-        if (parseInt(purchaseCount.rows[0].total_count) >= (product.max_purchases_per_user ?? 1)) {
+        const nftCount = await client.query(
+          `SELECT COUNT(*) AS total_count FROM nft_holdings
+           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+          [user.id, productId]
+        );
+        const totalHeld = parseInt(phCount.rows[0].total_count) + parseInt(nftCount.rows[0].total_count);
+        if (totalHeld >= (product.max_purchases_per_user ?? 1)) {
           throw new Error('Purchase limit reached');
         }
       }

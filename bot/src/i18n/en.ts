@@ -199,6 +199,7 @@ export const en = {
   // Balance / withdrawal / transfer error messages
   insufficient_balance: '❌ Insufficient balance. Your available balance is: {balance} USDT',
   transfer_insufficient_balance: '❌ Insufficient balance for transfer. Available: {balance} USDT',
+  withdraw_below_min: '❌ Minimum withdrawal amount is {min} USDT. Please enter a larger amount.',
 
   // Invalid address
   invalid_address: '❌ Invalid address format for {network}. Please enter a valid address.',

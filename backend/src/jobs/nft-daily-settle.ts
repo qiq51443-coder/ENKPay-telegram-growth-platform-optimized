@@ -216,6 +216,13 @@ async function settleDailyIncome(): Promise<number> {
        AND NOT EXISTS (
          SELECT 1 FROM nft_income_records ir
          WHERE ir.holding_id = ph.id AND ir.income_date = $1
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM nft_income_records ir2
+         JOIN nft_holdings nh ON ir2.holding_id = nh.id
+         WHERE nh.user_id = ph.user_id
+           AND nh.product_id = ph.product_id
+           AND ir2.income_date = $1
        )`,
     [today]
   );
@@ -477,6 +484,13 @@ async function releaseMatureHoldings(): Promise<number> {
          (ph.end_date IS NOT NULL AND ph.end_date::timestamp + interval '10 hours 5 minutes' <= NOW())
          OR
          (ph.end_date IS NULL AND (((ph.created_at AT TIME ZONE 'UTC')::date + p.term_days)::timestamp + interval '10 hours 5 minutes') <= (NOW() AT TIME ZONE 'UTC'))
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM nft_holdings nh
+         WHERE nh.user_id = ph.user_id
+           AND nh.product_id = ph.product_id
+           AND nh.status = 'expired'
+           AND nh.updated_at >= NOW() - interval '1 hour'
        )`,
     []
   );

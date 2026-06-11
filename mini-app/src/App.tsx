@@ -35,7 +35,7 @@ interface Announcement {
   title_translations?: Record<string, string>;
 }
 
-type AuthPageLang = 'zh' | 'en' | 'fr' | 'es' | 'ru' | 'ar' | 'pt';
+type AuthPageLang = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ru' | 'ar' | 'ja' | 'pt';
 
 const AUTH_PAGE_I18N: Record<AuthPageLang, { title: string; description: string; button: string }> = {
   zh: {
@@ -53,6 +53,11 @@ const AUTH_PAGE_I18N: Record<AuthPageLang, { title: string; description: string;
     description: 'Si vous voyez cette page, cela signifie que votre clé temporaire a expiré. Ne vous inquiétez pas, c\'est notre mécanisme de sécurité. Il vous suffit de retourner au bot et de cliquer sur "Mon Portefeuille" pour obtenir automatiquement une nouvelle clé. Cliquez ensuite à nouveau sur "Ouvrir Mini APP" et tout redeviendra normal.',
     button: 'Retourner à Telegram',
   },
+  de: {
+    title: 'Temporärer Schlüssel abgelaufen',
+    description: 'Diese Seite bedeutet, dass Ihr temporärer Schlüssel abgelaufen ist. Bitte keine Sorge, das ist unser Sicherheitsmechanismus. Sie müssen nur zum Bot zurückkehren und auf "Mein Wallet" klicken, um automatisch einen neuen Schlüssel zu erhalten. Klicken Sie dann erneut auf "Mini APP öffnen" und alles wird wieder normal.',
+    button: 'Zu Telegram zurückkehren',
+  },
   es: {
     title: 'Clave temporal expirada',
     description: 'Ver esta página significa que su clave temporal ha expirado. No se preocupe, este es nuestro mecanismo de seguridad. Solo necesita volver al bot y hacer clic en "Mi Billetera" para obtener automáticamente una nueva clave. Luego haga clic en "Abrir Mini APP" nuevamente y todo volverá a la normalidad.',
@@ -67,6 +72,11 @@ const AUTH_PAGE_I18N: Record<AuthPageLang, { title: string; description: string;
     title: 'انتهت صلاحية المفتاح المؤقت',
     description: 'رؤية هذه الصفحة تعني أن مفتاحك المؤقت قد انتهت صلاحيته. لا تقلق، هذه آلية الأمان لدينا. ما عليك سوى العودة إلى البوت والنقر على "محفظتي" للحصول تلقائيًا على مفتاح جديد. ثم انقر مرة أخرى على "فتح التطبيق المصغر" وسيعود كل شيء إلى طبيعته.',
     button: 'العودة إلى Telegram',
+  },
+  ja: {
+    title: '一時キーが期限切れです',
+    description: 'このページが表示された場合、一時キーが期限切れになっています。ご安心ください、これは当社のセキュリティメカニズムです。ボットに戻って「マイウォレット」をクリックすると、自動的に新しいキーが取得されます。その後、「ミニAPPを開く」を再度クリックすれば正常に戻ります。',
+    button: 'Telegramに戻る',
   },
   pt: {
     title: 'Chave temporária expirada',
@@ -88,9 +98,11 @@ function normalizeAuthPageLang(raw?: string | null): AuthPageLang {
   const value = String(raw || '').toLowerCase();
   if (value.startsWith('zh')) return 'zh';
   if (value.startsWith('fr')) return 'fr';
+  if (value.startsWith('de')) return 'de';
   if (value.startsWith('es')) return 'es';
   if (value.startsWith('ru')) return 'ru';
   if (value.startsWith('ar')) return 'ar';
+  if (value.startsWith('ja')) return 'ja';
   if (value.startsWith('pt')) return 'pt';
   return 'en';
 }
