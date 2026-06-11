@@ -1,9 +1,9 @@
 import express from 'express';
 import axios from 'axios';
 import { query, transaction } from '../db';
-import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
+import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 
 const router = express.Router();
 
@@ -496,17 +496,104 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
 // Manually grant invite reward to an invitee's inviter
 router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { inviteeId } = req.params;
+    const { id: inviterId, inviteeId } = req.params;
+
+    // Load reward amount from system_settings
+    let rewardAmount = 2.00;
+    try {
+      const settingsResult = await query(
+        `SELECT key, value FROM system_settings WHERE key IN ('invite_reward_amount', 'invite_reward_enabled')`
+      );
+      let enabled = true;
+      for (const row of settingsResult.rows) {
+        if (row.key === 'invite_reward_amount') {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          rewardAmount = parseFloat(String(parsed)) || 2.00;
+        }
+        if (row.key === 'invite_reward_enabled') {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          enabled = parsed === true || parsed === 'true';
+        }
+      }
+      if (!enabled) {
+        return res.status(400).json({ error: 'Invite rewards are disabled' });
+      }
+    } catch {
+      // Use default if system_settings unavailable
+    }
+
+    // Fetch invitee info for the notification message
+    const inviteeResult = await query(
+      `SELECT username, telegram_id, first_name FROM users WHERE id = $1`,
+      [inviteeId]
+    );
+    const invitee = inviteeResult.rows[0] || {};
+
     await transaction(async (client) => {
-      await triggerFirstTradeReward(client, inviteeId);
-      // Clear ignore flag if it was set
-      await client.query(
-        `UPDATE invitations SET ignore_reward = false WHERE invitee_id = $1`,
+      // Check invitation exists and is not already paid
+      const invResult = await client.query(
+        `SELECT id, reward_paid FROM invitations WHERE invitee_id = $1`,
         [inviteeId]
       );
+      if (invResult.rows.length > 0 && invResult.rows[0].reward_paid) {
+        throw new Error('Reward already paid');
+      }
+
+      // Credit inviter's wallet_balance
+      await client.query(
+        `UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2`,
+        [rewardAmount, inviterId]
+      );
+
+      // Read updated balance for transaction record
+      const balanceResult = await client.query(
+        `SELECT wallet_balance FROM users WHERE id = $1`,
+        [inviterId]
+      );
+      const balanceAfter = parseFloat(String(balanceResult.rows[0]?.wallet_balance ?? 0));
+
+      // Mark invitation as rewarded and clear any ignore flag
+      if (invResult.rows.length > 0) {
+        await client.query(
+          `UPDATE invitations SET reward_paid = true, reward_amount = $1, ignore_reward = false WHERE invitee_id = $2`,
+          [rewardAmount, inviteeId]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO invitations (inviter_id, invitee_id, reward_amount, reward_paid)
+           VALUES ($1, $2, $3, true)`,
+          [inviterId, inviteeId, rewardAmount]
+        );
+      }
+
+      // Record transaction
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [inviterId, 'referral_reward', rewardAmount, balanceAfter, 'Invitation reward (admin dispatch)', inviteeId]
+      );
     });
+
+    // Send Telegram notification to inviter (non-blocking)
+    try {
+      const inviteeName = invitee.username ? `@${invitee.username}` : (invitee.first_name || String(invitee.telegram_id || ''));
+      const inviteeTelegramId = invitee.telegram_id ? String(invitee.telegram_id) : '';
+      const amountStr = rewardAmount.toFixed(2);
+      const friendLabel = inviteeTelegramId ? `${inviteeName} ${inviteeTelegramId}` : inviteeName;
+      const notifyText = `收到资金${amountStr}USDT！\n你的朋友（${friendLabel}）已完成充值，你获得${amountStr}USDT 奖励！`;
+      await sendCrossBotNotification({
+        userId: inviterId,
+        buildMessage: () => notifyText,
+      });
+    } catch (notifyErr) {
+      console.error('Failed to notify inviter of reward:', notifyErr);
+    }
+
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === 'Reward already paid') {
+      return res.status(400).json({ error: 'Reward already paid' });
+    }
     console.error('Grant invite reward error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
