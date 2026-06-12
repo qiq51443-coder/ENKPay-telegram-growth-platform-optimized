@@ -1,7 +1,7 @@
 import { Context, Markup } from 'telegraf';
 import { getOrCreateUser, getUserLanguage } from '../services/user';
 import { setUserState, clearUserState, getUserState } from '../utils/state';
-import { submitTransfer, getUserByUniqueId } from '../services/api';
+import { submitTransfer, getUserByUniqueId, getSettings } from '../services/api';
 import { t } from '../i18n';
 import { handleWallet } from './wallet';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
@@ -112,10 +112,25 @@ export const handleTransferEnterAmount = async (ctx: Context, user: any, amount:
     const lang = getUserLanguage(user);
     const state = await getUserState(user.id.toString());
     const numAmount = parseFloat(amount);
+    const botId = (ctx as any).botId || process.env.BOT_ID || 'default';
 
     if (isNaN(numAmount) || numAmount <= 0) {
       await ctx.reply(t(lang, 'error'));
       return;
+    }
+
+    // Check minimum transfer amount from bot settings
+    try {
+      const settings = await getSettings(botId);
+      const minAmount = parseFloat(String(settings?.transfer_min_amount ?? 0));
+      if (minAmount > 0 && numAmount < minAmount) {
+        await ctx.reply(
+          t(lang, 'transfer_below_min').replace('{min}', minAmount.toFixed(2))
+        );
+        return;
+      }
+    } catch {
+      // If settings fetch fails, let the backend validate
     }
 
     await setUserState(user.id.toString(), {

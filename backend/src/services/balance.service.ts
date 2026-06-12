@@ -128,7 +128,21 @@ export async function validateTransfer(
     ? (requireTradeRow.value === 'true' || requireTradeRow.value === '1')
     : false;
 
-  const minAmount = config.transfer_min_amount || 10;
+  // Prefer bot_settings over platform_config for min amount (admin panel writes to bot_settings)
+  let minAmount = config.transfer_min_amount || 10;
+  try {
+    const botSettingsResult = await query(
+      `SELECT bs.transfer_min_amount FROM bot_settings bs
+       INNER JOIN users u ON u.bot_id = bs.bot_id
+       WHERE u.id = $1 LIMIT 1`,
+      [fromUserId]
+    );
+    if (botSettingsResult.rows.length > 0 && botSettingsResult.rows[0].transfer_min_amount != null) {
+      minAmount = parseFloat(String(botSettingsResult.rows[0].transfer_min_amount));
+    }
+  } catch {
+    // Fallback to platform_config value if bot_settings lookup fails
+  }
   const feeRate = config.transfer_fee_rate || 0.02;
 
   // Check minimum amount
@@ -185,7 +199,21 @@ export async function validateWithdrawal(
     ? (requireDepositRow.value === 'true' || requireDepositRow.value === '1')
     : false;
 
-  const minAmount = config.withdraw_min_amount || 10;
+  // Prefer bot_settings over platform_config for min amount (admin panel writes to bot_settings)
+  let minAmount = config.withdraw_min_amount || 10;
+  try {
+    const botSettingsResult = await query(
+      `SELECT bs.withdraw_min_amount FROM bot_settings bs
+       INNER JOIN users u ON u.bot_id = bs.bot_id
+       WHERE u.id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (botSettingsResult.rows.length > 0 && botSettingsResult.rows[0].withdraw_min_amount != null) {
+      minAmount = parseFloat(String(botSettingsResult.rows[0].withdraw_min_amount));
+    }
+  } catch {
+    // Fallback to platform_config value if bot_settings lookup fails
+  }
   const feeRate = config.withdraw_fee_rate || 0.02;
   const minDeposit = config.deposit_min_amount || 10;
 

@@ -194,6 +194,7 @@ export const zh = {
   insufficient_balance: '❌ 余额不足。您的可用余额为：{balance} USDT',
   transfer_insufficient_balance: '❌ 转账余额不足。可用余额：{balance} USDT',
   withdraw_below_min: '❌ 最低提现金额为 {min} USDT，请输入更大金额。',
+  transfer_below_min: '❌ 最低转账金额为 {min} USDT，请输入更大金额。',
 
   // Invalid address
   invalid_address: '❌ {network} 地址格式不正确，请输入有效地址。',
