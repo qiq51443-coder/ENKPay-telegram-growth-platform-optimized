@@ -524,8 +524,8 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
     await transaction(async (client) => {
       // Check invitation exists and is not already paid
       const invResult = await client.query(
-        `SELECT id, reward_paid FROM invitations WHERE invitee_id = $1`,
-        [inviteeId]
+        `SELECT id, reward_paid FROM invitations WHERE invitee_id = $1 AND inviter_id = $2`,
+        [inviteeId, inviterId]
       );
       if (invResult.rows.length > 0 && invResult.rows[0].reward_paid) {
         throw new Error('Reward already paid');
@@ -547,8 +547,8 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
       // Mark invitation as rewarded and clear any ignore flag
       if (invResult.rows.length > 0) {
         await client.query(
-          `UPDATE invitations SET reward_paid = true, reward_amount = $1, ignore_reward = false WHERE invitee_id = $2`,
-          [rewardAmount, inviteeId]
+          `UPDATE invitations SET reward_paid = true, reward_amount = $1, ignore_reward = false WHERE invitee_id = $2 AND inviter_id = $3`,
+          [rewardAmount, inviteeId, inviterId]
         );
       } else {
         await client.query(
@@ -587,7 +587,7 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
       return res.status(400).json({ error: 'Reward already paid' });
     }
     console.error('Grant invite reward error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error?.message || 'Internal server error' });
   }
 });
 
