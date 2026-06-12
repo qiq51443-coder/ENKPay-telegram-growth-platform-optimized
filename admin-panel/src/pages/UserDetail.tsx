@@ -375,8 +375,8 @@ export const UserDetail: React.FC = () => {
                   await apiClient.grantInviteReward(String(user?.id), String(record.id));
                   message.success('奖励已下发');
                   fetchInvitees();
-                } catch {
-                  message.error('下发失败');
+                } catch (error: any) {
+                  message.error(error?.response?.data?.error || '下发失败');
                 }
               }}
             >

@@ -91,7 +91,7 @@ export const Products: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const data = await api.get('/nft/products', { params: { status: 'active', limit: 6, lang } });
+      const data = await api.get('/nft/products', { params: { status: 'active', limit: 100, lang } });
       // data = axios AxiosResponse; data.data = backend body { success, data: NFTProduct[], pagination }
       setProducts(data.data?.data || data.data?.products || []);
     } catch {
@@ -400,7 +400,7 @@ export const Products: React.FC = () => {
             gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '12px',
           }}>
-            {products.slice(0, 6).map(product => (
+            {products.map(product => (
               <div
                 key={product.id}
                 onClick={() => setSelectedId(product.id)}
