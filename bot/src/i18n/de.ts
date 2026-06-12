@@ -182,6 +182,7 @@ export const de: Record<string, string> = {
   insufficient_balance: '❌ Unzureichendes Guthaben. Ihr verfügbares Guthaben beträgt: {balance} USDT',
   transfer_insufficient_balance: '❌ Unzureichendes Guthaben für Überweisung. Verfügbar: {balance} USDT',
   withdraw_below_min: '❌ Der Mindestauszahlungsbetrag beträgt {min} USDT. Bitte geben Sie einen höheren Betrag ein.',
+  transfer_below_min: '❌ Der Mindestüberweisungsbetrag beträgt {min} USDT. Bitte geben Sie einen höheren Betrag ein.',
   transfer_time: 'Zeit',
 
   // Invalid address

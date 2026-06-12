@@ -465,7 +465,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
             );
 
             await client.query(
-              `INSERT INTO transactions (user_id, type, amount, balance_after, description, related_user_id)
+              `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
                VALUES ($1, $2, $3, $4, $5, $6)`,
               [
                 invitation.inviter_id,

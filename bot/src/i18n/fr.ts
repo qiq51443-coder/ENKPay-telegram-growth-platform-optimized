@@ -182,6 +182,7 @@ export const fr: Record<string, string> = {
   insufficient_balance: '❌ Solde insuffisant. Votre solde disponible est : {balance} USDT',
   transfer_insufficient_balance: '❌ Solde insuffisant pour le transfert. Disponible : {balance} USDT',
   withdraw_below_min: '❌ Le montant minimum de retrait est de {min} USDT. Veuillez entrer un montant plus élevé.',
+  transfer_below_min: '❌ Le montant minimum de transfert est de {min} USDT. Veuillez entrer un montant plus élevé.',
   transfer_time: 'Heure',
 
   // Invalid address
