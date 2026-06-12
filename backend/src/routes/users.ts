@@ -439,7 +439,7 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
           COALESCE(inv.reward_amount, 0) AS reward_amount,
         COALESCE(inv.ignore_reward, false) AS ignore_reward,
         inv.id AS invitation_id,
-        (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
+        (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status IN ('confirmed', 'credited')) AS first_deposit_at
        FROM users u
        LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
        WHERE u.invited_by = $1 OR inv.inviter_id = $1
@@ -460,7 +460,7 @@ router.get('/:id/invitees', adminLimiter, authenticateAdmin, async (req: AuthReq
           0 AS reward_amount,
           false AS ignore_reward,
           inv.id AS invitation_id,
-          (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status = 'confirmed') AS first_deposit_at
+          (SELECT MIN(created_at) FROM deposit_records WHERE user_id = u.id AND status IN ('confirmed', 'credited')) AS first_deposit_at
          FROM users u
          LEFT JOIN invitations inv ON inv.invitee_id = u.id AND inv.inviter_id = $1
          WHERE u.invited_by = $1 OR inv.inviter_id = $1
@@ -498,25 +498,17 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
   try {
     const { id: inviterId, inviteeId } = req.params;
 
-    // Load reward amount from system_settings
+    // Load reward amount from system_settings (enabled flag is not checked for manual dispatch)
     let rewardAmount = 2.00;
     try {
       const settingsResult = await query(
-        `SELECT key, value FROM system_settings WHERE key IN ('invite_reward_amount', 'invite_reward_enabled')`
+        `SELECT key, value FROM system_settings WHERE key = 'invite_reward_amount'`
       );
-      let enabled = true;
       for (const row of settingsResult.rows) {
         if (row.key === 'invite_reward_amount') {
           const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
           rewardAmount = parseFloat(String(parsed)) || 2.00;
         }
-        if (row.key === 'invite_reward_enabled') {
-          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-          enabled = parsed === true || parsed === 'true';
-        }
-      }
-      if (!enabled) {
-        return res.status(400).json({ error: 'Invite rewards are disabled' });
       }
     } catch {
       // Use default if system_settings unavailable
@@ -580,7 +572,7 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
       const inviteeTelegramId = invitee.telegram_id ? String(invitee.telegram_id) : '';
       const amountStr = rewardAmount.toFixed(2);
       const friendLabel = inviteeTelegramId ? `${inviteeName} ${inviteeTelegramId}` : inviteeName;
-      const notifyText = `收到资金${amountStr}USDT！\n你的朋友（${friendLabel}）已完成充值，你获得${amountStr}USDT 奖励！`;
+      const notifyText = `收到资金${amountStr}USDT！\n你邀请的好友（${friendLabel}）的邀请奖励 ${amountStr}USDT 已到账！`;
       await sendCrossBotNotification({
         userId: inviterId,
         buildMessage: () => notifyText,
