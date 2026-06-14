@@ -9,10 +9,12 @@ services:
     buildCommand: |
       cd mini-app && npm install && npm run build && cd .. && \
       cd admin-panel && npm install && npm run build && cd .. && \
+      cd web-app && npm install && npm run build && cd .. && \
       cd backend && npm install && npm run build && \
-      mkdir -p dist/public/admin dist/public/app && \
+      mkdir -p dist/public/admin dist/public/app dist/public/web && \
       cp -r ../admin-panel/dist/. dist/public/admin/ && \
       cp -r ../mini-app/dist/. dist/public/app/ && \
+      cp -r ../web-app/dist/. dist/public/web/ && \
       cp -r ../landing/. dist/public/
     preDeployCommand: cd backend && node -e "require('./dist/db/migrate').runMigrations().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
     startCommand: cd backend && node dist/index.js
