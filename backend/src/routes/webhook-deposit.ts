@@ -85,7 +85,7 @@ router.post('/moralis', async (req, res) => {
 
     // Resolve network by moralis_stream_id
     const networkResult = await query(
-      `SELECT id, min_confirmations, decimals
+      `SELECT id, min_confirmations, decimals, contract_address
        FROM deposit_networks
        WHERE moralis_stream_id = $1 AND is_active = true`,
       [streamId]
@@ -97,7 +97,16 @@ router.post('/moralis', async (req, res) => {
       return res.status(200).json({ message: 'Stream not associated with any network' });
     }
 
-    const { id: networkId, min_confirmations, decimals } = networkResult.rows[0];
+    const { id: networkId, min_confirmations, decimals, contract_address } = networkResult.rows[0];
+    const expectedTokenAddress = typeof contract_address === 'string'
+      ? contract_address.trim().toLowerCase()
+      : '';
+
+    if (!expectedTokenAddress) {
+      console.warn(`[moralis-webhook] network ${networkId} has no contract_address configured, skipping all transfers`);
+      return res.status(200).json({ message: 'Network token contract not configured' });
+    }
+
     const tokenDecimals = decimals != null ? Number(decimals) : 18;
     const blockNumber = block?.number ? parseInt(block.number, 10) : 0;
     const blockTimestamp = block?.timestamp
@@ -109,9 +118,19 @@ router.post('/moralis', async (req, res) => {
         const toAddress: string = transfer.to || '';
         const fromAddress: string = transfer.from || '';
         const txHash: string = transfer.transactionHash || '';
+        const tokenAddress: string = typeof transfer.tokenAddress === 'string'
+          ? transfer.tokenAddress.trim().toLowerCase()
+          : '';
 
         if (!toAddress || !txHash) {
           console.warn(`[moralis-webhook] missing toAddress or txHash, to=${toAddress}, txHash=${txHash}`);
+          continue;
+        }
+
+        if (tokenAddress !== expectedTokenAddress) {
+          console.warn(
+            `[moralis-webhook] skipping transfer ${txHash}: tokenAddress ${transfer.tokenAddress || '(missing)'} does not match configured contract ${contract_address}`
+          );
           continue;
         }
 

@@ -594,11 +594,27 @@ router.post('/:id/invitees/:inviteeId/grant-reward', adminLimiter, authenticateA
 // Mark an invitation reward as ignored (skip granting it)
 router.post('/:id/invitees/:inviteeId/ignore-reward', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { inviteeId } = req.params;
-    await query(
-      `UPDATE invitations SET ignore_reward = true WHERE invitee_id = $1`,
-      [inviteeId]
+    const { id: inviterId, inviteeId } = req.params;
+    const existing = await query(
+      `SELECT id FROM invitations WHERE invitee_id = $1 AND inviter_id = $2`,
+      [inviteeId, inviterId]
     );
+
+    if (existing.rows.length > 0) {
+      await query(
+        `UPDATE invitations SET ignore_reward = true WHERE invitee_id = $1 AND inviter_id = $2`,
+        [inviteeId, inviterId]
+      );
+    } else {
+      await query(
+        `INSERT INTO invitations (inviter_id, invitee_id, ignore_reward)
+         VALUES ($1, $2, true)
+         ON CONFLICT (inviter_id, invitee_id) DO UPDATE
+         SET ignore_reward = true`,
+        [inviterId, inviteeId]
+      );
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Ignore invite reward error:', error);
