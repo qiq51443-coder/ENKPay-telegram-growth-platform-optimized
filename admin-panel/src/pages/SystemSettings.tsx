@@ -654,98 +654,6 @@ export const SystemSettings: React.FC = () => {
           ? <div style={{ whiteSpace: 'pre-wrap', padding: '8px 0', color: '#333' }}>{displayText}</div>
           : <Text type="secondary">暂无内容</Text>,
       };
-
-      const renderMailServiceTab = () => (
-        <Card title="邮件服务配置" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Alert
-              type="info"
-              showIcon
-              message="后台配置优先，环境变量兜底"
-              description="当前邮箱验证码优先使用这里保存的配置；若后台未配置，再回退到 RESEND_API_KEY / EMAIL_FROM / EMAIL_FROM_NAME 等环境变量。敏感字段返回时会自动脱敏。"
-            />
-
-            <Form layout="vertical">
-              <Form.Item label="邮件服务提供商">
-                <Radio.Group
-                  value={mailProvider}
-                  onChange={(e) => setMailProvider(e.target.value)}
-                  options={[
-                    { label: 'Resend', value: 'resend' },
-                    { label: 'SMTP（预留）', value: 'smtp' },
-                    { label: 'Other（预留）', value: 'other' },
-                  ]}
-                />
-              </Form.Item>
-
-              <Form.Item label="启用状态">
-                <Switch checked={mailEnabled} onChange={setMailEnabled} checkedChildren="启用" unCheckedChildren="停用" />
-              </Form.Item>
-
-              <Form.Item label="发件邮箱" extra="例如：noreply@enkpay.cc.com">
-                <Input
-                  value={mailFromEmail}
-                  onChange={(e) => setMailFromEmail(e.target.value)}
-                  placeholder="请输入发件邮箱"
-                />
-              </Form.Item>
-
-              <Form.Item label="发件名称">
-                <Input
-                  value={mailFromName}
-                  onChange={(e) => setMailFromName(e.target.value)}
-                  placeholder="例如 ENKPay"
-                />
-              </Form.Item>
-
-              <Divider orientation="left">Resend</Divider>
-              <Form.Item label="Resend API Key" extra="显示为掩码时代表已保存；留空或保持掩码表示不修改现有值。">
-                <Input.Password
-                  value={mailResendApiKey}
-                  onChange={(e) => setMailResendApiKey(e.target.value)}
-                  placeholder="re_xxxxx"
-                />
-              </Form.Item>
-
-              <Divider orientation="left">SMTP / 其他服务预留</Divider>
-              <Form.Item label="SMTP Host">
-                <Input
-                  value={mailSmtpHost}
-                  onChange={(e) => setMailSmtpHost(e.target.value)}
-                  placeholder="smtp.example.com"
-                />
-              </Form.Item>
-              <Form.Item label="SMTP Port">
-                <InputNumber
-                  min={1}
-                  max={65535}
-                  style={{ width: '100%' }}
-                  value={mailSmtpPort ?? undefined}
-                  onChange={(value) => setMailSmtpPort(typeof value === 'number' ? value : null)}
-                />
-              </Form.Item>
-              <Form.Item label="SMTP Username">
-                <Input
-                  value={mailSmtpUsername}
-                  onChange={(e) => setMailSmtpUsername(e.target.value)}
-                  placeholder="username"
-                />
-              </Form.Item>
-              <Form.Item label="SMTP Password" extra="当前版本只实际接入 Resend；SMTP 字段用于后续扩展预留。">
-                <Input.Password
-                  value={mailSmtpPassword}
-                  onChange={(e) => setMailSmtpPassword(e.target.value)}
-                  placeholder="留空表示不修改"
-                />
-              </Form.Item>
-            </Form>
-
-            <Button type="primary" icon={<SaveOutlined />} loading={mailSaving} onClick={handleSaveMailSettings}>
-              保存邮件配置
-            </Button>
-          </Space>
-        </Card>
-      );
     });
 
     return (
@@ -782,6 +690,98 @@ export const SystemSettings: React.FC = () => {
       </Card>
     );
   };
+
+  const renderMailServiceTab = () => (
+    <Card title="邮件服务配置" style={{ marginBottom: 16 }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Alert
+          type="info"
+          showIcon
+          message="后台配置优先，环境变量兜底"
+          description="当前邮箱验证码优先使用这里保存的配置；若后台未配置，再回退到 RESEND_API_KEY / EMAIL_FROM / EMAIL_FROM_NAME 等环境变量。敏感字段返回时会自动脱敏。"
+        />
+
+        <Form layout="vertical">
+          <Form.Item label="邮件服务提供商">
+            <Radio.Group
+              value={mailProvider}
+              onChange={(e) => setMailProvider(e.target.value)}
+              options={[
+                { label: 'Resend', value: 'resend' },
+                { label: 'SMTP（预留）', value: 'smtp' },
+                { label: 'Other（预留）', value: 'other' },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item label="启用状态">
+            <Switch checked={mailEnabled} onChange={setMailEnabled} checkedChildren="启用" unCheckedChildren="停用" />
+          </Form.Item>
+
+          <Form.Item label="发件邮箱" extra="例如：noreply@enkpay.cc.com">
+            <Input
+              value={mailFromEmail}
+              onChange={(e) => setMailFromEmail(e.target.value)}
+              placeholder="请输入发件邮箱"
+            />
+          </Form.Item>
+
+          <Form.Item label="发件名称">
+            <Input
+              value={mailFromName}
+              onChange={(e) => setMailFromName(e.target.value)}
+              placeholder="例如 ENKPay"
+            />
+          </Form.Item>
+
+          <Divider orientation="left">Resend</Divider>
+          <Form.Item label="Resend API Key" extra="显示为掩码时代表已保存；留空或保持掩码表示不修改现有值。">
+            <Input.Password
+              value={mailResendApiKey}
+              onChange={(e) => setMailResendApiKey(e.target.value)}
+              placeholder="re_xxxxx"
+            />
+          </Form.Item>
+
+          <Divider orientation="left">SMTP / 其他服务预留</Divider>
+          <Form.Item label="SMTP Host">
+            <Input
+              value={mailSmtpHost}
+              onChange={(e) => setMailSmtpHost(e.target.value)}
+              placeholder="smtp.example.com"
+            />
+          </Form.Item>
+          <Form.Item label="SMTP Port">
+            <InputNumber
+              min={1}
+              max={65535}
+              style={{ width: '100%' }}
+              value={mailSmtpPort ?? undefined}
+              onChange={(value) => setMailSmtpPort(typeof value === 'number' ? value : null)}
+            />
+          </Form.Item>
+          <Form.Item label="SMTP Username">
+            <Input
+              value={mailSmtpUsername}
+              onChange={(e) => setMailSmtpUsername(e.target.value)}
+              placeholder="username"
+            />
+          </Form.Item>
+          <Form.Item label="SMTP Password" extra="当前版本只实际接入 Resend；SMTP 字段用于后续扩展预留。">
+            <Input.Password
+              value={mailSmtpPassword}
+              onChange={(e) => setMailSmtpPassword(e.target.value)}
+              placeholder="留空表示不修改"
+            />
+          </Form.Item>
+        </Form>
+
+        <Button type="primary" icon={<SaveOutlined />} loading={mailSaving} onClick={handleSaveMailSettings}>
+          保存邮件配置
+        </Button>
+      </Space>
+    </Card>
+  );
 
   const renderLandingTab = () => {
     // ── 子 Tab A：品牌设置 ───────────────────────────────────────────────
