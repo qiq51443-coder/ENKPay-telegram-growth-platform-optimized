@@ -455,8 +455,10 @@
           </div>
         </div>
 
-        <!-- Enter Platform -->
-        <a href="/app" class="btn-primary text-sm hidden sm:inline-flex" x-text="t('enter_platform')"></a>
+        <div class="hidden sm:flex items-center gap-3">
+          <a href="/web/#/login" class="btn-outline text-sm" x-text="t('nav_login')"></a>
+          <a href="/web/#/register" class="btn-primary text-sm" x-text="t('nav_register')"></a>
+        </div>
 
         <!-- Hamburger -->
         <button class="hamburger md:hidden" @click="mobileOpen = !mobileOpen">
@@ -473,7 +475,10 @@
       <a href="#nft" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_nft')"></a>
       <a href="#charity" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_charity')"></a>
       <a href="#community" @click="mobileOpen=false" class="text-slate-300 hover:text-white text-sm py-2 px-4 rounded-lg hover:bg-white/10 transition" x-text="t('nav_community')"></a>
-      <a href="/app" class="btn-primary text-sm self-start mt-2" x-text="t('enter_platform')"></a>
+      <div class="flex gap-3 mt-2">
+        <a href="/web/#/login" class="btn-outline text-sm self-start" x-text="t('nav_login')"></a>
+        <a href="/web/#/register" class="btn-primary text-sm self-start" x-text="t('nav_register')"></a>
+      </div>
     </div>
   </nav>
 
@@ -511,11 +516,11 @@
 
       <!-- CTAs -->
       <div class="flex flex-wrap justify-center gap-4">
-        <a :href="config.socialLinks?.telegram ? (config.socialLinks.telegram.startsWith('http') ? config.socialLinks.telegram : 'https://t.me/' + config.socialLinks.telegram) : '#'" target="_blank" class="btn-primary">
-          ✈ <span x-text="t('hero_cta')"></span>
+        <a href="/web/#/login" class="btn-outline">
+          <span x-text="t('hero_login')"></span>
         </a>
-        <a href="#vision" class="btn-outline">
-          <span x-text="t('hero_more')"></span> ↓
+        <a href="/web/#/register" class="btn-primary">
+          ✉ <span x-text="t('hero_register')"></span>
         </a>
       </div>
     </div>
@@ -976,7 +981,11 @@
           nav_nft:       { zh:'NFT', en:'NFT', fr:'NFT', de:'NFT', es:'NFT', ar:'NFT', ja:'NFT' },
           nav_charity:   { zh:'公益', en:'Charity', fr:'Charité', de:'Wohltätigkeit', es:'Caridad', ar:'خيري', ja:'チャリティ' },
           nav_community: { zh:'社区', en:'Community', fr:'Communauté', de:'Gemeinschaft', es:'Comunidad', ar:'مجتمع', ja:'コミュニティ' },
+          nav_login:     { zh:'登录', en:'Login', fr:'Connexion', de:'Anmelden', es:'Iniciar sesión', ar:'تسجيل الدخول', ja:'ログイン' },
+          nav_register:  { zh:'注册', en:'Register', fr:'Inscription', de:'Registrieren', es:'Registrarse', ar:'إنشاء حساب', ja:'新規登録' },
           hero_cta:      { zh:'加入电报官方频道', en:'Join Official Channel', fr:'Rejoindre le Canal Officiel', de:'Offiziellem Kanal Beitreten', es:'Unirse al Canal Oficial', ar:'انضم للقناة الرسمية', ja:'公式チャンネルに参加' },
+          hero_login:    { zh:'邮箱登录', en:'Email Login', fr:'Connexion e-mail', de:'E-Mail-Login', es:'Acceso por correo', ar:'تسجيل الدخول بالبريد', ja:'メールログイン' },
+          hero_register: { zh:'邮箱注册', en:'Email Register', fr:'Inscription e-mail', de:'E-Mail-Registrierung', es:'Registro por correo', ar:'التسجيل بالبريد', ja:'メール登録' },
           hero_more:     { zh:'了解更多', en:'Learn More', fr:'En savoir plus', de:'Mehr erfahren', es:'Saber más', ar:'اعرف المزيد', ja:'もっと見る' },
           stat_users:    { zh:'全球用户', en:'Global Users', fr:'Utilisateurs', de:'Nutzer', es:'Usuarios', ar:'مستخدمون', ja:'ユーザー' },
           stat_nft:      { zh:'NFT 产品', en:'NFT Products', fr:'Produits NFT', de:'NFT-Produkte', es:'Productos NFT', ar:'منتجات NFT', ja:'NFT製品' },

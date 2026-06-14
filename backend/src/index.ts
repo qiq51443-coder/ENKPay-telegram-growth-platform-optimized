@@ -64,6 +64,8 @@ import healthRoutes from './routes/health';
 import landingRoutes from './routes/landing';
 import landingPublicRoutes from './routes/landing-public';
 import { ensureUploadDirs, UPLOAD_ROOT } from './services/storage.service';
+import webAuthRoutes from './routes/web-auth';
+import webWalletRoutes from './routes/web-wallet';
 
 dotenv.config();
 
@@ -204,6 +206,18 @@ app.get('/app/*', generalLimiter, (req, res) => {
   res.sendFile(path.join(appDistPath, 'index.html'));
 });
 
+// Static file serving for web SPA
+const webDistPath = path.join(__dirname, 'public/web');
+app.use('/web', express.static(webDistPath, {
+  setHeaders: (res, filePath) => staticCacheHeaders(res, filePath),
+}));
+app.get('/web/*', generalLimiter, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(webDistPath, 'index.html'));
+});
+
 // Rate limiting — applied before route handlers.
 // More-specific paths (e.g. /api/auth/login) are intentionally listed after
 // the broad /api limiter so that sensitive endpoints are subject to both the
@@ -249,6 +263,8 @@ app.use('/api/miniapp/bot-token', miniappBotTokenRoutes);
 app.use('/api/miniapp', miniappRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
+app.use('/api/web/auth', webAuthRoutes);
+app.use('/api/web/wallet', webWalletRoutes);
 
 // Landing — public API (no auth required)
 app.use('/api/landing', landingPublicRoutes);
@@ -267,6 +283,7 @@ app.get('*', generalLimiter, (req, res, next) => {
     req.path.startsWith('/api') ||
     req.path.startsWith('/admin') ||
     req.path.startsWith('/app') ||
+    req.path.startsWith('/web') ||
     req.path.startsWith('/uploads') ||
     req.path.startsWith('/health') ||
     req.path.startsWith('/webhook')

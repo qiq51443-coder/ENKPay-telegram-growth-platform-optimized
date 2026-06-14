@@ -182,7 +182,7 @@ export async function validateTransfer(
  * - Reward unlock progress must be 100%
  */
 export async function validateWithdrawal(
-  userId: number,
+  userId: string | number,
   amount: number
 ): Promise<{ valid: boolean; error?: string }> {
   // Get platform config

@@ -20,7 +20,11 @@ CREATE TABLE IF NOT EXISTS bots (
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
-  telegram_id BIGINT NOT NULL,
+  telegram_id BIGINT,
+  email TEXT,
+  password_hash TEXT,
+  email_verified BOOLEAN DEFAULT false,
+  register_type VARCHAR(20) DEFAULT 'telegram',
   username TEXT,
   first_name TEXT,
   last_name TEXT,
@@ -47,8 +51,20 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_robot_user_id ON users(robot_user_id);
 CREATE INDEX IF NOT EXISTS idx_users_invite_code ON users(invite_code);
+
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  purpose VARCHAR(20) NOT NULL DEFAULT 'register',
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  requested_ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Platform bindings table
 CREATE TABLE IF NOT EXISTS platform_bindings (
