@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import { query, transaction } from '../db';
 import { loginLimiter } from '../middleware/rateLimiter';
 import { signWebUserToken, authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
@@ -10,10 +11,93 @@ import { buildWebProfile } from './web-shared';
 
 const router = express.Router();
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const webAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: '请求过于频繁，请稍后再试' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const webProfileLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: '请求过于频繁，请稍后再试' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function isAsciiEmailPart(value: string) {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpper = code >= 65 && code <= 90;
+    const isLower = code >= 97 && code <= 122;
+    const isAllowedSymbol = `.!#$%&'*+/=?^_\`{|}~-`.includes(char);
+    if (!isDigit && !isUpper && !isLower && !isAllowedSymbol) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isValidEmail(email: string) {
+  if (!email || email.length > 254 || /\s/.test(email)) {
+    return false;
+  }
+
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf('@') || atIndex === email.length - 1) {
+    return false;
+  }
+
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+
+  if (
+    !localPart ||
+    !domainPart ||
+    localPart.length > 64 ||
+    domainPart.length > 253 ||
+    localPart.startsWith('.') ||
+    localPart.endsWith('.') ||
+    domainPart.startsWith('.') ||
+    domainPart.endsWith('.') ||
+    localPart.includes('..') ||
+    domainPart.includes('..') ||
+    !domainPart.includes('.')
+  ) {
+    return false;
+  }
+
+  if (!isAsciiEmailPart(localPart)) {
+    return false;
+  }
+
+  const domainLabels = domainPart.split('.');
+  if (domainLabels.some((label) => !label || label.startsWith('-') || label.endsWith('-'))) {
+    return false;
+  }
+
+  return domainLabels.every((label) => {
+    for (const char of label) {
+      const code = char.charCodeAt(0);
+      const isDigit = code >= 48 && code <= 57;
+      const isUpper = code >= 65 && code <= 90;
+      const isLower = code >= 97 && code <= 122;
+      const isHyphen = char === '-';
+      if (!isDigit && !isUpper && !isLower && !isHyphen) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }
 
 function hashCode(code: string) {
@@ -24,10 +108,10 @@ function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-router.post('/send-code', loginLimiter, async (req, res) => {
+router.post('/send-code', webAuthLimiter, loginLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(String(req.body?.email || ''));
-    if (!EMAIL_REGEX.test(email)) {
+    if (!isValidEmail(email)) {
       return res.status(400).json({ error: '请输入有效邮箱地址' });
     }
 
@@ -69,7 +153,7 @@ router.post('/send-code', loginLimiter, async (req, res) => {
   }
 });
 
-router.post('/register', loginLimiter, async (req, res) => {
+router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(String(req.body?.email || ''));
     const code = String(req.body?.code || '').trim();
@@ -77,7 +161,7 @@ router.post('/register', loginLimiter, async (req, res) => {
     const confirmPassword = String(req.body?.confirm_password || '');
     const agreed = Boolean(req.body?.agreed);
 
-    if (!EMAIL_REGEX.test(email)) {
+    if (!isValidEmail(email)) {
       return res.status(400).json({ error: '请输入有效邮箱地址' });
     }
     if (!/^\d{6}$/.test(code)) {
@@ -167,12 +251,12 @@ router.post('/register', loginLimiter, async (req, res) => {
   }
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', webAuthLimiter, loginLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(String(req.body?.email || ''));
     const password = String(req.body?.password || '');
 
-    if (!EMAIL_REGEX.test(email) || !password) {
+    if (!isValidEmail(email) || !password) {
       return res.status(400).json({ error: '请输入邮箱和密码' });
     }
 
@@ -210,7 +294,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-router.get('/me', authenticateWebUser, async (req: WebAuthRequest, res) => {
+router.get('/me', webProfileLimiter, authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
     const userId = req.webUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
