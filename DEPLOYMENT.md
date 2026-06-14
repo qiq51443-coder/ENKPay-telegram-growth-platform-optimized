@@ -38,7 +38,9 @@
 - [ ] `CORS_ORIGIN` 已填写（允许访问的前端域名，多个用英文逗号分隔）
 - [ ] `WALLET_ENCRYPTION_KEY` 已由 Render 自动生成（勿手动设置）
 - [ ] `JWT_SECRET` 已由 Render 自动生成
+- [ ] `WEB_JWT_SECRET` 已填写（建议与 `JWT_SECRET` 分离）
 - [ ] `ADMIN_PASSWORD` 已由 Render 自动生成（部署后在 Dashboard 查看）
+- [ ] 如未通过后台“系统设置 → 邮件服务”配置 Resend，则 `RESEND_API_KEY`、`EMAIL_FROM`、`EMAIL_FROM_NAME` 已在 Render 中填写
 
 ### 代码检查
 - [ ] `backend/src/routes/health.ts` 独立健康检查模块已存在
@@ -59,6 +61,7 @@
 | `DATABASE_URL` | 自动（fromDatabase） | Render 管理 DB 自动注入 |
 | `REDIS_URL` | 自动（fromService） | Render 管理 Redis 自动注入 |
 | `JWT_SECRET` | 自动生成 | 每次部署保持不变，勿手动修改 |
+| `WEB_JWT_SECRET` | **手动填写** | 网页端邮箱用户 JWT，建议独立于后台 JWT |
 | `ADMIN_USERNAME` | 自动（`admin`） | 管理后台登录用户名 |
 | `ADMIN_PASSWORD` | 自动生成 | 首次部署后在 Dashboard 查看 |
 | `BINANCE_API_URL` | 自动 | Binance API 地址 |
@@ -74,6 +77,9 @@
 | `WEBAPP_URL` | **手动填写** | Mini App 完整 URL |
 | `BACKEND_URL` | **手动填写** | 后端服务完整 URL |
 | `CORS_ORIGIN` | **手动填写** | 前端域名，多个用英文逗号分隔 |
+| `RESEND_API_KEY` | 选填 / 手动填写 | 后台未配置邮件服务时的 Resend 兜底配置 |
+| `EMAIL_FROM` | 选填 / 手动填写 | 后台未配置时的默认发件邮箱 |
+| `EMAIL_FROM_NAME` | 选填 / 手动填写 | 后台未配置时的默认发件名称 |
 
 ---
 
@@ -99,6 +105,7 @@
 ```
 Building mini-app...
 Building admin-panel...
+Building web-app...
 Building backend...
 Running preDeployCommand (DB migrations)...
 Starting server...

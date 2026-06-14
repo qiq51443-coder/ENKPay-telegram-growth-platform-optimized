@@ -9,6 +9,8 @@ import { inviteUpload, miniappBgUpload, toPublicUrl } from '../services/storage.
 import { MINIAPP_BG_EMPTY_CONFIG, normalizeMiniAppBgConfig } from '../services/miniapp-bg.service';
 import { invalidateBotMessageEmojiConfigCache } from '../utils/emoji-config';
 import { invalidateAnimatedEmojiCache } from '../utils/animated-emojis';
+import { encrypt } from '../services/deposit.service';
+import { SENSITIVE_SYSTEM_SETTING_KEYS, maskSensitiveSettingValue } from '../services/system-settings.service';
 
 const router = express.Router();
 
@@ -81,6 +83,30 @@ function toJsonValue(value: any): string {
   return JSON.stringify(value);
 }
 
+function maskSettingRow(row: any) {
+  if (!SENSITIVE_SYSTEM_SETTING_KEYS.has(row.key)) return row;
+  return {
+    ...row,
+    value: maskSensitiveSettingValue(row.key, row.value),
+  };
+}
+
+function prepareSettingValue(key: string, value: any, existingValue?: any) {
+  if (!SENSITIVE_SYSTEM_SETTING_KEYS.has(key)) {
+    return toJsonValue(value);
+  }
+
+  if (value === undefined) return existingValue;
+  if (value === null) return toJsonValue('');
+
+  const normalized = String(value).trim();
+  if (!normalized || normalized === '••••••••') {
+    return existingValue ?? toJsonValue('');
+  }
+
+  return toJsonValue(encrypt(normalized));
+}
+
 /**
  * GET /admin/system-settings
  * Get all system settings or filter by category
@@ -122,7 +148,7 @@ router.get('/', authenticateAdmin, async (req: AuthRequest, res) => {
       params
     );
 
-    res.json({ settings: result.rows });
+    res.json({ settings: result.rows.map(maskSettingRow) });
   } catch (error: any) {
     console.error('Get system settings error:', error);
     // If the table doesn't exist yet, return empty settings instead of 500
@@ -181,7 +207,7 @@ router.get('/:key', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Setting not found' });
     }
 
-    res.json({ setting: result.rows[0] });
+    res.json({ setting: maskSettingRow(result.rows[0]) });
   } catch (error: any) {
     console.error('Get system setting error:', error);
     // If the table doesn't exist yet, treat as not found
@@ -215,7 +241,7 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
          RETURNING *`,
         [
           key,
-          toJsonValue(value),
+          prepareSettingValue(key, value),
           description || null,
           category || null,
           is_public ?? false,
@@ -253,7 +279,7 @@ router.put('/:key', authenticateAdmin, requireRoles(['super_admin', 'admin']), a
     let paramIndex = 1;
 
     if (value !== undefined) {
-      params.push(toJsonValue(value));
+      params.push(prepareSettingValue(key, value, existing.rows[0].value));
       updates.push(`value = $${paramIndex++}`);
     }
 
@@ -346,7 +372,7 @@ router.post('/', authenticateAdmin, requireRoles(['super_admin']), async (req: A
        RETURNING *`,
       [
         key,
-        toJsonValue(value),
+        prepareSettingValue(key, value),
         description,
         category,
         is_public,
@@ -410,7 +436,7 @@ router.post('/bulk-update', authenticateAdmin, requireRoles(['super_admin', 'adm
            SET value = $1, updated_by = $2, updated_at = NOW()
            WHERE key = $3
            RETURNING *`,
-          [toJsonValue(value), req.user?.id, key]
+          [prepareSettingValue(key, value), req.user?.id, key]
         );
 
         if (result.rows.length === 0) {

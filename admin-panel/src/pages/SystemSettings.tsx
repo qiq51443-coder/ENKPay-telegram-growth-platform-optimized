@@ -345,6 +345,16 @@ export const SystemSettings: React.FC = () => {
   const [miniAppBgUploadingMap, setMiniAppBgUploadingMap] = useState<Record<string, boolean>>({});
   const [botEmojiConfig, setBotEmojiConfig] = useState<BotMessageEmojiConfig>(DEFAULT_BOT_MESSAGE_EMOJI_CONFIG);
   const [botEmojiSaving, setBotEmojiSaving] = useState(false);
+  const [mailProvider, setMailProvider] = useState('resend');
+  const [mailEnabled, setMailEnabled] = useState(true);
+  const [mailFromEmail, setMailFromEmail] = useState('');
+  const [mailFromName, setMailFromName] = useState('ENKPay');
+  const [mailResendApiKey, setMailResendApiKey] = useState('');
+  const [mailSmtpHost, setMailSmtpHost] = useState('');
+  const [mailSmtpPort, setMailSmtpPort] = useState<number | null>(null);
+  const [mailSmtpUsername, setMailSmtpUsername] = useState('');
+  const [mailSmtpPassword, setMailSmtpPassword] = useState('');
+  const [mailSaving, setMailSaving] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -398,6 +408,29 @@ export const SystemSettings: React.FC = () => {
       } else {
         setBotEmojiConfig(DEFAULT_BOT_MESSAGE_EMOJI_CONFIG);
       }
+
+      const mailProviderSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_provider');
+      const mailEnabledSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_enabled');
+      const mailFromEmailSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_from_email');
+      const mailFromNameSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_from_name');
+      const mailResendApiKeySetting = settingsData.find((s: SystemSetting) => s.key === 'mail_resend_api_key');
+      const mailSmtpHostSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_smtp_host');
+      const mailSmtpPortSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_smtp_port');
+      const mailSmtpUsernameSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_smtp_username');
+      const mailSmtpPasswordSetting = settingsData.find((s: SystemSetting) => s.key === 'mail_smtp_password');
+
+      if (mailProviderSetting?.value !== undefined) setMailProvider(unwrapJsonString(mailProviderSetting.value));
+      if (mailEnabledSetting?.value !== undefined) setMailEnabled(unwrapJsonString(mailEnabledSetting.value) !== 'false');
+      if (mailFromEmailSetting?.value !== undefined) setMailFromEmail(unwrapJsonString(mailFromEmailSetting.value));
+      if (mailFromNameSetting?.value !== undefined) setMailFromName(unwrapJsonString(mailFromNameSetting.value));
+      if (mailResendApiKeySetting?.value !== undefined) setMailResendApiKey(unwrapJsonString(mailResendApiKeySetting.value));
+      if (mailSmtpHostSetting?.value !== undefined) setMailSmtpHost(unwrapJsonString(mailSmtpHostSetting.value));
+      if (mailSmtpPortSetting?.value !== undefined) {
+        const parsed = parseInt(unwrapJsonString(mailSmtpPortSetting.value), 10);
+        setMailSmtpPort(Number.isFinite(parsed) ? parsed : null);
+      }
+      if (mailSmtpUsernameSetting?.value !== undefined) setMailSmtpUsername(unwrapJsonString(mailSmtpUsernameSetting.value));
+      if (mailSmtpPasswordSetting?.value !== undefined) setMailSmtpPassword(unwrapJsonString(mailSmtpPasswordSetting.value));
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
       const detail = error?.response?.data?.error || error?.message || '未知错误';
@@ -505,6 +538,73 @@ export const SystemSettings: React.FC = () => {
     }
   };
 
+  const handleSaveMailSettings = async () => {
+    setMailSaving(true);
+    try {
+      const requests = [
+        apiClient.updateSystemSetting('mail_provider', {
+          value: mailProvider,
+          category: 'email',
+          description: 'Current mail service provider',
+        }),
+        apiClient.updateSystemSetting('mail_enabled', {
+          value: mailEnabled,
+          category: 'email',
+          description: 'Whether mail sending is enabled',
+        }),
+        apiClient.updateSystemSetting('mail_from_email', {
+          value: mailFromEmail,
+          category: 'email',
+          description: 'Outgoing mail from address',
+        }),
+        apiClient.updateSystemSetting('mail_from_name', {
+          value: mailFromName,
+          category: 'email',
+          description: 'Outgoing mail from display name',
+        }),
+        apiClient.updateSystemSetting('mail_smtp_host', {
+          value: mailSmtpHost,
+          category: 'email',
+          description: 'Reserved SMTP host',
+        }),
+        apiClient.updateSystemSetting('mail_smtp_port', {
+          value: mailSmtpPort ?? '',
+          category: 'email',
+          description: 'Reserved SMTP port',
+        }),
+        apiClient.updateSystemSetting('mail_smtp_username', {
+          value: mailSmtpUsername,
+          category: 'email',
+          description: 'Reserved SMTP username',
+        }),
+      ];
+
+      if (mailResendApiKey && mailResendApiKey !== '••••••••') {
+        requests.push(apiClient.updateSystemSetting('mail_resend_api_key', {
+          value: mailResendApiKey,
+          category: 'email',
+          description: 'Resend API key',
+        }));
+      }
+
+      if (mailSmtpPassword && mailSmtpPassword !== '••••••••') {
+        requests.push(apiClient.updateSystemSetting('mail_smtp_password', {
+          value: mailSmtpPassword,
+          category: 'email',
+          description: 'Reserved SMTP password',
+        }));
+      }
+
+      await Promise.all(requests);
+      message.success('邮件服务配置保存成功');
+      await fetchSettings();
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || '邮件服务配置保存失败');
+    } finally {
+      setMailSaving(false);
+    }
+  };
+
   const fetchPreviewData = async () => {
     setPreviewLoading(true);
     try {
@@ -554,6 +654,98 @@ export const SystemSettings: React.FC = () => {
           ? <div style={{ whiteSpace: 'pre-wrap', padding: '8px 0', color: '#333' }}>{displayText}</div>
           : <Text type="secondary">暂无内容</Text>,
       };
+
+      const renderMailServiceTab = () => (
+        <Card title="邮件服务配置" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Alert
+              type="info"
+              showIcon
+              message="后台配置优先，环境变量兜底"
+              description="当前邮箱验证码优先使用这里保存的配置；若后台未配置，再回退到 RESEND_API_KEY / EMAIL_FROM / EMAIL_FROM_NAME 等环境变量。敏感字段返回时会自动脱敏。"
+            />
+
+            <Form layout="vertical">
+              <Form.Item label="邮件服务提供商">
+                <Radio.Group
+                  value={mailProvider}
+                  onChange={(e) => setMailProvider(e.target.value)}
+                  options={[
+                    { label: 'Resend', value: 'resend' },
+                    { label: 'SMTP（预留）', value: 'smtp' },
+                    { label: 'Other（预留）', value: 'other' },
+                  ]}
+                />
+              </Form.Item>
+
+              <Form.Item label="启用状态">
+                <Switch checked={mailEnabled} onChange={setMailEnabled} checkedChildren="启用" unCheckedChildren="停用" />
+              </Form.Item>
+
+              <Form.Item label="发件邮箱" extra="例如：noreply@enkpay.cc.com">
+                <Input
+                  value={mailFromEmail}
+                  onChange={(e) => setMailFromEmail(e.target.value)}
+                  placeholder="请输入发件邮箱"
+                />
+              </Form.Item>
+
+              <Form.Item label="发件名称">
+                <Input
+                  value={mailFromName}
+                  onChange={(e) => setMailFromName(e.target.value)}
+                  placeholder="例如 ENKPay"
+                />
+              </Form.Item>
+
+              <Divider orientation="left">Resend</Divider>
+              <Form.Item label="Resend API Key" extra="显示为掩码时代表已保存；留空或保持掩码表示不修改现有值。">
+                <Input.Password
+                  value={mailResendApiKey}
+                  onChange={(e) => setMailResendApiKey(e.target.value)}
+                  placeholder="re_xxxxx"
+                />
+              </Form.Item>
+
+              <Divider orientation="left">SMTP / 其他服务预留</Divider>
+              <Form.Item label="SMTP Host">
+                <Input
+                  value={mailSmtpHost}
+                  onChange={(e) => setMailSmtpHost(e.target.value)}
+                  placeholder="smtp.example.com"
+                />
+              </Form.Item>
+              <Form.Item label="SMTP Port">
+                <InputNumber
+                  min={1}
+                  max={65535}
+                  style={{ width: '100%' }}
+                  value={mailSmtpPort ?? undefined}
+                  onChange={(value) => setMailSmtpPort(typeof value === 'number' ? value : null)}
+                />
+              </Form.Item>
+              <Form.Item label="SMTP Username">
+                <Input
+                  value={mailSmtpUsername}
+                  onChange={(e) => setMailSmtpUsername(e.target.value)}
+                  placeholder="username"
+                />
+              </Form.Item>
+              <Form.Item label="SMTP Password" extra="当前版本只实际接入 Resend；SMTP 字段用于后续扩展预留。">
+                <Input.Password
+                  value={mailSmtpPassword}
+                  onChange={(e) => setMailSmtpPassword(e.target.value)}
+                  placeholder="留空表示不修改"
+                />
+              </Form.Item>
+            </Form>
+
+            <Button type="primary" icon={<SaveOutlined />} loading={mailSaving} onClick={handleSaveMailSettings}>
+              保存邮件配置
+            </Button>
+          </Space>
+        </Card>
+      );
     });
 
     return (
@@ -1937,6 +2129,11 @@ export const SystemSettings: React.FC = () => {
       key: 'landing',
       label: '网页管理',
       children: renderLandingTab(),
+    },
+    {
+      key: 'mail_service',
+      label: '邮件服务',
+      children: renderMailServiceTab(),
     },
     {
       key: 'invite_settings',

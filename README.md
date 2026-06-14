@@ -99,7 +99,24 @@ TRONGRID_API_KEY=your-trongrid-api-key
 
 # Redis
 REDIS_URL=redis://redis:6379
+
+# 网页端邮箱登录 JWT（建议单独配置）
+WEB_JWT_SECRET=your-web-jwt-secret
+
+# 邮件服务兜底配置（后台“系统设置 → 邮件服务”未配置时使用）
+MAIL_PROVIDER=resend
+RESEND_API_KEY=re_xxxxx
+EMAIL_FROM=noreply@example.com
+EMAIL_FROM_NAME=ENKPay
 ```
+
+### 2.1 网页端邮箱登录 / 邮件服务配置说明
+
+- 网页端入口位于 `/web/#/login` 与 `/web/#/register`，官网落地页按钮也会跳转到这里。
+- 邮箱验证码默认通过 **Resend** 发送。
+- 推荐在管理后台 **系统设置 → 邮件服务** 中配置 `Resend API Key`、发件邮箱、发件名称和启用状态；后台配置优先于环境变量。
+- `.env` 中的 `RESEND_API_KEY`、`EMAIL_FROM`、`EMAIL_FROM_NAME` 仅作为后台未配置时的兜底值。
+- 新增网页 JWT 使用 `WEB_JWT_SECRET`（未设置时回退到 `JWT_SECRET`）。
 
 ### 3. 启动服务
 
@@ -174,6 +191,9 @@ telegram-growth-platform-optimized/
 │       │   ├── TransferRecords.tsx
 │       │   └── ...
 │       └── services/          # API 客户端
+│
+├── web-app/                   # 网页端登录后应用 (React + Vite)
+│   └── src/
 │
 ├── bot/                       # Telegram Bot (Telegraf + TypeScript)
 │   └── src/
