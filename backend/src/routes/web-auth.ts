@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { query, transaction } from '../db';
 import { loginLimiter } from '../middleware/rateLimiter';
 import { signWebUserToken, authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
-import { sendVerificationCodeEmail } from '../services/email.service';
+import { sendVerificationCodeEmail, detectLangFromAcceptLanguage } from '../services/email.service';
 import { generateUniqueUserId } from '../utils/uniqueId';
 import { buildWebProfile } from './web-shared';
 
@@ -144,7 +144,9 @@ router.post('/send-code', webAuthLimiter, loginLimiter, async (req, res) => {
       [email, hashCode(code), req.ip]
     );
 
-    await sendVerificationCodeEmail(email, code);
+    // Auto-detect language from Accept-Language header
+    const lang = detectLangFromAcceptLanguage(req.headers['accept-language']);
+    await sendVerificationCodeEmail(email, code, lang);
 
     return res.json({ success: true, message: '验证码已发送，请注意查收邮件' });
   } catch (error: any) {
@@ -162,7 +164,7 @@ router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
     const agreed = Boolean(req.body?.agreed);
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: '请输入有效邮箱地址' });
+      return res.status(400).json({ error: '请���入有效邮箱地址' });
     }
     if (!/^\d{6}$/.test(code)) {
       return res.status(400).json({ error: '请输入 6 位邮箱验证码' });
