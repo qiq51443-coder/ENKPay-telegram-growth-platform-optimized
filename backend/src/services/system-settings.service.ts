@@ -11,6 +11,10 @@ export const MAIL_SETTING_KEYS = [
   'mail_smtp_port',
   'mail_smtp_username',
   'mail_smtp_password',
+  // Multi-language email template keys
+  'mail_tpl_verification_subject',
+  'mail_tpl_verification_html',
+  'mail_tpl_verification_text',
 ] as const;
 
 export const SENSITIVE_SYSTEM_SETTING_KEYS = new Set([
