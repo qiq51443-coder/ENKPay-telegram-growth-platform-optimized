@@ -6,65 +6,123 @@ services:
     plan: standard
     autoDeploy: false
     healthCheckPath: /health
+
     buildCommand: |
-      cd mini-app && npm install && npm run build && cd .. && \
-      cd admin-panel && npm install && npm run build && cd .. && \
-      cd web-app && npm install && npm run build && cd .. && \
-      cd backend && npm install && npm run build && \
-      mkdir -p dist/public/admin dist/public/app dist/public/web && \
-      cp -r ../admin-panel/dist/. dist/public/admin/ && \
-      cp -r ../mini-app/dist/. dist/public/app/ && \
-      cp -r ../web-app/dist/. dist/public/web/ && \
-      cp -r ../landing/. dist/public/
-    preDeployCommand: cd backend && node -e "require('./dist/db/migrate').runMigrations().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+      set -e
+
+      echo "=== building mini-app ==="
+      cd mini-app && npm install && npm run build && cd ..
+
+      echo "=== building admin-panel ==="
+      cd admin-panel && npm install && npm run build && cd ..
+
+      echo "=== building web-app ==="
+      cd web-app && npm install && npm run build && cd ..
+
+      echo "=== building backend ==="
+      cd backend && npm install && npm run build
+
+      echo "=== preparing public assets ==="
+      mkdir -p dist/public/admin dist/public/app dist/public/web dist/public/landing
+
+      if [ -d "../admin-panel/dist" ]; then
+        cp -r ../admin-panel/dist/. dist/public/admin/
+      else
+        echo "warning: admin-panel/dist not found"
+      fi
+
+      if [ -d "../mini-app/dist" ]; then
+        cp -r ../mini-app/dist/. dist/public/app/
+      else
+        echo "warning: mini-app/dist not found"
+      fi
+
+      if [ -d "../web-app/dist" ]; then
+        cp -r ../web-app/dist/. dist/public/web/
+      else
+        echo "warning: web-app/dist not found"
+      fi
+
+      if [ -d "../landing" ]; then
+        cp -r ../landing/. dist/public/landing/
+      else
+        echo "warning: landing not found"
+      fi
+
+    preDeployCommand: >
+      cd backend && node -e "require('./dist/db/migrate')
+      .runMigrations()
+      .then(()=>process.exit(0))
+      .catch(e=>{console.error(e);process.exit(1)})"
+
     startCommand: cd backend && node dist/index.js
+
     envVars:
       - key: NODE_ENV
         value: production
+
       - key: USE_WEBHOOK
         value: "true"
+
       - key: DATABASE_URL
         fromDatabase:
           name: telegram-growth-db
           property: connectionString
+
       - key: REDIS_URL
         fromService:
           name: telegram-growth-redis
           type: redis
           property: connectionString
+
       - key: JWT_SECRET
         generateValue: true
+
       - key: ADMIN_USERNAME
         value: admin
+
       - key: ADMIN_PASSWORD
         generateValue: true
+
       - key: BINANCE_API_URL
         value: https://api.binance.com
+
       - key: BACKEND_URL
         sync: false
+
       - key: BOT_TOKEN
         sync: false
+
       - key: WEBHOOK_DOMAIN
         sync: false
+
       - key: BOT_USERNAME
         sync: false
+
       - key: WEBAPP_URL
         sync: false
+
       - key: DB_POOL_MAX
         value: "20"
+
       - key: DB_POOL_MIN
         value: "5"
+
       - key: WALLET_ENCRYPTION_KEY
         generateValue: true
+
       - key: CORS_ORIGIN
         sync: false
+
       - key: BETA_MODE
         value: "true"
+
       - key: MAX_USERS
         value: "1000"
+
       - key: LOG_LEVEL
         value: debug
-      # Render Persistent Disk 图片上传目录
+
       - key: UPLOAD_DIR
         value: /opt/render/project/src/uploads
 
