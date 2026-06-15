@@ -191,7 +191,11 @@ app.get('/admin/*', generalLimiter, (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(adminDistPath, 'index.html'));
+  res.sendFile(path.join(adminDistPath, 'index.html'), (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: 'Admin app not built. Run: cd admin-panel && npm run build' });
+    }
+  });
 });
 
 // Static file serving for mini-app SPA
@@ -203,7 +207,11 @@ app.get('/app/*', generalLimiter, (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(appDistPath, 'index.html'));
+  res.sendFile(path.join(appDistPath, 'index.html'), (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: 'Mini app not built. Run: cd mini-app && npm run build' });
+    }
+  });
 });
 
 // Static file serving for web SPA
@@ -215,7 +223,11 @@ app.get('/web/*', generalLimiter, (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(webDistPath, 'index.html'));
+  res.sendFile(path.join(webDistPath, 'index.html'), (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: 'Web app not built. Run: cd web-app && npm run build' });
+    }
+  });
 });
 
 // Rate limiting — applied before route handlers.

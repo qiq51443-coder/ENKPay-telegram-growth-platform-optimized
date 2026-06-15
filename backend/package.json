@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "migrate": "node -r ts-node/register src/db/migrate.ts",
-    "render-build": "cd ../mini-app && npm install && npm run build && cd ../admin-panel && npm install && npm run build && cd ../web-app && npm install && npm run build && cd ../backend && npm install && npm run build && mkdir -p dist/public/admin dist/public/app dist/public/web && cp -r ../admin-panel/dist/* dist/public/admin/ && cp -r ../mini-app/dist/* dist/public/app/ && cp -r ../web-app/dist/* dist/public/web/ && cp -r ../landing/* dist/public/"
+    "render-build": "cd ../mini-app && npm install && npm run build && cd ../admin-panel && npm install && npm run build && cd ../web-app && npm install && npm run build && cd ../backend && npm install && npm run build && mkdir -p dist/public/admin dist/public/app dist/public/web && cp -r ../admin-panel/dist/* dist/public/admin/ && cp -r ../mini-app/dist/* dist/public/app/ && cp -r src/public/web/* dist/public/web/ && cp -r ../landing/* dist/public/"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
