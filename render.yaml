@@ -43,10 +43,15 @@ services:
         echo "warning: web-app/dist not found"
       fi
 
-      if [ -d "../landing" ]; then
-        cp -r ../landing/. dist/public/landing/
+            if [ -d "../landing" ]; then
+        echo "✓ Copying landing page to root public/"
+        cp -r ../landing/* dist/public/          # 直接拷贝到 public/ 根目录
+        # 删除多余的 landing 子目录（如果存在）
+        rm -rf dist/public/landing 2>/dev/null || true
       else
         echo "warning: landing not found"
+        # 创建 fallback
+        echo '<h1>ENKPay 服务正常运行</h1>' > dist/public/index.html
       fi
 
     preDeployCommand: >
