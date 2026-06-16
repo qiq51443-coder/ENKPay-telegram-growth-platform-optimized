@@ -634,11 +634,11 @@ router.post('/purchase', authenticateBot, async (req: AuthRequest, res) => {
       // Cross-table purchase limit check: prevent duplicate holdings across nft_holdings and product_holdings
       if (product.is_purchase_limited) {
         const existingNft = await client.query(
-          `SELECT COUNT(*) AS cnt FROM nft_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+          `SELECT COUNT(*) AS cnt FROM nft_holdings WHERE user_id = $1 AND product_id = $2`,
           [user_id, product_id]
         );
         const existingPh = await client.query(
-          `SELECT COUNT(*) AS cnt FROM product_holdings WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+          `SELECT COUNT(*) AS cnt FROM product_holdings WHERE user_id = $1 AND product_id = $2`,
           [user_id, product_id]
         );
         const totalHeld = parseInt(existingNft.rows[0].cnt) + parseInt(existingPh.rows[0].cnt);
@@ -851,12 +851,12 @@ router.post('/products/:id/purchase', authenticateMiniApp, async (req: MiniAppAu
       if (product.is_purchase_limited) {
         const phCount = await client.query(
           `SELECT COUNT(*) AS total_count FROM product_holdings
-           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+           WHERE user_id = $1 AND product_id = $2`,
           [user.id, productId]
         );
         const nftCount = await client.query(
           `SELECT COUNT(*) AS total_count FROM nft_holdings
-           WHERE user_id = $1 AND product_id = $2 AND status = 'active'`,
+           WHERE user_id = $1 AND product_id = $2`,
           [user.id, productId]
         );
         const totalHeld = parseInt(phCount.rows[0].total_count) + parseInt(nftCount.rows[0].total_count);
