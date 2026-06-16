@@ -95,6 +95,268 @@ const TABS: Array<{ key: TabKey; label: string; icon: string; description: strin
   { key: 'profile', label: '个人中心', icon: '👤', description: '管理网页账户、提现密码与钱包操作。' },
 ]
 
+type Lang = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ar' | 'ja'
+
+type I18nItem = {
+  login: string
+  register: string
+  email: string
+  password: string
+  confirmPassword: string
+  verifyCode: string
+  sendCode: string
+  sending: string
+  forgotPassword: string
+  contactSupport: string
+  agreeTerms: string
+  loginBtn: string
+  registerBtn: string
+  loggingIn: string
+  registering: string
+  passwordStrengthOk: string
+  passwordStrengthNeeds: string
+  loginSuccess: string
+  registerSuccess: string
+  codeSent: string
+  errors: {
+    invalidEmail: string
+    invalidCode: string
+    passwordTooShort: string
+    passwordMismatch: string
+    agreeRequired: string
+    emailRequired: string
+    passwordRequired: string
+  }
+}
+
+const I18N: Record<Lang, I18nItem> = {
+  zh: {
+    login: '登录',
+    register: '注册',
+    email: '邮箱',
+    password: '密码',
+    confirmPassword: '确认密码',
+    verifyCode: '邮箱验证码',
+    sendCode: '发送验证码',
+    sending: '发送中...',
+    forgotPassword: '忘记密码？',
+    contactSupport: '联系客服',
+    agreeTerms: '我已阅读并同意相关协议',
+    loginBtn: '登录',
+    registerBtn: '注册',
+    loggingIn: '登录中...',
+    registering: '注册中...',
+    passwordStrengthOk: '✓ 密码强度符合要求',
+    passwordStrengthNeeds: '密码还需',
+    loginSuccess: '登录成功，正在跳转...',
+    registerSuccess: '注册成功，正在跳转...',
+    codeSent: '验证码已发送',
+    errors: {
+      invalidEmail: '请输入有效的邮箱地址',
+      invalidCode: '请输入 6 位数字验证码',
+      passwordTooShort: '密码至少需要 8 位',
+      passwordMismatch: '两次输入的密码不一致',
+      agreeRequired: '请先同意相关协议',
+      emailRequired: '请输入邮箱',
+      passwordRequired: '请输入密码',
+    },
+  },
+  en: {
+    login: 'Login',
+    register: 'Register',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    verifyCode: 'Verification Code',
+    sendCode: 'Send Code',
+    sending: 'Sending...',
+    forgotPassword: 'Forgot password?',
+    contactSupport: 'Contact Support',
+    agreeTerms: 'I agree to the Terms and Conditions',
+    loginBtn: 'Login',
+    registerBtn: 'Register',
+    loggingIn: 'Logging in...',
+    registering: 'Registering...',
+    passwordStrengthOk: '✓ Password strength OK',
+    passwordStrengthNeeds: 'Need',
+    loginSuccess: 'Login successful, redirecting...',
+    registerSuccess: 'Registered successfully, redirecting...',
+    codeSent: 'Verification code sent',
+    errors: {
+      invalidEmail: 'Please enter a valid email address',
+      invalidCode: 'Please enter a 6-digit verification code',
+      passwordTooShort: 'Password must be at least 8 characters',
+      passwordMismatch: 'Passwords do not match',
+      agreeRequired: 'Please agree to the terms',
+      emailRequired: 'Please enter your email',
+      passwordRequired: 'Please enter your password',
+    },
+  },
+  fr: {
+    login: 'Connexion',
+    register: 'Inscription',
+    email: 'E-mail',
+    password: 'Mot de passe',
+    confirmPassword: 'Confirmer le mot de passe',
+    verifyCode: 'Code de vérification',
+    sendCode: 'Envoyer le code',
+    sending: 'Envoi...',
+    forgotPassword: 'Mot de passe oublié ?',
+    contactSupport: 'Contacter le support',
+    agreeTerms: "J'accepte les conditions d'utilisation",
+    loginBtn: 'Connexion',
+    registerBtn: "S'inscrire",
+    loggingIn: 'Connexion...',
+    registering: 'Inscription...',
+    passwordStrengthOk: '✓ Mot de passe conforme',
+    passwordStrengthNeeds: 'Il manque encore',
+    loginSuccess: 'Connexion réussie, redirection...',
+    registerSuccess: 'Inscription réussie, redirection...',
+    codeSent: 'Code envoyé',
+    errors: {
+      invalidEmail: "Veuillez saisir une adresse e-mail valide",
+      invalidCode: 'Veuillez saisir un code à 6 chiffres',
+      passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères',
+      passwordMismatch: 'Les mots de passe ne correspondent pas',
+      agreeRequired: "Veuillez accepter les conditions",
+      emailRequired: "Veuillez saisir votre e-mail",
+      passwordRequired: 'Veuillez saisir votre mot de passe',
+    },
+  },
+  de: {
+    login: 'Anmelden',
+    register: 'Registrieren',
+    email: 'E-Mail',
+    password: 'Passwort',
+    confirmPassword: 'Passwort bestätigen',
+    verifyCode: 'Verifizierungscode',
+    sendCode: 'Code senden',
+    sending: 'Senden...',
+    forgotPassword: 'Passwort vergessen?',
+    contactSupport: 'Support kontaktieren',
+    agreeTerms: 'Ich stimme den Nutzungsbedingungen zu',
+    loginBtn: 'Anmelden',
+    registerBtn: 'Registrieren',
+    loggingIn: 'Anmeldung...',
+    registering: 'Registrierung...',
+    passwordStrengthOk: '✓ Passwortstärke OK',
+    passwordStrengthNeeds: 'Noch',
+    loginSuccess: 'Anmeldung erfolgreich, Weiterleitung...',
+    registerSuccess: 'Registrierung erfolgreich, Weiterleitung...',
+    codeSent: 'Code wurde gesendet',
+    errors: {
+      invalidEmail: 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
+      invalidCode: 'Bitte geben Sie einen 6-stelligen Code ein',
+      passwordTooShort: 'Passwort muss mindestens 8 Zeichen lang sein',
+      passwordMismatch: 'Passwörter stimmen nicht überein',
+      agreeRequired: 'Bitte stimmen Sie den Bedingungen zu',
+      emailRequired: 'Bitte geben Sie Ihre E-Mail ein',
+      passwordRequired: 'Bitte geben Sie Ihr Passwort ein',
+    },
+  },
+  es: {
+    login: 'Iniciar sesión',
+    register: 'Registrarse',
+    email: 'Correo electrónico',
+    password: 'Contraseña',
+    confirmPassword: 'Confirmar contraseña',
+    verifyCode: 'Código de verificación',
+    sendCode: 'Enviar código',
+    sending: 'Enviando...',
+    forgotPassword: '¿Olvidaste tu contraseña?',
+    contactSupport: 'Contactar soporte',
+    agreeTerms: 'Acepto los términos y condiciones',
+    loginBtn: 'Iniciar sesión',
+    registerBtn: 'Registrarse',
+    loggingIn: 'Iniciando sesión...',
+    registering: 'Registrando...',
+    passwordStrengthOk: '✓ Contraseña válida',
+    passwordStrengthNeeds: 'Faltan',
+    loginSuccess: 'Inicio de sesión exitoso, redirigiendo...',
+    registerSuccess: 'Registro exitoso, redirigiendo...',
+    codeSent: 'Código enviado',
+    errors: {
+      invalidEmail: 'Introduce un correo electrónico válido',
+      invalidCode: 'Introduce un código de verificación de 6 dígitos',
+      passwordTooShort: 'La contraseña debe tener al menos 8 caracteres',
+      passwordMismatch: 'Las contraseñas no coinciden',
+      agreeRequired: 'Acepta los términos primero',
+      emailRequired: 'Introduce tu correo electrónico',
+      passwordRequired: 'Introduce tu contraseña',
+    },
+  },
+  ar: {
+    login: 'تسجيل الدخول',
+    register: 'إنشاء حساب',
+    email: 'البريد الإلكتروني',
+    password: 'كلمة المرور',
+    confirmPassword: 'تأكيد كلمة المرور',
+    verifyCode: 'رمز التحقق',
+    sendCode: 'إرسال الرمز',
+    sending: 'جارٍ الإرسال...',
+    forgotPassword: 'نسيت كلمة المرور؟',
+    contactSupport: 'تواصل مع الدعم',
+    agreeTerms: 'أوافق على الشروط والأحكام',
+    loginBtn: 'دخول',
+    registerBtn: 'تسجيل',
+    loggingIn: 'جارٍ الدخول...',
+    registering: 'جارٍ التسجيل...',
+    passwordStrengthOk: '✓ قوة كلمة المرور مقبولة',
+    passwordStrengthNeeds: 'تحتاج',
+    loginSuccess: 'تم الدخول بنجاح، جارٍ التحويل...',
+    registerSuccess: 'تم التسجيل بنجاح، جارٍ التحويل...',
+    codeSent: 'تم إرسال رمز التحقق',
+    errors: {
+      invalidEmail: 'يرجى إدخال بريد إلكتروني صالح',
+      invalidCode: 'يرجى إدخال رمز تحقق مكون من 6 أرقام',
+      passwordTooShort: 'يجب أن تكون كلمة المرور 8 أحرف على الأقل',
+      passwordMismatch: 'كلمتا المرور غير متطابقتين',
+      agreeRequired: 'يرجى الموافقة على الشروط',
+      emailRequired: 'يرجى إدخال البريد الإلكتروني',
+      passwordRequired: 'يرجى إدخال كلمة المرور',
+    },
+  },
+  ja: {
+    login: 'ログイン',
+    register: '新規登録',
+    email: 'メールアドレス',
+    password: 'パスワード',
+    confirmPassword: 'パスワード確認',
+    verifyCode: '確認コード',
+    sendCode: 'コードを送信',
+    sending: '送信中...',
+    forgotPassword: 'パスワードをお忘れですか？',
+    contactSupport: 'サポートに連絡',
+    agreeTerms: '利用規約に同意します',
+    loginBtn: 'ログイン',
+    registerBtn: '登録',
+    loggingIn: 'ログイン中...',
+    registering: '登録中...',
+    passwordStrengthOk: '✓ パスワードの強度OK',
+    passwordStrengthNeeds: 'あと',
+    loginSuccess: 'ログイン成功、リダイレクト中...',
+    registerSuccess: '登録成功、リダイレクト中...',
+    codeSent: '認証コードを送信しました',
+    errors: {
+      invalidEmail: '有効なメールアドレスを入力してください',
+      invalidCode: '6桁の確認コードを入力してください',
+      passwordTooShort: 'パスワードは8文字以上必要です',
+      passwordMismatch: 'パスワードが一致しません',
+      agreeRequired: '利用規約に同意してください',
+      emailRequired: 'メールアドレスを入力してください',
+      passwordRequired: 'パスワードを入力してください',
+    },
+  },
+}
+
+const SUPPORTED_LANGS: Lang[] = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja']
+
+function detectLang(): Lang {
+  const nav = navigator.language || 'en'
+  const code = nav.split('-')[0].toLowerCase() as Lang
+  return SUPPORTED_LANGS.includes(code) ? code : 'en'
+}
+
 const getStoredToken = () => {
   try {
     return localStorage.getItem(WEB_TOKEN_KEY) || ''
@@ -165,7 +427,7 @@ function formatDate(value?: string) {
 function cardTitle(route: Route) {
   if (route.view === 'deposit') return '独立充值页'
   if (route.view === 'withdraw') return '独立提现页'
-  if (route.view === 'auth') return route.mode === 'register' ? '邮箱注册' : '邮箱登录'
+  if (route.view === 'auth') return ''
   return TABS.find((tab) => tab.key === route.tab)?.label || 'ENKPay'
 }
 
@@ -223,8 +485,13 @@ function App() {
   const [showLoginPwd, setShowLoginPwd] = useState(false)
   const [showRegPwd, setShowRegPwd] = useState(false)
   const [showRegConfirmPwd, setShowRegConfirmPwd] = useState(false)
+  const [lang, setLang] = useState<Lang>(() => detectLang())
   const [brandName, setBrandName] = useState('ENKPay')
+  const [brandLogoUrl, setBrandLogoUrl] = useState('')
+  const [contactTelegram, setContactTelegram] = useState('')
+  const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
+  const t = I18N[lang]
 
   const activeTab = route.view === 'app' ? route.tab : 'trading'
 
@@ -276,6 +543,15 @@ function App() {
       .then((r) => r.json())
       .then((data) => {
         if (data?.brand?.name) setBrandName(data.brand.name)
+        if (data?.brand?.logoUrl) setBrandLogoUrl(data.brand.logoUrl)
+        if (typeof data?.contact?.telegram === 'string') setContactTelegram(data.contact.telegram)
+        if (data?.slogans && typeof data.slogans === 'object') {
+          const next: Partial<Record<Lang, string>> = {}
+          SUPPORTED_LANGS.forEach((key) => {
+            if (typeof data.slogans[key] === 'string') next[key] = data.slogans[key]
+          })
+          setSlogans(next)
+        }
       })
       .catch(() => {})
   }, [])
@@ -407,10 +683,12 @@ function App() {
 
   const setSuccessMsg = (msg: string) => { setAuthMessage(msg); setAuthMessageType('success') }
   const setErrorMsg = (msg: string) => { setAuthMessage(msg); setAuthMessageType('error') }
+  const safeTelegram = contactTelegram.trim().replace(/^@/, '')
+  const currentSlogan = slogans[lang] || slogans.en || ''
 
   const handleSendCode = async () => {
     if (!authForms.registerEmail) {
-      setErrorMsg('请先输入邮箱地址')
+      setErrorMsg(t.errors.emailRequired)
       return
     }
     setSendCodeLoading(true)
@@ -421,7 +699,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify({ email: authForms.registerEmail }),
       })
-      setSuccessMsg(result.message || '验证码已发送')
+      setSuccessMsg(result.message || t.codeSent)
       setSendCodeCountdown(60)
     } catch (error: any) {
       setErrorMsg(error.message)
@@ -432,24 +710,28 @@ function App() {
 
   const handleRegister = async () => {
     // Front-end validation before sending to API
-    if (!authForms.registerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.registerEmail)) {
-      setErrorMsg('请输入有效的邮箱地址')
+    if (!authForms.registerEmail) {
+      setErrorMsg(t.errors.emailRequired)
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.registerEmail)) {
+      setErrorMsg(t.errors.invalidEmail)
       return
     }
     if (!authForms.registerCode || !/^\d{6}$/.test(authForms.registerCode)) {
-      setErrorMsg('请输入 6 位数字验证码')
+      setErrorMsg(t.errors.invalidCode)
       return
     }
     if (authForms.registerPassword.length < 8) {
-      setErrorMsg('密码至少需要 8 位')
+      setErrorMsg(t.errors.passwordTooShort)
       return
     }
     if (authForms.registerPassword !== authForms.registerConfirmPassword) {
-      setErrorMsg('两次输入的密码不一致')
+      setErrorMsg(t.errors.passwordMismatch)
       return
     }
     if (!authForms.registerAgreed) {
-      setErrorMsg('请先同意相关协议')
+      setErrorMsg(t.errors.agreeRequired)
       return
     }
     setAuthSubmitting(true)
@@ -470,7 +752,7 @@ function App() {
       setStoredToken(nextToken)
       setToken(nextToken)
       setUser((result as any).user || null)
-      setSuccessMsg('注册成功，正在跳转...')
+      setSuccessMsg(t.registerSuccess)
       setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
     } catch (error: any) {
       setErrorMsg(error.message)
@@ -481,12 +763,16 @@ function App() {
 
   const handleLogin = async () => {
     // Front-end validation before sending to API
-    if (!authForms.loginEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.loginEmail)) {
-      setErrorMsg('请输入有效的邮箱地址')
+    if (!authForms.loginEmail) {
+      setErrorMsg(t.errors.emailRequired)
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.loginEmail)) {
+      setErrorMsg(t.errors.invalidEmail)
       return
     }
     if (!authForms.loginPassword) {
-      setErrorMsg('请输入密码')
+      setErrorMsg(t.errors.passwordRequired)
       return
     }
     setAuthSubmitting(true)
@@ -504,7 +790,7 @@ function App() {
       setStoredToken(nextToken)
       setToken(nextToken)
       setUser((result as any).user || null)
-      setSuccessMsg('登录成功，正在跳转...')
+      setSuccessMsg(t.loginSuccess)
       setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
     } catch (error: any) {
       setErrorMsg(error.message)
@@ -771,16 +1057,35 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <span className="brand-badge">{brandName} Web</span>
-          <h1>{cardTitle(route)}</h1>
-        </div>
-        {token && user && (
-          <div className="topbar-actions">
-            <span className="user-chip">{user.email}</span>
-            <button className="secondary-button small" onClick={handleLogout}>退出登录</button>
+        <div className="topbar-brand">
+          {brandLogoUrl ? (
+            <img src={brandLogoUrl} alt={brandName} className="brand-logo" />
+          ) : (
+            <span className="brand-icon">◈</span>
+          )}
+          <div>
+            <span className="brand-name">{brandName}</span>
+            {route.view === 'auth' && currentSlogan && <p className="muted-text brand-slogan">{currentSlogan}</p>}
+            {route.view !== 'auth' && <h1>{cardTitle(route)}</h1>}
           </div>
-        )}
+        </div>
+        <div className="topbar-right">
+          <select className="lang-selector" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
+            <option value="zh">中文</option>
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+            <option value="de">DE</option>
+            <option value="es">ES</option>
+            <option value="ar">AR</option>
+            <option value="ja">JA</option>
+          </select>
+          {token && user && (
+            <>
+              <span className="user-chip">{user.email}</span>
+              <button className="secondary-button small" onClick={handleLogout}>⇤</button>
+            </>
+          )}
+        </div>
       </header>
 
       {globalError && <div className="status-banner">{globalError}</div>}
@@ -788,26 +1093,26 @@ function App() {
       {loadingUser ? (
         <main className="main-card"><div className="empty-card inset">正在同步账户信息...</div></main>
       ) : route.view === 'auth' ? (
-        <main className="main-card auth-card">
+        <main className="main-card auth-card" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <div className="auth-switch">
             <button
               className={route.mode === 'login' ? 'tab-button active' : 'tab-button'}
               onClick={() => { navigateTo({ view: 'auth', mode: 'login' }); setAuthMessage(''); setAuthMessageType('') }}
             >
-              登录
+              {t.login}
             </button>
             <button
               className={route.mode === 'register' ? 'tab-button active' : 'tab-button'}
               onClick={() => { navigateTo({ view: 'auth', mode: 'register' }); setAuthMessage(''); setAuthMessageType('') }}
             >
-              注册
+              {t.register}
             </button>
           </div>
 
           {route.mode === 'login' ? (
             <div className="form-stack">
               <label>
-                <span>邮箱</span>
+                <span>{t.email}</span>
                 <input
                   value={authForms.loginEmail}
                   onChange={(event) => handleAuthChange('loginEmail', event.target.value)}
@@ -817,7 +1122,7 @@ function App() {
                 />
               </label>
               <label>
-                <span>密码</span>
+                <span>{t.password}</span>
                 <div className="pwd-wrap">
                   <input
                     value={authForms.loginPassword}
@@ -831,17 +1136,32 @@ function App() {
                   </button>
                 </div>
               </label>
-              <p className="muted-text" style={{ fontSize: '12px', textAlign: 'right', margin: '0' }}>
-                如需找回密码，请联系客服
-              </p>
-              <button className="primary-button" disabled={authSubmitting} onClick={handleLogin}>
-                {authSubmitting ? <><span className="spinner" />登录中...</> : '登录并进入即时交易'}
+              <div className="forgot-row">
+                <span className="muted-text forgot-text">{t.forgotPassword}</span>
+                {safeTelegram ? (
+                  <a
+                    href={`https://t.me/${safeTelegram}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="support-link"
+                  >
+                    <svg className="tg-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.04 9.613c-.152.678-.546.844-1.107.525l-3.067-2.261-1.48 1.424c-.164.164-.301.301-.617.301l.22-3.123 5.675-5.125c.247-.22-.054-.342-.384-.122L7.72 14.072 4.7 13.12c-.657-.206-.67-.657.138-.973l10.886-4.194c.547-.2 1.025.134.838.295z" />
+                    </svg>
+                    {t.contactSupport}
+                  </a>
+                ) : (
+                  <span className="muted-text forgot-text">{t.contactSupport}</span>
+                )}
+              </div>
+              <button className="primary-button auth-btn" disabled={authSubmitting} onClick={handleLogin}>
+                {authSubmitting ? <><span className="spinner" />{t.loggingIn}</> : t.loginBtn}
               </button>
             </div>
           ) : (
             <div className="form-stack">
               <label>
-                <span>邮箱</span>
+                <span>{t.email}</span>
                 <input
                   value={authForms.registerEmail}
                   onChange={(event) => handleAuthChange('registerEmail', event.target.value)}
@@ -851,7 +1171,7 @@ function App() {
               </label>
               <div className="inline-field">
                 <label>
-                  <span>邮箱验证码</span>
+                  <span>{t.verifyCode}</span>
                   <input
                     value={authForms.registerCode}
                     onChange={(event) => handleAuthChange('registerCode', event.target.value)}
@@ -861,11 +1181,11 @@ function App() {
                   />
                 </label>
                 <button className="secondary-button code-button" disabled={sendCodeLoading || sendCodeCountdown > 0} onClick={handleSendCode}>
-                  {sendCodeCountdown > 0 ? `${sendCodeCountdown}s` : sendCodeLoading ? '发送中...' : '发送验证码'}
+                  {sendCodeCountdown > 0 ? `${sendCodeCountdown}s` : sendCodeLoading ? t.sending : t.sendCode}
                 </button>
               </div>
               <label>
-                <span>密码</span>
+                <span>{t.password}</span>
                 <div className="pwd-wrap">
                   <input
                     value={authForms.registerPassword}
@@ -880,11 +1200,11 @@ function App() {
               </label>
               {authForms.registerPassword.length > 0 && (
                 <p style={{ fontSize: '12px', margin: '0', color: authForms.registerPassword.length >= 8 ? '#4caf50' : '#f0a500' }}>
-                  {authForms.registerPassword.length >= 8 ? '✓ 密码强度符合要求' : `密码还需 ${8 - authForms.registerPassword.length} 位`}
+                  {authForms.registerPassword.length >= 8 ? t.passwordStrengthOk : `${t.passwordStrengthNeeds} ${8 - authForms.registerPassword.length}`}
                 </p>
               )}
               <label>
-                <span>确认密码</span>
+                <span>{t.confirmPassword}</span>
                 <div className="pwd-wrap">
                   <input
                     value={authForms.registerConfirmPassword}
@@ -904,10 +1224,10 @@ function App() {
                   checked={authForms.registerAgreed}
                   onChange={(event) => handleAuthChange('registerAgreed', event.target.checked)}
                 />
-                <span>我已阅读并同意相关协议</span>
+                <span>{t.agreeTerms}</span>
               </label>
-              <button className="primary-button" disabled={authSubmitting} onClick={handleRegister}>
-                {authSubmitting ? <><span className="spinner" />注册中...</> : '注册并进入即时交易'}
+              <button className="primary-button auth-btn" disabled={authSubmitting} onClick={handleRegister}>
+                {authSubmitting ? <><span className="spinner" />{t.registering}</> : t.registerBtn}
               </button>
             </div>
           )}
