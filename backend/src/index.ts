@@ -182,6 +182,33 @@ async function ensureStrategyTables() {
   console.log(`✓ [startup] Strategy tables ensured (${successCount}/${statements.length} statements OK)`);
 }
 
+async function ensureWebAuthTables() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS email_verification_codes (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email        TEXT NOT NULL,
+      code_hash    TEXT NOT NULL,
+      purpose      TEXT NOT NULL DEFAULT 'register',
+      expires_at   TIMESTAMPTZ NOT NULL,
+      used_at      TIMESTAMPTZ,
+      requested_ip TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_evc_email_purpose ON email_verification_codes(email, purpose)`,
+    `CREATE INDEX IF NOT EXISTS idx_evc_expires ON email_verification_codes(expires_at)`,
+  ];
+  for (const statement of statements) {
+    try {
+      await dbQuery(statement);
+    } catch (err: any) {
+      if (!String(err?.message || '').includes('already exists')) {
+        console.error('[startup] email_verification_codes table error:', err?.message);
+      }
+    }
+  }
+  console.log('✓ [startup] Web auth tables ensured');
+}
+
 // Static file serving for admin-panel SPA
 const adminDistPath = path.join(__dirname, 'public/admin');
 app.use('/admin', express.static(adminDistPath, {
@@ -225,6 +252,11 @@ app.get('/web/*', generalLimiter, (_req, res) => {
   res.setHeader('Expires', '0');
   res.sendFile(path.join(webDistPath, 'index.html'), (err) => {
     if (err && !res.headersSent) {
+      if (process.env.NODE_ENV !== 'production') {
+        res.status(503).send('Web app not built. Run: cd web-app && npm run build');
+        return;
+      }
+      res.setHeader('Retry-After', '30');
       res.status(503).send(`<!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -407,6 +439,9 @@ const startServer = async () => {
 
     // 3.1 Ensure strategy-related tables exist even if migration tracking was inconsistent
     await ensureStrategyTables();
+
+    // 3.2 Ensure web auth tables exist (email_verification_codes)
+    await ensureWebAuthTables();
 
     // Initialise rate limiters (requires Redis; skipped gracefully if Redis is unavailable)
     if (redisAvailable) {
