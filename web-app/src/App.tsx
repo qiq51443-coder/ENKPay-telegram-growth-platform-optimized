@@ -219,6 +219,10 @@ function App() {
   const [sendCodeLoading, setSendCodeLoading] = useState(false)
   const [sendCodeCountdown, setSendCodeCountdown] = useState(0)
   const [authMessage, setAuthMessage] = useState('')
+  const [showLoginPwd, setShowLoginPwd] = useState(false)
+  const [showRegPwd, setShowRegPwd] = useState(false)
+  const [showRegConfirmPwd, setShowRegConfirmPwd] = useState(false)
+  const [brandName, setBrandName] = useState('ENKPay')
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
 
   const activeTab = route.view === 'app' ? route.tab : 'trading'
@@ -265,6 +269,15 @@ function App() {
     const timer = window.setTimeout(() => setSendCodeCountdown((value) => value - 1), 1000)
     return () => window.clearTimeout(timer)
   }, [sendCodeCountdown])
+
+  useEffect(() => {
+    fetch('/api/landing/config')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.brand?.name) setBrandName(data.brand.name)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'trading' && pairs.length === 0) {
@@ -720,7 +733,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <span className="brand-badge">ENKPay Web</span>
+          <span className="brand-badge">{brandName} Web</span>
           <h1>{cardTitle(route)}</h1>
         </div>
         {token && user && (
@@ -756,26 +769,57 @@ function App() {
             <div className="form-stack">
               <label>
                 <span>邮箱</span>
-                <input value={authForms.loginEmail} onChange={(event) => handleAuthChange('loginEmail', event.target.value)} type="email" />
+                <input
+                  value={authForms.loginEmail}
+                  onChange={(event) => handleAuthChange('loginEmail', event.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  type="email"
+                  autoComplete="email"
+                />
               </label>
               <label>
                 <span>密码</span>
-                <input value={authForms.loginPassword} onChange={(event) => handleAuthChange('loginPassword', event.target.value)} type="password" />
+                <div className="pwd-wrap">
+                  <input
+                    value={authForms.loginPassword}
+                    onChange={(event) => handleAuthChange('loginPassword', event.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    type={showLoginPwd ? 'text' : 'password'}
+                    autoComplete="current-password"
+                  />
+                  <button type="button" className="pwd-toggle" onClick={() => setShowLoginPwd((v) => !v)}>
+                    {showLoginPwd ? '🙈' : '👁'}
+                  </button>
+                </div>
               </label>
+              <p className="muted-text" style={{ fontSize: '12px', textAlign: 'right', margin: '0' }}>
+                如需找回密码，请联系客服
+              </p>
               <button className="primary-button" disabled={authSubmitting} onClick={handleLogin}>
-                {authSubmitting ? '登录中...' : '登录并进入即时交易'}
+                {authSubmitting ? <><span className="spinner" />登录中...</> : '登录并进入即时交易'}
               </button>
             </div>
           ) : (
             <div className="form-stack">
               <label>
                 <span>邮箱</span>
-                <input value={authForms.registerEmail} onChange={(event) => handleAuthChange('registerEmail', event.target.value)} type="email" />
+                <input
+                  value={authForms.registerEmail}
+                  onChange={(event) => handleAuthChange('registerEmail', event.target.value)}
+                  type="email"
+                  autoComplete="email"
+                />
               </label>
               <div className="inline-field">
                 <label>
                   <span>邮箱验证码</span>
-                  <input value={authForms.registerCode} onChange={(event) => handleAuthChange('registerCode', event.target.value)} />
+                  <input
+                    value={authForms.registerCode}
+                    onChange={(event) => handleAuthChange('registerCode', event.target.value)}
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                  />
                 </label>
                 <button className="secondary-button code-button" disabled={sendCodeLoading || sendCodeCountdown > 0} onClick={handleSendCode}>
                   {sendCodeCountdown > 0 ? `${sendCodeCountdown}s` : sendCodeLoading ? '发送中...' : '发送验证码'}
@@ -783,11 +827,32 @@ function App() {
               </div>
               <label>
                 <span>密码</span>
-                <input value={authForms.registerPassword} onChange={(event) => handleAuthChange('registerPassword', event.target.value)} type="password" />
+                <div className="pwd-wrap">
+                  <input
+                    value={authForms.registerPassword}
+                    onChange={(event) => handleAuthChange('registerPassword', event.target.value)}
+                    type={showRegPwd ? 'text' : 'password'}
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="pwd-toggle" onClick={() => setShowRegPwd((v) => !v)}>
+                    {showRegPwd ? '🙈' : '👁'}
+                  </button>
+                </div>
               </label>
               <label>
                 <span>确认密码</span>
-                <input value={authForms.registerConfirmPassword} onChange={(event) => handleAuthChange('registerConfirmPassword', event.target.value)} type="password" />
+                <div className="pwd-wrap">
+                  <input
+                    value={authForms.registerConfirmPassword}
+                    onChange={(event) => handleAuthChange('registerConfirmPassword', event.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
+                    type={showRegConfirmPwd ? 'text' : 'password'}
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="pwd-toggle" onClick={() => setShowRegConfirmPwd((v) => !v)}>
+                    {showRegConfirmPwd ? '🙈' : '👁'}
+                  </button>
+                </div>
               </label>
               <label className="checkbox-row">
                 <input
@@ -798,12 +863,16 @@ function App() {
                 <span>我已阅读并同意相关协议</span>
               </label>
               <button className="primary-button" disabled={authSubmitting} onClick={handleRegister}>
-                {authSubmitting ? '注册中...' : '注册并进入即时交易'}
+                {authSubmitting ? <><span className="spinner" />注册中...</> : '注册并进入即时交易'}
               </button>
             </div>
           )}
 
-          {authMessage && <div className="hint-box">{authMessage}</div>}
+          {authMessage && (
+            <div className={`hint-box ${authMessage.includes('成功') || authMessage.includes('已发送') ? 'success' : 'error'}`}>
+              {authMessage}
+            </div>
+          )}
         </main>
       ) : route.view === 'deposit' ? (
         <main className="main-card">

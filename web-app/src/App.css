@@ -1,8 +1,8 @@
 .app-shell {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(124, 77, 255, 0.35), transparent 28%),
-    radial-gradient(circle at top right, rgba(0, 212, 170, 0.22), transparent 24%),
+    radial-gradient(circle at top left, rgba(240, 185, 11, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(184, 134, 11, 0.12), transparent 24%),
     linear-gradient(180deg, #090d16 0%, #111827 100%);
   color: #f8fafc;
   padding: 24px 16px 96px;
@@ -44,8 +44,8 @@
 }
 
 .brand-badge {
-  background: rgba(124, 77, 255, 0.15);
-  color: #c4b5fd;
+  background: rgba(240, 185, 11, 0.15);
+  color: #F0B90B;
   padding: 6px 10px;
   margin-bottom: 8px;
 }
@@ -106,8 +106,8 @@
 
 .tab-button.active,
 .primary-button {
-  background: linear-gradient(135deg, #7c3aed 0%, #14b8a6 100%);
-  color: white;
+  background: linear-gradient(135deg, #F0B90B 0%, #B8860B 100%);
+  color: #000;
 }
 
 .primary-button,
@@ -159,8 +159,8 @@
 .form-stack input:focus,
 .field-grid input:focus,
 .field-grid select:focus {
-  border-color: rgba(124, 77, 255, 0.7);
-  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.18);
+  border-color: rgba(240, 185, 11, 0.7);
+  box-shadow: 0 0 0 3px rgba(240, 185, 11, 0.18);
 }
 
 .inline-field {
@@ -198,8 +198,8 @@
 }
 
 .hero-panel {
-  background: linear-gradient(135deg, rgba(124, 77, 255, 0.16), rgba(20, 184, 166, 0.14));
-  border: 1px solid rgba(124, 77, 255, 0.18);
+  background: linear-gradient(135deg, rgba(240, 185, 11, 0.12), rgba(184, 134, 11, 0.10));
+  border: 1px solid rgba(240, 185, 11, 0.18);
   padding: 22px;
 }
 
@@ -300,6 +300,60 @@
   background: rgba(30, 41, 59, 0.9);
 }
 
+.hint-box.success {
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.hint-box.error {
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.pwd-wrap {
+  position: relative;
+}
+
+.pwd-wrap input {
+  padding-right: 44px;
+}
+
+.pwd-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #94a3b8;
+  padding: 4px;
+  line-height: 1;
+}
+
+.pwd-toggle:hover {
+  color: #F0B90B;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0,0,0,0.3);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .tip-box {
   margin-top: 14px;
   color: #fef08a;
@@ -359,7 +413,7 @@
 }
 
 .nav-item.active {
-  background: rgba(124, 77, 255, 0.14);
+  background: rgba(240, 185, 11, 0.14);
   color: #f8fafc;
 }
 
