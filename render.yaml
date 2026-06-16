@@ -37,10 +37,10 @@ services:
         echo "warning: mini-app/dist not found"
       fi
 
-      if [ -d "../web-app/dist" ]; then
-        cp -r ../web-app/dist/. dist/public/web/
+      if [ -d "src/public/web" ]; then
+        cp -r src/public/web/. dist/public/web/
       else
-        echo "warning: web-app/dist not found"
+        echo "warning: web-app not built to src/public/web"
       fi
 
             if [ -d "../landing" ]; then

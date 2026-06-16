@@ -219,6 +219,7 @@ function App() {
   const [sendCodeLoading, setSendCodeLoading] = useState(false)
   const [sendCodeCountdown, setSendCodeCountdown] = useState(0)
   const [authMessage, setAuthMessage] = useState('')
+  const [authMessageType, setAuthMessageType] = useState<'success' | 'error' | ''>('')
   const [showLoginPwd, setShowLoginPwd] = useState(false)
   const [showRegPwd, setShowRegPwd] = useState(false)
   const [showRegConfirmPwd, setShowRegConfirmPwd] = useState(false)
@@ -404,30 +405,56 @@ function App() {
     setAuthForms((current) => ({ ...current, [key]: value }))
   }
 
+  const setSuccessMsg = (msg: string) => { setAuthMessage(msg); setAuthMessageType('success') }
+  const setErrorMsg = (msg: string) => { setAuthMessage(msg); setAuthMessageType('error') }
+
   const handleSendCode = async () => {
     if (!authForms.registerEmail) {
-      setAuthMessage('请先输入邮箱地址')
+      setErrorMsg('请先输入邮箱地址')
       return
     }
     setSendCodeLoading(true)
     setAuthMessage('')
+    setAuthMessageType('')
     try {
       const result = await apiRequest<ApiResult<null>>('/web/auth/send-code', {
         method: 'POST',
         body: JSON.stringify({ email: authForms.registerEmail }),
       })
-      setAuthMessage(result.message || '验证码已发送')
+      setSuccessMsg(result.message || '验证码已发送')
       setSendCodeCountdown(60)
     } catch (error: any) {
-      setAuthMessage(error.message)
+      setErrorMsg(error.message)
     } finally {
       setSendCodeLoading(false)
     }
   }
 
   const handleRegister = async () => {
+    // Front-end validation before sending to API
+    if (!authForms.registerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.registerEmail)) {
+      setErrorMsg('请输入有效的邮箱地址')
+      return
+    }
+    if (!authForms.registerCode || !/^\d{6}$/.test(authForms.registerCode)) {
+      setErrorMsg('请输入 6 位数字验证码')
+      return
+    }
+    if (authForms.registerPassword.length < 8) {
+      setErrorMsg('密码至少需要 8 位')
+      return
+    }
+    if (authForms.registerPassword !== authForms.registerConfirmPassword) {
+      setErrorMsg('两次输入的密码不一致')
+      return
+    }
+    if (!authForms.registerAgreed) {
+      setErrorMsg('请先同意相关协议')
+      return
+    }
     setAuthSubmitting(true)
     setAuthMessage('')
+    setAuthMessageType('')
     try {
       const result = await apiRequest<ApiResult<null>>('/web/auth/register', {
         method: 'POST',
@@ -443,17 +470,28 @@ function App() {
       setStoredToken(nextToken)
       setToken(nextToken)
       setUser((result as any).user || null)
-      navigateTo({ view: 'app', tab: 'trading' })
+      setSuccessMsg('注册成功，正在跳转...')
+      setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
     } catch (error: any) {
-      setAuthMessage(error.message)
+      setErrorMsg(error.message)
     } finally {
       setAuthSubmitting(false)
     }
   }
 
   const handleLogin = async () => {
+    // Front-end validation before sending to API
+    if (!authForms.loginEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authForms.loginEmail)) {
+      setErrorMsg('请输入有效的邮箱地址')
+      return
+    }
+    if (!authForms.loginPassword) {
+      setErrorMsg('请输入密码')
+      return
+    }
     setAuthSubmitting(true)
     setAuthMessage('')
+    setAuthMessageType('')
     try {
       const result = await apiRequest<ApiResult<null>>('/web/auth/login', {
         method: 'POST',
@@ -466,9 +504,10 @@ function App() {
       setStoredToken(nextToken)
       setToken(nextToken)
       setUser((result as any).user || null)
-      navigateTo({ view: 'app', tab: 'trading' })
+      setSuccessMsg('登录成功，正在跳转...')
+      setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
     } catch (error: any) {
-      setAuthMessage(error.message)
+      setErrorMsg(error.message)
     } finally {
       setAuthSubmitting(false)
     }
@@ -753,13 +792,13 @@ function App() {
           <div className="auth-switch">
             <button
               className={route.mode === 'login' ? 'tab-button active' : 'tab-button'}
-              onClick={() => navigateTo({ view: 'auth', mode: 'login' })}
+              onClick={() => { navigateTo({ view: 'auth', mode: 'login' }); setAuthMessage(''); setAuthMessageType('') }}
             >
               登录
             </button>
             <button
               className={route.mode === 'register' ? 'tab-button active' : 'tab-button'}
-              onClick={() => navigateTo({ view: 'auth', mode: 'register' })}
+              onClick={() => { navigateTo({ view: 'auth', mode: 'register' }); setAuthMessage(''); setAuthMessageType('') }}
             >
               注册
             </button>
@@ -839,6 +878,11 @@ function App() {
                   </button>
                 </div>
               </label>
+              {authForms.registerPassword.length > 0 && (
+                <p style={{ fontSize: '12px', margin: '0', color: authForms.registerPassword.length >= 8 ? '#4caf50' : '#f0a500' }}>
+                  {authForms.registerPassword.length >= 8 ? '✓ 密码强度符合要求' : `密码还需 ${8 - authForms.registerPassword.length} 位`}
+                </p>
+              )}
               <label>
                 <span>确认密码</span>
                 <div className="pwd-wrap">
@@ -869,7 +913,7 @@ function App() {
           )}
 
           {authMessage && (
-            <div className={`hint-box ${authMessage.includes('成功') || authMessage.includes('已发送') ? 'success' : 'error'}`}>
+            <div className={`hint-box ${authMessageType}`}>
               {authMessage}
             </div>
           )}
