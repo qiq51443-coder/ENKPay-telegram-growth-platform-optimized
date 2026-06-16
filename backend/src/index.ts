@@ -225,7 +225,76 @@ app.get('/web/*', generalLimiter, (_req, res) => {
   res.setHeader('Expires', '0');
   res.sendFile(path.join(webDistPath, 'index.html'), (err) => {
     if (err && !res.headersSent) {
-      res.status(404).json({ error: 'Web app not built. Run: cd web-app && npm run build' });
+      res.status(503).send(`<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ENKPay - 页面维护中</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0d0d;
+      color: #f0e6c8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #b8902a;
+      border-radius: 16px;
+      padding: 48px 40px;
+      max-width: 480px;
+      width: 100%;
+    }
+    .logo {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #d4a017;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .logo span { color: #f0e6c8; }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f0e6c8;
+      margin: 24px 0 12px;
+    }
+    p {
+      font-size: 0.95rem;
+      color: #a89070;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    a {
+      display: inline-block;
+      padding: 12px 32px;
+      background: #d4a017;
+      color: #0d0d0d;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+    a:hover { background: #b8902a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">ENK<span>Pay</span></div>
+    <h1>页面正在维护中</h1>
+    <p>抱歉，该页面目前正在维护，请稍后再访问。<br />感谢您的耐心等待。</p>
+    <a href="/">返回首页</a>
+  </div>
+</body>
+</html>`);
     }
   });
 });
