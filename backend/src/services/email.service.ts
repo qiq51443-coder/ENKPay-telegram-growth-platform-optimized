@@ -94,6 +94,28 @@ export const DEFAULT_VERIFICATION_TEMPLATES: Record<string, { subject: string; h
     </div>`,
     text: `{{platform_name}} の認証コードは {{code}} です。{{valid_minutes}} 分間有効です。`,
   },
+  ko: {
+    subject: '{{platform_name}} 이메일 인증 코드',
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <h2 style="margin-bottom:12px;">{{platform_name}} 인증 코드</h2>
+      <p>인증 코드:</p>
+      <div style="font-size:32px;font-weight:700;letter-spacing:8px;margin:16px 0;color:#7c3aed;">{{code}}</div>
+      <p>이 코드는 {{valid_minutes}}분 동안 유효하며 한 번만 사용할 수 있습니다.</p>
+      <p>본인이 요청하지 않았다면 이 이메일을 무시하세요.</p>
+    </div>`,
+    text: `{{platform_name}} 인증 코드는 {{code}}이며, {{valid_minutes}}분 동안 유효합니다.`,
+  },
+  ru: {
+    subject: 'Код подтверждения {{platform_name}}',
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <h2 style="margin-bottom:12px;">Код подтверждения {{platform_name}}</h2>
+      <p>Ваш код подтверждения:</p>
+      <div style="font-size:32px;font-weight:700;letter-spacing:8px;margin:16px 0;color:#7c3aed;">{{code}}</div>
+      <p>Этот код действителен в течение {{valid_minutes}} минут и может быть использован только один раз.</p>
+      <p>Если вы не запрашивали это, проигнорируйте это письмо.</p>
+    </div>`,
+    text: `Ваш код подтверждения {{platform_name}}: {{code}}, действителен в течение {{valid_minutes}} минут.`,
+  },
 };
 
 function parseBool(value: any, fallback = false) {

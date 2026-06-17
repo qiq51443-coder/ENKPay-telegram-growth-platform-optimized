@@ -498,6 +498,7 @@ function App() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false)
   const [brandName, setBrandName] = useState('ENKPay')
   const [brandLogoUrl, setBrandLogoUrl] = useState('')
+  const [mailServiceEnabled, setMailServiceEnabled] = useState(true) // Default to true for safety
   const [contactTelegram, setContactTelegram] = useState('')
   const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
@@ -576,6 +577,19 @@ function App() {
         }
       })
       .catch(() => {})
+  }, [])
+
+  // Fetch mail service status on mount
+  useEffect(() => {
+    fetch('/api/mail/status')
+      .then((r) => r.json())
+      .then((data) => {
+        setMailServiceEnabled(data?.enabled === true)
+      })
+      .catch(() => {
+        // If fetch fails, default to true (safe fallback)
+        setMailServiceEnabled(true)
+      })
   }, [])
 
   useEffect(() => {
@@ -740,7 +754,8 @@ function App() {
       setErrorMsg(t.errors.invalidEmail)
       return
     }
-    if (!authForms.registerCode || !/^\d{6}$/.test(authForms.registerCode)) {
+    // Only validate verification code if mail service is enabled
+    if (mailServiceEnabled && (!authForms.registerCode || !/^\d{6}$/.test(authForms.registerCode))) {
       setErrorMsg(t.errors.invalidCode)
       return
     }
@@ -1229,21 +1244,23 @@ function App() {
                   autoComplete="email"
                 />
               </label>
-              <div className="inline-field">
-                <label>
-                  <span>{t.verifyCode}</span>
-                  <input
-                    value={authForms.registerCode}
-                    onChange={(event) => handleAuthChange('registerCode', event.target.value)}
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                  />
-                </label>
-                <button className="secondary-button code-button" disabled={sendCodeLoading || sendCodeCountdown > 0} onClick={handleSendCode}>
-                  {sendCodeCountdown > 0 ? `${sendCodeCountdown}s` : sendCodeLoading ? t.sending : t.sendCode}
-                </button>
-              </div>
+              {mailServiceEnabled && (
+                <div className="inline-field">
+                  <label>
+                    <span>{t.verifyCode}</span>
+                    <input
+                      value={authForms.registerCode}
+                      onChange={(event) => handleAuthChange('registerCode', event.target.value)}
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                    />
+                  </label>
+                  <button className="secondary-button code-button" disabled={sendCodeLoading || sendCodeCountdown > 0} onClick={handleSendCode}>
+                    {sendCodeCountdown > 0 ? `${sendCodeCountdown}s` : sendCodeLoading ? t.sending : t.sendCode}
+                  </button>
+                </div>
+              )}
               <label>
                 <span>{t.password}</span>
                 <div className="pwd-wrap">

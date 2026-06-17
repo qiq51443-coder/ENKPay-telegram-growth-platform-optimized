@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/api/landing/logo-icon" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ENKPay Web</title>
+    <script>
+      fetch('/api/landing/config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.brand && data.brand.name) {
+            document.title = data.brand.name + ' Web';
+          }
+          if (data && data.brand && data.brand.logoUrl) {
+            var favicon = document.querySelector('link[rel="icon"]');
+            if (favicon) favicon.href = data.brand.logoUrl;
+          }
+        })
+        .catch(function() {});
+    </script>
+    <script type="module" crossorigin src="/web/assets/index-iTxNR3uk.js"></script>
+    <link rel="stylesheet" crossorigin href="/web/assets/index-CMXZL7sJ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
