@@ -440,7 +440,7 @@ router.delete('/deposit-addresses/:id', authenticateAdmin, async (req: AuthReque
  */
 router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { page = 1, limit = 50, status, user_id } = req.query;
+    const { page = 1, limit = 50, status, user_id, tx_hash } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     let queryText = `
@@ -463,6 +463,11 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
     if (user_id) {
       params.push(user_id);
       queryText += ` AND dr.user_id = $${params.length}`;
+    }
+
+    if (tx_hash) {
+      params.push(tx_hash);
+      queryText += ` AND dr.tx_hash ILIKE $${params.length}`;
     }
 
     queryText += ` ORDER BY dr.created_at DESC`;

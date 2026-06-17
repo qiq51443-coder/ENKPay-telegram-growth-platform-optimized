@@ -437,7 +437,10 @@ export async function processDeposit(
     if (existingResult.rows.length > 0) {
       const existing = existingResult.rows[0];
 
-      // Only skip records that are already credited or failed
+      // Skip already-credited or failed deposits.
+      // This also covers manually added deposits (status = 'credited', credited_at IS NOT NULL)
+      // that were entered via the admin panel — they will be silently ignored on subsequent
+      // polling/webhook triggers, preventing double-credit.
       if (existing.status === 'credited' || existing.status === 'failed') {
         return;
       }
