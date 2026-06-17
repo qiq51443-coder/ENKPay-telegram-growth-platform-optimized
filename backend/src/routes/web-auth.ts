@@ -155,6 +155,7 @@ router.post('/send-code', webAuthLimiter, loginLimiter, async (req, res) => {
   }
 });
 
+
 router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(String(req.body?.email || ''));
@@ -164,11 +165,18 @@ router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
     const agreed = Boolean(req.body?.agreed);
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: '请���入有效邮箱地址' });
+      return res.status(400).json({ error: '请输入有效邮箱地址' });
     }
-    if (!/^\d{6}$/.test(code)) {
+    
+    // Check mail service status
+    const { getMailServiceConfig } = await import('../services/email.service');
+    const mailConfig = await getMailServiceConfig();
+    
+    // Only require verification code if mail service is enabled
+    if (mailConfig.enabled && !/^\d{6}$/.test(code)) {
       return res.status(400).json({ error: '请输入 6 位邮箱验证码' });
     }
+    
     if (password.length < 8) {
       return res.status(400).json({ error: '密码至少需要 8 位' });
     }
@@ -184,28 +192,32 @@ router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
       return res.status(409).json({ error: '该邮箱已注册，请直接登录' });
     }
 
-    const codeResult = await query(
-      `SELECT id, code_hash, expires_at, used_at
-         FROM email_verification_codes
-        WHERE email = $1 AND purpose = 'register'
-        ORDER BY created_at DESC
-        LIMIT 1`,
-      [email]
-    );
+    // Verify code only if mail service is enabled
+    let codeRow: any = null;
+    if (mailConfig.enabled) {
+      const codeResult = await query(
+        `SELECT id, code_hash, expires_at, used_at
+           FROM email_verification_codes
+          WHERE email = $1 AND purpose = 'register'
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [email]
+      );
 
-    if (codeResult.rows.length === 0) {
-      return res.status(400).json({ error: '请先获取邮箱验证码' });
-    }
+      if (codeResult.rows.length === 0) {
+        return res.status(400).json({ error: '请先获取邮箱验证码' });
+      }
 
-    const codeRow = codeResult.rows[0];
-    if (codeRow.used_at) {
-      return res.status(400).json({ error: '验证码已使用，请重新获取' });
-    }
-    if (new Date(codeRow.expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ error: '验证码已过期，请重新获取' });
-    }
-    if (codeRow.code_hash !== hashCode(code)) {
-      return res.status(400).json({ error: '邮箱验证码错误' });
+      codeRow = codeResult.rows[0];
+      if (codeRow.used_at) {
+        return res.status(400).json({ error: '验证码已使用，请重新获取' });
+      }
+      if (new Date(codeRow.expires_at).getTime() < Date.now()) {
+        return res.status(400).json({ error: '验证码已过期，请重新获取' });
+      }
+      if (codeRow.code_hash !== hashCode(code)) {
+        return res.status(400).json({ error: '邮箱验证码错误' });
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -219,20 +231,23 @@ router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
            first_name, language_code, wallet_balance, reward_balance, frozen_balance,
            red_packet_credits, unique_id
          ) VALUES (
-           NULL, $1, $2, true, 'email',
-           $3, 'zh', 0, 0, 0,
-           3, $4
+           NULL, $1, $2, $3, 'email',
+           $4, 'zh', 0, 0, 0,
+           3, $5
          )
          RETURNING id, email`,
-        [email, passwordHash, displayName, uniqueId]
+        [email, passwordHash, mailConfig.enabled, displayName, uniqueId]
       );
 
-      await client.query(
-        `UPDATE email_verification_codes
-            SET used_at = NOW()
-          WHERE id = $1`,
-        [codeRow.id]
-      );
+      // Mark code as used only if mail was enabled
+      if (mailConfig.enabled && codeRow) {
+        await client.query(
+          `UPDATE email_verification_codes
+              SET used_at = NOW()
+            WHERE id = $1`,
+          [codeRow.id]
+        );
+      }
 
       return insertResult.rows[0];
     });
@@ -252,7 +267,6 @@ router.post('/register', webAuthLimiter, loginLimiter, async (req, res) => {
     return res.status(500).json({ error: error.message || '注册失败' });
   }
 });
-
 router.post('/login', webAuthLimiter, loginLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(String(req.body?.email || ''));

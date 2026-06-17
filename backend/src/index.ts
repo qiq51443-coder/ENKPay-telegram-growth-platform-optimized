@@ -66,6 +66,7 @@ import landingPublicRoutes from './routes/landing-public';
 import { ensureUploadDirs, UPLOAD_ROOT } from './services/storage.service';
 import webAuthRoutes from './routes/web-auth';
 import webWalletRoutes from './routes/web-wallet';
+import mailRoutes from './routes/mail';
 
 dotenv.config();
 
@@ -378,6 +379,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/admin/db-repair', dbRepairRoutes);
 app.use('/api/web/auth', webAuthRoutes);
 app.use('/api/web/wallet', webWalletRoutes);
+app.use('/api/mail', mailRoutes);
 
 // Landing — public API (no auth required)
 app.use('/api/landing', landingPublicRoutes);
