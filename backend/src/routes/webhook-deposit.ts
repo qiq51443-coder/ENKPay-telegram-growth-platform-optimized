@@ -122,9 +122,14 @@ router.post('/moralis', async (req, res) => {
         const toAddress: string = transfer.to || '';
         const fromAddress: string = transfer.from || '';
         const txHash: string = transfer.transactionHash || '';
-        const tokenAddress: string = typeof transfer.tokenAddress === 'string'
-          ? transfer.tokenAddress.trim().toLowerCase()
-          : '';
+        // Moralis Streams erc20Transfers 中，合约地址字段为 'address'（不是 'tokenAddress'）
+        // 兼容读取两个字段名，防止 Moralis API 版本差异
+        const tokenAddress: string =
+          typeof transfer.address === 'string' && transfer.address.trim() !== ''
+            ? transfer.address.trim().toLowerCase()
+            : typeof transfer.tokenAddress === 'string'
+            ? transfer.tokenAddress.trim().toLowerCase()
+            : '';
 
         if (!toAddress || !txHash) {
           console.warn(`[moralis-webhook] missing toAddress or txHash, to=${toAddress}, txHash=${txHash}`);
@@ -134,7 +139,7 @@ router.post('/moralis', async (req, res) => {
         // 仅在配置了 contract_address 时才做二次校验，否则信任 Moralis 云端过滤
         if (expectedTokenAddress && tokenAddress !== expectedTokenAddress) {
           console.warn(
-            `[moralis-webhook] skipping transfer ${txHash}: tokenAddress ${transfer.tokenAddress || '(missing)'} does not match configured contract ${contract_address}`
+            `[moralis-webhook] skipping transfer ${txHash}: tokenAddress ${transfer.address || transfer.tokenAddress || '(missing)'} does not match configured contract ${contract_address}`
           );
           continue;
         }
