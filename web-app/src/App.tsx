@@ -350,6 +350,15 @@ const I18N: Record<Lang, I18nItem> = {
 }
 
 const SUPPORTED_LANGS: Lang[] = ['zh', 'en', 'fr', 'de', 'es', 'ar', 'ja']
+const LANG_OPTIONS: Array<{ code: Lang; label: string; flag: string }> = [
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { code: 'ja', label: '日本語', flag: '🇯🇵' },
+]
 
 function detectLang(): Lang {
   const nav = navigator.language || 'en'
@@ -486,6 +495,7 @@ function App() {
   const [showRegPwd, setShowRegPwd] = useState(false)
   const [showRegConfirmPwd, setShowRegConfirmPwd] = useState(false)
   const [lang, setLang] = useState<Lang>(() => detectLang())
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false)
   const [brandName, setBrandName] = useState('ENKPay')
   const [brandLogoUrl, setBrandLogoUrl] = useState('')
   const [contactTelegram, setContactTelegram] = useState('')
@@ -537,6 +547,18 @@ function App() {
     const timer = window.setTimeout(() => setSendCodeCountdown((value) => value - 1), 1000)
     return () => window.clearTimeout(timer)
   }, [sendCodeCountdown])
+
+  useEffect(() => {
+    if (!langDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element
+      if (!target.closest('.lang-dropdown-wrap')) {
+        setLangDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [langDropdownOpen])
 
   useEffect(() => {
     fetch('/api/landing/config')
@@ -1070,15 +1092,53 @@ function App() {
           </div>
         </div>
         <div className="topbar-right">
-          <select className="lang-selector" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
-            <option value="zh">中文</option>
-            <option value="en">EN</option>
-            <option value="fr">FR</option>
-            <option value="de">DE</option>
-            <option value="es">ES</option>
-            <option value="ar">AR</option>
-            <option value="ja">JA</option>
-          </select>
+          <div className="lang-dropdown-wrap">
+            <button
+              className="lang-trigger"
+              onClick={() => setLangDropdownOpen((v) => !v)}
+              aria-label="Select language"
+              aria-expanded={langDropdownOpen}
+            >
+              <span className="lang-flag">{LANG_OPTIONS.find((o) => o.code === lang)?.flag}</span>
+              <span className="lang-code">{lang.toUpperCase()}</span>
+              <svg
+                className={`lang-chevron${langDropdownOpen ? ' open' : ''}`}
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="4 6 8 10 12 6" />
+              </svg>
+            </button>
+
+            {langDropdownOpen && (
+              <ul className="lang-menu" role="listbox" aria-label="Language">
+                {LANG_OPTIONS.map((option) => (
+                  <li
+                    key={option.code}
+                    role="option"
+                    aria-selected={option.code === lang}
+                    className={`lang-option${option.code === lang ? ' selected' : ''}`}
+                    onClick={() => {
+                      setLang(option.code)
+                      setLangDropdownOpen(false)
+                    }}
+                  >
+                    <span className="lang-option-flag">{option.flag}</span>
+                    <span className="lang-option-label">{option.label}</span>
+                    {option.code === lang && (
+                      <svg className="lang-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 8 6.5 11.5 13 5" />
+                      </svg>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           {token && user && (
             <>
               <span className="user-chip">{user.email}</span>
