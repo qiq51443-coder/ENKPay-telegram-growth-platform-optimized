@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import './App.css'
 
@@ -30,9 +30,11 @@ interface WebUser {
 }
 
 interface TradingPair {
-  id: number
+  id: string
   symbol: string
   display_name: string
+  icon_url?: string
+  pair_type?: string
   current_price?: number
   price_change_24h?: number
 }
@@ -87,6 +89,7 @@ interface WalletTransaction {
 
 const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
+const TRADING_QUICK_AMOUNTS = [10, 50, 100, 500, 1000]
 const TABS: Array<{ key: TabKey; label: string; icon: string; description: string }> = [
   { key: 'trading', label: '即时交易', icon: '📈', description: '查看当前开放的交易币对与最新价格。' },
   { key: 'auction', label: '夺宝', icon: '🎰', description: '浏览当前进行中的夺宝项目。' },
@@ -502,6 +505,19 @@ function App() {
   const [contactTelegram, setContactTelegram] = useState('')
   const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
+  const [livePrice, setLivePrice] = useState<Record<string, { price: number; change24h: number }>>({})
+  const [selectedTradingPair, setSelectedTradingPair] = useState<TradingPair | null>(null)
+  const [tradingAmount, setTradingAmount] = useState('')
+  const [tradingSubmitting, setTradingSubmitting] = useState(false)
+  const [tradingOrderError, setTradingOrderError] = useState('')
+  const [tradingOrderSuccess, setTradingOrderSuccess] = useState('')
+
+  const wsRef = useRef<WebSocket | null>(null)
+  const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wsReconnectAttemptRef = useRef(0)
+  const wsIsUnmountedRef = useRef(false)
+  const pricePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevPriceRef = useRef<Record<string, number>>({})
   const t = I18N[lang]
 
   const activeTab = route.view === 'app' ? route.tab : 'trading'
@@ -596,7 +612,20 @@ function App() {
     if (route.view === 'app' && route.tab === 'trading' && pairs.length === 0) {
       setPairsLoading(true)
       apiRequest<ApiResult<TradingPair[]>>('/trading/pairs')
-        .then((result) => setPairs(result.data || []))
+        .then((result) => {
+          const list = result.data || []
+          setPairs(list)
+          const initialPrices: Record<string, { price: number; change24h: number }> = {}
+          list.forEach((p) => {
+            if (p.current_price != null) {
+              initialPrices[p.id] = { price: Number(p.current_price), change24h: Number(p.price_change_24h ?? 0) }
+              prevPriceRef.current[p.id] = Number(p.current_price)
+            }
+          })
+          if (Object.keys(initialPrices).length > 0) {
+            setLivePrice((prev) => ({ ...initialPrices, ...prev }))
+          }
+        })
         .finally(() => setPairsLoading(false))
     }
   }, [route, pairs.length])
@@ -627,6 +656,90 @@ function App() {
         .finally(() => setCharityLoading(false))
     }
   }, [route, charity.length])
+
+  // WebSocket price subscription with exponential backoff reconnect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!token) return
+
+    const RECONNECT_BASE = 2000
+    const RECONNECT_MAX = 30000
+    const MAX_ATTEMPTS = 10
+
+    wsIsUnmountedRef.current = false
+
+    function connect() {
+      if (wsIsUnmountedRef.current) return
+      if (wsRef.current && (wsRef.current.readyState === 0 || wsRef.current.readyState === 1)) return
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws/prices`)
+        wsRef.current = ws
+        ws.onopen = () => { wsReconnectAttemptRef.current = 0 }
+        ws.onmessage = (evt) => {
+          try {
+            const msg = JSON.parse(evt.data) as { type: string; data: Record<string, { price: number; change24h: number }> }
+            if (msg.type === 'prices' && msg.data) {
+              triggerPriceFlash(msg.data)
+              setLivePrice((prev) => ({ ...prev, ...msg.data }))
+            }
+          } catch {}
+        }
+        ws.onclose = () => {
+          if (wsIsUnmountedRef.current || wsReconnectAttemptRef.current >= MAX_ATTEMPTS) return
+          wsReconnectAttemptRef.current++
+          const delay = Math.min(RECONNECT_BASE * Math.pow(1.5, wsReconnectAttemptRef.current - 1), RECONNECT_MAX)
+          wsReconnectTimerRef.current = setTimeout(connect, delay)
+        }
+        ws.onerror = () => {}
+      } catch {
+        if (wsIsUnmountedRef.current || wsReconnectAttemptRef.current >= MAX_ATTEMPTS) return
+        wsReconnectAttemptRef.current++
+        const delay = Math.min(RECONNECT_BASE * Math.pow(1.5, wsReconnectAttemptRef.current - 1), RECONNECT_MAX)
+        wsReconnectTimerRef.current = setTimeout(connect, delay)
+      }
+    }
+
+    connect()
+
+    return () => {
+      wsIsUnmountedRef.current = true
+      if (wsReconnectTimerRef.current) clearTimeout(wsReconnectTimerRef.current)
+      if (wsRef.current) {
+        wsRef.current.onclose = null
+        wsRef.current.close()
+        wsRef.current = null
+      }
+    }
+  }, [token])
+
+  // HTTP price polling fallback (3s) — active only on the trading tab
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (route.view !== 'app' || route.tab !== 'trading') return
+
+    const fetchPrices = () => {
+      apiRequest<ApiResult<TradingPair[]>>('/trading/pairs')
+        .then((result) => {
+          const updates: Record<string, { price: number; change24h: number }> = {}
+          ;(result.data || []).forEach((p) => {
+            if (p.current_price != null) {
+              updates[p.id] = { price: Number(p.current_price), change24h: Number(p.price_change_24h ?? 0) }
+            }
+          })
+          if (Object.keys(updates).length > 0) {
+            triggerPriceFlash(updates)
+            setLivePrice((prev) => ({ ...prev, ...updates }))
+          }
+        })
+        .catch(() => {})
+    }
+
+    pricePollRef.current = setInterval(fetchPrices, 3000)
+    return () => {
+      if (pricePollRef.current) clearInterval(pricePollRef.current)
+    }
+  }, [route])
 
   useEffect(() => {
     if (!token || route.view !== 'app' || route.tab !== 'profile') return
@@ -888,35 +1001,189 @@ function App() {
     navigateTo(nextRoute)
   }
 
-  const renderTrading = () => (
-    <section className="view-stack">
-      <div className="hero-panel">
-        <div>
-          <span className="eyebrow">默认落点</span>
-          <h2>即时交易入口</h2>
-          <p>登录后默认进入与 Mini App 相同的信息架构，网页端当前先开放行情浏览、钱包充值/提现与用户中心能力。</p>
-        </div>
-        <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>前往充值</button>
-      </div>
-      {pairsLoading ? <div className="empty-card">正在加载交易对...</div> : (
-        <div className="grid-cards">
-          {pairs.slice(0, 6).map((pair) => (
-            <article className="info-card" key={pair.id}>
-              <div className="card-top">
-                <strong>{pair.display_name}</strong>
-                <span>{pair.symbol}</span>
+  const triggerPriceFlash = (newPrices: Record<string, { price: number; change24h: number }>) => {
+    Object.entries(newPrices).forEach(([id, info]) => {
+      const prev = prevPriceRef.current[id]
+      if (prev !== undefined && prev !== info.price && info.price > 0) {
+        const el = document.querySelector(`[data-price-id="${id}"]`)
+        if (el) {
+          el.classList.remove('price-flash-up', 'price-flash-down')
+          void (el as HTMLElement).offsetWidth
+          el.classList.add(info.price > prev ? 'price-flash-up' : 'price-flash-down')
+          setTimeout(() => el.classList.remove('price-flash-up', 'price-flash-down'), 600)
+        }
+      }
+      if (info.price > 0) prevPriceRef.current[id] = info.price
+    })
+  }
+
+  const handleTradingOrder = async (direction: 'up' | 'down') => {
+    if (!selectedTradingPair || !tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting) return
+    setTradingSubmitting(true)
+    setTradingOrderError('')
+    setTradingOrderSuccess('')
+    try {
+      const result = await apiRequest<ApiResult<null>>('/trading/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          pair_id: selectedTradingPair.id,
+          direction,
+          amount: Number(tradingAmount),
+        }),
+      }, token)
+      setTradingOrderSuccess(result.message || (direction === 'up' ? '做多订单已提交 ▲' : '做空订单已提交 ▼'))
+      setTradingAmount('')
+    } catch (error: any) {
+      setTradingOrderError(error.message)
+    } finally {
+      setTradingSubmitting(false)
+    }
+  }
+
+  const renderTrading = () => {
+    // Detail view
+    if (selectedTradingPair) {
+      const pair = selectedTradingPair
+      const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
+      const change = Number(priceInfo.change24h)
+      return (
+        <section className="view-stack">
+          <div className="trading-detail-header">
+            <button
+              className="trading-back-btn"
+              onClick={() => { setSelectedTradingPair(null); setTradingOrderError(''); setTradingOrderSuccess('') }}
+            >
+              ←
+            </button>
+            {pair.icon_url ? (
+              <img
+                src={pair.icon_url}
+                alt={pair.symbol}
+                className="pair-icon"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              <div className="pair-icon-fallback">{pair.symbol[0]}</div>
+            )}
+            <h2>{pair.display_name}</h2>
+          </div>
+
+          <div className="trading-price-card">
+            <div
+              className="trading-price-big"
+              data-price-id={pair.id}
+            >
+              ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
+            </div>
+            <div className={change >= 0 ? 'pill positive' : 'pill negative'}>
+              {change >= 0 ? '+' : ''}{change.toFixed(2)}% 24H
+            </div>
+          </div>
+
+          {token ? (
+            <div className="trading-order-panel">
+              <div>
+                <div className="trading-order-label">下单金额 (USDT)</div>
+                <div className="trading-quick-amounts">
+                  {TRADING_QUICK_AMOUNTS.map((v) => (
+                    <button
+                      key={v}
+                      className={`trading-quick-btn${Number(tradingAmount) === v ? ' active' : ''}`}
+                      onClick={() => setTradingAmount(String(v))}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  className="trading-amount-input"
+                  value={tradingAmount}
+                  onChange={(e) => { setTradingAmount(e.target.value); setTradingOrderError(''); setTradingOrderSuccess('') }}
+                  placeholder="自定义金额"
+                  min="0"
+                />
+                {user && (
+                  <div className="trading-balance-hint">
+                    可用余额：{Number(user.tradable_balance).toFixed(2)} USDT
+                  </div>
+                )}
               </div>
-              <div className="price-text">{Number(pair.current_price || 0).toFixed(4)}</div>
-              <div className={Number(pair.price_change_24h || 0) >= 0 ? 'pill positive' : 'pill negative'}>
-                24H {Number(pair.price_change_24h || 0).toFixed(2)}%
+              <div className="trading-buttons">
+                <button
+                  className="trading-up-btn"
+                  disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
+                  onClick={() => handleTradingOrder('up')}
+                >
+                  {tradingSubmitting ? '...' : '▲ UP'}
+                </button>
+                <button
+                  className="trading-down-btn"
+                  disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
+                  onClick={() => handleTradingOrder('down')}
+                >
+                  {tradingSubmitting ? '...' : '▼ DOWN'}
+                </button>
               </div>
-            </article>
-          ))}
-          {!pairs.length && <div className="empty-card">当前没有可展示的交易对。</div>}
-        </div>
-      )}
-    </section>
-  )
+              {tradingOrderError && <div className="hint-box error">{tradingOrderError}</div>}
+              {tradingOrderSuccess && <div className="hint-box success">{tradingOrderSuccess}</div>}
+            </div>
+          ) : (
+            <div className="empty-card">请登录后参与交易</div>
+          )}
+        </section>
+      )
+    }
+
+    // Pairs list view
+    return (
+      <section className="view-stack">
+        {pairsLoading ? (
+          <div className="empty-card">正在加载交易对...</div>
+        ) : (
+          <div className="pair-list">
+            {pairs.map((pair) => {
+              const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
+              const change = Number(priceInfo.change24h)
+              return (
+                <div
+                  key={pair.id}
+                  className="pair-row"
+                  onClick={() => { setSelectedTradingPair(pair); setTradingOrderError(''); setTradingOrderSuccess('') }}
+                >
+                  <div className="pair-row-left">
+                    {pair.icon_url ? (
+                      <img
+                        src={pair.icon_url}
+                        alt={pair.symbol}
+                        className="pair-icon"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="pair-icon-fallback">{pair.symbol[0]}</div>
+                    )}
+                    <div>
+                      <div className="pair-name">{pair.display_name}</div>
+                      <div className="pair-symbol">{pair.symbol}</div>
+                    </div>
+                  </div>
+                  <div className="pair-row-right">
+                    <div className="pair-price" data-price-id={pair.id}>
+                      ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
+                    </div>
+                    <div className={change >= 0 ? 'pill positive' : 'pill negative'} style={{ marginTop: 2 }}>
+                      {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {!pairs.length && <div className="empty-card">当前没有可展示的交易对。</div>}
+          </div>
+        )}
+      </section>
+    )
+  }
 
   const renderAuction = () => (
     <section className="view-stack">
