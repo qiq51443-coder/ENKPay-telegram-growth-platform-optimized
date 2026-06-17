@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
+import { createChart } from 'lightweight-charts'
 import './App.css'
 
 type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile'
@@ -15,7 +16,12 @@ type ApiResult<T> = { success?: boolean; data?: T; user?: WebUser; message?: str
 interface WebUser {
   id: string
   email: string
+  username?: string
   unique_id: string
+  invite_code?: string
+  invite_count?: number
+  invited_by?: string | null
+  language_code?: string
   wallet_balance: number
   reward_balance: number
   nft_balance: number
@@ -42,10 +48,18 @@ interface TradingPair {
 interface AuctionItem {
   id: string
   title: string
+  description?: string
   product_value?: number
   per_person_cost?: number
+  participant_count?: number
   current_participants?: number
+  max_purchases_per_user?: number
+  expires_at?: string
+  winner_payout?: number
   image_url?: string
+  product_image?: string
+  status?: string
+  winner_unique_id?: string
 }
 
 interface ProductItem {
@@ -53,17 +67,99 @@ interface ProductItem {
   name: string
   price?: number
   annual_yield?: number
+  daily_yield_rate?: number
   duration_days?: number
+  term_days?: number
   image_url?: string
+  description?: string
+  total_holders_count?: number
+  max_holders?: number
+  is_purchase_limited?: boolean
+  max_purchases_per_user?: number
+  status?: string
 }
 
 interface CharityItem {
   id: string
   title: string
+  description?: string
   goal_amount?: number
   raised_amount?: number
   progress_override?: number
   image_url?: string
+  organization?: string | null
+  ambassador_telegram?: string | null
+  status?: string
+}
+
+interface TradingRule {
+  id: string
+  duration_seconds: number
+  odds: number
+  min_bet: number
+  max_bet: number
+}
+
+interface TradingOrder {
+  id: string
+  pair_id?: string | number
+  direction: 'up' | 'down'
+  amount: number
+  entry_price?: number
+  close_price?: number | string
+  odds: number
+  status: string
+  result?: 'win' | 'lose' | 'draw'
+  profit?: number
+  created_at: string
+  settled_at?: string
+  symbol?: string
+  display_name?: string
+  session_start?: string
+  session_end?: string
+  period_label?: string
+  session_open_price?: number | string
+  session_close_price?: number | string
+  duration?: number
+}
+
+interface ProductHolding {
+  id: string
+  product_id: string
+  product_name: string
+  image_url?: string
+  amount: number
+  daily_yield_rate?: number
+  term_days?: number
+  start_date: string
+  end_date: string
+  status: string
+  total_income?: number
+}
+
+interface AuctionHistoryItem {
+  id: string
+  auction_id: string
+  title: string
+  auction_status: string
+  is_winner: boolean
+  refunded: boolean
+  quantity: number
+  amount: number
+  winner_unique_id?: string
+  winner_payout?: number
+  result_id?: string
+  is_redeemed?: boolean
+}
+
+interface CharityDonation {
+  id: string
+  amount: number
+  message?: string
+  status: string
+  created_at: string
+  project_title: string
+  organization?: string
 }
 
 interface WalletNetwork {
@@ -90,12 +186,12 @@ interface WalletTransaction {
 const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
 const TRADING_QUICK_AMOUNTS = [10, 50, 100, 500, 1000]
-const TABS: Array<{ key: TabKey; label: string; icon: string; description: string }> = [
-  { key: 'trading', label: '即时交易', icon: '📈', description: '查看当前开放的交易币对与最新价格。' },
-  { key: 'auction', label: '夺宝', icon: '🎰', description: '浏览当前进行中的夺宝项目。' },
-  { key: 'products', label: '定期产品', icon: '⏱', description: '查看平台当前开放的定期/NFT 产品。' },
-  { key: 'charity', label: '公益活动', icon: '❤️', description: '了解平台公益项目与进度。' },
-  { key: 'profile', label: '个人中心', icon: '👤', description: '管理网页账户、提现密码与钱包操作。' },
+const TABS: Array<{ key: TabKey; label: string; description: string }> = [
+  { key: 'trading', label: '即时交易', description: '查看当前开放的交易币对与最新价格。' },
+  { key: 'auction', label: '夺宝', description: '浏览当前进行中的夺宝项目。' },
+  { key: 'products', label: '定期产品', description: '查看平台当前开放的定期/NFT 产品。' },
+  { key: 'charity', label: '公益活动', description: '了解平台公益项目与进度。' },
+  { key: 'profile', label: '个人中心', description: '管理网页账户、提现密码与钱包操作。' },
 ]
 
 type Lang = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ar' | 'ja'
@@ -427,6 +523,86 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   return data as T
 }
 
+function resolveAssetUrl(url?: string | null) {
+  if (!url) return ''
+  if (/^(data:|https?:|\/\/)/.test(url)) return url
+  return url.startsWith('/') ? url : `/${url}`
+}
+
+function formatCompactDate(value?: string) {
+  if (!value) return '--'
+  return new Date(value).toLocaleString([], {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatCountdown(seconds: number) {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.max(0, seconds % 60)
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value))
+}
+
+function TradingIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </svg>
+  )
+}
+
+function AuctionIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="8" width="18" height="12" rx="2" />
+      <path d="M8 8V6a4 4 0 0 1 8 0v2" />
+      <line x1="12" y1="13" x2="12" y2="16" />
+      <circle cx="12" cy="13" r="1" fill={active ? '#F0B90B' : '#8899AA'} stroke="none" />
+    </svg>
+  )
+}
+
+function ProductsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  )
+}
+
+function CharityIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
+function ProfileIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+function renderTabIcon(tab: TabKey, active: boolean) {
+  if (tab === 'auction') return <AuctionIcon active={active} />
+  if (tab === 'products') return <ProductsIcon active={active} />
+  if (tab === 'charity') return <CharityIcon active={active} />
+  if (tab === 'profile') return <ProfileIcon active={active} />
+  return <TradingIcon active={active} />
+}
+
 function formatMoney(value?: number) {
   return `${Number(value || 0).toFixed(2)} USDT`
 }
@@ -507,10 +683,36 @@ function App() {
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
   const [livePrice, setLivePrice] = useState<Record<string, { price: number; change24h: number }>>({})
   const [selectedTradingPair, setSelectedTradingPair] = useState<TradingPair | null>(null)
+  const [tradingRules, setTradingRules] = useState<TradingRule[]>([])
+  const [selectedTradingDuration, setSelectedTradingDuration] = useState(60)
+  const [tradingCountdown, setTradingCountdown] = useState(0)
+  const [selectedTradingDirection, setSelectedTradingDirection] = useState<'up' | 'down'>('up')
+  const [tradingConfirmOpen, setTradingConfirmOpen] = useState(false)
+  const [tradingOrders, setTradingOrders] = useState<TradingOrder[]>([])
+  const [tradingOrdersLoading, setTradingOrdersLoading] = useState(false)
+  const [klineInterval, setKlineInterval] = useState('1m')
   const [tradingAmount, setTradingAmount] = useState('')
   const [tradingSubmitting, setTradingSubmitting] = useState(false)
   const [tradingOrderError, setTradingOrderError] = useState('')
   const [tradingOrderSuccess, setTradingOrderSuccess] = useState('')
+  const [selectedAuction, setSelectedAuction] = useState<AuctionItem | null>(null)
+  const [auctionQuantity, setAuctionQuantity] = useState(1)
+  const [auctionSubmitting, setAuctionSubmitting] = useState(false)
+  const [auctionActionMessage, setAuctionActionMessage] = useState('')
+  const [auctionHistory, setAuctionHistory] = useState<AuctionHistoryItem[]>([])
+  const [auctionHistoryLoading, setAuctionHistoryLoading] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null)
+  const [productSubmitting, setProductSubmitting] = useState(false)
+  const [productActionMessage, setProductActionMessage] = useState('')
+  const [productHoldings, setProductHoldings] = useState<ProductHolding[]>([])
+  const [productHoldingsLoading, setProductHoldingsLoading] = useState(false)
+  const [selectedCharity, setSelectedCharity] = useState<CharityItem | null>(null)
+  const [charityDonateAmount, setCharityDonateAmount] = useState('10')
+  const [charitySubmitting, setCharitySubmitting] = useState(false)
+  const [charityActionMessage, setCharityActionMessage] = useState('')
+  const [charityDonations, setCharityDonations] = useState<CharityDonation[]>([])
+  const [charityDonationsLoading, setCharityDonationsLoading] = useState(false)
+  const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
   const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -518,6 +720,9 @@ function App() {
   const wsIsUnmountedRef = useRef(false)
   const pricePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevPriceRef = useRef<Record<string, number>>({})
+  const tradingChartRef = useRef<HTMLDivElement | null>(null)
+  const tradingChartInstanceRef = useRef<any>(null)
+  const tradingSeriesRef = useRef<any>(null)
   const t = I18N[lang]
 
   const activeTab = route.view === 'app' ? route.tab : 'trading'
@@ -558,6 +763,24 @@ function App() {
       })
       .finally(() => setLoadingUser(false))
   }, [token])
+
+  useEffect(() => {
+    const backendLang = user?.language_code?.split('-')[0] as Lang | undefined
+    if (backendLang && SUPPORTED_LANGS.includes(backendLang)) {
+      setLang((current) => (current === backendLang ? current : backendLang))
+    }
+  }, [user?.language_code])
+
+  useEffect(() => {
+    if (route.view !== 'app' || route.tab !== 'profile' || !user?.invite_code) {
+      setInviteQr('')
+      return
+    }
+    const inviteLink = `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}`
+    QRCode.toDataURL(inviteLink, { margin: 1, width: 220 })
+      .then(setInviteQr)
+      .catch(() => setInviteQr(''))
+  }, [route, user?.invite_code])
 
   useEffect(() => {
     if (!sendCodeCountdown) return
@@ -633,29 +856,29 @@ function App() {
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'auction' && auctions.length === 0) {
       setAuctionsLoading(true)
-      apiRequest<ApiResult<AuctionItem[]>>('/auctions?status=active&limit=6')
+      apiRequest<ApiResult<AuctionItem[]>>(`/auctions?status=active&limit=12&lang=${lang}`)
         .then((result) => setAuctions(result.data || []))
         .finally(() => setAuctionsLoading(false))
     }
-  }, [route, auctions.length])
+  }, [route, auctions.length, lang])
 
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'products' && products.length === 0) {
       setProductsLoading(true)
-      apiRequest<ApiResult<ProductItem[]>>('/nft/products?status=active&limit=6')
+      apiRequest<ApiResult<ProductItem[]>>(`/nft/products?status=active&limit=12&lang=${lang}`)
         .then((result) => setProducts(result.data || []))
         .finally(() => setProductsLoading(false))
     }
-  }, [route, products.length])
+  }, [route, products.length, lang])
 
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'charity' && charity.length === 0) {
       setCharityLoading(true)
-      apiRequest<ApiResult<CharityItem[]>>('/charity/projects?limit=6')
+      apiRequest<ApiResult<CharityItem[]>>(`/charity/projects?limit=12&lang=${lang}`)
         .then((result) => setCharity(result.data || []))
         .finally(() => setCharityLoading(false))
     }
-  }, [route, charity.length])
+  }, [route, charity.length, lang])
 
   // WebSocket price subscription with exponential backoff reconnect
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -713,7 +936,7 @@ function App() {
     }
   }, [token])
 
-  // HTTP price polling fallback (3s) — active only on the trading tab
+  // HTTP price polling fallback (2s) — active only on the trading tab
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (route.view !== 'app' || route.tab !== 'trading') return
@@ -735,7 +958,7 @@ function App() {
         .catch(() => {})
     }
 
-    pricePollRef.current = setInterval(fetchPrices, 3000)
+    pricePollRef.current = setInterval(fetchPrices, 2000)
     return () => {
       if (pricePollRef.current) clearInterval(pricePollRef.current)
     }
@@ -825,6 +1048,184 @@ function App() {
       { label: '累计提现', value: formatMoney(user.total_withdrawn) },
     ]
   }, [user])
+
+  const refreshUserProfile = async () => {
+    if (!token) return
+    try {
+      const result = await apiRequest<ApiResult<WebUser>>('/web/auth/me', {}, token)
+      setUser(result.user || null)
+    } catch {}
+  }
+
+  const fetchTradingOrders = async () => {
+    if (!token) return
+    setTradingOrdersLoading(true)
+    try {
+      const result = await apiRequest<ApiResult<TradingOrder[]>>('/web/app/trading/orders?limit=30', {}, token)
+      setTradingOrders(result.data || [])
+    } catch (error: any) {
+      setTradingOrders([])
+      setTradingOrderError(error.message)
+    } finally {
+      setTradingOrdersLoading(false)
+    }
+  }
+
+  const fetchTradingRules = async (pairId: string) => {
+    try {
+      const result = await apiRequest<ApiResult<TradingRule[]>>(`/trading/pairs/${pairId}/rules`)
+      const rules = result.data || []
+      setTradingRules(rules)
+      if (rules.length > 0) {
+        setSelectedTradingDuration((current) =>
+          rules.some((item) => item.duration_seconds === current) ? current : Number(rules[0].duration_seconds)
+        )
+      }
+    } catch {
+      setTradingRules([])
+      setSelectedTradingDuration(60)
+    }
+  }
+
+  const fetchAuctionHistory = async () => {
+    if (!token) return
+    setAuctionHistoryLoading(true)
+    try {
+      const result = await apiRequest<ApiResult<AuctionHistoryItem[]>>('/web/app/auctions/history', {}, token)
+      setAuctionHistory(result.data || [])
+    } catch {
+      setAuctionHistory([])
+    } finally {
+      setAuctionHistoryLoading(false)
+    }
+  }
+
+  const fetchProductHoldings = async () => {
+    if (!token) return
+    setProductHoldingsLoading(true)
+    try {
+      const result = await apiRequest<ApiResult<ProductHolding[]>>(`/web/app/products/holdings?lang=${lang}`, {}, token)
+      setProductHoldings(result.data || [])
+    } catch {
+      setProductHoldings([])
+    } finally {
+      setProductHoldingsLoading(false)
+    }
+  }
+
+  const fetchCharityDonations = async () => {
+    if (!token) return
+    setCharityDonationsLoading(true)
+    try {
+      const result = await apiRequest<ApiResult<CharityDonation[]> & { summary?: { total_donated?: number } }>('/web/app/charity/donations', {}, token)
+      setCharityDonations(result.data || [])
+    } catch {
+      setCharityDonations([])
+    } finally {
+      setCharityDonationsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedTradingPair) return
+    fetchTradingRules(selectedTradingPair.id)
+    if (token) fetchTradingOrders()
+  }, [selectedTradingPair?.id, token])
+
+  useEffect(() => {
+    if (!selectedTradingPair) return
+    let cancelled = false
+    const loadPeriod = () => {
+      apiRequest<ApiResult<{ current: { remaining_ms: number } }>>(`/trading/current-period?duration=${selectedTradingDuration}`)
+        .then((result) => {
+          if (!cancelled) {
+            const remaining = Math.ceil(Number(result.data?.current?.remaining_ms || 0) / 1000)
+            setTradingCountdown(Math.max(remaining, 0))
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setTradingCountdown((current) => current || selectedTradingDuration)
+        })
+    }
+    loadPeriod()
+    const timer = window.setInterval(() => {
+      setTradingCountdown((current) => (current > 0 ? current - 1 : 0))
+    }, 1000)
+    const reloadTimer = window.setInterval(loadPeriod, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.clearInterval(reloadTimer)
+    }
+  }, [selectedTradingPair?.id, selectedTradingDuration])
+
+  useEffect(() => {
+    if (!token || route.view !== 'app') return
+    if (route.tab === 'auction') fetchAuctionHistory()
+    if (route.tab === 'products') fetchProductHoldings()
+    if (route.tab === 'charity') fetchCharityDonations()
+    if (route.tab === 'trading') fetchTradingOrders()
+  }, [route, token, lang])
+
+  useEffect(() => {
+    if (!selectedTradingPair || !tradingChartRef.current) return
+    let disposed = false
+
+    const chart = createChart(tradingChartRef.current, {
+      autoSize: true,
+      layout: {
+        background: { color: '#0A1628' },
+        textColor: '#CBD5E1',
+      },
+      grid: {
+        vertLines: { color: 'rgba(148,163,184,0.08)' },
+        horzLines: { color: 'rgba(148,163,184,0.08)' },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(148,163,184,0.16)',
+      },
+      timeScale: {
+        borderColor: 'rgba(148,163,184,0.16)',
+      },
+      crosshair: {
+        vertLine: { color: '#F0B90B' },
+        horzLine: { color: '#F0B90B' },
+      },
+    })
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26A69A',
+      downColor: '#EF5350',
+      borderVisible: false,
+      wickUpColor: '#26A69A',
+      wickDownColor: '#EF5350',
+    })
+    tradingChartInstanceRef.current = chart
+    tradingSeriesRef.current = candleSeries
+
+    apiRequest<ApiResult<Array<{ time?: number; open_time?: number; open: number; high: number; low: number; close: number }>>>(
+      `/trading/pairs/${selectedTradingPair.id}/kline?interval=${klineInterval}&limit=120`
+    )
+      .then((result) => {
+        if (disposed) return
+        const rows = (result.data || []).map((item) => ({
+          time: Number(item.time ?? item.open_time),
+          open: Number(item.open),
+          high: Number(item.high),
+          low: Number(item.low),
+          close: Number(item.close),
+        })).filter((item) => item.time > 0)
+        candleSeries.setData(rows)
+        chart.timeScale().fitContent()
+      })
+      .catch(() => {})
+
+    return () => {
+      disposed = true
+      tradingSeriesRef.current = null
+      tradingChartInstanceRef.current = null
+      chart.remove()
+    }
+  }, [selectedTradingPair?.id, klineInterval])
 
   const handleAuthChange = (key: keyof typeof authForms, value: string | boolean) => {
     setAuthForms((current) => ({ ...current, [key]: value }))
@@ -1017,22 +1418,29 @@ function App() {
     })
   }
 
-  const handleTradingOrder = async (direction: 'up' | 'down') => {
+  const handleTradingOrder = async () => {
     if (!selectedTradingPair || !tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting) return
     setTradingSubmitting(true)
     setTradingOrderError('')
     setTradingOrderSuccess('')
     try {
-      const result = await apiRequest<ApiResult<null>>('/trading/orders', {
+      const result = await apiRequest<ApiResult<{ expected_profit?: number }>>('/web/app/trading/quick-session', {
         method: 'POST',
         body: JSON.stringify({
           pair_id: selectedTradingPair.id,
-          direction,
+          duration: selectedTradingDuration,
+          direction: selectedTradingDirection,
           amount: Number(tradingAmount),
         }),
       }, token)
-      setTradingOrderSuccess(result.message || (direction === 'up' ? '做多订单已提交 ▲' : '做空订单已提交 ▼'))
+      setTradingOrderSuccess(
+        result.message ||
+          (selectedTradingDirection === 'up' ? '买涨订单已提交' : '买跌订单已提交')
+      )
       setTradingAmount('')
+      setTradingConfirmOpen(false)
+      fetchTradingOrders()
+      refreshUserProfile()
     } catch (error: any) {
       setTradingOrderError(error.message)
     } finally {
@@ -1040,58 +1448,200 @@ function App() {
     }
   }
 
+  const handleAuctionJoin = async () => {
+    if (!selectedAuction || !token || auctionSubmitting) return
+    setAuctionSubmitting(true)
+    setAuctionActionMessage('')
+    try {
+      const result = await apiRequest<ApiResult<null>>(`/web/app/auctions/${selectedAuction.id}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ quantity: auctionQuantity }),
+      }, token)
+      setAuctionActionMessage(result.message || '参与成功')
+      fetchAuctionHistory()
+      refreshUserProfile()
+    } catch (error: any) {
+      setAuctionActionMessage(error.message)
+    } finally {
+      setAuctionSubmitting(false)
+    }
+  }
+
+  const handleProductPurchase = async () => {
+    if (!selectedProduct || !token || productSubmitting) return
+    setProductSubmitting(true)
+    setProductActionMessage('')
+    try {
+      const result = await apiRequest<ApiResult<null>>(`/web/app/products/${selectedProduct.id}/purchase`, {
+        method: 'POST',
+      }, token)
+      setProductActionMessage(result.message || '购买成功')
+      fetchProductHoldings()
+      refreshUserProfile()
+    } catch (error: any) {
+      setProductActionMessage(error.message)
+    } finally {
+      setProductSubmitting(false)
+    }
+  }
+
+  const handleCharityDonate = async () => {
+    if (!selectedCharity || !token || charitySubmitting || Number(charityDonateAmount) <= 0) return
+    setCharitySubmitting(true)
+    setCharityActionMessage('')
+    try {
+      const result = await apiRequest<ApiResult<null>>('/web/app/charity/donate', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: selectedCharity.id,
+          amount: Number(charityDonateAmount),
+        }),
+      }, token)
+      setCharityActionMessage(result.message || '捐赠成功')
+      fetchCharityDonations()
+      refreshUserProfile()
+    } catch (error: any) {
+      setCharityActionMessage(error.message)
+    } finally {
+      setCharitySubmitting(false)
+    }
+  }
+
   const renderTrading = () => {
-    // Detail view
     if (selectedTradingPair) {
       const pair = selectedTradingPair
       const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
       const change = Number(priceInfo.change24h)
+      const currentRule = tradingRules.find((item) => item.duration_seconds === selectedTradingDuration) || tradingRules[0]
+      const pairOrders = tradingOrders.filter((item) => String(item.pair_id) === String(pair.id))
+      const activeOrder = pairOrders.find((item) => item.status === 'active' || item.status === 'pending')
       return (
         <section className="view-stack">
           <div className="trading-detail-header">
             <button
               className="trading-back-btn"
-              onClick={() => { setSelectedTradingPair(null); setTradingOrderError(''); setTradingOrderSuccess('') }}
+              onClick={() => {
+                setSelectedTradingPair(null)
+                setTradingOrderError('')
+                setTradingOrderSuccess('')
+                setTradingConfirmOpen(false)
+              }}
             >
               ←
             </button>
             {pair.icon_url ? (
-              <img
-                src={pair.icon_url}
-                alt={pair.symbol}
-                className="pair-icon"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
+              <img src={resolveAssetUrl(pair.icon_url)} alt={pair.symbol} className="pair-icon" />
             ) : (
               <div className="pair-icon-fallback">{pair.symbol[0]}</div>
             )}
-            <h2>{pair.display_name}</h2>
+            <div className="pair-title-group">
+              <h2>{pair.display_name}</h2>
+              <span className="pair-symbol">{pair.symbol}</span>
+            </div>
           </div>
 
           <div className="trading-price-card">
-            <div
-              className="trading-price-big"
-              data-price-id={pair.id}
-            >
-              ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
+            <div className="price-stack">
+              <div className="trading-price-big" data-price-id={pair.id}>
+                ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
+              </div>
+              <div className="muted-text">实时价格 / WebSocket</div>
             </div>
             <div className={change >= 0 ? 'pill positive' : 'pill negative'}>
               {change >= 0 ? '+' : ''}{change.toFixed(2)}% 24H
             </div>
+            <div className="pill">{formatCountdown(tradingCountdown)}</div>
           </div>
 
-          {token ? (
-            <div className="trading-order-panel">
+          <div className="trading-detail-layout">
+            <div className="view-stack">
+              <article className="panel-card chart-panel">
+                <div className="section-head">
+                  <div>
+                    <span className="eyebrow">K 线图</span>
+                    <h3>{pair.symbol}</h3>
+                  </div>
+                  <div className="kline-tabs">
+                    {['1m', '5m', '15m', '1h', '4h', '1d'].map((item) => (
+                      <button
+                        key={item}
+                        className={klineInterval === item ? 'secondary-button small is-active' : 'secondary-button small'}
+                        onClick={() => setKlineInterval(item)}
+                      >
+                        {item.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div ref={tradingChartRef} className="trading-chart" />
+              </article>
+
+              <article className="panel-card">
+                <div className="section-head">
+                  <div>
+                    <span className="eyebrow">持仓 / 历史</span>
+                    <h3>最近订单</h3>
+                  </div>
+                  {tradingOrdersLoading && <span className="muted-text">加载中...</span>}
+                </div>
+                <div className="list-stack">
+                  {pairOrders.slice(0, 6).map((order) => (
+                    <div className="list-item" key={order.id}>
+                      <div>
+                        <strong>{order.direction === 'up' ? '▲ UP' : '▼ DOWN'}</strong>
+                        <span>{order.period_label || formatCompactDate(order.session_start || order.created_at)}</span>
+                      </div>
+                      <div>
+                        <strong>{formatMoney(order.amount)}</strong>
+                        <span>{order.result ? `${order.result.toUpperCase()} / ${formatCompactDate(order.created_at)}` : order.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {!pairOrders.length && <div className="empty-card inset">暂无订单记录。</div>}
+                </div>
+              </article>
+            </div>
+
+            <article className="trading-order-panel">
+              <div>
+                <div className="trading-order-label">选择周期</div>
+                <div className="duration-list">
+                  {(tradingRules.length ? tradingRules : [{ id: 'default', duration_seconds: 60, odds: 1.85, min_bet: 1, max_bet: 1000 }]).map((rule) => (
+                    <button
+                      key={rule.id}
+                      className={selectedTradingDuration === rule.duration_seconds ? 'trading-quick-btn active' : 'trading-quick-btn'}
+                      onClick={() => setSelectedTradingDuration(Number(rule.duration_seconds))}
+                    >
+                      {rule.duration_seconds / 60}m · {Number(rule.odds).toFixed(2)}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="session-meta">
+                <div>
+                  <span className="muted-text">距下一期</span>
+                  <strong>{formatCountdown(tradingCountdown)}</strong>
+                </div>
+                <div>
+                  <span className="muted-text">赔率</span>
+                  <strong>{Number(currentRule?.odds || 1.85).toFixed(2)}x</strong>
+                </div>
+                <div>
+                  <span className="muted-text">限额</span>
+                  <strong>{Number(currentRule?.min_bet || 1)} - {Number(currentRule?.max_bet || 1000)} USDT</strong>
+                </div>
+              </div>
+
               <div>
                 <div className="trading-order-label">下单金额 (USDT)</div>
                 <div className="trading-quick-amounts">
-                  {TRADING_QUICK_AMOUNTS.map((v) => (
+                  {TRADING_QUICK_AMOUNTS.map((value) => (
                     <button
-                      key={v}
-                      className={`trading-quick-btn${Number(tradingAmount) === v ? ' active' : ''}`}
-                      onClick={() => setTradingAmount(String(v))}
+                      key={value}
+                      className={`trading-quick-btn${Number(tradingAmount) === value ? ' active' : ''}`}
+                      onClick={() => setTradingAmount(String(value))}
                     >
-                      {v}
+                      {value}
                     </button>
                   ))}
                 </div>
@@ -1099,45 +1649,77 @@ function App() {
                   type="number"
                   className="trading-amount-input"
                   value={tradingAmount}
-                  onChange={(e) => { setTradingAmount(e.target.value); setTradingOrderError(''); setTradingOrderSuccess('') }}
+                  onChange={(event) => {
+                    setTradingAmount(event.target.value)
+                    setTradingOrderError('')
+                    setTradingOrderSuccess('')
+                  }}
                   placeholder="自定义金额"
                   min="0"
                 />
-                {user && (
-                  <div className="trading-balance-hint">
-                    可用余额：{Number(user.tradable_balance).toFixed(2)} USDT
-                  </div>
-                )}
+                {user && <div className="trading-balance-hint">可用余额：{Number(user.tradable_balance).toFixed(2)} USDT</div>}
+                <div className="muted-text">预期收益：{formatMoney(Number(tradingAmount || 0) * Number(currentRule?.odds || 1.85) - Number(tradingAmount || 0))}</div>
               </div>
+
+              {activeOrder && (
+                <div className="active-order-card">
+                  <strong>当前持仓</strong>
+                  <span>{activeOrder.direction === 'up' ? '▲ UP' : '▼ DOWN'} · {formatMoney(activeOrder.amount)}</span>
+                  <span>{activeOrder.period_label || formatCompactDate(activeOrder.session_end || activeOrder.created_at)}</span>
+                </div>
+              )}
+
               <div className="trading-buttons">
                 <button
                   className="trading-up-btn"
                   disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
-                  onClick={() => handleTradingOrder('up')}
+                  onClick={() => { setSelectedTradingDirection('up'); setTradingConfirmOpen(true) }}
                 >
-                  {tradingSubmitting ? '...' : '▲ UP'}
+                  ▲ UP
                 </button>
                 <button
                   className="trading-down-btn"
                   disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
-                  onClick={() => handleTradingOrder('down')}
+                  onClick={() => { setSelectedTradingDirection('down'); setTradingConfirmOpen(true) }}
                 >
-                  {tradingSubmitting ? '...' : '▼ DOWN'}
+                  ▼ DOWN
                 </button>
               </div>
               {tradingOrderError && <div className="hint-box error">{tradingOrderError}</div>}
               {tradingOrderSuccess && <div className="hint-box success">{tradingOrderSuccess}</div>}
+            </article>
+          </div>
+
+          {tradingConfirmOpen && (
+            <div className="overlay-modal" onClick={() => setTradingConfirmOpen(false)}>
+              <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
+                <h3>确认下单</h3>
+                <div className="dialog-row"><span>交易对</span><strong>{pair.display_name}</strong></div>
+                <div className="dialog-row"><span>方向</span><strong>{selectedTradingDirection === 'up' ? '▲ UP' : '▼ DOWN'}</strong></div>
+                <div className="dialog-row"><span>金额</span><strong>{formatMoney(Number(tradingAmount || 0))}</strong></div>
+                <div className="dialog-row"><span>周期</span><strong>{selectedTradingDuration / 60} 分钟</strong></div>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={() => setTradingConfirmOpen(false)}>取消</button>
+                  <button className="primary-button" disabled={tradingSubmitting} onClick={handleTradingOrder}>
+                    {tradingSubmitting ? '提交中...' : '确认'}
+                  </button>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="empty-card">请登录后参与交易</div>
           )}
         </section>
       )
     }
 
-    // Pairs list view
     return (
       <section className="view-stack">
+        <div className="section-head">
+          <div>
+            <span className="eyebrow">Mini App 同构</span>
+            <h2>交易对列表</h2>
+          </div>
+          <span className="muted-text">点击交易对进入桌面端详情视图</span>
+        </div>
         {pairsLoading ? (
           <div className="empty-card">正在加载交易对...</div>
         ) : (
@@ -1149,16 +1731,15 @@ function App() {
                 <div
                   key={pair.id}
                   className="pair-row"
-                  onClick={() => { setSelectedTradingPair(pair); setTradingOrderError(''); setTradingOrderSuccess('') }}
+                  onClick={() => {
+                    setSelectedTradingPair(pair)
+                    setTradingOrderError('')
+                    setTradingOrderSuccess('')
+                  }}
                 >
                   <div className="pair-row-left">
                     {pair.icon_url ? (
-                      <img
-                        src={pair.icon_url}
-                        alt={pair.symbol}
-                        className="pair-icon"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                      />
+                      <img src={resolveAssetUrl(pair.icon_url)} alt={pair.symbol} className="pair-icon" />
                     ) : (
                       <div className="pair-icon-fallback">{pair.symbol[0]}</div>
                     )}
@@ -1190,21 +1771,81 @@ function App() {
       <div className="section-head">
         <div>
           <span className="eyebrow">Mini App 同构</span>
-          <h2>夺宝</h2>
+          <h2>夺宝活动</h2>
         </div>
-        <span className="muted-text">网页端不展示转账入口。</span>
+        <span className="muted-text">奖品、参与人数与历史记录桌面化展示</span>
       </div>
-      {auctionsLoading ? <div className="empty-card">正在加载夺宝项目...</div> : (
-        <div className="grid-cards">
-          {auctions.slice(0, 6).map((item) => (
-            <article className="info-card" key={item.id}>
-              <strong>{item.title}</strong>
-              <span>参与成本：{formatMoney(item.per_person_cost)}</span>
-              <span>奖品价值：{formatMoney(item.product_value)}</span>
-              <span>当前参与人数：{item.current_participants || 0}</span>
-            </article>
-          ))}
-          {!auctions.length && <div className="empty-card">暂无进行中的夺宝项目。</div>}
+      <div className="content-grid content-grid-wide">
+        <div className="grid-cards feature-grid">
+          {auctionsLoading ? <div className="empty-card">正在加载夺宝项目...</div> : auctions.map((item) => {
+            const progress = clampPercent(((item.current_participants || 0) / Math.max(item.participant_count || 1, 1)) * 100)
+            return (
+              <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedAuction(item); setAuctionActionMessage('') }}>
+                <div className="feature-cover">
+                  {item.image_url || item.product_image ? <img src={resolveAssetUrl(item.image_url || item.product_image)} alt={item.title} /> : <span>🎁</span>}
+                </div>
+                <strong>{item.title}</strong>
+                <span>奖品价值：{formatMoney(item.product_value)}</span>
+                <span>参与单价：{formatMoney(item.per_person_cost)}</span>
+                <div className="progress-bar"><span style={{ width: `${progress}%` }} /></div>
+                <span>{item.current_participants || 0} / {item.participant_count || '--'} 人 · 截止 {formatCompactDate(item.expires_at)}</span>
+              </article>
+            )
+          })}
+          {!auctionsLoading && !auctions.length && <div className="empty-card">暂无进行中的夺宝项目。</div>}
+        </div>
+        <article className="panel-card side-panel">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">我的夺宝</span>
+              <h3>参与记录</h3>
+            </div>
+          </div>
+          {auctionHistoryLoading ? <div className="empty-card inset">正在加载...</div> : (
+            <div className="list-stack">
+              {auctionHistory.slice(0, 6).map((item) => (
+                <div className="list-item" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.auction_status} · {item.quantity} 份</span>
+                  </div>
+                  <div>
+                    <strong>{formatMoney(item.amount)}</strong>
+                    <span>{item.is_winner ? '🏆 已中奖' : '等待开奖'}</span>
+                  </div>
+                </div>
+              ))}
+              {!auctionHistory.length && <div className="empty-card inset">暂无参与记录。</div>}
+            </div>
+          )}
+        </article>
+      </div>
+
+      {selectedAuction && (
+        <div className="overlay-modal" onClick={() => setSelectedAuction(null)}>
+          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
+            <div className="feature-cover large">
+              {selectedAuction.image_url || selectedAuction.product_image ? (
+                <img src={resolveAssetUrl(selectedAuction.image_url || selectedAuction.product_image)} alt={selectedAuction.title} />
+              ) : <span>🎁</span>}
+            </div>
+            <h3>{selectedAuction.title}</h3>
+            <p className="muted-text">{selectedAuction.description || '查看奖品详情并输入购买份数，和 Mini App 保持一致。'}</p>
+            <div className="dialog-row"><span>奖品价值</span><strong>{formatMoney(selectedAuction.product_value)}</strong></div>
+            <div className="dialog-row"><span>每份价格</span><strong>{formatMoney(selectedAuction.per_person_cost)}</strong></div>
+            <div className="dialog-row"><span>购买份数</span><strong>{auctionQuantity}</strong></div>
+            <div className="quantity-stepper">
+              <button className="secondary-button small" onClick={() => setAuctionQuantity((current) => Math.max(1, current - 1))}>-</button>
+              <button className="secondary-button small" onClick={() => setAuctionQuantity((current) => Math.min((selectedAuction.max_purchases_per_user || 10), current + 1))}>+</button>
+            </div>
+            {auctionActionMessage && <div className={auctionActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{auctionActionMessage}</div>}
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setSelectedAuction(null)}>关闭</button>
+              <button className="primary-button" disabled={auctionSubmitting || !token} onClick={handleAuctionJoin}>
+                {auctionSubmitting ? '参与中...' : '立即参与'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
@@ -1218,17 +1859,64 @@ function App() {
           <h2>定期产品</h2>
         </div>
       </div>
-      {productsLoading ? <div className="empty-card">正在加载产品...</div> : (
-        <div className="grid-cards">
-          {products.slice(0, 6).map((item) => (
-            <article className="info-card" key={item.id}>
+      <div className="content-grid content-grid-wide">
+        <div className="grid-cards feature-grid">
+          {productsLoading ? <div className="empty-card">正在加载产品...</div> : products.map((item) => (
+            <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedProduct(item); setProductActionMessage('') }}>
+              <div className="feature-cover">
+                {item.image_url ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} /> : <span>💰</span>}
+              </div>
               <strong>{item.name}</strong>
-              <span>起投：{formatMoney(item.price)}</span>
-              <span>年化：{Number(item.annual_yield || 0).toFixed(1)}%</span>
-              <span>期限：{item.duration_days || 0} 天</span>
+              <span>年化收益：{Number(item.annual_yield || Number(item.daily_yield_rate || 0) * 365 * 100).toFixed(2)}%</span>
+              <span>最低投入：{formatMoney(item.price)}</span>
+              <span>期限：{item.duration_days || item.term_days || 0} 天</span>
             </article>
           ))}
-          {!products.length && <div className="empty-card">当前没有可展示的定期产品。</div>}
+          {!productsLoading && !products.length && <div className="empty-card">当前没有可展示的定期产品。</div>}
+        </div>
+        <article className="panel-card side-panel">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">我的持仓</span>
+              <h3>收益状态</h3>
+            </div>
+          </div>
+          {productHoldingsLoading ? <div className="empty-card inset">正在加载...</div> : (
+            <div className="list-stack">
+              {productHoldings.slice(0, 6).map((item) => (
+                <div className="list-item" key={item.id}>
+                  <div>
+                    <strong>{item.product_name}</strong>
+                    <span>{formatCompactDate(item.start_date)} - {formatCompactDate(item.end_date)}</span>
+                  </div>
+                  <div>
+                    <strong>{formatMoney(item.amount)}</strong>
+                    <span>累计收益 {formatMoney(item.total_income)}</span>
+                  </div>
+                </div>
+              ))}
+              {!productHoldings.length && <div className="empty-card inset">暂无持仓。</div>}
+            </div>
+          )}
+        </article>
+      </div>
+
+      {selectedProduct && (
+        <div className="overlay-modal" onClick={() => setSelectedProduct(null)}>
+          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
+            <h3>{selectedProduct.name}</h3>
+            <div className="dialog-row"><span>最低投入</span><strong>{formatMoney(selectedProduct.price)}</strong></div>
+            <div className="dialog-row"><span>期限</span><strong>{selectedProduct.duration_days || selectedProduct.term_days || 0} 天</strong></div>
+            <div className="dialog-row"><span>预期年化</span><strong>{Number(selectedProduct.annual_yield || Number(selectedProduct.daily_yield_rate || 0) * 365 * 100).toFixed(2)}%</strong></div>
+            <p className="muted-text">{selectedProduct.description || '确认购买后，持仓会展示在“我的持仓”区域。'}</p>
+            {productActionMessage && <div className={productActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{productActionMessage}</div>}
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setSelectedProduct(null)}>关闭</button>
+              <button className="primary-button" disabled={productSubmitting || !token} onClick={handleProductPurchase}>
+                {productSubmitting ? '购买中...' : '确认购买'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
@@ -1242,103 +1930,213 @@ function App() {
           <h2>公益活动</h2>
         </div>
       </div>
-      {charityLoading ? <div className="empty-card">正在加载公益项目...</div> : (
-        <div className="grid-cards">
-          {charity.slice(0, 6).map((item) => (
-            <article className="info-card" key={item.id}>
-              <strong>{item.title}</strong>
-              <span>目标金额：{formatMoney(item.goal_amount)}</span>
-              <span>已筹金额：{formatMoney(item.raised_amount)}</span>
-              <span>进度：{Number(item.progress_override || 0)}%</span>
-            </article>
-          ))}
-          {!charity.length && <div className="empty-card">暂无公益项目。</div>}
+      <div className="content-grid content-grid-wide">
+        <div className="grid-cards feature-grid">
+          {charityLoading ? <div className="empty-card">正在加载公益项目...</div> : charity.map((item) => {
+            const progress = item.progress_override != null
+              ? clampPercent(Number(item.progress_override))
+              : clampPercent((Number(item.raised_amount || 0) / Math.max(Number(item.goal_amount || 1), 1)) * 100)
+            return (
+              <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedCharity(item); setCharityActionMessage('') }}>
+                <div className="feature-cover">
+                  {item.image_url ? <img src={resolveAssetUrl(item.image_url)} alt={item.title} /> : <span>❤️</span>}
+                </div>
+                <strong>{item.title}</strong>
+                <span>目标金额：{formatMoney(item.goal_amount)}</span>
+                <span>已筹金额：{formatMoney(item.raised_amount)}</span>
+                <div className="progress-bar"><span style={{ width: `${progress}%` }} /></div>
+                <span>{progress.toFixed(1)}% · {item.organization || '公益项目'}</span>
+              </article>
+            )
+          })}
+          {!charityLoading && !charity.length && <div className="empty-card">暂无公益项目。</div>}
         </div>
-      )}
-    </section>
-  )
-
-  const renderProfile = () => (
-    <section className="view-stack">
-      <div className="hero-panel">
-        <div>
-          <span className="eyebrow">用户中心</span>
-          <h2>{user?.email}</h2>
-          <p>UID：{user?.unique_id} · 邮箱已验证：{user?.email_verified ? '是' : '否'}</p>
-        </div>
-        <div className="button-row">
-          <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>独立充值页</button>
-          <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>独立提现页</button>
-        </div>
-      </div>
-
-      <div className="grid-cards compact">
-        {summaryCards.map((item) => (
-          <article className="info-card" key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </article>
-        ))}
-      </div>
-
-      <div className="content-grid">
-        <article className="panel-card">
-          <h3>设置提现密码</h3>
-          <p className="muted-text">提现密码不在注册流程中设置，而是在用户中心单独维护。</p>
-          <div className="field-grid">
-            <label>
-              <span>提现密码（至少 6 位数字）</span>
-              <input
-                type="password"
-                value={withdrawPasswordForm.password}
-                onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, password: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span>确认提现密码</span>
-              <input
-                type="password"
-                value={withdrawPasswordForm.confirmPassword}
-                onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-              />
-            </label>
+        <article className="panel-card side-panel">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">捐赠记录</span>
+              <h3>我的公益支持</h3>
+            </div>
           </div>
-          <button className="primary-button" disabled={passwordLoading} onClick={handleSaveWithdrawPassword}>
-            {hasWithdrawPassword ? '更新提现密码' : '设置提现密码'}
-          </button>
-        </article>
-
-        <article className="panel-card">
-          <h3>最近钱包记录</h3>
-          {transactionsLoading ? <div className="empty-card inset">正在加载记录...</div> : (
+          {charityDonationsLoading ? <div className="empty-card inset">正在加载...</div> : (
             <div className="list-stack">
-              {transactions.map((item) => (
+              {charityDonations.slice(0, 6).map((item) => (
                 <div className="list-item" key={item.id}>
                   <div>
-                    <strong>{item.type === 'deposit' ? '充值' : '提现'}</strong>
-                    <span>{item.network_display || item.order_id || '--'}</span>
+                    <strong>{item.project_title}</strong>
+                    <span>{item.organization || '公益项目'}</span>
                   </div>
                   <div>
                     <strong>{formatMoney(item.amount)}</strong>
-                    <span>{formatDate(item.created_at)}</span>
+                    <span>{formatCompactDate(item.created_at)}</span>
                   </div>
                 </div>
               ))}
-              {!transactions.length && <div className="empty-card inset">暂无充值/提现记录。</div>}
+              {!charityDonations.length && <div className="empty-card inset">暂无捐赠记录。</div>}
             </div>
           )}
         </article>
       </div>
 
-      <article className="panel-card">
-        <h3>网页端说明</h3>
-        <p className="muted-text">
-          当前网页端开放邮箱登录/注册、钱包充值、钱包提现与用户中心能力；按照需求，不额外暴露 transfer 相关入口或页面。
-        </p>
-        {user?.wallet_tip_message && <div className="tip-box">{user.wallet_tip_message}</div>}
-      </article>
+      {selectedCharity && (
+        <div className="overlay-modal" onClick={() => setSelectedCharity(null)}>
+          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
+            <h3>{selectedCharity.title}</h3>
+            <p className="muted-text">{selectedCharity.description || '查看项目进度并确认捐赠金额。'}</p>
+            <div className="dialog-row"><span>目标金额</span><strong>{formatMoney(selectedCharity.goal_amount)}</strong></div>
+            <div className="dialog-row"><span>已筹金额</span><strong>{formatMoney(selectedCharity.raised_amount)}</strong></div>
+            <div className="dialog-row"><span>捐赠金额</span><strong>{formatMoney(Number(charityDonateAmount || 0))}</strong></div>
+            <div className="trading-quick-amounts">
+              {[10, 20, 50, 100].map((value) => (
+                <button key={value} className={`trading-quick-btn${Number(charityDonateAmount) === value ? ' active' : ''}`} onClick={() => setCharityDonateAmount(String(value))}>
+                  {value}
+                </button>
+              ))}
+            </div>
+            <input className="trading-amount-input" type="number" min="1" value={charityDonateAmount} onChange={(event) => setCharityDonateAmount(event.target.value)} />
+            {charityActionMessage && <div className={charityActionMessage.includes('successfully') || charityActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{charityActionMessage}</div>}
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setSelectedCharity(null)}>关闭</button>
+              <button className="primary-button" disabled={charitySubmitting || !token} onClick={handleCharityDonate}>
+                {charitySubmitting ? '捐赠中...' : '确认捐赠'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
+
+  const renderProfile = () => {
+    const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
+    return (
+      <section className="view-stack">
+        <div className="hero-panel profile-hero">
+          <div>
+            <span className="eyebrow">个人中心</span>
+            <h2>{user?.email || user?.username || 'ENKPay User'}</h2>
+            <p>UID：{user?.unique_id} · 邀请码：{user?.invite_code || user?.unique_id} · 邀请人数：{user?.invite_count || 0}</p>
+          </div>
+          <div className="button-row">
+            <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>充值</button>
+            <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>提现</button>
+          </div>
+        </div>
+
+        <div className="grid-cards compact">
+          {summaryCards.map((item) => (
+            <article className="info-card" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+
+        <div className="content-grid content-grid-wide">
+          <article className="panel-card">
+            <h3>邀请好友</h3>
+            <div className="field-grid">
+              <label>
+                <span>邀请链接</span>
+                <input value={inviteLink} readOnly />
+              </label>
+              <label>
+                <span>邀请码</span>
+                <input value={user?.invite_code || user?.unique_id || ''} readOnly />
+              </label>
+            </div>
+            {inviteQr ? <img className="qr-image" src={inviteQr} alt="Invite QR" /> : <div className="empty-card inset">二维码生成中...</div>}
+          </article>
+
+          <article className="panel-card">
+            <h3>钱包概览</h3>
+            <div className="list-stack">
+              <div className="list-item">
+                <div>
+                  <strong>可交易余额</strong>
+                  <span>钱包余额 + 红包余额</span>
+                </div>
+                <div>
+                  <strong>{formatMoney(user?.tradable_balance)}</strong>
+                  <span>奖励余额 {formatMoney(user?.reward_balance)}</span>
+                </div>
+              </div>
+              <div className="button-row">
+                <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>前往充值</button>
+                <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>前往提现</button>
+              </div>
+            </div>
+          </article>
+
+          <article className="panel-card">
+            <h3>语言切换</h3>
+            <div className="language-grid">
+              {LANG_OPTIONS.map((option) => (
+                <button
+                  key={option.code}
+                  className={lang === option.code ? 'tab-button active' : 'tab-button'}
+                  onClick={() => setLang(option.code)}
+                >
+                  {option.flag} {option.label}
+                </button>
+              ))}
+            </div>
+          </article>
+        </div>
+
+        <div className="content-grid content-grid-wide">
+          <article className="panel-card">
+            <h3>安全设置</h3>
+            <p className="muted-text">提现密码在个人中心维护，与 Mini App 的账户安全区块保持一致。</p>
+            <div className="field-grid">
+              <label>
+                <span>提现密码（至少 6 位数字）</span>
+                <input
+                  type="password"
+                  value={withdrawPasswordForm.password}
+                  onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, password: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>确认提现密码</span>
+                <input
+                  type="password"
+                  value={withdrawPasswordForm.confirmPassword}
+                  onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                />
+              </label>
+            </div>
+            <button className="primary-button" disabled={passwordLoading} onClick={handleSaveWithdrawPassword}>
+              {hasWithdrawPassword ? '更新提现密码' : '设置提现密码'}
+            </button>
+          </article>
+
+          <article className="panel-card">
+            <h3>最近钱包记录</h3>
+            {transactionsLoading ? <div className="empty-card inset">正在加载记录...</div> : (
+              <div className="list-stack">
+                {transactions.map((item) => (
+                  <div className="list-item" key={item.id}>
+                    <div>
+                      <strong>{item.type === 'deposit' ? '充值' : '提现'}</strong>
+                      <span>{item.network_display || item.order_id || '--'}</span>
+                    </div>
+                    <div>
+                      <strong>{formatMoney(item.amount)}</strong>
+                      <span>{formatDate(item.created_at)}</span>
+                    </div>
+                  </div>
+                ))}
+                {!transactions.length && <div className="empty-card inset">暂无充值/提现记录。</div>}
+              </div>
+            )}
+          </article>
+        </div>
+
+        {user?.wallet_tip_message && <div className="tip-box">{user.wallet_tip_message}</div>}
+      </section>
+    )
+  }
 
   const renderAppView = () => {
     switch (activeTab) {
@@ -1696,7 +2494,7 @@ function App() {
               className={tab.key === activeTab ? 'nav-item active' : 'nav-item'}
               onClick={() => guarded({ view: 'app', tab: tab.key })}
             >
-              <span>{tab.icon}</span>
+              <span className="nav-icon">{renderTabIcon(tab.key, tab.key === activeTab)}</span>
               <small>{tab.label}</small>
             </button>
           ))}
