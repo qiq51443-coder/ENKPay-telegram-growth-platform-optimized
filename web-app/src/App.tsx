@@ -1214,7 +1214,7 @@ function App() {
           low: Number(item.low),
           close: Number(item.close),
         })).filter((item) => item.time > 0)
-        candleSeries.setData(rows)
+        candleSeries.setData(rows as any)
         chart.timeScale().fitContent()
       })
       .catch(() => {})

@@ -261,12 +261,17 @@ router.post('/trading/quick-session', async (req: WebAuthRequest, res) => {
         }
       }
 
-      if (session.open_price == null && sessionOpenPrice > 0) {
+      if (!session) {
+        throw new Error('Failed to create trading session');
+      }
+
+      let ensuredSession: any = session;
+      if (ensuredSession.open_price == null && sessionOpenPrice > 0) {
         await client.query(
           `UPDATE trading_sessions SET open_price = $1 WHERE id = $2 AND open_price IS NULL`,
-          [sessionOpenPrice, session.id]
+          [sessionOpenPrice, ensuredSession.id]
         );
-        session = { ...session, open_price: sessionOpenPrice };
+        ensuredSession = { ...ensuredSession, open_price: sessionOpenPrice };
       }
 
       const existingOrderResult = await client.query(
@@ -276,7 +281,7 @@ router.post('/trading/quick-session', async (req: WebAuthRequest, res) => {
             AND session_id = $2
             AND status IN ('active', 'pending')
           LIMIT 1`,
-        [userId, session.id]
+        [userId, ensuredSession.id]
       );
       if (existingOrderResult.rows.length > 0) {
         throw new Error('You already have an order for this trading period. Please wait for the next period.');
@@ -322,7 +327,7 @@ router.post('/trading/quick-session', async (req: WebAuthRequest, res) => {
            (session_id, user_id, pair_id, direction, amount, entry_price, rule_id, odds, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
          RETURNING *`,
-        [session.id, userId, pairId, direction, orderAmount, entryPrice, rule.id, odds]
+        [ensuredSession.id, userId, pairId, direction, orderAmount, entryPrice, rule.id, odds]
       );
 
       const dirCountResult = await client.query(
@@ -331,21 +336,21 @@ router.post('/trading/quick-session', async (req: WebAuthRequest, res) => {
            COUNT(CASE WHEN direction = 'down' THEN 1 END)::int AS down_count
          FROM trading_orders
          WHERE session_id = $1 AND status IN ('active', 'pending')`,
-        [session.id]
+        [ensuredSession.id]
       );
 
       await triggerFirstTradeReward(client, userId);
 
       return {
         session: {
-          id: session.id,
-          start_time: session.start_time,
-          end_time: session.end_time,
-          status: session.status,
-          open_price: session.open_price ?? sessionOpenPrice,
+          id: ensuredSession.id,
+          start_time: ensuredSession.start_time,
+          end_time: ensuredSession.end_time,
+          status: ensuredSession.status,
+          open_price: ensuredSession.open_price ?? sessionOpenPrice,
           up_count: dirCountResult.rows[0]?.up_count ?? 0,
           down_count: dirCountResult.rows[0]?.down_count ?? 0,
-          period_label: session.period_label ?? resolvedPeriodLabel,
+          period_label: ensuredSession.period_label ?? resolvedPeriodLabel,
         },
         order: orderResult.rows[0],
         odds,
