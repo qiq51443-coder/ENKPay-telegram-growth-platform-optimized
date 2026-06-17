@@ -85,7 +85,7 @@ router.post('/moralis', async (req, res) => {
 
     // Resolve network by moralis_stream_id
     const networkResult = await query(
-      `SELECT id, min_confirmations, decimals
+      `SELECT id, min_confirmations, decimals, contract_address
        FROM deposit_networks
        WHERE moralis_stream_id = $1 AND is_active = true`,
       [streamId]
@@ -97,13 +97,26 @@ router.post('/moralis', async (req, res) => {
       return res.status(200).json({ message: 'Stream not associated with any network' });
     }
 
-    const { id: networkId, min_confirmations, decimals } = networkResult.rows[0];
+    const { id: networkId, min_confirmations, decimals, contract_address } = networkResult.rows[0];
+
+    // Normalise expected token contract address for comparison (null = permissive mode)
+    const expectedTokenAddress: string | null =
+      typeof contract_address === 'string' && contract_address.trim() !== ''
+        ? contract_address.trim().toLowerCase()
+        : null;
+
+    if (expectedTokenAddress === null) {
+      console.warn(`[moralis-webhook] contract_address not configured for streamId ${streamId} — token address filter disabled`);
+    }
 
     const tokenDecimals = decimals != null ? Number(decimals) : 18;
     const blockNumber = block?.number ? parseInt(block.number, 10) : 0;
     const blockTimestamp = block?.timestamp
       ? new Date(parseInt(block.timestamp, 10) * 1000)
       : new Date();
+
+    // Deduplicate transfers by txHash within the same payload to prevent double-accounting
+    const processedTxHashes = new Set<string>();
 
     for (const transfer of erc20Transfers) {
       try {
@@ -112,6 +125,28 @@ router.post('/moralis', async (req, res) => {
         const txHash: string = transfer.transactionHash || '';
         if (!toAddress || !txHash) {
           console.warn(`[moralis-webhook] missing toAddress or txHash, to=${toAddress}, txHash=${txHash}`);
+          continue;
+        }
+
+        // Skip duplicate txHashes in the same payload (e.g. approve + transfer events)
+        if (processedTxHashes.has(txHash)) {
+          console.warn(`[moralis-webhook] duplicate txHash ${txHash} in payload, skipping`);
+          continue;
+        }
+        processedTxHashes.add(txHash);
+
+        // Moralis Streams v2 uses 'contract' for the token contract address; fall back to
+        // 'tokenAddress' for backward compatibility with older payload shapes.
+        const tokenAddress: string = (
+          typeof transfer.contract === 'string' ? transfer.contract :
+          typeof transfer.tokenAddress === 'string' ? transfer.tokenAddress : ''
+        ).trim().toLowerCase();
+
+        if (expectedTokenAddress !== null && tokenAddress !== expectedTokenAddress) {
+          console.warn(
+            `[moralis-webhook] skipping transfer ${txHash}: ` +
+            `tokenAddress (${tokenAddress || 'missing'}) does not match configured contract ${expectedTokenAddress}`
+          );
           continue;
         }
 
