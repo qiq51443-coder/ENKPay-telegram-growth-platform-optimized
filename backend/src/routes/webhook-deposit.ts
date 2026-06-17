@@ -103,8 +103,12 @@ router.post('/moralis', async (req, res) => {
       : '';
 
     if (!expectedTokenAddress) {
-      console.warn(`[moralis-webhook] network ${networkId} has no contract_address configured, skipping all transfers`);
-      return res.status(200).json({ message: 'Network token contract not configured' });
+      // contract_address 未配置时，降级为宽松模式：
+      // Moralis Stream 在创建时已在云端过滤了合约，后端无需二次拦截
+      // 记录警告，但继续处理所有 erc20Transfers
+      console.warn(
+        `[moralis-webhook] network ${networkId} has no contract_address configured — falling back to permissive mode (Moralis cloud filter is the only guard)`
+      );
     }
 
     const tokenDecimals = decimals != null ? Number(decimals) : 18;
@@ -127,7 +131,8 @@ router.post('/moralis', async (req, res) => {
           continue;
         }
 
-        if (tokenAddress !== expectedTokenAddress) {
+        // 仅在配置了 contract_address 时才做二次校验，否则信任 Moralis 云端过滤
+        if (expectedTokenAddress && tokenAddress !== expectedTokenAddress) {
           console.warn(
             `[moralis-webhook] skipping transfer ${txHash}: tokenAddress ${transfer.tokenAddress || '(missing)'} does not match configured contract ${contract_address}`
           );
