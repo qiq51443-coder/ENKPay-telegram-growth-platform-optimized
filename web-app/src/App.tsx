@@ -625,6 +625,13 @@ function App() {
   const [user, setUser] = useState<WebUser | null>(null)
   const [loadingUser, setLoadingUser] = useState(Boolean(getStoredToken()))
   const [globalError, setGlobalError] = useState('')
+  const [toastMessage, setToastMessage] = useState('')
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = (msg: string) => {
+    setToastMessage(msg)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToastMessage(''), 3000)
+  }
 
   const [pairs, setPairs] = useState<TradingPair[]>([])
   const [pairsLoading, setPairsLoading] = useState(false)
@@ -977,7 +984,7 @@ function App() {
         setTransactions(txResult.data || [])
         setHasWithdrawPassword(Boolean(passwordResult.has_password))
       })
-      .catch((error: Error) => setGlobalError(error.message))
+      .catch((error: Error) => showToast(error.message))
       .finally(() => {
         setTransactionsLoading(false)
         setPasswordLoading(false)
@@ -1015,7 +1022,7 @@ function App() {
       .catch((error: Error) => {
         setDepositAddress('')
         setDepositQr('')
-        setGlobalError(error.message)
+        showToast(error.message)
       })
       .finally(() => setDepositLoading(false))
   }, [route, token, selectedDepositNetwork])
@@ -1035,7 +1042,7 @@ function App() {
           setWithdrawForm((current) => ({ ...current, network_id: String(list[0].id) }))
         }
       })
-      .catch((error: Error) => setGlobalError(error.message))
+      .catch((error: Error) => showToast(error.message))
       .finally(() => setWithdrawNetworksLoading(false))
   }, [route, token, withdrawForm.network_id])
 
@@ -1713,13 +1720,6 @@ function App() {
 
     return (
       <section className="view-stack">
-        <div className="section-head">
-          <div>
-            <span className="eyebrow">Mini App 同构</span>
-            <h2>交易对列表</h2>
-          </div>
-          <span className="muted-text">点击交易对进入桌面端详情视图</span>
-        </div>
         {pairsLoading ? (
           <div className="empty-card">正在加载交易对...</div>
         ) : (
@@ -1770,7 +1770,6 @@ function App() {
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <span className="eyebrow">Mini App 同构</span>
           <h2>夺宝活动</h2>
         </div>
         <span className="muted-text">奖品、参与人数与历史记录桌面化展示</span>
@@ -1855,7 +1854,6 @@ function App() {
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <span className="eyebrow">Mini App 同构</span>
           <h2>定期产品</h2>
         </div>
       </div>
@@ -1926,7 +1924,6 @@ function App() {
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <span className="eyebrow">Mini App 同构</span>
           <h2>公益活动</h2>
         </div>
       </div>
@@ -2229,6 +2226,7 @@ function App() {
       </header>
 
       {globalError && <div className="status-banner">{globalError}</div>}
+      {toastMessage && <div className="toast-message">{toastMessage}</div>}
 
       {loadingUser ? (
         <main className="main-card"><div className="empty-card inset">正在同步账户信息...</div></main>

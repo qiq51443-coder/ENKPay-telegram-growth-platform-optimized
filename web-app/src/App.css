@@ -739,6 +739,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    height: 52px;
+    padding: 0 12px;
+  }
+
+  .topbar h1 {
+    display: none;
   }
 
   .topbar-brand .brand-name {
@@ -757,17 +763,40 @@
   }
 
   .main-card {
-    padding: 18px;
-    border-radius: 22px;
+    border-radius: 0;
+    margin: 0;
+    padding: 16px 16px 80px;
   }
 
   .bottom-nav {
-    left: 12px;
-    right: 12px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
   }
 
   .nav-item small {
     font-size: 11px;
+  }
+
+  .trading-chart {
+    height: 250px;
+  }
+
+  .grid-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1222,4 +1251,28 @@
 .trading-down-btn:hover:not(:disabled) {
   opacity: 0.88;
   transform: translateY(-1px);
+}
+
+/* ── Toast notification ──────────────────────────────── */
+.toast-message {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 10px 20px;
+  color: #f8fafc;
+  font-size: 14px;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(2, 6, 23, 0.4);
+  animation: toastIn 0.3s ease;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
