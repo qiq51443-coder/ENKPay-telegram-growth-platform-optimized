@@ -356,6 +356,13 @@ export const SystemSettings: React.FC = () => {
   const [mailSmtpPassword, setMailSmtpPassword] = useState('');
   const [mailSaving, setMailSaving] = useState(false);
 
+  // Email template state - multi-language templates
+  const [mailTemplateSubject, setMailTemplateSubject] = useState<Record<string, string>>({});
+  const [mailTemplateHtml, setMailTemplateHtml] = useState<Record<string, string>>({});
+  const [mailTemplateText, setMailTemplateText] = useState<Record<string, string>>({});
+  const [mailTemplateLang, setMailTemplateLang] = useState('zh');
+  const [mailTemplateSaving, setMailTemplateSaving] = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -431,6 +438,24 @@ export const SystemSettings: React.FC = () => {
       }
       if (mailSmtpUsernameSetting?.value !== undefined) setMailSmtpUsername(unwrapJsonString(mailSmtpUsernameSetting.value));
       if (mailSmtpPasswordSetting?.value !== undefined) setMailSmtpPassword(unwrapJsonString(mailSmtpPasswordSetting.value));
+
+      // Load email templates
+      const mailTplSubject = settingsData.find((s: SystemSetting) => s.key === 'mail_tpl_verification_subject');
+      const mailTplHtml = settingsData.find((s: SystemSetting) => s.key === 'mail_tpl_verification_html');
+      const mailTplText = settingsData.find((s: SystemSetting) => s.key === 'mail_tpl_verification_text');
+
+      if (mailTplSubject?.value) {
+        const parsed = typeof mailTplSubject.value === 'string' ? JSON.parse(mailTplSubject.value) : mailTplSubject.value;
+        setMailTemplateSubject(parsed || {});
+      }
+      if (mailTplHtml?.value) {
+        const parsed = typeof mailTplHtml.value === 'string' ? JSON.parse(mailTplHtml.value) : mailTplHtml.value;
+        setMailTemplateHtml(parsed || {});
+      }
+      if (mailTplText?.value) {
+        const parsed = typeof mailTplText.value === 'string' ? JSON.parse(mailTplText.value) : mailTplText.value;
+        setMailTemplateText(parsed || {});
+      }
     } catch (error: any) {
       console.error('Failed to fetch system settings:', error);
       const detail = error?.response?.data?.error || error?.message || '未知错误';
@@ -605,6 +630,36 @@ export const SystemSettings: React.FC = () => {
     }
   };
 
+  const handleSaveMailTemplates = async () => {
+    setMailTemplateSaving(true);
+    try {
+      // Save all three template fields as JSONB objects with language keys
+      await Promise.all([
+        apiClient.updateSystemSetting('mail_tpl_verification_subject', {
+          value: mailTemplateSubject,
+          category: 'email',
+          description: 'Multi-language verification email subject templates',
+        }),
+        apiClient.updateSystemSetting('mail_tpl_verification_html', {
+          value: mailTemplateHtml,
+          category: 'email',
+          description: 'Multi-language verification email HTML templates',
+        }),
+        apiClient.updateSystemSetting('mail_tpl_verification_text', {
+          value: mailTemplateText,
+          category: 'email',
+          description: 'Multi-language verification email text templates',
+        }),
+      ]);
+      message.success('邮件模板保存成功');
+      await fetchSettings();
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || '邮件模板保存失败');
+    } finally {
+      setMailTemplateSaving(false);
+    }
+  };
+
   const fetchPreviewData = async () => {
     setPreviewLoading(true);
     try {
@@ -692,6 +747,7 @@ export const SystemSettings: React.FC = () => {
   };
 
   const renderMailServiceTab = () => (
+    <>
     <Card title="邮件服务配置" style={{ marginBottom: 16 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <Alert
@@ -781,6 +837,88 @@ export const SystemSettings: React.FC = () => {
         </Button>
       </Space>
     </Card>
+
+    {/* Email Template Management Card */}
+    <Card title="📧 邮件模板管理" style={{ marginBottom: 16 }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Alert
+          type="info"
+          showIcon
+          message="多语言邮件模板"
+          description="设置验证码邮件的多语言模板。系统会根据用户语言自动选择对应模板发送。支持变量：{{code}} (验证码)、{{platform_name}} (平台名称)、{{valid_minutes}} (有效分钟数)。"
+        />
+
+        <Form layout="vertical">
+          <Form.Item label="选择语言">
+            <Radio.Group 
+              value={mailTemplateLang} 
+              onChange={(e) => setMailTemplateLang(e.target.value)}
+            >
+              {LANG_CONFIG.map(lang => (
+                <Radio.Button key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.label}
+                </Radio.Button>
+              ))}
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item 
+            label={`邮件主题 (${LANG_CONFIG.find(l => l.code === mailTemplateLang)?.label})`}
+            extra="支持变量：{{platform_name}}"
+          >
+            <Input
+              value={mailTemplateSubject[mailTemplateLang] || ''}
+              onChange={(e) => setMailTemplateSubject({
+                ...mailTemplateSubject,
+                [mailTemplateLang]: e.target.value
+              })}
+              placeholder="例如：{{platform_name}} 邮箱验证码"
+            />
+          </Form.Item>
+
+          <Form.Item 
+            label={`邮件HTML内容 (${LANG_CONFIG.find(l => l.code === mailTemplateLang)?.label})`}
+            extra="支持HTML标签和变量：{{code}}、{{platform_name}}、{{valid_minutes}}"
+          >
+            <TextArea
+              value={mailTemplateHtml[mailTemplateLang] || ''}
+              onChange={(e) => setMailTemplateHtml({
+                ...mailTemplateHtml,
+                [mailTemplateLang]: e.target.value
+              })}
+              placeholder="HTML模板..."
+              rows={8}
+              style={{ fontFamily: 'monospace' }}
+            />
+          </Form.Item>
+
+          <Form.Item 
+            label={`纯文本内容 (${LANG_CONFIG.find(l => l.code === mailTemplateLang)?.label})`}
+            extra="纯文本版本，用于不支持HTML的邮件客户端"
+          >
+            <TextArea
+              value={mailTemplateText[mailTemplateLang] || ''}
+              onChange={(e) => setMailTemplateText({
+                ...mailTemplateText,
+                [mailTemplateLang]: e.target.value
+              })}
+              placeholder="纯文本模板..."
+              rows={4}
+            />
+          </Form.Item>
+        </Form>
+
+        <Button 
+          type="primary" 
+          icon={<SaveOutlined />} 
+          loading={mailTemplateSaving} 
+          onClick={handleSaveMailTemplates}
+        >
+          保存邮件模板
+        </Button>
+      </Space>
+    </Card>
+    </>
   );
 
   const renderLandingTab = () => {
