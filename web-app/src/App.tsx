@@ -1177,61 +1177,140 @@ function App() {
   useEffect(() => {
     if (!selectedTradingPair || !tradingChartRef.current) return
     let disposed = false
+    let resizeObserver: ResizeObserver | null = null
+    let rafId: number | null = null
+    let rafRetries = 0
+    const MAX_RAF_RETRIES = 30
 
-    const chart = createChart(tradingChartRef.current, {
-      autoSize: true,
-      layout: {
-        background: { color: '#0A1628' },
-        textColor: '#CBD5E1',
-      },
-      grid: {
-        vertLines: { color: 'rgba(148,163,184,0.08)' },
-        horzLines: { color: 'rgba(148,163,184,0.08)' },
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(148,163,184,0.16)',
-      },
-      timeScale: {
-        borderColor: 'rgba(148,163,184,0.16)',
-      },
-      crosshair: {
-        vertLine: { color: '#F0B90B' },
-        horzLine: { color: '#F0B90B' },
-      },
-    })
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26A69A',
-      downColor: '#EF5350',
-      borderVisible: false,
-      wickUpColor: '#26A69A',
-      wickDownColor: '#EF5350',
-    })
-    tradingChartInstanceRef.current = chart
-    tradingSeriesRef.current = candleSeries
+    const initChart = () => {
+      if (disposed || !tradingChartRef.current) return
 
-    apiRequest<ApiResult<Array<{ time?: number; open_time?: number; open: number; high: number; low: number; close: number }>>>(
-      `/trading/pairs/${selectedTradingPair.id}/kline?interval=${klineInterval}&limit=120`
-    )
-      .then((result) => {
-        if (disposed) return
-        const rows = (result.data || []).map((item) => ({
-          time: Number(item.time ?? item.open_time),
-          open: Number(item.open),
-          high: Number(item.high),
-          low: Number(item.low),
-          close: Number(item.close),
-        })).filter((item) => item.time > 0)
-        candleSeries.setData(rows as any)
-        chart.timeScale().fitContent()
+      const containerWidth = tradingChartRef.current.clientWidth
+      const containerHeight = tradingChartRef.current.clientHeight
+      if (containerWidth === 0 || containerHeight === 0) {
+        // Container not yet visible — wait for it
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver((entries) => {
+            const rect = entries[0]?.contentRect
+            if (rect && rect.width > 0 && rect.height > 0) {
+              resizeObserver?.disconnect()
+              resizeObserver = null
+              initChart()
+            }
+          })
+          resizeObserver.observe(tradingChartRef.current)
+        } else if (rafRetries < MAX_RAF_RETRIES) {
+          rafRetries++
+          rafId = requestAnimationFrame(initChart)
+        }
+        return
+      }
+
+      const chart = createChart(tradingChartRef.current, {
+        autoSize: true,
+        layout: {
+          background: { color: '#0A1628' },
+          textColor: '#CBD5E1',
+        },
+        grid: {
+          vertLines: { color: 'rgba(148,163,184,0.08)' },
+          horzLines: { color: 'rgba(148,163,184,0.08)' },
+        },
+        rightPriceScale: {
+          borderColor: 'rgba(148,163,184,0.16)',
+        },
+        timeScale: {
+          borderColor: 'rgba(148,163,184,0.16)',
+        },
+        crosshair: {
+          vertLine: { color: '#F0B90B' },
+          horzLine: { color: '#F0B90B' },
+        },
       })
-      .catch(() => {})
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26A69A',
+        downColor: '#EF5350',
+        borderVisible: false,
+        wickUpColor: '#26A69A',
+        wickDownColor: '#EF5350',
+      })
+      tradingChartInstanceRef.current = chart
+      tradingSeriesRef.current = candleSeries
 
-    return () => {
+      // Resize chart when the container changes size
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => {
+          if (!disposed && tradingChartRef.current) {
+            const w = tradingChartRef.current.clientWidth
+            if (w > 0) {
+              try { chart.applyOptions({ width: w }) } catch {}
+            }
+          }
+        })
+        resizeObserver.observe(tradingChartRef.current)
+      }
+
+      // Resize chart when the browser tab becomes visible again
+      const onVisibilityChange = () => {
+        if (!document.hidden && tradingChartRef.current && !disposed) {
+          const w = tradingChartRef.current.clientWidth
+          if (w > 0) {
+            try { chart.applyOptions({ width: w }) } catch {}
+          }
+        }
+      }
+      document.addEventListener('visibilitychange', onVisibilityChange)
+
+      apiRequest<ApiResult<Array<{ time?: number; open_time?: number; open: number; high: number; low: number; close: number }>>>(
+        `/trading/pairs/${selectedTradingPair.id}/kline?interval=${klineInterval}&limit=120`
+      )
+        .then((result) => {
+          if (disposed) return
+          const rows = (result.data || []).map((item) => ({
+            time: Math.floor(Number(item.time ?? item.open_time)),
+            open: Number(item.open),
+            high: Number(item.high),
+            low: Number(item.low),
+            close: Number(item.close),
+          })).filter((item) =>
+            item.time > 0 &&
+            isFinite(item.open) && item.open > 0 &&
+            isFinite(item.high) && item.high > 0 &&
+            isFinite(item.low) && item.low > 0 &&
+            isFinite(item.close) && item.close > 0
+          )
+          if (rows.length > 0) {
+            candleSeries.setData(rows as any)
+            chart.timeScale().fitContent()
+          }
+        })
+        .catch(() => {})
+
+      // Override the cleanup to also remove the visibility listener
+      const originalCleanup = () => {
+        disposed = true
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+        tradingSeriesRef.current = null
+        tradingChartInstanceRef.current = null
+        if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
+        try { chart.remove() } catch {}
+      }
+      // Attach override cleanup to ref so the outer return can call it
+      cleanupRef.current = originalCleanup
+    }
+
+    // Use a ref to allow the inner initChart to set a late cleanup
+    const cleanupRef = { current: () => {
       disposed = true
+      if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       tradingSeriesRef.current = null
       tradingChartInstanceRef.current = null
-      chart.remove()
-    }
+    }}
+
+    initChart()
+
+    return () => { cleanupRef.current() }
   }, [selectedTradingPair?.id, klineInterval])
 
   const handleAuthChange = (key: keyof typeof authForms, value: string | boolean) => {
@@ -1552,7 +1631,6 @@ function App() {
               <div className="trading-price-big" data-price-id={pair.id}>
                 ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
               </div>
-              <div className="muted-text">实时价格 / WebSocket</div>
             </div>
             <div className={change >= 0 ? 'pill positive' : 'pill negative'}>
               {change >= 0 ? '+' : ''}{change.toFixed(2)}% 24H
@@ -1772,7 +1850,6 @@ function App() {
         <div>
           <h2>夺宝活动</h2>
         </div>
-        <span className="muted-text">奖品、参与人数与历史记录桌面化展示</span>
       </div>
       <div className="content-grid content-grid-wide">
         <div className="grid-cards feature-grid">
@@ -2084,7 +2161,6 @@ function App() {
         <div className="content-grid content-grid-wide">
           <article className="panel-card">
             <h3>安全设置</h3>
-            <p className="muted-text">提现密码在个人中心维护，与 Mini App 的账户安全区块保持一致。</p>
             <div className="field-grid">
               <label>
                 <span>提现密码（至少 6 位数字）</span>

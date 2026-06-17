@@ -784,7 +784,8 @@
   }
 
   .trading-chart {
-    height: 250px;
+    height: 280px;
+    min-height: 280px;
   }
 
   .grid-cards {
@@ -962,14 +963,51 @@
 .trading-chart {
   height: 360px;
   margin-top: 16px;
+  min-height: 280px;
 }
 
-.kline-tabs,
-.duration-list,
-.language-grid {
+.kline-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.kline-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.duration-list {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.language-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 540px) {
+  .language-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .language-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .language-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 .pair-title-group h2 {
