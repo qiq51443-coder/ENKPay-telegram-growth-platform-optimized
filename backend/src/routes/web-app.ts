@@ -1,6 +1,7 @@
 import express from 'express';
 import { query, transaction, withSavepoint } from '../db';
 import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
+import { walletLimiter } from '../middleware/rateLimiter';
 import { getNextPeriod } from '../services/period.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
@@ -13,6 +14,7 @@ import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
 
+router.use(walletLimiter);
 router.use(authenticateWebUser);
 
 function isMissingTableError(err: any): boolean {
@@ -640,7 +642,7 @@ router.post('/auctions/:id/join', async (req: WebAuthRequest, res) => {
     if (result.newCount >= result.participantCount) {
       drawWinner(id)
         .then(() => query(`UPDATE lucky_auctions SET show_in_mini_app = true WHERE id = $1 AND status = 'completed'`, [id]))
-        .catch((err) => console.error(`Web auto-draw failed for auction ${id}:`, err));
+        .catch((err) => console.error('Web auto-draw failed for auction', id, err));
     }
 
     return res.json({ success: true, message: '参与成功' });

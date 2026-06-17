@@ -152,7 +152,7 @@ export async function drawWinner(auctionId: string): Promise<void> {  await tran
     try {
       await notifyParticipants(client, auction, winner);
     } catch (err) {
-      console.error(`drawWinner: notification failed for auction ${auctionId}:`, err);
+      console.error('drawWinner notification failed for auction', auctionId, err);
     }
   });
 }
