@@ -79,7 +79,8 @@ export function getRedPacketMessages(language: string): RedPacketMessages {
 export function toPlainTelegramText(content: string): string {
   return String(content || '')
     .replace(TG_EMOJI_TAG_RE, '$1')
-    .replace(/<[^>]+>/g, '')
+    .split('<').join('')
+    .split('>').join('')
     .replace(/\s+/g, ' ')
     .trim();
 }
