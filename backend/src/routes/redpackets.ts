@@ -6,10 +6,32 @@ import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
 import TelegramAPI from '../utils/telegram';
-import { buildRedPacketMessage, getRedPacketMessages } from '../i18n/redpacket';
-import { getBotMessageEmojiConfig, getEmoji } from '../utils/emoji-config';
+import { buildRedPacketClaimButtonText, buildRedPacketMessage } from '../i18n/redpacket';
 
 const router = express.Router();
+
+async function hasQualifiedDeposit(client: any, userId: string, totalRecharged: unknown): Promise<boolean> {
+  const normalizedTotalRecharged = Number(totalRecharged ?? 0);
+  if (Number.isFinite(normalizedTotalRecharged) && normalizedTotalRecharged > 0) {
+    return true;
+  }
+
+  const depositResult = await client.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM deposit_records
+       WHERE user_id = $1
+         AND COALESCE(actual_amount, amount, 0) > 0
+         AND (
+           credited_at IS NOT NULL
+           OR LOWER(COALESCE(status, '')) IN ('confirmed', 'credited', 'completed', 'success', 'successful', 'succeeded')
+         )
+     ) AS has_deposit`,
+    [userId]
+  );
+
+  return Boolean(depositResult.rows[0]?.has_deposit);
+}
 
 // Ensure upload directory exists
 const COVER_UPLOAD_DIR = path.join(__dirname, '../../uploads/redpacket-covers');
@@ -125,9 +147,6 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
     if (botResult.rows.length > 0) {
       const telegram = new TelegramAPI(botResult.rows[0].token);
       const redPacketLang = language || 'en';
-      const msgs = getRedPacketMessages(redPacketLang);
-      const emojiConfig = await getBotMessageEmojiConfig();
-      const redpacketEmoji = getEmoji(emojiConfig, 'field_redpacket') || '🧧';
       
       const message = await buildRedPacketMessage({
         language: redPacketLang,
@@ -139,7 +158,7 @@ router.post('/', authenticateAdmin, async (req: AuthRequest, res) => {
 
       const replyMarkup = {
         inline_keyboard: [[
-          { text: `${redpacketEmoji} ${String(msgs.claimButton || '').replace(/^[^\p{L}\p{N}\u4e00-\u9fff\u0600-\u06FF\u3040-\u30ff]+/u, '').trim()}`, callback_data: `claim_redpacket:${redPacket.id}` }
+          { text: await buildRedPacketClaimButtonText(redPacketLang), callback_data: `claim_redpacket:${redPacket.id}` }
         ]]
       };
 
@@ -333,6 +352,7 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         if (userInfoResult.rows.length === 0) {
           throw Object.assign(new Error('User not found'), { statusCode: 403 });
         }
+        const userInfo = userInfoResult.rows[0];
 
         if (condition === 'first_follow') {
           const claimHistory = await client.query(
@@ -345,11 +365,8 @@ router.post('/:id/claim', authenticateBot, async (req: AuthRequest, res) => {
         }
 
         if (condition === 'deposited') {
-          const depositCount = await client.query(
-            "SELECT COUNT(*) FROM deposit_records WHERE user_id = $1 AND status = 'confirmed'",
-            [user_id]
-          );
-          if (parseInt(depositCount.rows[0].count) === 0) {
+          const qualifiedDeposit = await hasQualifiedDeposit(client, user_id, userInfo.total_recharged);
+          if (!qualifiedDeposit) {
             throw Object.assign(new Error('CLAIM_CONDITION_NOT_MET'), { statusCode: 403, condition: 'deposited' });
           }
         }

@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
 import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES, tClaimConditionNotMet } from '../i18n';
 import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
+import { buildRedPacketClaimButtonText } from '../i18n/redpacket';
 import { generateUserDepositAddress } from './deposit.service';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 import { sendCrossBotNotification } from '../utils/cross-bot-notify';
@@ -1685,9 +1686,10 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
               const celebrateEmojiFallback = extractEmojiFallback(celebrateEmoji);
               if (progressEmojiFallback) progressMarkers.push(progressEmojiFallback);
               if (celebrateEmojiFallback) progressMarkers.push(celebrateEmojiFallback);
+              const claimButtonText = await buildRedPacketClaimButtonText(rpLang);
               const replyMarkup = isFinished
                 ? { inline_keyboard: [] }
-                : { inline_keyboard: [[{ text: `🧧 ${t(rpLang, 'redpacket_claim')}`, callback_data: `claim_redpacket:${redPacketId}` }]] };
+                : { inline_keyboard: [[{ text: claimButtonText, callback_data: `claim_redpacket:${redPacketId}` }]] };
 
               if ('caption' in cbMessage && cbMessage.caption != null) {
                 const baseCaptionHtml = stripProgressSection(
