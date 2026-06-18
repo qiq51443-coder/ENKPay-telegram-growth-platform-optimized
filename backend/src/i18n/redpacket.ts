@@ -1,6 +1,9 @@
 import { animateEmojis } from '../utils/animated-emojis';
 import { getBotMessageEmojiConfig, getEmoji } from '../utils/emoji-config';
 
+const TG_EMOJI_TAG_RE = /<tg-emoji\b[^>]*>([\s\S]*?)<\/tg-emoji>/gi;
+const LEADING_DECORATORS_RE = /^[^\p{L}\p{N}\u4e00-\u9fff\u0600-\u06FF\u3040-\u30ff]+/u;
+
 interface RedPacketMessages {
   title: string;
   labelTotal: string;
@@ -71,6 +74,27 @@ const REDPACKET_I18N: Record<string, RedPacketMessages> = {
 
 export function getRedPacketMessages(language: string): RedPacketMessages {
   return REDPACKET_I18N[language] || REDPACKET_I18N['en'];
+}
+
+export function toPlainTelegramText(content: string): string {
+  return String(content || '')
+    .replace(TG_EMOJI_TAG_RE, '$1')
+    .split('<').join('')
+    .split('>').join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeRedPacketButtonLabel(label: string): string {
+  return toPlainTelegramText(label).replace(LEADING_DECORATORS_RE, '').trim();
+}
+
+export async function buildRedPacketClaimButtonText(language: string): Promise<string> {
+  const msgs = getRedPacketMessages(language || 'en');
+  const emojiConfig = await getBotMessageEmojiConfig();
+  const redpacketEmoji = toPlainTelegramText(getEmoji(emojiConfig, 'field_redpacket') || '🧧') || '🧧';
+  const label = normalizeRedPacketButtonLabel(msgs.claimButton || 'Claim Red Packet') || 'Claim Red Packet';
+  return `${redpacketEmoji} ${label}`.trim();
 }
 
 export async function buildRedPacketMessage(params: {

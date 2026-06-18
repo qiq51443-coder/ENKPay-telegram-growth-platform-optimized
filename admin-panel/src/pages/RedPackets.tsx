@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs, Popconfirm, Space } from 'antd';
+import { Table, message, Button, Modal, Form, Input, Select, InputNumber, Tag, Switch, Upload, Tabs, Popconfirm, Space, Descriptions, Empty } from 'antd';
 import { PlusOutlined, EyeOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
 import { apiClient } from '../services/api';
@@ -17,6 +17,7 @@ interface RedPacket {
   status: string;
   expires_at: string;
   balance_expiry_hours?: number;
+  claim_condition?: string;
   created_at: string;
 }
 
@@ -46,6 +47,34 @@ interface RecentClaim {
   bot_id: string;
 }
 
+interface RedPacketClaim {
+  id: string;
+  red_packet_id: string;
+  user_id: string;
+  amount: number;
+  claimed_at: string;
+  balance_expires_at?: string | null;
+  wagering_multiplier?: number | null;
+  bot_id?: string;
+  username?: string;
+  first_name?: string;
+  unique_id?: string;
+  telegram_id?: number;
+}
+
+const claimConditionLabelMap: Record<string, string> = {
+  all_users: '所有用户可领取',
+  first_follow: '仅首次关注 Bot 用户',
+  deposited: '仅充值用户',
+  trade_volume_100: '即时交易流水 ≥ 100 USDT',
+  trade_volume_200: '即时交易流水 ≥ 200 USDT',
+};
+
+const formatClaimUserName = (record: Pick<RedPacketClaim, 'username' | 'first_name' | 'unique_id'> | Pick<RecentClaim, 'username' | 'first_name' | 'unique_id'>) => {
+  const primaryName = record.username ? `@${record.username}` : (record.first_name || '匿名用户');
+  return record.unique_id ? `${primaryName} #${record.unique_id}` : primaryName;
+};
+
 export const RedPackets: React.FC = () => {
   const [redPackets, setRedPackets] = useState<RedPacket[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
@@ -54,11 +83,12 @@ export const RedPackets: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [claimsModalOpen, setClaimsModalOpen] = useState(false);
   const [selectedRedPacket, setSelectedRedPacket] = useState<RedPacket | null>(null);
-  const [claims, setClaims] = useState([]);
+  const [claims, setClaims] = useState<RedPacketClaim[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [form] = Form.useForm();
   const [recentClaims, setRecentClaims] = useState<RecentClaim[]>([]);
-  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [recentClaimsLoading, setRecentClaimsLoading] = useState(false);
+  const [claimDetailLoading, setClaimDetailLoading] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState<string>('');
 
   useEffect(() => {
@@ -106,24 +136,32 @@ export const RedPackets: React.FC = () => {
   };
 
   const fetchClaims = async (redPacketId: string) => {
+    setClaimDetailLoading(true);
     try {
       const response = await apiClient.getRedPacketClaims(redPacketId);
-      setClaims(response.claims || []);
+      const claimList = Array.isArray(response.claims) ? response.claims : [];
+      setClaims(
+        claimList.sort((a: RedPacketClaim, b: RedPacketClaim) => (
+          new Date(b.claimed_at).getTime() - new Date(a.claimed_at).getTime()
+        ))
+      );
     } catch (error) {
       console.error('Failed to fetch claims:', error);
       message.error('获取领取记录失败');
+    } finally {
+      setClaimDetailLoading(false);
     }
   };
 
   const fetchRecentClaims = async () => {
-    setClaimsLoading(true);
+    setRecentClaimsLoading(true);
     try {
       const res = await apiClient.get('/redpackets/claims/recent?limit=20');
       setRecentClaims(res.data.claims || []);
     } catch (e) {
       // ignore
     } finally {
-      setClaimsLoading(false);
+      setRecentClaimsLoading(false);
     }
   };
 
@@ -229,6 +267,7 @@ export const RedPackets: React.FC = () => {
         const statusMap: Record<string, { text: string; color: string }> = {
           active: { text: '活跃', color: 'success' },
           expired: { text: '已过期', color: 'default' },
+          finished: { text: '已领完', color: 'processing' },
           completed: { text: '已领完', color: 'processing' },
         };
         const statusInfo = statusMap[status] || { text: status, color: 'default' };
@@ -292,7 +331,7 @@ export const RedPackets: React.FC = () => {
       key: 'user',
       render: (_: any, record: any) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.first_name || record.username || '未设置'}</div>
+          <div style={{ fontWeight: 500 }}>{formatClaimUserName(record)}</div>
           <div style={{ fontSize: '12px', color: '#666' }}>
             {record.unique_id ? `#${record.unique_id}` : record.telegram_id ? `TG:${record.telegram_id}` : '-'}
           </div>
@@ -375,20 +414,20 @@ export const RedPackets: React.FC = () => {
             children: (
               <div>
                 <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button size="small" onClick={fetchRecentClaims} loading={claimsLoading}>🔄 刷新</Button>
+                  <Button size="small" onClick={fetchRecentClaims} loading={recentClaimsLoading}>🔄 刷新</Button>
                 </div>
                 <Table
                   dataSource={recentClaims}
                   rowKey="id"
                   size="small"
-                  loading={claimsLoading}
+                  loading={recentClaimsLoading}
                   pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条` }}
                   columns={[
                     {
                       title: '用户',
                       key: 'user',
                       render: (_: any, r: RecentClaim) => (
-                        <span>{r.first_name || r.username || '未设置'}{r.unique_id ? ` #${r.unique_id}` : ''}</span>
+                        <span>{formatClaimUserName(r)}</span>
                       ),
                     },
                     {
@@ -605,11 +644,36 @@ export const RedPackets: React.FC = () => {
         ]}
         width={800}
       >
+        <Descriptions bordered column={2} size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="红包状态">
+            <Tag color={selectedRedPacket?.status === 'active' ? 'success' : selectedRedPacket?.status === 'expired' ? 'default' : 'processing'}>
+              {selectedRedPacket?.status === 'active' ? '活跃' : selectedRedPacket?.status === 'expired' ? '已过期' : '已领完'}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="领取条件">
+            {claimConditionLabelMap[selectedRedPacket?.claim_condition || 'all_users'] || selectedRedPacket?.claim_condition || '所有用户可领取'}
+          </Descriptions.Item>
+          <Descriptions.Item label="已领取人数 / 总数">
+            {selectedRedPacket ? `${selectedRedPacket.claimed_count} / ${selectedRedPacket.total_count}` : '-'}
+          </Descriptions.Item>
+          <Descriptions.Item label="已领取金额 / 总金额">
+            {selectedRedPacket ? `${Number(selectedRedPacket.claimed_amount || 0).toFixed(2)} / ${Number(selectedRedPacket.total_amount || 0).toFixed(2)} USDT` : '-'}
+          </Descriptions.Item>
+        </Descriptions>
         <Table
           columns={claimsColumns}
           dataSource={claims}
           rowKey="id"
+          loading={claimDetailLoading}
           pagination={{ pageSize: 10 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂无领取记录"
+              />
+            ),
+          }}
         />
       </Modal>
     </div>
