@@ -1,5 +1,7 @@
 import express from 'express';
 import axios from 'axios';
+import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { query, transaction } from '../db';
 import { authenticateAdmin, authenticateBot, AuthRequest } from '../middleware/auth';
 import { adminLimiter } from '../middleware/rateLimiter';
@@ -174,6 +176,55 @@ router.post('/', authenticateBot, async (req: AuthRequest, res) => {
     res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Create user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all web-registered (email) accounts — must be before /:id to avoid route conflict
+router.get('/web-accounts', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let queryText = `
+      SELECT id, email, register_type, wallet_balance, reward_balance,
+             admin_set_login_password, admin_set_withdraw_password,
+             withdraw_password IS NOT NULL AS withdraw_password_set,
+             created_at, last_active_at, account_status
+      FROM users
+      WHERE register_type = 'email'
+    `;
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      queryText += ` AND email ILIKE $${params.length}`;
+    }
+
+    queryText += ` ORDER BY created_at DESC`;
+    params.push(Number(limit), offset);
+    queryText += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+
+    const result = await query(queryText, params);
+
+    let countQuery = `SELECT COUNT(*) FROM users WHERE register_type = 'email'`;
+    const countParams: any[] = [];
+    if (search) {
+      countParams.push(`%${search}%`);
+      countQuery += ` AND email ILIKE $1`;
+    }
+    const countResult = await query(countQuery, countParams);
+
+    res.json({
+      users: result.rows,
+      pagination: {
+        total: parseInt(countResult.rows[0]?.count || '0'),
+        page: Number(page),
+        limit: Number(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Get web accounts error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -836,18 +887,58 @@ router.put('/:id/reset-withdraw-password', adminLimiter, authenticateAdmin, asyn
   try {
     const { id } = req.params;
 
+    // Generate a cryptographically secure random 6-digit numeric password
+    const newPassword = String(randomInt(100000, 1000000));
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
     const result = await query(
-      `UPDATE users SET withdraw_password = NULL WHERE id = $1 RETURNING id`,
-      [id]
+      `UPDATE users
+          SET withdraw_password = $2, admin_set_withdraw_password = $3,
+              withdraw_password_attempts = 0, withdraw_password_locked_until = NULL
+        WHERE id = $1
+        RETURNING id`,
+      [id, passwordHash, newPassword]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ success: true, message: 'Withdraw password reset successfully' });
+    res.json({ success: true, message: 'Withdraw password reset successfully', new_password: newPassword });
   } catch (error) {
     console.error('Reset withdraw password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset user login password (web/email accounts)
+router.post('/:id/reset-login-password', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Generate a cryptographically secure random 8-character alphanumeric password
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let newPassword = '';
+    for (let i = 0; i < 8; i++) {
+      newPassword += chars[randomInt(chars.length)];
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const result = await query(
+      `UPDATE users
+          SET password_hash = $2, admin_set_login_password = $3
+        WHERE id = $1 AND register_type = 'email'
+        RETURNING id`,
+      [id, passwordHash, newPassword]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found or not a web account' });
+    }
+
+    res.json({ success: true, message: 'Login password reset successfully', new_password: newPassword });
+  } catch (error) {
+    console.error('Reset login password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

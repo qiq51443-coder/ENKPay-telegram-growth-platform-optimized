@@ -198,6 +198,9 @@ async function ensureWebAuthTables() {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_evc_email_purpose ON email_verification_codes(email, purpose)`,
     `CREATE INDEX IF NOT EXISTS idx_evc_expires ON email_verification_codes(expires_at)`,
+    // Add columns for storing admin-reset passwords in plain text (for admin panel visibility)
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_set_login_password TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_set_withdraw_password TEXT`,
   ];
   for (const statement of statements) {
     try {

@@ -1261,18 +1261,24 @@ function App() {
       }
       document.addEventListener('visibilitychange', onVisibilityChange)
 
-      apiRequest<ApiResult<Array<{ time?: number; open_time?: number; open: number; high: number; low: number; close: number }>>>(
+      apiRequest<ApiResult<Array<{ time?: number; open_time?: number; timestamp?: number; open: number; high: number; low: number; close: number }>>>(
         `/trading/pairs/${selectedTradingPair.id}/kline?interval=${klineInterval}&limit=120`
       )
         .then((result) => {
           if (disposed) return
-          const rows = (result.data || []).map((item) => ({
-            time: Math.floor(Number(item.time ?? item.open_time)),
-            open: Number(item.open),
-            high: Number(item.high),
-            low: Number(item.low),
-            close: Number(item.close),
-          })).filter((item) =>
+          const rows = (result.data || []).map((item) => {
+            // Backend returns 'timestamp' for real pairs and 'open_time'/'timestamp' for custom pairs.
+            // Values may be in milliseconds (>1e10) and must be converted to seconds for lightweight-charts.
+            const rawTime = Number(item.time ?? item.open_time ?? item.timestamp ?? 0)
+            const time = rawTime > 1e10 ? Math.floor(rawTime / 1000) : Math.floor(rawTime)
+            return {
+              time,
+              open: Number(item.open),
+              high: Number(item.high),
+              low: Number(item.low),
+              close: Number(item.close),
+            }
+          }).filter((item) =>
             item.time > 0 &&
             isFinite(item.open) && item.open > 0 &&
             isFinite(item.high) && item.high > 0 &&
@@ -2124,38 +2130,22 @@ function App() {
 
           <article className="panel-card">
             <h3>钱包概览</h3>
-            <div className="list-stack">
-              <div className="list-item">
-                <div>
-                  <strong>可交易余额</strong>
-                  <span>钱包余额 + 红包余额</span>
-                </div>
-                <div>
-                  <strong>{formatMoney(user?.tradable_balance)}</strong>
-                  <span>奖励余额 {formatMoney(user?.reward_balance)}</span>
-                </div>
+            <div className="wallet-balance-row">
+              <div className="wallet-balance-item">
+                <div className="wbi-label">可交易余额</div>
+                <div className="wbi-value highlight">{formatMoney(user?.tradable_balance)}</div>
               </div>
-              <div className="button-row">
-                <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>前往充值</button>
-                <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>前往提现</button>
+              <div className="wallet-balance-item">
+                <div className="wbi-label">奖励余额</div>
+                <div className="wbi-value">{formatMoney(user?.reward_balance)}</div>
               </div>
+            </div>
+            <div className="button-row">
+              <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>前往充值</button>
+              <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>前往提现</button>
             </div>
           </article>
 
-          <article className="panel-card">
-            <h3>语言切换</h3>
-            <div className="language-grid">
-              {LANG_OPTIONS.map((option) => (
-                <button
-                  key={option.code}
-                  className={lang === option.code ? 'tab-button active' : 'tab-button'}
-                  onClick={() => setLang(option.code)}
-                >
-                  {option.flag} {option.label}
-                </button>
-              ))}
-            </div>
-          </article>
         </div>
 
         <div className="content-grid content-grid-wide">

@@ -720,6 +720,16 @@ class ApiClient {
     return response.data;
   }
 
+  async resetLoginPassword(userId: string) {
+    const response = await this.client.post(`/users/${userId}/reset-login-password`, {});
+    return response.data;
+  }
+
+  async getWebAccounts(params?: any) {
+    const response = await this.client.get('/users/web-accounts', { params });
+    return response.data;
+  }
+
   async adjustBalance(userId: string, data: { amount: number; type: 'add' | 'subtract'; reason?: string }) {
     const response = await this.client.post(`/users/${userId}/adjust-balance`, data);
     return response.data;

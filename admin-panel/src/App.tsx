@@ -21,10 +21,12 @@ import {
   ThunderboltOutlined,
   ArrowDownOutlined,
   ArrowUpOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { Login } from './pages/Login';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
+import { WebAccounts } from './pages/WebAccounts';
 import { Bots } from './pages/Bots';
 import { RedPackets } from './pages/RedPackets';
 import { Broadcasts } from './pages/Broadcasts';
@@ -113,6 +115,11 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
       key: 'users',
       icon: <UserOutlined />,
       label: <Link to="/users">用户管理</Link>,
+    },
+    {
+      key: 'web-accounts',
+      icon: <MailOutlined />,
+      label: <Link to="/web-accounts">官网账号</Link>,
     },
     {
       key: 'groups',
@@ -393,6 +400,14 @@ function App() {
         element={
           <ProtectedRoute>
             <UserDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/web-accounts"
+        element={
+          <ProtectedRoute>
+            <WebAccounts />
           </ProtectedRoute>
         }
       />
