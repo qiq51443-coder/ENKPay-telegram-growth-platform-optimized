@@ -1,7 +1,7 @@
 import express from 'express';
 import { query, transaction, withSavepoint } from '../db';
 import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
-import { walletLimiter } from '../middleware/rateLimiter';
+import { webAppLimiter } from '../middleware/rateLimiter';
 import { getNextPeriod } from '../services/period.service';
 import { triggerFirstTradeReward } from '../services/invitation-reward.service';
 import { autoUnlockRewardBalance, autoUnlockRedPacketBalance } from '../services/balance.service';
@@ -14,7 +14,7 @@ import { drawWinner } from '../services/auction.service';
 
 const router = express.Router();
 
-router.use(walletLimiter);
+router.use(webAppLimiter);
 router.use(authenticateWebUser);
 
 function isMissingTableError(err: any): boolean {

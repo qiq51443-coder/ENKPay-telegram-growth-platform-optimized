@@ -2,7 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { query, transaction } from '../db';
 import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
-import { walletLimiter } from '../middleware/rateLimiter';
+import { webWalletLimiter } from '../middleware/rateLimiter';
 import { validateWithdrawal } from '../services/balance.service';
 import { generateUserDepositAddress } from '../services/deposit.service';
 import { generateOrderId } from '../utils/orderId';
@@ -12,7 +12,7 @@ const router = express.Router();
 const WITHDRAW_PASSWORD_MAX_ATTEMPTS = 5;
 const WITHDRAW_PASSWORD_LOCK_MINUTES = 15;
 
-router.use(walletLimiter);
+router.use(webWalletLimiter);
 router.use(authenticateWebUser);
 
 async function resolveNetworkId(networkId: string | number): Promise<number | null> {
