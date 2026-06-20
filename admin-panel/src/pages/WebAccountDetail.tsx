@@ -21,6 +21,7 @@ import {
 import {
   ArrowLeftOutlined,
   DollarOutlined,
+  KeyOutlined,
   LockOutlined,
   UnlockOutlined,
   ReloadOutlined,
@@ -42,6 +43,7 @@ interface WebAccountUser {
   wallet_balance?: number;
   reward_balance?: number;
   red_packet_balance?: number;
+  nft_balance?: number;
   frozen_balance?: number;
   total_recharged?: number;
   total_withdrawn?: number;
@@ -152,6 +154,62 @@ export const WebAccountDetail: React.FC = () => {
     });
   };
 
+  const handleResetLoginPassword = () => {
+    if (!id || !user) return;
+    Modal.confirm({
+      title: '重置登录密码',
+      content: `确认重置 ${user.email || user.unique_id} 的登录密码？系统将生成新的随机密码。`,
+      okText: '确认重置',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const result = await apiClient.resetLoginPassword(id);
+          message.success('登录密码已重置');
+          Modal.info({
+            title: '新登录密码',
+            content: (
+              <div>
+                <p>用户：<strong>{user.email}</strong></p>
+                <p>新密码：<Text code copyable>{result.new_password}</Text></p>
+                <p style={{ color: '#ff4d4f', marginTop: 8 }}>请将此密码告知用户，关闭后将不再显示原文。</p>
+              </div>
+            ),
+          });
+        } catch (error: any) {
+          message.error(error.response?.data?.error || '重置登录密码失败');
+        }
+      },
+    });
+  };
+
+  const handleResetWithdrawPassword = () => {
+    if (!id || !user) return;
+    Modal.confirm({
+      title: '重置提现密码',
+      content: `确认重置 ${user.email || user.unique_id} 的提现密码？系统将生成新的随机密码。`,
+      okText: '确认重置',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const result = await apiClient.resetWithdrawPassword(id);
+          message.success('提现密码已重置');
+          Modal.info({
+            title: '新提现密码',
+            content: (
+              <div>
+                <p>用户：<strong>{user.email}</strong></p>
+                <p>新密码：<Text code copyable>{result.new_password}</Text></p>
+                <p style={{ color: '#ff4d4f', marginTop: 8 }}>请将此密码告知用户，关闭后将不再显示原文。</p>
+              </div>
+            ),
+          });
+        } catch (error: any) {
+          message.error(error.response?.data?.error || '重置提现密码失败');
+        }
+      },
+    });
+  };
+
   const fmt = (v?: number) => `${Number(v || 0).toFixed(2)} USDT`;
 
   const txColumns = [
@@ -225,6 +283,12 @@ export const WebAccountDetail: React.FC = () => {
           <Button type="primary" icon={<DollarOutlined />} onClick={() => setAdjustOpen(true)}>
             调整余额
           </Button>
+          <Button icon={<KeyOutlined />} onClick={handleResetLoginPassword}>
+            重置登录密码
+          </Button>
+          <Button icon={<LockOutlined />} onClick={handleResetWithdrawPassword}>
+            重置提现密码
+          </Button>
           {user?.is_frozen ? (
             <Button icon={<UnlockOutlined />} onClick={handleFreezeToggle}>
               解冻
@@ -249,6 +313,18 @@ export const WebAccountDetail: React.FC = () => {
               <Statistic title="奖励余额" value={Number(user?.reward_balance ?? 0)} precision={2} suffix="USDT" />
             </Card>
           </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic title="红包余额" value={Number(user?.red_packet_balance ?? 0)} precision={2} suffix="USDT" />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic title="NFT 余额" value={Number(user?.nft_balance ?? 0)} precision={2} suffix="USDT" />
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={6}>
             <Card>
               <Statistic title="累计充值" value={Number(user?.real_deposit_total ?? user?.total_recharged ?? 0)} precision={2} suffix="USDT" />
