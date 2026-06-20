@@ -9,6 +9,8 @@ let _loginLimiter: RateLimitRequestHandler | undefined;
 let _webhookLimiter: RateLimitRequestHandler | undefined;
 let _adminLimiter: RateLimitRequestHandler | undefined;
 let _walletLimiter: RateLimitRequestHandler | undefined;
+let _webWalletLimiter: RateLimitRequestHandler | undefined;
+let _webAppLimiter: RateLimitRequestHandler | undefined;
 let _initialized = false;
 
 // Creates a RedisStore using the already-connected redis client.
@@ -63,8 +65,28 @@ export function initLimiters() {
 
   _walletLimiter = rateLimit({
     windowMs: 60 * 1000,  // 1 minute
-    max: 10,              // Max 10 financial operations per minute
+    max: 10,              // Max 10 financial operations per minute (bot wallet — kept strict)
     message: { error: 'Too many wallet requests, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: makeRedisStore(),
+  });
+
+  // Web wallet limiter — more lenient for web users (page loads trigger multiple requests)
+  _webWalletLimiter = rateLimit({
+    windowMs: 60 * 1000,  // 1 minute
+    max: 60,              // Max 60 web wallet requests per minute per IP
+    message: { error: '请求过于频繁，请稍后再试' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: makeRedisStore(),
+  });
+
+  // Web app limiter — for trading/auction/products/charity endpoints
+  _webAppLimiter = rateLimit({
+    windowMs: 60 * 1000,  // 1 minute
+    max: 60,              // Max 60 web app requests per minute per IP
+    message: { error: '请求过于频繁，请稍后再试' },
     standardHeaders: true,
     legacyHeaders: false,
     store: makeRedisStore(),
@@ -108,6 +130,18 @@ export const walletLimiter = (req: Request, res: Response, next: NextFunction) =
   return next();
 };
 
+// Web wallet limiter — lenient for web users loading deposit/withdraw pages
+export const webWalletLimiter = (req: Request, res: Response, next: NextFunction) => {
+  if (_webWalletLimiter) return _webWalletLimiter(req, res, next);
+  return next();
+};
+
+// Web app limiter — for trading/auction/products/charity web API endpoints
+export const webAppLimiter = (req: Request, res: Response, next: NextFunction) => {
+  if (_webAppLimiter) return _webAppLimiter(req, res, next);
+  return next();
+};
+
 // Export all limiters
 export default {
   generalLimiter,
@@ -115,4 +149,6 @@ export default {
   webhookLimiter,
   adminLimiter,
   walletLimiter,
+  webWalletLimiter,
+  webAppLimiter,
 };

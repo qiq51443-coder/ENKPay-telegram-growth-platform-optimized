@@ -518,7 +518,13 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data?.error || '请求失败')
+    const rawError: string = data?.error || data?.message || '请求失败'
+    // Translate known English rate-limit messages to Chinese
+    const translatedError = rawError
+      .replace(/Too many wallet requests.*/, '请求过于频繁，请稍后再试')
+      .replace(/Too many login attempts.*/, '登录尝试次数过多，请稍后再试')
+      .replace(/Too many requests.*/, '请求过于频繁，请稍后再试')
+    throw new Error(translatedError)
   }
   return data as T
 }
@@ -696,8 +702,10 @@ function App() {
 
   const [depositNetworks, setDepositNetworks] = useState<WalletNetwork[]>([])
   const [depositNetworksLoading, setDepositNetworksLoading] = useState(false)
+  const [depositNetworksError, setDepositNetworksError] = useState('')
   const [selectedDepositNetwork, setSelectedDepositNetwork] = useState('')
   const [depositAddress, setDepositAddress] = useState('')
+  const [depositAddressError, setDepositAddressError] = useState('')
   const [depositQr, setDepositQr] = useState('')
   const [depositLoading, setDepositLoading] = useState(false)
 
@@ -1049,6 +1057,7 @@ function App() {
   useEffect(() => {
     if (!token || route.view !== 'deposit') return
     setDepositNetworksLoading(true)
+    setDepositNetworksError('')
     apiRequest<ApiResult<WalletNetwork[]>>('/web/wallet/networks', {}, token)
       .then((result) => {
         const list = result.data || []
@@ -1057,16 +1066,21 @@ function App() {
           setSelectedDepositNetwork(String(list[0].id))
         }
       })
+      .catch((error: Error) => {
+        setDepositNetworksError(error.message || '加载充值网络失败')
+      })
       .finally(() => setDepositNetworksLoading(false))
   }, [route, token, selectedDepositNetwork])
 
   useEffect(() => {
     if (!token || route.view !== 'deposit' || !selectedDepositNetwork) return
     setDepositLoading(true)
+    setDepositAddressError('')
     apiRequest<ApiResult<{ address: string; qr_text: string }>>(`/web/wallet/deposit-address?network_id=${selectedDepositNetwork}`, {}, token)
       .then(async (result) => {
         const address = result.data?.address || ''
         setDepositAddress(address)
+        setDepositAddressError('')
         if (address) {
           const qr = await QRCode.toDataURL(result.data?.qr_text || address, { margin: 1, width: 220 })
           setDepositQr(qr)
@@ -1077,7 +1091,7 @@ function App() {
       .catch((error: Error) => {
         setDepositAddress('')
         setDepositQr('')
-        showToast(error.message)
+        setDepositAddressError(error.message || '加载充值地址失败')
       })
       .finally(() => setDepositLoading(false))
   }, [route, token, selectedDepositNetwork])
@@ -1782,7 +1796,6 @@ function App() {
               <article className="panel-card chart-panel">
                 <div className="section-head">
                   <div>
-                    <span className="eyebrow">K 线图</span>
                     <h3>{pair.symbol}</h3>
                   </div>
                   <div className="kline-tabs">
@@ -1803,7 +1816,6 @@ function App() {
               <article className="panel-card">
                 <div className="section-head">
                   <div>
-                    <span className="eyebrow">持仓 / 历史</span>
                     <h3>最近订单</h3>
                   </div>
                   {tradingOrdersLoading && <span className="muted-text">加载中...</span>}
@@ -2644,50 +2656,91 @@ function App() {
         <main className="main-card">
           <div className="section-head">
             <div>
-              <span className="eyebrow">独立页面</span>
               <h2>充值</h2>
             </div>
             <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'profile' })}>返回用户中心</button>
           </div>
 
-          <div className="field-grid">
-            <label>
-              <span>选择网络</span>
-            </label>
-            <div className="network-card-grid">
-              {depositNetworks.map((network) => (
-                <div
-                  key={network.id}
-                  className={`network-card${String(network.id) === selectedDepositNetwork ? ' selected' : ''}`}
-                  onClick={() => setSelectedDepositNetwork(String(network.id))}
-                >
-                  <div className="network-card-icon">{getChainIcon(network.chain_name)}</div>
-                  <div className="network-card-info">
-                    <div className="network-card-name">{network.network_display}</div>
-                    <div className="network-card-chain">{network.chain_name}</div>
-                    {network.min_deposit_amount != null && (
-                      <div className="network-card-min">最低 {formatMoney(network.min_deposit_amount)}</div>
-                    )}
+          {depositNetworksLoading ? (
+            <div className="empty-card inset">正在加载充值网络...</div>
+          ) : depositNetworksError ? (
+            <div className="deposit-error-state">
+              <div className="hint-box error">{depositNetworksError}</div>
+              <button className="primary-button" onClick={() => {
+                setDepositNetworksError('')
+                setDepositNetworks([])
+                setSelectedDepositNetwork('')
+              }}>
+                点击重试
+              </button>
+            </div>
+          ) : (
+            <div className="field-grid">
+              <label>
+                <span>选择网络</span>
+              </label>
+              <div className="network-card-grid">
+                {depositNetworks.map((network) => (
+                  <div
+                    key={network.id}
+                    className={`network-card${String(network.id) === selectedDepositNetwork ? ' selected' : ''}`}
+                    onClick={() => setSelectedDepositNetwork(String(network.id))}
+                  >
+                    <div className="network-card-icon">{getChainIcon(network.chain_name)}</div>
+                    <div className="network-card-info">
+                      <div className="network-card-name">{network.network_display}</div>
+                      <div className="network-card-chain">{network.chain_name}</div>
+                      {network.min_deposit_amount != null && (
+                        <div className="network-card-min">最低 {formatMoney(network.min_deposit_amount)}</div>
+                      )}
+                    </div>
+                    {String(network.id) === selectedDepositNetwork && <span className="network-card-check">✓</span>}
                   </div>
-                  {String(network.id) === selectedDepositNetwork && <span className="network-card-check">✓</span>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {depositNetworksLoading || depositLoading ? <div className="empty-card inset">正在加载充值地址...</div> : (
-            <div className="content-grid">
-              <article className="panel-card">
-                <h3>充值地址</h3>
-                <div className="address-box">{depositAddress || '暂无地址'}</div>
-                <div className="muted-text">网络：{currentDepositNetwork?.network_display || '--'} · 最低充值：{formatMoney(currentDepositNetwork?.min_deposit_amount)}</div>
-              </article>
+          {!depositNetworksLoading && !depositNetworksError && (
+            depositLoading ? (
+              <div className="empty-card inset">正在加载充值地址...</div>
+            ) : depositAddressError ? (
+              <div className="deposit-error-state">
+                <div className="hint-box error">{depositAddressError}</div>
+                <button className="secondary-button" onClick={() => {
+                  setDepositAddressError('')
+                  setDepositAddress('')
+                  setDepositQr('')
+                }}>
+                  重新获取地址
+                </button>
+              </div>
+            ) : (
+              <div className="content-grid">
+                <article className="panel-card">
+                  <h3>充值地址</h3>
+                  <div
+                    className="address-box"
+                    title="点击复制"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      if (depositAddress) {
+                        navigator.clipboard?.writeText(depositAddress).catch(() => {})
+                        showToast('地址已复制')
+                      }
+                    }}
+                  >
+                    {depositAddress || '暂无地址'}
+                  </div>
+                  <div className="muted-text">网络：{currentDepositNetwork?.network_display || '--'} · 最低充值：{formatMoney(currentDepositNetwork?.min_deposit_amount)}</div>
+                </article>
 
-              <article className="panel-card center">
-                <h3>二维码</h3>
-                {depositQr ? <img className="qr-image" src={depositQr} alt="Deposit QR Code" /> : <div className="empty-card inset">暂无二维码</div>}
-              </article>
-            </div>
+                <article className="panel-card center">
+                  <h3>二维码</h3>
+                  {depositQr ? <img className="qr-image" src={depositQr} alt="Deposit QR Code" /> : <div className="empty-card inset">暂无二维码</div>}
+                </article>
+              </div>
+            )
           )}
 
           <article className="panel-card">
@@ -2703,7 +2756,6 @@ function App() {
         <main className="main-card">
           <div className="section-head">
             <div>
-              <span className="eyebrow">独立页面</span>
               <h2>提现</h2>
             </div>
             <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'profile' })}>返回用户中心</button>
