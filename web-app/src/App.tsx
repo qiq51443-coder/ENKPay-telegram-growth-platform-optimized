@@ -612,6 +612,54 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleString()
 }
 
+function getChainIcon(chainName: string) {
+  const chain = (chainName || '').toUpperCase()
+  if (chain === 'BSC' || chain === 'BEP20') {
+    return (
+      <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="16" fill="#F0B90B"/>
+        <path d="M12.116 14.404 16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26ZM6 16l2.26-2.26L10.52 16l-2.26 2.26L6 16Zm6.116 1.596L16 21.48l3.886-3.886 2.26 2.259L16 26l-6.144-6.144-.002-.002 2.262-2.258ZM21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16Zm-3.188-.002h.002L16 13.706l-1.634 1.635-.188.189-.39.39.002.002-.002.002L16 18.294l2.294-2.294.001-.002h-.003Z" fill="#fff"/>
+      </svg>
+    )
+  }
+  if (chain === 'ETH' || chain === 'ERC20' || chain === 'ETHEREUM') {
+    return (
+      <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="16" fill="#627EEA"/>
+        <path d="M16.498 6v7.653l6.496 2.903L16.498 6Z" fill="#fff" fillOpacity=".602"/>
+        <path d="M16.498 6 10 16.556l6.498-2.903V6Z" fill="#fff"/>
+        <path d="M16.498 21.968v4.027L23 17.616l-6.502 4.352Z" fill="#fff" fillOpacity=".602"/>
+        <path d="M16.498 25.995v-4.028L10 17.616l6.498 8.379Z" fill="#fff"/>
+        <path d="m16.498 20.573 6.496-3.957-6.496-2.9v6.857Z" fill="#fff" fillOpacity=".2"/>
+        <path d="m10 16.616 6.498 3.957v-6.857l-6.498 2.9Z" fill="#fff" fillOpacity=".602"/>
+      </svg>
+    )
+  }
+  if (chain === 'TRON' || chain === 'TRC20') {
+    return (
+      <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="16" fill="#E50915"/>
+        <path d="m23.5 13.1-9.2-7.6-.3-.2H8l.4.5 5.3 8.7-5.1 3.8-.3.2.1.4 2 7.4.1.3h.6l12.5-12.9.4-.4-.5-.2ZM14.9 16l-4.3-7.1h6.2l4.7 3.9L14.9 16Zm-3.4 6.9-1.3-4.8 4-3 3.6 5.9-6.3 1.9Z" fill="#fff"/>
+      </svg>
+    )
+  }
+  if (chain === 'POLYGON' || chain === 'MATIC') {
+    return (
+      <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="16" fill="#8247E5"/>
+        <path d="M21.09 13.394c-.374-.216-.86-.216-1.272 0l-2.956 1.726-2.008 1.129-2.919 1.726c-.374.216-.86.216-1.272 0L8.9 16.788a1.293 1.293 0 0 1-.636-1.093v-3.126c0-.432.225-.836.636-1.093l1.71-.98c.374-.216.86-.216 1.272 0l1.71.98c.374.216.636.66.636 1.093v1.726l2.007-1.166v-1.726A1.293 1.293 0 0 0 15.6 10.31l-3.643-2.085c-.374-.216-.86-.216-1.272 0L6.99 10.31a1.293 1.293 0 0 0-.636 1.093v4.173c0 .432.225.836.636 1.093l3.681 2.12c.374.216.86.216 1.272 0l2.918-1.69 2.008-1.165 2.919-1.69c.374-.216.86-.216 1.272 0l1.71.98c.374.216.636.66.636 1.093v3.126c0 .432-.225.836-.636 1.093l-1.673.98c-.374.216-.86.216-1.272 0l-1.71-.98a1.293 1.293 0 0 1-.636-1.093v-1.726l-2.007 1.165v1.726c0 .432.224.836.636 1.093l3.68 2.12c.374.216.86.216 1.272 0l3.681-2.12c.374-.216.636-.66.636-1.093v-4.21a1.293 1.293 0 0 0-.636-1.093l-3.718-2.12Z" fill="#fff"/>
+      </svg>
+    )
+  }
+  // Generic chain icon
+  return (
+    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="rgba(240,185,11,0.2)" stroke="#F0B90B" strokeWidth="1.5"/>
+      <text x="16" y="21" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#F0B90B">{chainName.slice(0,3).toUpperCase()}</text>
+    </svg>
+  )
+}
+
 function cardTitle(route: Route) {
   if (route.view === 'deposit') return '独立充值页'
   if (route.view === 'withdraw') return '独立提现页'
@@ -730,6 +778,11 @@ function App() {
   const tradingChartRef = useRef<HTMLDivElement | null>(null)
   const tradingChartInstanceRef = useRef<any>(null)
   const tradingSeriesRef = useRef<any>(null)
+  const lastKlineTimeRef = useRef<number>(0)
+  const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null)
+  const livePriceRef = useRef<Record<string, { price: number; change24h: number }>>({})
+  const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({ funds: true, settings: false, info: false })
   const t = I18N[lang]
 
   const activeTab = route.view === 'app' ? route.tab : 'trading'
@@ -911,6 +964,7 @@ function App() {
             const msg = JSON.parse(evt.data) as { type: string; data: Record<string, { price: number; change24h: number }> }
             if (msg.type === 'prices' && msg.data) {
               triggerPriceFlash(msg.data)
+              livePriceRef.current = { ...livePriceRef.current, ...msg.data }
               setLivePrice((prev) => ({ ...prev, ...msg.data }))
             }
           } catch {}
@@ -959,6 +1013,7 @@ function App() {
           })
           if (Object.keys(updates).length > 0) {
             triggerPriceFlash(updates)
+            livePriceRef.current = { ...livePriceRef.current, ...updates }
             setLivePrice((prev) => ({ ...prev, ...updates }))
           }
         })
@@ -1182,6 +1237,10 @@ function App() {
     let rafRetries = 0
     const MAX_RAF_RETRIES = 30
 
+    // Reset real-time candle refs on pair/interval change
+    lastKlineTimeRef.current = 0
+    lastCandleRef.current = null
+
     const initChart = () => {
       if (disposed || !tradingChartRef.current) return
 
@@ -1288,6 +1347,10 @@ function App() {
           if (rows.length > 0) {
             candleSeries.setData(rows as any)
             chart.timeScale().fitContent()
+            // Track the last candle for real-time price updates
+            const lastRow = rows[rows.length - 1]
+            lastKlineTimeRef.current = lastRow.time
+            lastCandleRef.current = { open: lastRow.open, high: lastRow.high, low: lastRow.low, close: lastRow.close }
           }
         })
         .catch(() => {})
@@ -1298,6 +1361,8 @@ function App() {
         document.removeEventListener('visibilitychange', onVisibilityChange)
         tradingSeriesRef.current = null
         tradingChartInstanceRef.current = null
+        lastKlineTimeRef.current = 0
+        lastCandleRef.current = null
         if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
         try { chart.remove() } catch {}
       }
@@ -1318,6 +1383,74 @@ function App() {
 
     return () => { cleanupRef.current() }
   }, [selectedTradingPair?.id, klineInterval])
+
+  // Push livePrice updates to the last K-line candle
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!selectedTradingPair) return
+    const priceInfo = livePrice[selectedTradingPair.id]
+    if (!priceInfo || !priceInfo.price) return
+    const newPrice = priceInfo.price
+    if (!tradingSeriesRef.current || lastKlineTimeRef.current === 0 || !lastCandleRef.current) return
+    const lastCandle = lastCandleRef.current
+    const updatedCandle = {
+      time: lastKlineTimeRef.current,
+      open: lastCandle.open,
+      high: Math.max(lastCandle.high, newPrice),
+      low: Math.min(lastCandle.low, newPrice),
+      close: newPrice,
+    }
+    lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: newPrice }
+    try { tradingSeriesRef.current.update(updatedCandle) } catch {}
+  }, [livePrice, selectedTradingPair])
+
+  // Randomized chart tick (1500–2500ms) for smooth real-time candle animation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (chartTickRef.current) clearTimeout(chartTickRef.current)
+    if (!selectedTradingPair) return
+
+    let stopped = false
+    const scheduleTick = () => {
+      const delay = 1500 + Math.random() * 1000
+      chartTickRef.current = setTimeout(() => {
+        if (stopped) return
+        if (tradingSeriesRef.current && lastKlineTimeRef.current !== 0 && lastCandleRef.current) {
+          const lastCandle = lastCandleRef.current
+          const priceInfo = livePriceRef.current[selectedTradingPair.id]
+          let newPrice: number | null = null
+          if (priceInfo?.price) {
+            newPrice = priceInfo.price
+          } else if (selectedTradingPair.pair_type === 'custom') {
+            const basePrice = lastCandle.close
+            if (basePrice > 0) {
+              const pct = 0.001 + Math.random() * 0.002
+              const dir = Math.random() > 0.5 ? 1 : -1
+              newPrice = basePrice * (1 + dir * pct)
+            }
+          }
+          if (newPrice !== null && newPrice > 0) {
+            const updatedCandle = {
+              time: lastKlineTimeRef.current,
+              open: lastCandle.open,
+              high: Math.max(lastCandle.high, newPrice),
+              low: Math.min(lastCandle.low, newPrice),
+              close: newPrice,
+            }
+            lastCandleRef.current = { open: updatedCandle.open, high: updatedCandle.high, low: updatedCandle.low, close: newPrice }
+            try { tradingSeriesRef.current.update(updatedCandle) } catch {}
+          }
+        }
+        scheduleTick()
+      }, delay)
+    }
+
+    scheduleTick()
+    return () => {
+      stopped = true
+      if (chartTickRef.current) clearTimeout(chartTickRef.current)
+    }
+  }, [selectedTradingPair])
 
   const handleAuthChange = (key: keyof typeof authForms, value: string | boolean) => {
     setAuthForms((current) => ({ ...current, [key]: value }))
@@ -2089,6 +2222,7 @@ function App() {
 
   const renderProfile = () => {
     const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
+    const toggleGroup = (key: string) => setProfileOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
     return (
       <section className="view-stack">
         <div className="hero-panel profile-hero">
@@ -2112,6 +2246,7 @@ function App() {
           ))}
         </div>
 
+        {/* 账户概览 — always visible */}
         <div className="content-grid content-grid-wide">
           <article className="panel-card">
             <h3>邀请好友</h3>
@@ -2145,55 +2280,116 @@ function App() {
               <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>前往提现</button>
             </div>
           </article>
-
         </div>
 
-        <div className="content-grid content-grid-wide">
-          <article className="panel-card">
-            <h3>安全设置</h3>
-            <div className="field-grid">
-              <label>
-                <span>提现密码（至少 6 位数字）</span>
-                <input
-                  type="password"
-                  value={withdrawPasswordForm.password}
-                  onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, password: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>确认提现密码</span>
-                <input
-                  type="password"
-                  value={withdrawPasswordForm.confirmPassword}
-                  onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                />
-              </label>
-            </div>
-            <button className="primary-button" disabled={passwordLoading} onClick={handleSaveWithdrawPassword}>
-              {hasWithdrawPassword ? '更新提现密码' : '设置提现密码'}
-            </button>
-          </article>
-
-          <article className="panel-card">
-            <h3>最近钱包记录</h3>
-            {transactionsLoading ? <div className="empty-card inset">正在加载记录...</div> : (
-              <div className="list-stack">
-                {transactions.map((item) => (
-                  <div className="list-item" key={item.id}>
-                    <div>
-                      <strong>{item.type === 'deposit' ? '充值' : '提现'}</strong>
-                      <span>{item.network_display || item.order_id || '--'}</span>
-                    </div>
-                    <div>
-                      <strong>{formatMoney(item.amount)}</strong>
-                      <span>{formatDate(item.created_at)}</span>
-                    </div>
+        {/* 💰 资金操作 */}
+        <div className="profile-accordion">
+          <button className="profile-accordion-header" onClick={() => toggleGroup('funds')}>
+            <span>💰 资金操作</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.funds ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.funds ? ' open' : ''}`}>
+            <div className="content-grid content-grid-wide">
+              <article className="panel-card">
+                <h3>最近钱包记录</h3>
+                {transactionsLoading ? <div className="empty-card inset">正在加载记录...</div> : (
+                  <div className="list-stack">
+                    {transactions.map((item) => (
+                      <div className="list-item" key={item.id}>
+                        <div>
+                          <strong>{item.type === 'deposit' ? '充值' : '提现'}</strong>
+                          <span>{item.network_display || item.order_id || '--'}</span>
+                        </div>
+                        <div>
+                          <strong>{formatMoney(item.amount)}</strong>
+                          <span>{formatDate(item.created_at)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {!transactions.length && <div className="empty-card inset">暂无充值/提现记录。</div>}
                   </div>
-                ))}
-                {!transactions.length && <div className="empty-card inset">暂无充值/提现记录。</div>}
+                )}
+              </article>
+              <article className="panel-card">
+                <h3>快捷操作</h3>
+                <div className="profile-action-list">
+                  <button className="profile-action-item" onClick={() => guarded({ view: 'deposit' })}>
+                    <span className="profile-action-icon">💳</span>
+                    <span>充值</span>
+                    <span className="profile-action-arrow">›</span>
+                  </button>
+                  <button className="profile-action-item" onClick={() => guarded({ view: 'withdraw' })}>
+                    <span className="profile-action-icon">📤</span>
+                    <span>提现</span>
+                    <span className="profile-action-arrow">›</span>
+                  </button>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        {/* 👤 账户设置 */}
+        <div className="profile-accordion">
+          <button className="profile-accordion-header" onClick={() => toggleGroup('settings')}>
+            <span>👤 账户设置</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.settings ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.settings ? ' open' : ''}`}>
+            <article className="panel-card">
+              <h3>安全设置</h3>
+              <div className="field-grid">
+                <label>
+                  <span>提现密码（至少 6 位数字）</span>
+                  <input
+                    type="password"
+                    value={withdrawPasswordForm.password}
+                    onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, password: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>确认提现密码</span>
+                  <input
+                    type="password"
+                    value={withdrawPasswordForm.confirmPassword}
+                    onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                  />
+                </label>
               </div>
-            )}
-          </article>
+              <button className="primary-button" disabled={passwordLoading} onClick={handleSaveWithdrawPassword}>
+                {hasWithdrawPassword ? '更新提现密码' : '设置提现密码'}
+              </button>
+            </article>
+          </div>
+        </div>
+
+        {/* 📢 信息中心 */}
+        <div className="profile-accordion">
+          <button className="profile-accordion-header" onClick={() => toggleGroup('info')}>
+            <span>📢 信息中心</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.info ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.info ? ' open' : ''}`}>
+            <article className="panel-card">
+              <div className="profile-action-list">
+                {contactTelegram && (
+                  <a className="profile-action-item" href={`https://t.me/${safeTelegram}`} target="_blank" rel="noreferrer">
+                    <span className="profile-action-icon">💬</span>
+                    <span>联系客服</span>
+                    <span className="profile-action-arrow">›</span>
+                  </a>
+                )}
+                <button className="profile-action-item" onClick={() => {
+                  const el = document.getElementById('announcement-section')
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }}>
+                  <span className="profile-action-icon">📣</span>
+                  <span>查看公告</span>
+                  <span className="profile-action-arrow">›</span>
+                </button>
+              </div>
+            </article>
+          </div>
         </div>
 
         {user?.wallet_tip_message && <div className="tip-box">{user.wallet_tip_message}</div>}
@@ -2457,12 +2653,26 @@ function App() {
           <div className="field-grid">
             <label>
               <span>选择网络</span>
-              <select value={selectedDepositNetwork} onChange={(event) => setSelectedDepositNetwork(event.target.value)}>
-                {depositNetworks.map((network) => (
-                  <option key={network.id} value={network.id}>{network.network_display} / {network.chain_name}</option>
-                ))}
-              </select>
             </label>
+            <div className="network-card-grid">
+              {depositNetworks.map((network) => (
+                <div
+                  key={network.id}
+                  className={`network-card${String(network.id) === selectedDepositNetwork ? ' selected' : ''}`}
+                  onClick={() => setSelectedDepositNetwork(String(network.id))}
+                >
+                  <div className="network-card-icon">{getChainIcon(network.chain_name)}</div>
+                  <div className="network-card-info">
+                    <div className="network-card-name">{network.network_display}</div>
+                    <div className="network-card-chain">{network.chain_name}</div>
+                    {network.min_deposit_amount != null && (
+                      <div className="network-card-min">最低 {formatMoney(network.min_deposit_amount)}</div>
+                    )}
+                  </div>
+                  {String(network.id) === selectedDepositNetwork && <span className="network-card-check">✓</span>}
+                </div>
+              ))}
+            </div>
           </div>
 
           {depositNetworksLoading || depositLoading ? <div className="empty-card inset">正在加载充值地址...</div> : (
@@ -2507,12 +2717,23 @@ function App() {
             <div className="field-grid">
               <label>
                 <span>选择网络</span>
-                <select value={withdrawForm.network_id} onChange={(event) => setWithdrawForm((current) => ({ ...current, network_id: event.target.value }))}>
-                  {withdrawNetworks.map((network) => (
-                    <option key={network.id} value={network.id}>{network.network_display} / {network.chain_name}</option>
-                  ))}
-                </select>
               </label>
+              <div className="network-card-grid">
+                {withdrawNetworks.map((network) => (
+                  <div
+                    key={network.id}
+                    className={`network-card${String(network.id) === withdrawForm.network_id ? ' selected' : ''}`}
+                    onClick={() => setWithdrawForm((current) => ({ ...current, network_id: String(network.id) }))}
+                  >
+                    <div className="network-card-icon">{getChainIcon(network.chain_name)}</div>
+                    <div className="network-card-info">
+                      <div className="network-card-name">{network.network_display}</div>
+                      <div className="network-card-chain">{network.chain_name}</div>
+                    </div>
+                    {String(network.id) === withdrawForm.network_id && <span className="network-card-check">✓</span>}
+                  </div>
+                ))}
+              </div>
               <label>
                 <span>提现地址</span>
                 <input value={withdrawForm.to_address} onChange={(event) => setWithdrawForm((current) => ({ ...current, to_address: event.target.value }))} />

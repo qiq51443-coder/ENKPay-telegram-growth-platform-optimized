@@ -131,6 +131,7 @@ const UsersPage: React.FC = () => {
       const params: any = {
         page: currentPage,
         limit: 20,
+        register_type: 'bot',
       };
       
       if (search) params.search = search;
@@ -337,8 +338,8 @@ const UsersPage: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>用户管理</h2>
-        <p style={{ color: '#666', marginTop: 4 }}>查看和管理所有用户</p>
+        <h2 style={{ margin: 0 }}>用户管理（Bot 用户）</h2>
+        <p style={{ color: '#666', marginTop: 4 }}>查看和管理所有 Telegram Bot 用户</p>
         {stats && (
           <div style={{ color: '#52c41a', fontSize: 14, marginTop: 8 }}>
             用户总数: <strong>{stats.total_users}</strong>

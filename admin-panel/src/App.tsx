@@ -27,6 +27,7 @@ import { Login } from './pages/Login';
 import { Users } from './pages/Users';
 import { UserDetail } from './pages/UserDetail';
 import { WebAccounts } from './pages/WebAccounts';
+import { WebAccountDetail } from './pages/WebAccountDetail';
 import { Bots } from './pages/Bots';
 import { RedPackets } from './pages/RedPackets';
 import { Broadcasts } from './pages/Broadcasts';
@@ -408,6 +409,14 @@ function App() {
         element={
           <ProtectedRoute>
             <WebAccounts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/web-accounts/:id"
+        element={
+          <ProtectedRoute>
+            <WebAccountDetail />
           </ProtectedRoute>
         }
       />
