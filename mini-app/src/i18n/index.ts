@@ -267,6 +267,7 @@ const zh: Translations = {
   order_error_invalid_amount: '请输入有效金额',
   order_error_no_rule: '当前交易对暂无可用规则，请稍后再试',
   order_error_bad_param: '参数错误',
+  transfer_requires_deposit: '你尚未进行充值，充值后功能不受限制。',
 };
 
 const en: Translations = {
@@ -525,6 +526,7 @@ const en: Translations = {
   order_error_invalid_amount: 'Please enter a valid amount',
   order_error_no_rule: 'No active trading rule for this pair, please try later',
   order_error_bad_param: 'Invalid parameter',
+  transfer_requires_deposit: 'You have not made a deposit yet. All features will be unlocked after your first deposit.',
 };
 
 const fr: Translations = {
@@ -767,6 +769,7 @@ const fr: Translations = {
   order_error_invalid_amount: 'Veuillez entrer un montant valide',
   order_error_no_rule: 'Aucune règle active pour cette paire, veuillez réessayer plus tard',
   order_error_bad_param: 'Paramètre invalide',
+  transfer_requires_deposit: 'Vous n\'avez pas encore effectué de dépôt. Toutes les fonctions seront débloquées après votre premier dépôt.',
 };
 
 const de: Translations = {
@@ -1009,6 +1012,7 @@ const de: Translations = {
   order_error_invalid_amount: 'Bitte gültigen Betrag eingeben',
   order_error_no_rule: 'Keine aktive Handelsregel für dieses Paar, bitte später versuchen',
   order_error_bad_param: 'Ungültiger Parameter',
+  transfer_requires_deposit: 'Sie haben noch keine Einzahlung getätigt. Alle Funktionen werden nach Ihrer ersten Einzahlung freigeschaltet.',
 };
 
 const es: Translations = {
@@ -1251,6 +1255,7 @@ const es: Translations = {
   order_error_invalid_amount: 'Por favor ingrese un monto válido',
   order_error_no_rule: 'No hay regla activa para este par, intente más tarde',
   order_error_bad_param: 'Parámetro inválido',
+  transfer_requires_deposit: 'Aún no ha realizado un depósito. Todas las funciones se desbloquearán después de su primer depósito.',
 };
 
 const ar: Translations = {
@@ -1493,6 +1498,7 @@ const ar: Translations = {
   order_error_invalid_amount: 'يرجى إدخال مبلغ صحيح',
   order_error_no_rule: 'لا توجد قاعدة تداول نشطة لهذا الزوج، يرجى المحاولة لاحقاً',
   order_error_bad_param: 'معامل غير صالح',
+  transfer_requires_deposit: 'لم تقم بأي إيداع حتى الآن. ستُفتح جميع الميزات بعد أول إيداع.',
 };
 
 const ja: Translations = {
@@ -1735,6 +1741,7 @@ const ja: Translations = {
   order_error_invalid_amount: '有効な金額を入力してください',
   order_error_no_rule: 'このペアのアクティブな取引ルールがありません。後で再試行してください',
   order_error_bad_param: '無効なパラメータ',
+  transfer_requires_deposit: 'まだ入金が行われていません。初回入金後にすべての機能が解放されます。',
 };
 
 const allTranslations: Record<LangCode, Translations> = { zh, en, fr, de, es, ar, ja };

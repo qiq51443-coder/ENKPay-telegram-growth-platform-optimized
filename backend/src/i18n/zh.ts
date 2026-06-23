@@ -262,4 +262,5 @@ export const zh = {
   btn_official_group: '官方群组',
   btn_official_channel: '官方频道',
   official_links_prompt: '👇 请点击下方按钮关注群组',
+  transfer_requires_deposit: '你尚未进行充值，充值后功能不受限制。',
 };

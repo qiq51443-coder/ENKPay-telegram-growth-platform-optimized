@@ -250,4 +250,5 @@ export const ja: Record<string, string> = {
   btn_official_group: '公式グループ',
   btn_official_channel: '公式チャンネル',
   official_links_prompt: '👇 下のボタンをクリックしてグループに参加してください',
+  transfer_requires_deposit: 'まだ入金が行われていません。初回入金後にすべての機能が解放されます。',
 };

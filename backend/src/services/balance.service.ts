@@ -103,6 +103,54 @@ export async function getUserBalance(userId: string | number): Promise<UserBalan
 }
 
 /**
+ * 检查用户是否有真实充值记录
+ * 双重检查：先看 total_recharged，再查 deposit_records
+ */
+export async function checkUserHasQualifiedDeposit(userId: string | number): Promise<boolean> {
+  const userRow = await query(
+    `SELECT total_recharged FROM users WHERE id = $1`,
+    [String(userId)]
+  );
+  if (!userRow.rows.length) return false;
+
+  const totalRecharged = Number(userRow.rows[0].total_recharged ?? 0);
+  if (Number.isFinite(totalRecharged) && totalRecharged > 0) return true;
+
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1 FROM deposit_records
+       WHERE user_id = $1
+         AND COALESCE(actual_amount, amount, 0) > 0
+         AND (
+           credited_at IS NOT NULL
+           OR LOWER(COALESCE(status, '')) IN ('confirmed', 'credited', 'completed', 'success', 'successful', 'succeeded')
+         )
+     ) AS has_deposit`,
+    [String(userId)]
+  );
+  return Boolean(result.rows[0]?.has_deposit);
+}
+
+/**
+ * 检查用户余额是否来自「已真实充值」用户的转入（间接认证）
+ * 即：只要收到过已充值用户的转账，也视为有转账权限
+ */
+export async function checkFundsFromDepositUser(userId: string | number): Promise<boolean> {
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM transfer_records tr
+       JOIN users sender ON tr.from_user_id = sender.id
+       WHERE tr.to_user_id = $1
+         AND tr.status = 'completed'
+         AND COALESCE(sender.total_recharged, 0) > 0
+     ) AS has_funded_transfer`,
+    [String(userId)]
+  );
+  return Boolean(result.rows[0]?.has_funded_transfer);
+}
+
+/**
  * Validate transfer request
  * Rules:
  * - Minimum 10 USDT
@@ -116,7 +164,7 @@ export async function validateTransfer(
 ): Promise<{ valid: boolean; error?: string }> {
   // Get platform config
   const configResult = await query(
-    `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate', 'require_trade_before_transfer')`
+    `SELECT key, value FROM platform_config WHERE key IN ('transfer_min_amount', 'transfer_fee_rate', 'require_trade_before_transfer', 'require_deposit_before_transfer')`
   );
   const config: Record<string, number> = {};
   configResult.rows.forEach((row: { key: string; value: string }) => {
@@ -126,6 +174,10 @@ export async function validateTransfer(
   // Default false: admin-credited users are not blocked from transferring
   const requireTrade = requireTradeRow
     ? (requireTradeRow.value === 'true' || requireTradeRow.value === '1')
+    : false;
+  const requireDepositTransferRow = configResult.rows.find((row: { key: string; value: string }) => row.key === 'require_deposit_before_transfer');
+  const requireDepositForTransfer = requireDepositTransferRow
+    ? (requireDepositTransferRow.value === 'true' || requireDepositTransferRow.value === '1')
     : false;
 
   // Prefer bot_settings over platform_config for min amount (admin panel writes to bot_settings)
@@ -156,6 +208,19 @@ export async function validateTransfer(
   // Check if first trade is done (only enforced when require_trade_before_transfer = true)
   if (requireTrade && !balance.is_first_trade_done) {
     return { valid: false, error: 'You must complete at least one trade before transferring' };
+  }
+
+  if (requireDepositForTransfer) {
+    const hasDeposit = await checkUserHasQualifiedDeposit(fromUserId);
+    if (!hasDeposit) {
+      const hasFundedByDepositUser = await checkFundsFromDepositUser(fromUserId);
+      if (!hasFundedByDepositUser) {
+        return {
+          valid: false,
+          error: 'TRANSFER_REQUIRES_DEPOSIT',
+        };
+      }
+    }
   }
 
   // Calculate total cost including fee

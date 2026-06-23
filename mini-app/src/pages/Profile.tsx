@@ -1020,7 +1020,12 @@ export const Profile: React.FC = () => {
       // Refresh balance after successful transfer
       refreshBalance().catch(() => {});
     } catch (err: any) {
-      const msg = err?.response?.data?.error || t('scan_transfer_failed');
+      const errMsg = err?.response?.data?.error || '';
+      if (errMsg === 'TRANSFER_REQUIRES_DEPOSIT') {
+        setScanPasswordError(t('transfer_requires_deposit'));
+        return;
+      }
+      const msg = errMsg || t('scan_transfer_failed');
       setScanPasswordError(msg);
     } finally {
       setScanLoading(false);

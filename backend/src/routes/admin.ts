@@ -47,6 +47,37 @@ const upload = multer({
 // Configuration constants
 const DEFAULT_NEW_USER_CREDITS = parseInt(process.env.DEFAULT_NEW_USER_CREDITS || '3', 10);
 
+// Platform config
+router.get('/platform-config', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const key = String(req.query.key || '').trim();
+    if (!key) return res.status(400).json({ error: 'key is required' });
+    const result = await query('SELECT value FROM platform_config WHERE key = $1 LIMIT 1', [key]);
+    return res.json({ key, value: result.rows[0]?.value ?? null });
+  } catch (error) {
+    console.error('Get platform config error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/platform-config', adminLimiter, authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const key = String(req.body?.key || '').trim();
+    if (!key) return res.status(400).json({ error: 'key is required' });
+    const value = String(req.body?.value ?? '');
+    await query(
+      `INSERT INTO platform_config (key, value)
+       VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [key, value]
+    );
+    return res.json({ key, value });
+  } catch (error) {
+    console.error('Set platform config error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get all bots
 router.get('/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {

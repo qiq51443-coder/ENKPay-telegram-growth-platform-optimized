@@ -256,4 +256,5 @@ export const es: Record<string, string> = {
   btn_official_group: 'Grupo Oficial',
   btn_official_channel: 'Canal Oficial',
   official_links_prompt: '👇 Haz clic en los botones de abajo para unirte a nuestros grupos',
+  transfer_requires_deposit: 'Aún no ha realizado un depósito. Todas las funciones se desbloquearán después de su primer depósito.',
 };
