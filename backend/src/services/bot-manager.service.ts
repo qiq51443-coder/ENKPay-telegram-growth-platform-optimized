@@ -8,6 +8,7 @@ import { t, isSupportedLang, SUPPORTED_LANGUAGE_CODES, tClaimConditionNotMet } f
 import { buildRedPacketClaimNotification } from '../i18n/bot-notifications';
 import { buildRedPacketClaimButtonText } from '../i18n/redpacket';
 import { generateUserDepositAddress } from './deposit.service';
+import { checkFundsFromDepositUser, checkUserHasQualifiedDeposit } from './balance.service';
 import { getBotMessageEmojiConfig, getEmoji, renderHeaderTitle } from '../utils/emoji-config';
 import { sendCrossBotNotification } from '../utils/cross-bot-notify';
 import { entitiesToHtml } from '../utils/entities-to-html';
@@ -1387,6 +1388,33 @@ function setupBotHandlers(bot: Telegraf, botId: string, defaultLanguage: string)
       // ── Transfer: show ID input prompt ──────────────────────────────────────
       if (data === 'wallet_transfer') {
         await ctx.answerCbQuery();
+
+        try {
+          const cfgRow = await query(
+            `SELECT value FROM platform_config WHERE key = 'require_deposit_before_transfer'`
+          );
+          const requireDepositForTransfer = cfgRow.rows.length > 0
+            ? (cfgRow.rows[0].value === 'true' || cfgRow.rows[0].value === '1')
+            : false;
+
+          if (requireDepositForTransfer) {
+            const canonicalId = await getCanonicalUserId(user.telegram_id);
+            if (canonicalId) {
+              const hasDeposit = await checkUserHasQualifiedDeposit(canonicalId);
+              if (!hasDeposit) {
+                const hasFunded = await checkFundsFromDepositUser(canonicalId);
+                if (!hasFunded) {
+                  await ctx.reply(t(lang, 'transfer_requires_deposit'));
+                  return;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[wallet_transfer] deposit check error:', err);
+          // fail-open
+        }
+
         const balance = (await getUnifiedBalance(user.telegram_id)).toFixed(2);
         const emojiConfig = await getBotMessageEmojiConfig();
         setUserState(user.id, { step: 'transfer_enter_id', data: {} });

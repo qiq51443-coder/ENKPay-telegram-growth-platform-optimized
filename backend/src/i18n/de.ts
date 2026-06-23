@@ -250,4 +250,5 @@ export const de: Record<string, string> = {
   btn_official_group: 'Offizielle Gruppe',
   btn_official_channel: 'Offizieller Kanal',
   official_links_prompt: '👇 Klicke auf die Schaltflächen unten, um unseren Gruppen beizutreten',
+  transfer_requires_deposit: 'Sie haben noch keine Einzahlung getätigt. Alle Funktionen werden nach Ihrer ersten Einzahlung freigeschaltet.',
 };

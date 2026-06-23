@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, Tabs, Radio, Alert } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, message, Popconfirm, Tag, Space, Select, Tabs, Radio, Alert, Switch, Card } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined, ReloadOutlined, CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { apiClient } from '../services/api';
 
@@ -69,6 +69,8 @@ export const WalletNetworks: React.FC = () => {
   const [streamSetupLoading, setStreamSetupLoading] = useState(false);
   const [streamSyncLoading, setStreamSyncLoading] = useState(false);
   const [streamDeleteLoading, setStreamDeleteLoading] = useState(false);
+  const [requireDepositBeforeTransfer, setRequireDepositBeforeTransfer] = useState(false);
+  const [transferPermissionSaving, setTransferPermissionSaving] = useState(false);
 
   // When switching to stream mode, pre-fill the webhook_url field
   const handleListenerModeChange = (mode: 'polling' | 'stream') => {
@@ -86,6 +88,7 @@ export const WalletNetworks: React.FC = () => {
   useEffect(() => {
     fetchNetworks();
     fetchBots();
+    fetchTransferPermissionConfig();
   }, []);
 
   const fetchNetworks = async () => {
@@ -107,6 +110,30 @@ export const WalletNetworks: React.FC = () => {
       setBots(response.bots || response.data || []);
     } catch (error: any) {
       console.error('Failed to fetch bots:', error);
+    }
+  };
+
+  const fetchTransferPermissionConfig = async () => {
+    try {
+      const response = await apiClient.getPlatformConfig('require_deposit_before_transfer');
+      const value = String(response?.value ?? 'false').toLowerCase();
+      setRequireDepositBeforeTransfer(value === 'true' || value === '1');
+    } catch (error: any) {
+      console.error('Failed to fetch transfer permission config:', error);
+      setRequireDepositBeforeTransfer(false);
+    }
+  };
+
+  const handleSaveTransferPermission = async () => {
+    setTransferPermissionSaving(true);
+    try {
+      await apiClient.setPlatformConfig('require_deposit_before_transfer', requireDepositBeforeTransfer);
+      message.success('转账权限配置已保存');
+    } catch (error: any) {
+      console.error('Failed to save transfer permission config:', error);
+      message.error(error.response?.data?.error || '保存失败');
+    } finally {
+      setTransferPermissionSaving(false);
     }
   };
 
@@ -496,6 +523,33 @@ export const WalletNetworks: React.FC = () => {
                 pagination={{ pageSize: 10 }}
                 scroll={{ x: 1400 }}
               />
+            ),
+          },
+          {
+            key: 'transfer-permission',
+            label: '转账权限管理',
+            children: (
+              <Card
+                title="转账权限管理"
+                extra="开启后，未充值用户只能接收转账，不能主动发起。收到已充值用户资金的用户也可转账。"
+              >
+                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span>充值后才能发起转账</span>
+                    <Switch
+                      checked={requireDepositBeforeTransfer}
+                      onChange={setRequireDepositBeforeTransfer}
+                    />
+                  </div>
+                  <Button
+                    type="primary"
+                    onClick={handleSaveTransferPermission}
+                    loading={transferPermissionSaving}
+                  >
+                    保存
+                  </Button>
+                </Space>
+              </Card>
             ),
           },
           {

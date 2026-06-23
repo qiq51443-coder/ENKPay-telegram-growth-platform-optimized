@@ -250,4 +250,5 @@ export const fr: Record<string, string> = {
   btn_official_group: 'Groupe Officiel',
   btn_official_channel: 'Chaîne Officielle',
   official_links_prompt: '👇 Cliquez sur les boutons ci-dessous pour rejoindre nos groupes',
+  transfer_requires_deposit: 'Vous n\'avez pas encore effectué de dépôt. Toutes les fonctions seront débloquées après votre premier dépôt.',
 };

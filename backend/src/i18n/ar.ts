@@ -256,4 +256,5 @@ export const ar: Record<string, string> = {
   btn_official_group: 'المجموعة الرسمية',
   btn_official_channel: 'القناة الرسمية',
   official_links_prompt: '👇 انقر على الأزرار أدناه للانضمام إلى مجموعاتنا',
+  transfer_requires_deposit: 'لم تقم بأي إيداع حتى الآن. ستُفتح جميع الميزات بعد أول إيداع.',
 };

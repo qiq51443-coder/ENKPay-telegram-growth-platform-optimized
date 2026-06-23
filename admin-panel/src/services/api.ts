@@ -262,6 +262,16 @@ class ApiClient {
     return response.data;
   }
 
+  async getPlatformConfig(key: string) {
+    const response = await this.client.get('/admin/platform-config', { params: { key } });
+    return response.data;
+  }
+
+  async setPlatformConfig(key: string, value: string | number | boolean) {
+    const response = await this.client.post('/admin/platform-config', { key, value: String(value) });
+    return response.data;
+  }
+
   async uploadBotWelcomeImage(file: File): Promise<{ url: string; filename: string }> {
     const formData = new FormData();
     formData.append('file', file);
