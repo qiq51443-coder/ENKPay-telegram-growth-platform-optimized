@@ -80,7 +80,50 @@ class ApiClient {
     const response = await this.client.delete(`/admin/wallet/networks/${id}`);
     return response.data;
   }
+  // ===== 兼容 WalletNetworks.tsx 使用的方法名 =====
+  async getWalletNetworks() {
+    return this.getNetworks();
+  }
 
+  async createWalletNetwork(data: any) {
+    return this.createNetwork(data);
+  }
+
+  async updateWalletNetwork(id: string, data: any) {
+    return this.updateNetwork(id, data);
+  }
+
+  async deleteWalletNetwork(id: string) {
+    return this.deleteNetwork(id);
+  }
+
+  async updateWalletNetworkBots(id: string, bot_ids: string[]) {
+    const response = await this.client.put(`/admin/wallet/networks/${id}/bots`, { bot_ids });
+    return response.data;
+  }
+
+  async getDepositAddresses(params?: { network_id?: string; user_id?: string; page?: number; limit?: number }) {
+    const response = await this.client.get('/admin/wallet/deposit-addresses', { params });
+    return response.data;
+  }
+
+  async clearNetworkDerivedAddresses(networkId: string | 'all') {
+    const response = await this.client.delete(`/admin/wallet/networks/${networkId}/derived-addresses`);
+    return response.data;
+  }
+
+  async getPlatformConfig(key: string) {
+    const response = await this.client.get(`/admin/system-settings/${key}`);
+    // 兼容后端可能返回 { value } 或 { data: { value } }
+    return response.data?.data ?? response.data;
+  }
+
+  async setPlatformConfig(key: string, value: boolean | string | number) {
+    const response = await this.client.put(`/admin/system-settings/${key}`, {
+      value: String(value),
+    });
+    return response.data;
+  }
   // Stream setup and management
   async setupNetworkStream(id: string, data: { moralis_api_key?: string; trongrid_api_key?: string; webhook_url: string }) {
     const response = await this.client.post(`/admin/wallet/networks/${id}/stream/setup`, data);
