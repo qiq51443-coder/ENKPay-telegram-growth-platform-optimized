@@ -4,6 +4,85 @@ import { addAddressToStream } from './moralis-stream.service';
 import { addAddressToQuickNodeWebhook } from './quicknode.service';
 import { resolveChainType } from '../utils/chain';
 
+/**
+ * Generate a new deposit address for a user in a specific network
+ */
+export async function generateUserDepositAddress(
+  userId: number,
+  networkId: number,
+  address: string
+): Promise<any> {
+  const result = await query(
+    `INSERT INTO user_deposit_addresses
+     (user_id, network_id, address, is_active, created_at, updated_at)
+     VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT (network_id, address)
+     DO UPDATE SET is_active = true, updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
+    [userId, networkId, address]
+  );
+  
+  const result2 = result.rows[0];
+  
+  // Try to add address to stream if applicable
+  try {
+    const streamInfoResult = await query(
+      `SELECT listener_mode, moralis_stream_id, webhook_id, webhook_provider, webhook_api_key_encrypted, chain_name
+       FROM deposit_networks WHERE id = $1`,
+      [networkId]
+    );
+    const streamInfo = streamInfoResult.rows[0];
+    if (
+      streamInfo?.listener_mode === 'stream' &&
+      streamInfo?.webhook_id &&
+      streamInfo?.webhook_api_key_encrypted &&
+      streamInfo?.webhook_provider
+    ) {
+      const chainType = resolveChainType(streamInfo.chain_name);
+      if (chainType !== 'TRON') {
+        const apiKey = decrypt(streamInfo.webhook_api_key_encrypted);
+        if (streamInfo.webhook_provider === 'quicknode') {
+          addAddressToQuickNodeWebhook(apiKey, streamInfo.webhook_id, address).catch((err: any) =>
+            console.error('Failed to add address to QuickNode webhook:', err.message)
+          );
+        } else {
+          addAddressToStream(apiKey, streamInfo.moralis_stream_id || streamInfo.webhook_id, address).catch((err: any) =>
+            console.error('Failed to add address to Moralis Stream:', err.message)
+          );
+        }
+      }
+    }
+  } catch (streamErr: any) {
+    console.error('Failed to check stream mode for new address sync:', streamErr.message);
+  }
+  
+  return result2;
+}
+
+/**
+ * Get all deposit addresses for a user
+ */
+export async function getUserDepositAddresses(userId: number, networkId?: number): Promise<any[]> {
+  let query_str = `
+    SELECT * FROM user_deposit_addresses
+    WHERE user_id = $1 AND is_active = true
+  `;
+  const params: any[] = [userId];
+  
+  if (networkId) {
+    query_str += ` AND network_id = $2`;
+    params.push(networkId);
+  }
+  
+  query_str += ` ORDER BY created_at DESC`;
+  
+  const result = await query(query_str, params);
+  return result.rows;
+}
+
+/**
+ * Record a deposit transaction
+ */
 export async function recordDeposit(
   userId: number,
   networkId: number,
@@ -15,7 +94,7 @@ export async function recordDeposit(
   requiredConfirmations: number,
   blockNumber: number,
   blockTimestamp: Date
-) {
+): Promise<any> {
   const isConfirmed = confirmations >= requiredConfirmations;
   
   const result = await query(
@@ -34,6 +113,9 @@ export async function recordDeposit(
   return result.rows[0];
 }
 
+/**
+ * Process a deposit: record it and credit the user if confirmed
+ */
 export async function processDeposit(
   userId: number,
   networkId: number,
@@ -45,7 +127,7 @@ export async function processDeposit(
   requiredConfirmations: number,
   blockNumber: number,
   blockTimestamp: Date
-) {
+): Promise<void> {
   const isConfirmed = confirmations >= requiredConfirmations;
   
   await recordDeposit(userId, networkId, txHash, fromAddress, toAddress, amount, confirmations, requiredConfirmations, blockNumber, blockTimestamp);
@@ -101,4 +183,29 @@ export async function processDeposit(
   } catch (streamErr: any) {
     console.error('Failed to check stream mode for new address sync:', streamErr.message);
   }
+}
+
+/**
+ * Credit a deposit to a user manually
+ */
+export async function creditDeposit(
+  userId: number,
+  amount: number,
+  txHash: string,
+  reason: string
+): Promise<void> {
+  await query(
+    `UPDATE users
+     SET wallet_balance = wallet_balance + $1,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2`,
+    [amount, userId]
+  );
+  
+  await query(
+    `INSERT INTO user_transactions
+     (user_id, tx_type, amount, tx_hash, status, notes, created_at, updated_at)
+     VALUES ($1, 'manual_deposit', $2, $3, 'completed', $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [userId, amount, txHash, reason]
+  );
 }

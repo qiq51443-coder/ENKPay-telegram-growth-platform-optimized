@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import { authenticate } from '../middleware/auth';
+import { authenticateAdmin } from '../middleware/auth';
 import { createMoralisStream, addAddressToStream, deleteStream } from '../services/moralis-stream.service';
 import {
   createQuickNodeWebhook,
@@ -14,7 +14,7 @@ import { resolveChainType } from '../utils/chain';
 const router = Router();
 
 // GET /admin/wallet/networks - List all networks
-router.get('/networks', authenticate, async (req: Request, res: Response) => {
+router.get('/networks', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const result = await query('SELECT * FROM deposit_networks ORDER BY created_at DESC');
     res.json({ networks: result.rows });
@@ -25,7 +25,7 @@ router.get('/networks', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /admin/wallet/networks - Create new network
-router.post('/networks', authenticate, async (req: Request, res: Response) => {
+router.post('/networks', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { network_name, network_display, chain_name, master_address, min_deposit_amount, contract_address, decimals } = req.body;
     
@@ -45,7 +45,7 @@ router.post('/networks', authenticate, async (req: Request, res: Response) => {
 });
 
 // PUT /admin/wallet/networks/:id - Update network
-router.put('/networks/:id', authenticate, async (req: Request, res: Response) => {
+router.put('/networks/:id', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { network_name, network_display, min_deposit_amount, contract_address, decimals } = req.body;
@@ -66,7 +66,7 @@ router.put('/networks/:id', authenticate, async (req: Request, res: Response) =>
 });
 
 // DELETE /admin/wallet/networks/:id - Delete network
-router.delete('/networks/:id', authenticate, async (req: Request, res: Response) => {
+router.delete('/networks/:id', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -80,7 +80,7 @@ router.delete('/networks/:id', authenticate, async (req: Request, res: Response)
 });
 
 // POST /admin/wallet/networks/:id/stream/setup - Setup stream listener
-router.post('/networks/:id/stream/setup', authenticate, async (req: Request, res: Response) => {
+router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { moralis_api_key, trongrid_api_key, webhook_url, quicknode_api_key, quicknode_webhook_id } = req.body;
@@ -232,7 +232,7 @@ router.post('/networks/:id/stream/setup', authenticate, async (req: Request, res
 });
 
 // POST /admin/wallet/networks/:id/stream/sync - Sync stream
-router.post('/networks/:id/stream/sync', authenticate, async (req: Request, res: Response) => {
+router.post('/networks/:id/stream/sync', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -284,7 +284,7 @@ router.post('/networks/:id/stream/sync', authenticate, async (req: Request, res:
 });
 
 // DELETE /admin/wallet/networks/:id/stream - Delete stream
-router.delete('/networks/:id/stream', authenticate, async (req: Request, res: Response) => {
+router.delete('/networks/:id/stream', authenticateAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
