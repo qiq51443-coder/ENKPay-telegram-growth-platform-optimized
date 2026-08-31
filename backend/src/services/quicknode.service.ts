@@ -1,149 +1,93 @@
-import axios from 'axios';
 import crypto from 'crypto';
 
-// NOTE: QuickNode management API endpoints and webhook formats may differ.
-// This service implements a best-effort integration: it assumes QuickNode
-// exposes a REST API at QUICKNODE_API_BASE to create/delete webhooks and
-// supports adding/removing addresses. You must verify the exact endpoints
-// and request/response shapes against QuickNode's current documentation and
-// update the URL paths/field names accordingly.
-
-const QUICKNODE_API_BASE = process.env.QUICKNODE_API_BASE || 'https://api.quicknode.com';
+/**
+ * QuickNode Streams integration helpers.
+ *
+ * Recommended flow for enkpay (small scale):
+ * 1) Create a Stream in QuickNode Dashboard (Logs dataset + ERC20 Transfer filter)
+ * 2) Set destination URL to https://YOUR_DOMAIN/webhook/deposit/quicknode
+ * 3) Copy Stream ID + Security Token into admin panel / env
+ * 4) Backend only stores binding; address matching is done against user_deposit_addresses
+ */
 
 /**
- * Create a QuickNode webhook for monitoring ERC20 Transfer events.
- * Returns an object with { id: string, secret?: string }
- *
- * TODO: Confirm the exact QuickNode API path & request body in QuickNode docs.
+ * Bind an existing QuickNode Stream (created in dashboard).
+ * Does not call QuickNode REST API — avoids fragile endpoint assumptions.
  */
 export async function createQuickNodeWebhook(
-  apiKey: string,
-  webhookUrl: string,
-  tag: string,
-  chains: string[],
-  contractAddress?: string
+  _apiKey: string,
+  _webhookUrl: string,
+  _tag: string,
+  _chains: string[],
+  _contractAddress?: string
 ): Promise<{ id: string; secret?: string }> {
-  const safeTag = tag.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-
-  const body: any = {
-    url: webhookUrl,
-    name: safeTag,
-    chains,
-    // If QuickNode supports filtering by contract address, include it
-    contractAddress: contractAddress || undefined,
-    // event type: ERC20 Transfer
-    event: 'erc20:transfer',
-  };
-
-  try {
-    const resp = await axios.post(
-      `${QUICKNODE_API_BASE}/v1/webhooks`,
-      body,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 15000,
-      }
-    );
-
-    // Expect response.data to include { id, secret }
-    return { id: resp.data.id, secret: resp.data.secret };
-  } catch (err: any) {
-    // Bubble a helpful error message
-    throw new Error(`Failed to create QuickNode webhook: ${err.response?.data?.message || err.message}`);
-  }
+  throw new Error(
+    'Automatic QuickNode Stream creation is disabled. ' +
+      'Please create the Stream in QuickNode Dashboard, then provide quicknode_webhook_id (Stream ID) in admin panel.'
+  );
 }
 
 /**
- * Add a single address to an existing QuickNode webhook (if supported).
+ * QuickNode Streams does not mirror Moralis "add address to stream" API.
+ * Prefer filtering by token contract in the Stream filter, then match `to` in DB.
  */
 export async function addAddressToQuickNodeWebhook(
-  apiKey: string,
-  webhookId: string,
-  address: string
+  _apiKey: string,
+  _webhookId: string,
+  _address: string
 ): Promise<void> {
-  try {
-    await axios.post(
-      `${QUICKNODE_API_BASE}/v1/webhooks/${webhookId}/addresses`,
-      { address },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      }
-    );
-  } catch (err: any) {
-    throw new Error(`Failed to add address to QuickNode webhook: ${err.response?.data?.message || err.message}`);
-  }
+  // no-op by design
+  return;
 }
 
-/**
- * Remove an address from a QuickNode webhook (if supported).
- */
 export async function removeAddressFromQuickNodeWebhook(
-  apiKey: string,
-  webhookId: string,
-  address: string
+  _apiKey: string,
+  _webhookId: string,
+  _address: string
 ): Promise<void> {
-  try {
-    await axios.delete(
-      `${QUICKNODE_API_BASE}/v1/webhooks/${webhookId}/addresses`,
-      {
-        data: { address },
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      }
-    );
-  } catch (err: any) {
-    throw new Error(`Failed to remove address from QuickNode webhook: ${err.response?.data?.message || err.message}`);
-  }
+  return;
+}
+
+export async function deleteQuickNodeWebhook(_apiKey: string, _webhookId: string): Promise<void> {
+  // Stream lifecycle is managed in QuickNode Dashboard
+  return;
 }
 
 /**
- * Delete a QuickNode webhook entirely.
+ * Verify QuickNode Streams webhook signature.
+ * Headers: x-qn-nonce, x-qn-timestamp, x-qn-signature
+ * HMAC-SHA256 over (nonce + timestamp + payload) with Stream security token.
+ * @see https://www.quicknode.com/guides/quicknode-products/streams/validating-incoming-streams-webhook-messages
  */
-export async function deleteQuickNodeWebhook(apiKey: string, webhookId: string): Promise<void> {
-  try {
-    await axios.delete(
-      `${QUICKNODE_API_BASE}/v1/webhooks/${webhookId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      }
-    );
-  } catch (err: any) {
-    throw new Error(`Failed to delete QuickNode webhook: ${err.response?.data?.message || err.message}`);
-  }
-}
-
-/**
- * Verify a QuickNode webhook signature.
- *
- * Many webhook providers use HMAC-SHA256 over the raw body using a webhook secret.
- * If QuickNode uses a different scheme, update this implementation accordingly.
- *
- * Expected signature header name: 'x-quicknode-signature' (common pattern).
- */
-export function verifyQuickNodeSignature(rawBody: string, secret: string, signatureHeader: string | undefined): boolean {
+export function verifyQuickNodeSignature(
+  rawBody: string,
+  secret: string,
+  signatureHeader: string | undefined,
+  nonce?: string,
+  timestamp?: string
+): boolean {
   if (!secret || !signatureHeader) return false;
   try {
-    const expected = 'sha256=' +
+    if (nonce && timestamp) {
+      const signatureData = String(nonce) + String(timestamp) + rawBody;
+      const computed = crypto
+        .createHmac('sha256', Buffer.from(secret))
+        .update(Buffer.from(signatureData))
+        .digest('hex');
+      const a = Buffer.from(computed);
+      const b = Buffer.from(signatureHeader);
+      if (a.length !== b.length) return false;
+      return crypto.timingSafeEqual(a, b);
+    }
+    // Fallback: simple body HMAC (if headers incomplete)
+    const expected =
+      'sha256=' +
       crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
     const expectedBuf = Buffer.from(expected);
     const sigBuf = Buffer.from(signatureHeader);
     if (expectedBuf.length !== sigBuf.length) return false;
     return crypto.timingSafeEqual(expectedBuf, sigBuf);
-  } catch (err) {
+  } catch {
     return false;
   }
 }
