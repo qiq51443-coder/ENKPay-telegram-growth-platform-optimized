@@ -115,6 +115,184 @@ class ApiClient {
     return response.data;
   }
 
+  // Bots
+  async getBots() {
+    const response = await this.client.get('/admin/bots');
+    return response.data;
+  }
+
+  async createBot(data: any) {
+    const response = await this.client.post('/admin/bots', data);
+    return response.data;
+  }
+
+  async updateBot(id: string, data: any) {
+    const response = await this.client.put(`/admin/bots/${id}`, data);
+    return response.data;
+  }
+
+  async deleteBot(id: string) {
+    const response = await this.client.delete(`/admin/bots/${id}`);
+    return response.data;
+  }
+
+  async resetBotWebhook(id: string) {
+    const response = await this.client.post(`/admin/bots/${id}/webhook/reset`);
+    return response.data;
+  }
+
+  async getBotGroups(botId: string) {
+    const response = await this.client.get(`/admin/bots/${botId}/groups`);
+    return response.data;
+  }
+
+  // Users
+  async getUsers(params: any) {
+    const response = await this.client.get('/admin/users', { params });
+    return response.data;
+  }
+
+  async get(endpoint: string, params?: any) {
+    const response = await this.client.get(endpoint, { params });
+    return response;
+  }
+
+  async post(endpoint: string, data?: any) {
+    const response = await this.client.post(endpoint, data);
+    return response;
+  }
+
+  async put(endpoint: string, data?: any) {
+    const response = await this.client.put(endpoint, data);
+    return response;
+  }
+
+  async delete(endpoint: string) {
+    const response = await this.client.delete(endpoint);
+    return response;
+  }
+
+  // Broadcasts
+  async getBroadcasts() {
+    const response = await this.client.get('/admin/broadcasts');
+    return response.data;
+  }
+
+  async createBroadcast(data: any) {
+    const response = await this.client.post('/admin/broadcasts', data);
+    return response.data;
+  }
+
+  async sendBroadcast(id: string) {
+    const response = await this.client.post(`/admin/broadcasts/${id}/send`);
+    return response.data;
+  }
+
+  // Red Packets
+  async getRedPackets() {
+    const response = await this.client.get('/admin/redpackets');
+    return response.data;
+  }
+
+  async createRedPacket(data: any) {
+    const response = await this.client.post('/admin/redpackets', data);
+    return response.data;
+  }
+
+  async deleteRedPacket(id: string) {
+    const response = await this.client.delete(`/admin/redpackets/${id}`);
+    return response.data;
+  }
+
+  async getRedPacketClaims(id: string) {
+    const response = await this.client.get(`/admin/redpackets/${id}/claims`);
+    return response.data;
+  }
+
+  // NFT Categories
+  async getNFTCategories() {
+    const response = await this.client.get('/admin/nft/categories');
+    return response.data;
+  }
+
+  async createNFTCategory(data: any) {
+    const response = await this.client.post('/admin/nft/categories', data);
+    return response.data;
+  }
+
+  async updateNFTCategory(id: string, data: any) {
+    const response = await this.client.put(`/admin/nft/categories/${id}`, data);
+    return response.data;
+  }
+
+  async deleteNFTCategory(id: string) {
+    const response = await this.client.delete(`/admin/nft/categories/${id}`);
+    return response.data;
+  }
+
+  // System Settings
+  async updateSystemSetting(key: string, data: any) {
+    const response = await this.client.put(`/admin/system-settings/${key}`, data);
+    return response.data;
+  }
+
+  async getSystemSetting(key: string) {
+    const response = await this.client.get(`/admin/system-settings/${key}`);
+    return response.data;
+  }
+
+  // Trading Pairs
+  async getTradingPairs() {
+    const response = await this.client.get('/admin/trading/pairs');
+    return response.data;
+  }
+
+  async getPairsWithOpenPrice() {
+    const response = await this.client.get('/admin/trading/pairs/open-price');
+    return response.data;
+  }
+
+  async getPricePresets(pairId: string) {
+    const response = await this.client.get(`/admin/trading/pairs/${pairId}/presets`);
+    return response.data;
+  }
+
+  async activatePreset(presetId: string) {
+    const response = await this.client.post(`/admin/trading/presets/${presetId}/activate`);
+    return response.data;
+  }
+
+  async setResultMode(pairId: string, data: any) {
+    const response = await this.client.post(`/admin/trading/pairs/${pairId}/result-mode`, data);
+    return response.data;
+  }
+
+  async getTodayResults(pairId: string) {
+    const response = await this.client.get(`/admin/trading/pairs/${pairId}/today-results`);
+    return response.data;
+  }
+
+  async getResultPreview(pairId: string) {
+    const response = await this.client.get(`/admin/trading/pairs/${pairId}/result-preview`);
+    return response.data;
+  }
+
+  // Audit Logs
+  async getAuditLogs(params: any) {
+    const response = await this.client.get('/admin/audit-logs', { params });
+    return response.data;
+  }
+
+  async getAuditActions() {
+    const response = await this.client.get('/admin/audit-logs/actions');
+    return response.data;
+  }
+
+  async getAuditResourceTypes() {
+    const response = await this.client.get('/admin/audit-logs/resource-types');
+    return response.data;
+  }
+
   // Bot Config
   async getBotConfig() {
     const response = await this.client.get('/admin/bot/config');
@@ -128,4 +306,7 @@ class ApiClient {
 }
 
 const apiClient = new ApiClient();
+
+// Export both as default and named export for compatibility
+export { apiClient };
 export default apiClient;
