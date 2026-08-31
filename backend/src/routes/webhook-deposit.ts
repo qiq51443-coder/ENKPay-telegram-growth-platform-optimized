@@ -3,6 +3,7 @@ import express from 'express';
 import { query } from '../db';
 import { processDeposit } from '../services/deposit.service';
 import { verifyMoralisSignature } from '../services/moralis-stream.service';
+import { verifyQuickNodeSignature } from '../services/quicknode.service';
 
 const router = express.Router();
 
@@ -107,14 +108,10 @@ router.post('/moralis', async (req, res) => {
           : '';
 
         if (!toAddress || !txHash) {
-          console.warn(`[moralis-webhook] missing toAddress or txHash, to=${toAddress}, txHash=${txHash}`);
           continue;
         }
 
         if (expectedTokenAddress && tokenAddress !== expectedTokenAddress) {
-          console.warn(
-            `[moralis-webhook] skipping transfer ${txHash}: tokenAddress ${transfer.tokenAddress || '(missing)'} does not match configured contract ${contract_address}`
-          );
           continue;
         }
 
@@ -130,11 +127,9 @@ router.post('/moralis', async (req, res) => {
           [toAddress, networkId]
         );
         if (addrResult.rows.length === 0) {
-          console.warn(`[moralis-webhook] toAddress ${toAddress} not found in network ${networkId}`);
           continue;
         }
         const userId = addrResult.rows[0].user_id;
-        console.log(`[moralis-webhook] processing transfer: ${txHash}, to=${toAddress}, amount=${amount}, userId=${userId}`);
 
         await processDeposit(
           userId,
@@ -291,6 +286,147 @@ router.post('/bsc', async (req, res) => {
     res.json({ success: true, message: 'Deposit processed' });
   } catch (error: any) {
     console.error('BSC webhook error:', error);
+    res.status(200).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /webhook/deposit/quicknode
+ * QuickNode Streams destination. Filter ERC20 Transfer for your token in Stream;
+ * this handler matches `to` against user_deposit_addresses.
+ */
+router.post('/quicknode', async (req, res) => {
+  try {
+    const secret = process.env.QUICKNODE_STREAM_SECURITY_TOKEN || process.env.QUICKNODE_WEBHOOK_SECRET;
+    if (secret) {
+      const signature = (req.headers['x-qn-signature'] || req.headers['x-quicknode-signature']) as string | undefined;
+      const nonce = req.headers['x-qn-nonce'] as string | undefined;
+      const timestamp = req.headers['x-qn-timestamp'] as string | undefined;
+      const rawBody = (req as any).rawBody as string | undefined;
+      const bodyString = rawBody ?? JSON.stringify(req.body);
+      if (!verifyQuickNodeSignature(bodyString, secret, signature, nonce, timestamp)) {
+        return res.status(401).json({ error: 'Invalid QuickNode signature' });
+      }
+    } else {
+      console.warn('[quicknode-webhook] QUICKNODE_STREAM_SECURITY_TOKEN not set — signature verification disabled');
+    }
+
+    const payload = req.body;
+    let transfers: any[] = [];
+    if (Array.isArray(payload)) {
+      transfers = payload;
+    } else if (Array.isArray(payload?.data)) {
+      transfers = payload.data;
+    } else {
+      transfers = payload.erc20Transfers || payload.transfers || payload.events || [];
+      if (!transfers.length && Array.isArray(payload.logs)) {
+        const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        for (const log of payload.logs) {
+          const topics = log.topics || [];
+          if (topics[0] === TRANSFER_TOPIC && topics.length >= 3) {
+            transfers.push({
+              tokenAddress: log.address,
+              from: '0x' + String(topics[1]).slice(-40),
+              to: '0x' + String(topics[2]).slice(-40),
+              value: log.data,
+              transactionHash: log.transactionHash || payload.transactionHash || payload.txHash,
+              blockNumber: log.blockNumber || payload.blockNumber,
+            });
+          }
+        }
+      }
+    }
+
+    if (!transfers.length) {
+      console.log('[quicknode-webhook] no transfers in payload');
+      return res.status(200).json({ message: 'No transfers to process' });
+    }
+
+    for (const transfer of transfers) {
+      try {
+        const txHash: string = transfer.transactionHash || transfer.hash || transfer.txHash || '';
+        const toAddress: string = transfer.to || transfer.to_address || '';
+        const fromAddress: string = transfer.from || transfer.from_address || '';
+        const tokenAddress: string = (transfer.tokenAddress || transfer.contract || transfer.address || '').toLowerCase();
+        const rawValue = transfer.value || transfer.amount || '0';
+
+        if (!txHash || !toAddress) continue;
+
+        let networkId: number | null = null;
+        let min_confirmations = 1;
+        let decimals = transfer.tokenDecimals != null ? Number(transfer.tokenDecimals) : 18;
+
+        if (tokenAddress) {
+          const nr = await query(
+            `SELECT id, min_confirmations, decimals FROM deposit_networks
+             WHERE LOWER(contract_address) = LOWER($1) AND is_active = true LIMIT 1`,
+            [tokenAddress]
+          );
+          if (nr.rows.length > 0) {
+            networkId = nr.rows[0].id;
+            min_confirmations = nr.rows[0].min_confirmations;
+            if (nr.rows[0].decimals != null) decimals = Number(nr.rows[0].decimals);
+          }
+        }
+
+        if (!networkId) {
+          const addrOnly = await query(
+            `SELECT uda.user_id, uda.network_id, dn.min_confirmations, COALESCE(dn.decimals, 18) AS decimals
+             FROM user_deposit_addresses uda
+             JOIN deposit_networks dn ON uda.network_id = dn.id
+             WHERE LOWER(uda.address) = LOWER($1) AND uda.is_active = true AND dn.is_active = true
+             LIMIT 1`,
+            [toAddress]
+          );
+          if (addrOnly.rows.length === 0) continue;
+          const row = addrOnly.rows[0];
+          const amount = Number(BigInt(rawValue || '0')) / 10 ** Number(row.decimals);
+          await processDeposit(
+            row.user_id,
+            row.network_id,
+            txHash,
+            fromAddress || '',
+            toAddress,
+            amount,
+            row.min_confirmations,
+            row.min_confirmations,
+            Number(transfer.blockNumber || 0),
+            transfer.blockTimestamp ? new Date(Number(transfer.blockTimestamp) * 1000) : new Date()
+          );
+          continue;
+        }
+
+        const addrResult = await query(
+          `SELECT user_id FROM user_deposit_addresses
+           WHERE LOWER(address) = LOWER($1) AND network_id = $2 AND is_active = true`,
+          [toAddress, networkId]
+        );
+        if (addrResult.rows.length === 0) continue;
+
+        const amount = Number(BigInt(rawValue || '0')) / 10 ** decimals;
+        const userId = addrResult.rows[0].user_id;
+        console.log(`[quicknode-webhook] ${txHash} to=${toAddress} amount=${amount} user=${userId}`);
+
+        await processDeposit(
+          userId,
+          networkId,
+          txHash,
+          fromAddress || '',
+          toAddress,
+          amount,
+          min_confirmations,
+          min_confirmations,
+          Number(transfer.blockNumber || 0),
+          transfer.blockTimestamp ? new Date(Number(transfer.blockTimestamp) * 1000) : new Date()
+        );
+      } catch (err: any) {
+        console.error('[quicknode-webhook] transfer error:', err.message);
+      }
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('QuickNode webhook error:', error);
     res.status(200).json({ error: error.message });
   }
 });
