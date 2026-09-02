@@ -57,7 +57,7 @@ class ApiClient {
     return response.data;
   }
 
-  // Users
+    // Users
   async getUsers(params?: any) {
     const response = await this.client.get('/users', { params });
     return response.data;
@@ -75,6 +75,23 @@ class ApiClient {
 
   async getUserTransactions(id: string, params?: any) {
     const response = await this.client.get(`/users/${id}/transactions`, { params });
+    return response.data;
+  }
+
+  /** 官网邮箱注册账号列表 */
+  async getWebAccounts(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    account_status?: string;
+  }) {
+    const response = await this.client.get('/users/web-accounts', { params });
+    return response.data;
+  }
+
+  /** 重置官网账号登录密码 */
+  async resetLoginPassword(userId: string) {
+    const response = await this.client.post(`/users/${userId}/reset-login-password`);
     return response.data;
   }
 
