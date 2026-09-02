@@ -598,39 +598,11 @@ function TradingIcon({ active }: { active: boolean }) {
   )
 }
 
-function _AuctionIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="8" width="18" height="12" rx="2" />
-      <path d="M8 8V6a4 4 0 0 1 8 0v2" />
-      <line x1="12" y1="13" x2="12" y2="16" />
-      <circle cx="12" cy="13" r="1" fill={active ? '#F0B90B' : '#8899AA'} stroke="none" />
-    </svg>
-  )
-}
-
 function ProductsIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}
-
-function _CharityIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-    </svg>
-  )
-}
-
-function _ProfileIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
     </svg>
   )
 }
@@ -2028,30 +2000,6 @@ function App() {
     )
   }
 
-  const _renderAuction = () => (
-    <section className="view-stack">
-      <div className="section-head">
-        <div>
-          <h2>夺宝活动</h2>
-        </div>
-      </div>
-      <div className="content-grid content-grid-wide">
-        <div className="grid-cards feature-grid">
-          {auctionsLoading ? <div className="empty-card">正在加载夺宝项目...</div> : auctions.map((item) => {
-            const progress = clampPercent(((item.current_participants || 0) / Math.max(item.participant_count || 1, 1)) * 100)
-            return (
-              <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedAuction(item); setAuctionActionMessage('') }}>
-                <div className="feature-cover">
-                  {item.image_url || item.product_image ? <img src={resolveAssetUrl(item.image_url || item.product_image)} alt={item.title} /> : <span>🎁</span>}
-                </div>
-                <strong>{item.title}</strong>
-                <span>奖品价值：{formatMoney(item.product_value)}</span>
-                <span>参与单价：{formatMoney(item.per_person_cost)}</span>
-                <div className="progress-bar"><span style={{ width: `${progress}%` }} /></div>
-                <span>{item.current_participants || 0} / {item.participant_count || '--'} 人 · 截止 {formatCompactDate(item.expires_at)}</span>
-              </article>
-            )
-          })}
           {!auctionsLoading && !auctions.length && <div className="empty-card">暂无进行中的夺宝项目。</div>}
         </div>
         <article className="panel-card side-panel">
@@ -2181,32 +2129,6 @@ function App() {
     </section>
   )
 
-  const _renderCharity = () => (
-    <section className="view-stack">
-      <div className="section-head">
-        <div>
-          <h2>公益活动</h2>
-        </div>
-      </div>
-      <div className="content-grid content-grid-wide">
-        <div className="grid-cards feature-grid">
-          {charityLoading ? <div className="empty-card">正在加载公益项目...</div> : charity.map((item) => {
-            const progress = item.progress_override != null
-              ? clampPercent(Number(item.progress_override))
-              : clampPercent((Number(item.raised_amount || 0) / Math.max(Number(item.goal_amount || 1), 1)) * 100)
-            return (
-              <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedCharity(item); setCharityActionMessage('') }}>
-                <div className="feature-cover">
-                  {item.image_url ? <img src={resolveAssetUrl(item.image_url)} alt={item.title} /> : <span>❤️</span>}
-                </div>
-                <strong>{item.title}</strong>
-                <span>目标金额：{formatMoney(item.goal_amount)}</span>
-                <span>已筹金额：{formatMoney(item.raised_amount)}</span>
-                <div className="progress-bar"><span style={{ width: `${progress}%` }} /></div>
-                <span>{progress.toFixed(1)}% · {item.organization || '公益项目'}</span>
-              </article>
-            )
-          })}
           {!charityLoading && !charity.length && <div className="empty-card">暂无公益项目。</div>}
         </div>
         <article className="panel-card side-panel">
