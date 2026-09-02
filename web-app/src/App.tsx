@@ -598,7 +598,7 @@ function TradingIcon({ active }: { active: boolean }) {
   )
 }
 
-function AuctionIcon({ active }: { active: boolean }) {
+function _AuctionIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="8" width="18" height="12" rx="2" />
@@ -618,7 +618,7 @@ function ProductsIcon({ active }: { active: boolean }) {
   )
 }
 
-function CharityIcon({ active }: { active: boolean }) {
+function _CharityIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -626,7 +626,7 @@ function CharityIcon({ active }: { active: boolean }) {
   )
 }
 
-function ProfileIcon({ active }: { active: boolean }) {
+function _ProfileIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -2028,7 +2028,7 @@ function App() {
     )
   }
 
-  const renderAuction = () => (
+  const _renderAuction = () => (
     <section className="view-stack">
       <div className="section-head">
         <div>
@@ -2181,7 +2181,7 @@ function App() {
     </section>
   )
 
-  const renderCharity = () => (
+  const _renderCharity = () => (
     <section className="view-stack">
       <div className="section-head">
         <div>
