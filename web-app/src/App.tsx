@@ -2000,65 +2000,6 @@ function App() {
     )
   }
 
-          {!auctionsLoading && !auctions.length && <div className="empty-card">暂无进行中的夺宝项目。</div>}
-        </div>
-        <article className="panel-card side-panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">我的夺宝</span>
-              <h3>参与记录</h3>
-            </div>
-          </div>
-          {auctionHistoryLoading ? <div className="empty-card inset">正在加载...</div> : (
-            <div className="list-stack">
-              {auctionHistory.slice(0, 6).map((item) => (
-                <div className="list-item" key={item.id}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span>{item.auction_status} · {item.quantity} 份</span>
-                  </div>
-                  <div>
-                    <strong>{formatMoney(item.amount)}</strong>
-                    <span>{item.is_winner ? '🏆 已中奖' : '等待开奖'}</span>
-                  </div>
-                </div>
-              ))}
-              {!auctionHistory.length && <div className="empty-card inset">暂无参与记录。</div>}
-            </div>
-          )}
-        </article>
-      </div>
-
-      {selectedAuction && (
-        <div className="overlay-modal" onClick={() => setSelectedAuction(null)}>
-          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
-            <div className="feature-cover large">
-              {selectedAuction.image_url || selectedAuction.product_image ? (
-                <img src={resolveAssetUrl(selectedAuction.image_url || selectedAuction.product_image)} alt={selectedAuction.title} />
-              ) : <span>🎁</span>}
-            </div>
-            <h3>{selectedAuction.title}</h3>
-            <p className="muted-text">{selectedAuction.description || '查看奖品详情并输入购买份数，和 Mini App 保持一致。'}</p>
-            <div className="dialog-row"><span>奖品价值</span><strong>{formatMoney(selectedAuction.product_value)}</strong></div>
-            <div className="dialog-row"><span>每份价格</span><strong>{formatMoney(selectedAuction.per_person_cost)}</strong></div>
-            <div className="dialog-row"><span>购买份数</span><strong>{auctionQuantity}</strong></div>
-            <div className="quantity-stepper">
-              <button className="secondary-button small" onClick={() => setAuctionQuantity((current) => Math.max(1, current - 1))}>-</button>
-              <button className="secondary-button small" onClick={() => setAuctionQuantity((current) => Math.min((selectedAuction.max_purchases_per_user || 10), current + 1))}>+</button>
-            </div>
-            {auctionActionMessage && <div className={auctionActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{auctionActionMessage}</div>}
-            <div className="button-row">
-              <button className="secondary-button" onClick={() => setSelectedAuction(null)}>关闭</button>
-              <button className="primary-button" disabled={auctionSubmitting || !token} onClick={handleAuctionJoin}>
-                {auctionSubmitting ? '参与中...' : '立即参与'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  )
-
   const renderProducts = () => (
     <section className="view-stack">
       <div className="section-head">
@@ -2121,64 +2062,6 @@ function App() {
               <button className="secondary-button" onClick={() => setSelectedProduct(null)}>关闭</button>
               <button className="primary-button" disabled={productSubmitting || !token} onClick={handleProductPurchase}>
                 {productSubmitting ? '购买中...' : '确认购买'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  )
-
-          {!charityLoading && !charity.length && <div className="empty-card">暂无公益项目。</div>}
-        </div>
-        <article className="panel-card side-panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">捐赠记录</span>
-              <h3>我的公益支持</h3>
-            </div>
-          </div>
-          {charityDonationsLoading ? <div className="empty-card inset">正在加载...</div> : (
-            <div className="list-stack">
-              {charityDonations.slice(0, 6).map((item) => (
-                <div className="list-item" key={item.id}>
-                  <div>
-                    <strong>{item.project_title}</strong>
-                    <span>{item.organization || '公益项目'}</span>
-                  </div>
-                  <div>
-                    <strong>{formatMoney(item.amount)}</strong>
-                    <span>{formatCompactDate(item.created_at)}</span>
-                  </div>
-                </div>
-              ))}
-              {!charityDonations.length && <div className="empty-card inset">暂无捐赠记录。</div>}
-            </div>
-          )}
-        </article>
-      </div>
-
-      {selectedCharity && (
-        <div className="overlay-modal" onClick={() => setSelectedCharity(null)}>
-          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
-            <h3>{selectedCharity.title}</h3>
-            <p className="muted-text">{selectedCharity.description || '查看项目进度并确认捐赠金额。'}</p>
-            <div className="dialog-row"><span>目标金额</span><strong>{formatMoney(selectedCharity.goal_amount)}</strong></div>
-            <div className="dialog-row"><span>已筹金额</span><strong>{formatMoney(selectedCharity.raised_amount)}</strong></div>
-            <div className="dialog-row"><span>捐赠金额</span><strong>{formatMoney(Number(charityDonateAmount || 0))}</strong></div>
-            <div className="trading-quick-amounts">
-              {[10, 20, 50, 100].map((value) => (
-                <button key={value} className={`trading-quick-btn${Number(charityDonateAmount) === value ? ' active' : ''}`} onClick={() => setCharityDonateAmount(String(value))}>
-                  {value}
-                </button>
-              ))}
-            </div>
-            <input className="trading-amount-input" type="number" min="1" value={charityDonateAmount} onChange={(event) => setCharityDonateAmount(event.target.value)} />
-            {charityActionMessage && <div className={charityActionMessage.includes('successfully') || charityActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{charityActionMessage}</div>}
-            <div className="button-row">
-              <button className="secondary-button" onClick={() => setSelectedCharity(null)}>关闭</button>
-              <button className="primary-button" disabled={charitySubmitting || !token} onClick={handleCharityDonate}>
-                {charitySubmitting ? '捐赠中...' : '确认捐赠'}
               </button>
             </div>
           </div>
