@@ -722,14 +722,23 @@ class ApiClient {
    * QuickNode：Dashboard 手动创建 Stream 后，绑定 Stream ID
    * Body 可含 quicknode_webhook_id / quicknode_api_key / webhook_url
    */
+  /**
+   * QuickNode Stream 配置
+   * - A 绑定：quicknode_webhook_id + 可选 quicknode_security_token
+   * - B 创建：quicknode_api_key + webhook_url（+ 可选 security_token）
+   */
   async setupNetworkStreamWithQuickNode(
     id: string,
     data: {
       quicknode_api_key?: string;
       quicknode_webhook_id?: string;
+      quicknode_security_token?: string;
       webhook_url: string;
     }
   ) {
+    const response = await this.client.post(`/admin/wallet/networks/${id}/stream/setup`, data);
+    return response.data;
+  }
     const response = await this.client.post(`/admin/wallet/networks/${id}/stream/setup`, data);
     return response.data;
   }
