@@ -27,7 +27,7 @@ router.get('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
          dn.scan_interval_seconds, dn.min_deposit_amount, dn.max_deposit_amount, dn.deposit_fee,
          dn.contract_address, dn.decimals,
          dn.is_active, dn.sort_order, dn.explorer_url, dn.created_at, dn.updated_at,
-         dn.listener_mode, dn.moralis_stream_id,
+         dn.listener_mode, dn.moralis_stream_id, dn.webhook_provider, dn.webhook_id,
          COALESCE(
            (SELECT json_agg(bdn.bot_id)
             FROM bot_deposit_networks bdn
@@ -37,7 +37,6 @@ router.get('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
        FROM deposit_networks dn
        ORDER BY dn.sort_order, dn.id`
     );
-
     res.json({
       success: true,
       data: result.rows,
@@ -78,7 +77,6 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Validate numeric fields
     if (isNaN(Number(min_deposit_amount)) || Number(min_deposit_amount) < 0) {
       return res.status(400).json({ error: 'min_deposit_amount must be a non-negative number' });
     }
@@ -89,7 +87,6 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'max_deposit_amount must be greater than min_deposit_amount' });
     }
 
-    // Check uniqueness of network_name
     const existing = await query(
       'SELECT id FROM deposit_networks WHERE network_name = $1',
       [network_name]
@@ -98,7 +95,6 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
       return res.status(409).json({ error: `Network name '${network_name}' already exists` });
     }
 
-    // Auto-compute sort_order if not provided
     let resolvedSortOrder = sort_order;
     if (resolvedSortOrder === undefined || resolvedSortOrder === null) {
       const maxOrderResult = await query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM deposit_networks');
@@ -137,12 +133,10 @@ router.post('/networks', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const network = result.rows[0];
 
-    // Clear mnemonic cache so the next derivation picks up the new mnemonic
     if (encryptedMnemonic && network.id) {
       clearMnemonicCache(Number(network.id));
     }
 
-    // Bind bots if provided
     if (Array.isArray(bot_ids) && bot_ids.length > 0) {
       for (const botId of bot_ids) {
         await query(
@@ -199,7 +193,6 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       }
     }
 
-    // Accept decimal_places as an alias for the decimals column
     if (req.body.decimal_places !== undefined && req.body.decimals === undefined) {
       updateFields.decimals = `$${paramCount}`;
       params.push(Number(req.body.decimal_places));
@@ -233,8 +226,6 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
       return res.status(404).json({ error: 'Network not found' });
     }
 
-    // Clear mnemonic cache whenever the mnemonic is updated so the next
-    // address derivation picks up the fresh value.
     if (req.body.hd_mnemonic) {
       clearMnemonicCache(Number(id));
     }
@@ -252,8 +243,6 @@ router.put('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => 
 
 /**
  * DELETE /api/admin/wallet/networks/:id/derived-addresses
- * Clear all hd_derived addresses for a specific network (or all networks if id = 'all')
- * so the correct algorithm re-derives fresh addresses on next request.
  */
 router.delete('/networks/:id/derived-addresses', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -284,14 +273,11 @@ router.delete('/networks/:id/derived-addresses', authenticateAdmin, async (req: 
 
 /**
  * DELETE /api/admin/wallet/networks/:id
- * Delete deposit network
  */
 router.delete('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-
     await query('DELETE FROM deposit_networks WHERE id = $1', [id]);
-
     res.json({
       success: true,
       message: 'Network deleted successfully',
@@ -304,7 +290,6 @@ router.delete('/networks/:id', authenticateAdmin, async (req: AuthRequest, res) 
 
 /**
  * PUT /api/admin/wallet/networks/:id/bots
- * Update bot assignments for a deposit network
  */
 router.put('/networks/:id/bots', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -315,14 +300,11 @@ router.put('/networks/:id/bots', authenticateAdmin, async (req: AuthRequest, res
       return res.status(400).json({ error: 'bot_ids must be an array' });
     }
 
-    // Use a transaction to atomically replace bot bindings
     await transaction(async (client) => {
-      // Mark all existing bindings for this network as inactive
       await client.query(
         'UPDATE bot_deposit_networks SET is_active = false WHERE network_id = $1',
         [id]
       );
-      // Upsert new bindings as active
       for (const botId of bot_ids) {
         await client.query(
           `INSERT INTO bot_deposit_networks (bot_id, network_id, is_active)
@@ -342,7 +324,6 @@ router.put('/networks/:id/bots', authenticateAdmin, async (req: AuthRequest, res
 
 /**
  * GET /api/admin/wallet/deposit-addresses
- * Get all user deposit addresses
  */
 router.get('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -365,7 +346,6 @@ router.get('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, res
       params.push(user_id);
       queryText += ` AND uda.user_id = $${params.length}`;
     }
-
     if (network_id) {
       params.push(network_id);
       queryText += ` AND uda.network_id = $${params.length}`;
@@ -389,7 +369,6 @@ router.get('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, res
 
 /**
  * POST /api/admin/wallet/deposit-addresses
- * Manually add/update user deposit address
  */
 router.post('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -413,17 +392,14 @@ router.post('/deposit-addresses', authenticateAdmin, async (req: AuthRequest, re
 
 /**
  * DELETE /api/admin/wallet/deposit-addresses/:id
- * Delete deposit address
  */
 router.delete('/deposit-addresses/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-
     await query(
       'UPDATE user_deposit_addresses SET is_active = false WHERE id = $1',
       [id]
     );
-
     res.json({
       success: true,
       message: 'Deposit address deactivated successfully',
@@ -436,7 +412,6 @@ router.delete('/deposit-addresses/:id', authenticateAdmin, async (req: AuthReque
 
 /**
  * GET /api/admin/wallet/deposits
- * Get all deposit records
  */
 router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -459,12 +434,10 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
       params.push(status);
       queryText += ` AND dr.status = $${params.length}`;
     }
-
     if (user_id) {
       params.push(user_id);
       queryText += ` AND dr.user_id = $${params.length}`;
     }
-
     if (tx_hash) {
       params.push(tx_hash);
       queryText += ` AND dr.tx_hash ILIKE $${params.length}`;
@@ -476,7 +449,6 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
 
-    // Structure response: nest user/network fields into sub-objects for admin panel compatibility
     const deposits = result.rows.map((row: any) => ({
       id: row.id,
       user_id: row.user_id,
@@ -507,8 +479,8 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
 
     res.json({
       success: true,
-      deposits,        // primary field: matches frontend response.deposits
-      data: deposits,  // compatibility alias
+      deposits,
+      data: deposits,
     });
   } catch (error: any) {
     console.error('Get deposits error:', error);
@@ -518,7 +490,6 @@ router.get('/deposits', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * GET /api/admin/wallet/withdrawals
- * Get all withdrawal records
  */
 router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -548,7 +519,6 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
       params.push(status);
       queryText += ` AND wr.status = $${params.length}`;
     }
-
     if (user_id) {
       params.push(user_id);
       queryText += ` AND wr.user_id = $${params.length}`;
@@ -560,7 +530,6 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
 
     const result = await query(queryText, params);
 
-    // Structure response: nest user fields into a `user` object for admin panel compatibility
     const rows = result.rows.map((row: any) => ({
       id: row.id,
       user_id: row.user_id,
@@ -601,19 +570,17 @@ router.get('/withdrawals', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * PUT /api/admin/wallet/withdrawals/:id/review
- * Review (approve/reject) withdrawal
  */
 router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { action, admin_note, tx_hash } = req.body; // action: approved | rejected
+    const { action, admin_note, tx_hash } = req.body;
 
     if (!action || !['approved', 'rejected'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action' });
     }
 
     const result = await transaction(async (client) => {
-      // Get withdrawal details
       const withdrawalResult = await client.query(
         'SELECT * FROM withdrawal_records WHERE id = $1',
         [id]
@@ -630,7 +597,6 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
       }
 
       if (action === 'approved') {
-        // Move from frozen_balance to total_withdrawn
         await client.query(
           `UPDATE users 
            SET frozen_balance = frozen_balance - $1,
@@ -639,7 +605,6 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           [withdrawal.amount, withdrawal.actual_amount, withdrawal.user_id]
         );
 
-        // Update withdrawal status
         await client.query(
           `UPDATE withdrawal_records 
            SET status = 'approved',
@@ -651,7 +616,6 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           [admin_note, tx_hash, req.user?.id, id]
         );
       } else {
-        // Rejected - return frozen amount to wallet
         await client.query(
           `UPDATE users 
            SET frozen_balance = frozen_balance - $1,
@@ -660,7 +624,6 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
           [withdrawal.amount, withdrawal.user_id]
         );
 
-        // Update withdrawal status
         await client.query(
           `UPDATE withdrawal_records 
            SET status = 'rejected',
@@ -675,13 +638,10 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
       return { action, withdrawal };
     });
 
-    // Notify user via Telegram after transaction completes (across all user-followed bots)
     try {
       const userResult = await query('SELECT id FROM users WHERE id = $1', [result.withdrawal.user_id]);
       if (userResult.rows.length > 0) {
         const emojiConfig = await getBotMessageEmojiConfig();
-
-        // Resolve network display name for notification
         let networkDisplay = '-';
         try {
           const netRow = await query(
@@ -757,7 +717,6 @@ router.put('/withdrawals/:id/review', authenticateAdmin, async (req: AuthRequest
 
 /**
  * GET /api/admin/wallet/transfers
- * Get all transfer records
  */
 router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -828,16 +787,13 @@ router.get('/transfers', authenticateAdmin, async (req: AuthRequest, res) => {
 
 /**
  * POST /api/admin/wallet/networks/:id/stream/setup
- * Configure Moralis Streams (EVM) or TronGrid Webhook (TRC) for a network.
- * Body: { moralis_api_key?: string, trongrid_api_key?: string, webhook_url: string }
- */
-/**
- * POST /api/admin/wallet/networks/:id/stream/setup
- * Moralis / TronGrid / QuickNode（手动在 Dashboard 创建 Stream 后绑定 Stream ID）
+ * Moralis / TronGrid / QuickNode (A 绑定 + B 一键创建)
+ *
  * Body:
- *  - moralis_api_key + webhook_url  → Moralis
+ *  - moralis_api_key + webhook_url → Moralis
  *  - trongrid_api_key + webhook_url → TronGrid
- *  - quicknode_webhook_id (+ 可选 webhook_url) → QuickNode 绑定
+ *  - quicknode_webhook_id (+ optional quicknode_security_token) → QuickNode 绑定
+ *  - quicknode_api_key + webhook_url (+ optional quicknode_security_token) → QuickNode 创建
  */
 router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
@@ -846,11 +802,13 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
       moralis_api_key,
       trongrid_api_key,
       quicknode_webhook_id,
+      quicknode_api_key,
+      quicknode_security_token,
       webhook_url,
     } = req.body;
 
-    // QuickNode：只需绑定已在 Dashboard 创建好的 Stream ID
-    if (quicknode_webhook_id) {
+    // ── QuickNode A：仅绑定已有 Stream ID ──
+    if (quicknode_webhook_id && !quicknode_api_key) {
       const networkResult = await query(
         `SELECT id, network_name, chain_name FROM deposit_networks WHERE id = $1`,
         [id]
@@ -859,27 +817,110 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
         return res.status(404).json({ error: 'Network not found' });
       }
 
-      await query(
-        `UPDATE deposit_networks
-         SET listener_mode = 'stream',
-             moralis_stream_id = $1,
-             webhook_provider = 'quicknode',
-             webhook_id = $1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [String(quicknode_webhook_id).trim(), id]
-      );
+      const streamId = String(quicknode_webhook_id).trim();
+      const encryptedSecret = quicknode_security_token
+        ? encrypt(String(quicknode_security_token).trim())
+        : null;
+
+      if (encryptedSecret) {
+        await query(
+          `UPDATE deposit_networks
+           SET listener_mode = 'stream',
+               moralis_stream_id = $1,
+               webhook_provider = 'quicknode',
+               webhook_id = $1,
+               webhook_api_key_encrypted = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          [streamId, encryptedSecret, id]
+        );
+      } else {
+        await query(
+          `UPDATE deposit_networks
+           SET listener_mode = 'stream',
+               moralis_stream_id = $1,
+               webhook_provider = 'quicknode',
+               webhook_id = $1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [streamId, id]
+        );
+      }
 
       return res.json({
         success: true,
-        message: `QuickNode Stream 已绑定 (ID: ${quicknode_webhook_id})。请确认 Dashboard 中 Destination URL 为 https://你的域名/webhook/deposit/quicknode`,
-        stream_id: quicknode_webhook_id,
+        message: `QuickNode Stream 已绑定 (ID: ${streamId})。请确认 Dashboard Destination 为 /webhook/deposit/quicknode`,
+        stream_id: streamId,
         provider: 'quicknode',
       });
     }
 
+    // ── QuickNode B：API 一键创建 Stream ──
+    if (quicknode_api_key) {
+      if (!webhook_url) {
+        return res.status(400).json({ error: 'webhook_url is required when using quicknode_api_key' });
+      }
+
+      const networkResult = await query(
+        `SELECT id, network_name, chain_name, contract_address FROM deposit_networks WHERE id = $1`,
+        [id]
+      );
+      if (networkResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Network not found' });
+      }
+      const network = networkResult.rows[0];
+      const chainType = resolveChainType(network.chain_name);
+      if (chainType === 'TRON') {
+        return res.status(400).json({ error: 'QuickNode Streams 不适用于 TRON，请用 TronGrid' });
+      }
+
+      const { createQuickNodeStream } = await import('../services/quicknode.service');
+      const { id: streamId, securityToken } = await createQuickNodeStream(
+        String(quicknode_api_key).trim(),
+        webhook_url,
+        `${network.network_name}-deposit`,
+        network.chain_name,
+        network.contract_address || undefined
+      );
+
+      const tokenToStore =
+        (quicknode_security_token && String(quicknode_security_token).trim()) ||
+        securityToken ||
+        '';
+
+      const secretPayload = tokenToStore
+        ? JSON.stringify({
+            security_token: tokenToStore,
+            api_key: String(quicknode_api_key).trim(),
+          })
+        : String(quicknode_api_key).trim();
+      const encrypted = encrypt(secretPayload);
+
+      await query(
+        `UPDATE deposit_networks
+         SET listener_mode = 'stream',
+             moralis_stream_id = $1,
+             webhook_api_key_encrypted = $2,
+             webhook_provider = 'quicknode',
+             webhook_id = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [streamId, encrypted, id]
+      );
+
+      return res.json({
+        success: true,
+        message: `QuickNode Stream 已创建并绑定 (${streamId})。地址匹配在 webhook 内完成，无需同步地址。`,
+        stream_id: streamId,
+        provider: 'quicknode',
+        security_token_saved: Boolean(tokenToStore),
+      });
+    }
+
     if (!webhook_url) {
-      return res.status(400).json({ error: 'webhook_url is required（或提供 quicknode_webhook_id）' });
+      return res.status(400).json({
+        error: 'webhook_url is required（或提供 quicknode_webhook_id / quicknode_api_key）',
+      });
     }
 
     const networkResult = await query(
@@ -894,7 +935,9 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
 
     if (chainType !== 'TRON') {
       if (!moralis_api_key) {
-        return res.status(400).json({ error: 'moralis_api_key is required for EVM chains（或使用 quicknode_webhook_id）' });
+        return res.status(400).json({
+          error: 'moralis_api_key is required for EVM（或使用 QuickNode）',
+        });
       }
 
       const moralisChain = MORALIS_CHAIN_IDS[chainType] || '0x1';
@@ -941,52 +984,55 @@ router.post('/networks/:id/stream/setup', authenticateAdmin, async (req: AuthReq
         stream_id: streamId,
         sync_errors: syncErrors.length > 0 ? syncErrors : undefined,
       });
-    } else {
-      if (!trongrid_api_key) {
-        return res.status(400).json({ error: 'trongrid_api_key is required for TRC chains' });
-      }
-
-      const encryptedApiKey = encrypt(trongrid_api_key);
-
-      await query(
-        `UPDATE deposit_networks
-         SET listener_mode = 'stream',
-             webhook_api_key_encrypted = $1,
-             webhook_provider = 'trongrid',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [encryptedApiKey, id]
-      );
-
-      return res.json({
-        success: true,
-        message: 'TronGrid API key saved. Please manually configure the webhook URL in TronGrid Dashboard.',
-        webhook_url,
-      });
     }
+
+    // TRON / TronGrid
+    if (!trongrid_api_key) {
+      return res.status(400).json({ error: 'trongrid_api_key is required for TRC chains' });
+    }
+
+    const encryptedApiKey = encrypt(trongrid_api_key);
+
+    await query(
+      `UPDATE deposit_networks
+       SET listener_mode = 'stream',
+           webhook_api_key_encrypted = $1,
+           webhook_provider = 'trongrid',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [encryptedApiKey, id]
+    );
+
+    return res.json({
+      success: true,
+      message: 'TronGrid API key saved. Please manually configure the webhook URL in TronGrid Dashboard.',
+      webhook_url,
+    });
   } catch (error: any) {
     console.error('Stream setup error:', error);
     if (error.response?.status === 422) {
-      console.error('Moralis 422 details:', JSON.stringify(error.response.data?.details));
+      console.error('Upstream 422 details:', JSON.stringify(error.response.data?.details || error.response.data));
     }
     const upstreamData = error.response?.data;
-    const upstreamMsg = upstreamData?.message || upstreamData?.error || (typeof upstreamData === 'string' ? upstreamData : null);
+    const upstreamMsg =
+      upstreamData?.message ||
+      upstreamData?.error ||
+      (typeof upstreamData === 'string' ? upstreamData : null);
     const errMsg = upstreamMsg ? `${error.message} — ${upstreamMsg}` : error.message;
     res.status(500).json({ error: errMsg, details: upstreamData });
   }
 });
 
-   
 /**
  * POST /api/admin/wallet/networks/:id/stream/sync
- * Batch sync all active addresses for this network to Moralis Stream.
+ * Moralis: 同步地址；QuickNode: 无需同步
  */
 router.post('/networks/:id/stream/sync', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
     const networkResult = await query(
-      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode
+      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode, webhook_provider
        FROM deposit_networks WHERE id = $1`,
       [id]
     );
@@ -997,6 +1043,13 @@ router.post('/networks/:id/stream/sync', authenticateAdmin, async (req: AuthRequ
 
     if (network.listener_mode !== 'stream') {
       return res.status(400).json({ error: 'Network is not in stream mode' });
+    }
+
+    if (network.webhook_provider === 'quicknode') {
+      return res.json({
+        success: true,
+        message: 'QuickNode 按合约 Filter + DB 匹配地址，无需同步地址到 Stream。',
+      });
     }
 
     const chainType = resolveChainType(network.chain_name);
@@ -1037,14 +1090,14 @@ router.post('/networks/:id/stream/sync', authenticateAdmin, async (req: AuthRequ
 
 /**
  * DELETE /api/admin/wallet/networks/:id/stream
- * Delete Moralis Stream and switch network back to polling mode.
+ * 删除 Stream（Moralis / QuickNode）并切回 polling
  */
 router.delete('/networks/:id/stream', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
 
     const networkResult = await query(
-      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode
+      `SELECT id, chain_name, moralis_stream_id, webhook_api_key_encrypted, listener_mode, webhook_provider
        FROM deposit_networks WHERE id = $1`,
       [id]
     );
@@ -1052,9 +1105,25 @@ router.delete('/networks/:id/stream', authenticateAdmin, async (req: AuthRequest
       return res.status(404).json({ error: 'Network not found' });
     }
     const network = networkResult.rows[0];
-
     const chainType = resolveChainType(network.chain_name);
-    if (chainType !== 'TRON' && network.moralis_stream_id && network.webhook_api_key_encrypted) {
+    const provider = network.webhook_provider || 'moralis';
+
+    if (provider === 'quicknode' && network.moralis_stream_id && network.webhook_api_key_encrypted) {
+      try {
+        const raw = decrypt(network.webhook_api_key_encrypted);
+        let apiKey = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.api_key) apiKey = parsed.api_key;
+        } catch {
+          /* plain string */
+        }
+        const { deleteQuickNodeWebhook } = await import('../services/quicknode.service');
+        await deleteQuickNodeWebhook(apiKey, network.moralis_stream_id);
+      } catch (err: any) {
+        console.error('Failed to delete QuickNode Stream (continuing):', err.message);
+      }
+    } else if (chainType !== 'TRON' && network.moralis_stream_id && network.webhook_api_key_encrypted) {
       try {
         const apiKey = decrypt(network.webhook_api_key_encrypted);
         await deleteStream(apiKey, network.moralis_stream_id);
@@ -1063,7 +1132,7 @@ router.delete('/networks/:id/stream', authenticateAdmin, async (req: AuthRequest
       }
     }
 
-       await query(
+    await query(
       `UPDATE deposit_networks
        SET listener_mode = 'polling',
            moralis_stream_id = NULL,
