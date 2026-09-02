@@ -45,23 +45,6 @@ interface TradingPair {
   price_change_24h?: number
 }
 
-interface AuctionItem {
-  id: string
-  title: string
-  description?: string
-  product_value?: number
-  per_person_cost?: number
-  participant_count?: number
-  current_participants?: number
-  max_purchases_per_user?: number
-  expires_at?: string
-  winner_payout?: number
-  image_url?: string
-  product_image?: string
-  status?: string
-  winner_unique_id?: string
-}
-
 interface ProductItem {
   id: string
   name: string
@@ -76,19 +59,6 @@ interface ProductItem {
   max_holders?: number
   is_purchase_limited?: boolean
   max_purchases_per_user?: number
-  status?: string
-}
-
-interface CharityItem {
-  id: string
-  title: string
-  description?: string
-  goal_amount?: number
-  raised_amount?: number
-  progress_override?: number
-  image_url?: string
-  organization?: string | null
-  ambassador_telegram?: string | null
   status?: string
 }
 
@@ -135,31 +105,6 @@ interface ProductHolding {
   end_date: string
   status: string
   total_income?: number
-}
-
-interface AuctionHistoryItem {
-  id: string
-  auction_id: string
-  title: string
-  auction_status: string
-  is_winner: boolean
-  refunded: boolean
-  quantity: number
-  amount: number
-  winner_unique_id?: string
-  winner_payout?: number
-  result_id?: string
-  is_redeemed?: boolean
-}
-
-interface CharityDonation {
-  id: string
-  amount: number
-  message?: string
-  status: string
-  created_at: string
-  project_title: string
-  organization?: string
 }
 
 interface WalletNetwork {
@@ -508,7 +453,6 @@ function parseRoute(): Route {
   return { view: 'auth', mode: 'login' }
 }
 
-
 function navigateTo(route: Route) {
   if (route.view === 'auth') window.location.hash = `/${route.mode}`
   if (route.view === 'app') window.location.hash = `/app/${route.tab}`
@@ -531,7 +475,6 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const rawError: string = data?.error || data?.message || '请求失败'
-    // Translate known English rate-limit messages to Chinese
     const translatedError = rawError
       .replace(/Too many wallet requests.*/, '请求过于频繁，请稍后再试')
       .replace(/Too many login attempts.*/, '登录尝试次数过多，请稍后再试')
@@ -561,54 +504,6 @@ function formatCountdown(seconds: number) {
   const mins = Math.floor(seconds / 60)
   const secs = Math.max(0, seconds % 60)
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-}
-
-
-
-function SwapIcon({ active }: { active: boolean }) {
-  const c = active ? '#F0B90B' : '#8899AA'
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 3l4 4-4 4" /><path d="M20 7H4" />
-      <path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
-    </svg>
-  )
-}
-
-function WalletIcon({ active }: { active: boolean }) {
-  const c = active ? '#F0B90B' : '#8899AA'
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="14" rx="2" />
-      <path d="M2 10h20" />
-      <circle cx="17" cy="14" r="1.5" fill={c} stroke="none" />
-    </svg>
-  )
-}
-
-function TradingIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-      <polyline points="16 7 22 7 22 13" />
-    </svg>
-  )
-}
-
-function ProductsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}
-
-function renderTabIcon(tab: TabKey, active: boolean) {
-  if (tab === 'swap') return <SwapIcon active={active} />
-  if (tab === 'invest') return <ProductsIcon active={active} />
-  if (tab === 'wallet') return <WalletIcon active={active} />
-  return <TradingIcon active={active} />
 }
 
 function formatMoney(value?: number) {
@@ -659,7 +554,6 @@ function getChainIcon(chainName: string) {
       </svg>
     )
   }
-  // Generic chain icon
   return (
     <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="16" fill="rgba(240,185,11,0.2)" stroke="#F0B90B" strokeWidth="1.5"/>
@@ -715,7 +609,6 @@ function App() {
     to_address: '',
     withdraw_password: '',
   })
-  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false)
 
   const [authForms, setAuthForms] = useState({
     loginEmail: '',
@@ -738,7 +631,7 @@ function App() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false)
   const [brandName, setBrandName] = useState('ENKPay')
   const [brandLogoUrl, setBrandLogoUrl] = useState('')
-  const [mailServiceEnabled, setMailServiceEnabled] = useState(true) // Default to true for safety
+  const [mailServiceEnabled, setMailServiceEnabled] = useState(true)
   const [contactTelegram, setContactTelegram] = useState('')
   const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
@@ -872,7 +765,6 @@ function App() {
       .catch(() => {})
   }, [])
 
-  // Fetch mail service status on mount
   useEffect(() => {
     fetch('/api/mail/status')
       .then((r) => r.json())
@@ -880,7 +772,6 @@ function App() {
         setMailServiceEnabled(data?.enabled === true)
       })
       .catch(() => {
-        // If fetch fails, default to true (safe fallback)
         setMailServiceEnabled(true)
       })
   }, [])
@@ -907,7 +798,6 @@ function App() {
     }
   }, [route, pairs.length])
 
-
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'invest' && products.length === 0) {
       setProductsLoading(true)
@@ -917,9 +807,6 @@ function App() {
     }
   }, [route, products.length, lang])
 
-
-  // WebSocket price subscription with exponential backoff reconnect
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!token) return
 
@@ -975,8 +862,6 @@ function App() {
     }
   }, [token])
 
-  // HTTP price polling fallback (2s) — active only on the trading tab
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (route.view !== 'app' || route.tab !== 'markets') return
 
@@ -1179,7 +1064,6 @@ function App() {
     }
   }, [selectedTradingPair?.id, selectedTradingDuration])
 
-
   useEffect(() => {
     if (!selectedTradingPair || !tradingChartRef.current) return
     let disposed = false
@@ -1188,7 +1072,6 @@ function App() {
     let rafRetries = 0
     const MAX_RAF_RETRIES = 30
 
-    // Reset real-time candle refs on pair/interval change
     lastKlineTimeRef.current = 0
     lastCandleRef.current = null
 
@@ -1198,7 +1081,6 @@ function App() {
       const containerWidth = tradingChartRef.current.clientWidth
       const containerHeight = tradingChartRef.current.clientHeight
       if (containerWidth === 0 || containerHeight === 0) {
-        // Container not yet visible — wait for it
         if (typeof ResizeObserver !== 'undefined') {
           resizeObserver = new ResizeObserver((entries) => {
             const rect = entries[0]?.contentRect
@@ -1247,7 +1129,6 @@ function App() {
       tradingChartInstanceRef.current = chart
       tradingSeriesRef.current = candleSeries
 
-      // Resize chart when the container changes size
       if (typeof ResizeObserver !== 'undefined') {
         resizeObserver = new ResizeObserver(() => {
           if (!disposed && tradingChartRef.current) {
@@ -1260,7 +1141,6 @@ function App() {
         resizeObserver.observe(tradingChartRef.current)
       }
 
-      // Resize chart when the browser tab becomes visible again
       const onVisibilityChange = () => {
         if (!document.hidden && tradingChartRef.current && !disposed) {
           const w = tradingChartRef.current.clientWidth
@@ -1277,8 +1157,6 @@ function App() {
         .then((result) => {
           if (disposed) return
           const rows = (result.data || []).map((item) => {
-            // Backend returns 'timestamp' for real pairs and 'open_time'/'timestamp' for custom pairs.
-            // Values may be in milliseconds (>1e10) and must be converted to seconds for lightweight-charts.
             const rawTime = Number(item.time ?? item.open_time ?? item.timestamp ?? 0)
             const time = rawTime > 1e10 ? Math.floor(rawTime / 1000) : Math.floor(rawTime)
             return {
@@ -1298,7 +1176,6 @@ function App() {
           if (rows.length > 0) {
             candleSeries.setData(rows as any)
             chart.timeScale().fitContent()
-            // Track the last candle for real-time price updates
             const lastRow = rows[rows.length - 1]
             lastKlineTimeRef.current = lastRow.time
             lastCandleRef.current = { open: lastRow.open, high: lastRow.high, low: lastRow.low, close: lastRow.close }
@@ -1306,7 +1183,6 @@ function App() {
         })
         .catch(() => {})
 
-      // Override the cleanup to also remove the visibility listener
       const originalCleanup = () => {
         disposed = true
         document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -1317,11 +1193,9 @@ function App() {
         if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
         try { chart.remove() } catch {}
       }
-      // Attach override cleanup to ref so the outer return can call it
       cleanupRef.current = originalCleanup
     }
 
-    // Use a ref to allow the inner initChart to set a late cleanup
     const cleanupRef = { current: () => {
       disposed = true
       if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
@@ -1335,8 +1209,6 @@ function App() {
     return () => { cleanupRef.current() }
   }, [selectedTradingPair?.id, klineInterval])
 
-  // Push livePrice updates to the last K-line candle
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selectedTradingPair) return
     const priceInfo = livePrice[selectedTradingPair.id]
@@ -1355,8 +1227,6 @@ function App() {
     try { tradingSeriesRef.current.update(updatedCandle) } catch {}
   }, [livePrice, selectedTradingPair])
 
-  // Randomized chart tick (1500–2500ms) for smooth real-time candle animation
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (chartTickRef.current) clearTimeout(chartTickRef.current)
     if (!selectedTradingPair) return
@@ -1435,7 +1305,6 @@ function App() {
   }
 
   const handleRegister = async () => {
-    // Front-end validation before sending to API
     if (!authForms.registerEmail) {
       setErrorMsg(t.errors.emailRequired)
       return
@@ -1444,7 +1313,6 @@ function App() {
       setErrorMsg(t.errors.invalidEmail)
       return
     }
-    // Only validate verification code if mail service is enabled
     if (mailServiceEnabled && (!authForms.registerCode || !/^\d{6}$/.test(authForms.registerCode))) {
       setErrorMsg(t.errors.invalidCode)
       return
@@ -1489,7 +1357,6 @@ function App() {
   }
 
   const handleLogin = async () => {
-    // Front-end validation before sending to API
     if (!authForms.loginEmail) {
       setErrorMsg(t.errors.emailRequired)
       return
@@ -1551,22 +1418,6 @@ function App() {
       setGlobalError(error.message)
     } finally {
       setPasswordLoading(false)
-    }
-  }
-
-  const handleWithdrawSubmit = async () => {
-    try {
-      setWithdrawSubmitting(true)
-      const result = await apiRequest<ApiResult<null>>('/web/wallet/withdraw', {
-        method: 'POST',
-        body: JSON.stringify(withdrawForm),
-      }, token)
-      setGlobalError(result.message || '提现申请已提交')
-      setWithdrawForm((current) => ({ ...current, amount: '', to_address: '', withdraw_password: '' }))
-    } catch (error: any) {
-      setGlobalError(error.message)
-    } finally {
-      setWithdrawSubmitting(false)
     }
   }
 
@@ -1987,7 +1838,6 @@ function App() {
           ))}
         </div>
 
-        {/* 账户概览 — always visible */}
         <div className="content-grid content-grid-wide">
           <article className="panel-card">
             <h3>邀请好友</h3>
@@ -2023,7 +1873,6 @@ function App() {
           </article>
         </div>
 
-        {/* 💰 资金操作 */}
         <div className="profile-accordion">
           <button className="profile-accordion-header" onClick={() => toggleGroup('funds')}>
             <span>💰 资金操作</span>
@@ -2070,7 +1919,6 @@ function App() {
           </div>
         </div>
 
-        {/* 👤 账户设置 */}
         <div className="profile-accordion">
           <button className="profile-accordion-header" onClick={() => toggleGroup('settings')}>
             <span>👤 账户设置</span>
@@ -2104,7 +1952,6 @@ function App() {
           </div>
         </div>
 
-        {/* 📢 信息中心 */}
         <div className="profile-accordion">
           <button className="profile-accordion-header" onClick={() => toggleGroup('info')}>
             <span>📢 信息中心</span>
@@ -2166,7 +2013,6 @@ function App() {
         return renderTrading()
     }
   }
-
 
   const currentDepositNetwork = depositNetworks.find((item) => String(item.id) === selectedDepositNetwork)
   const currentWithdrawNetwork = withdrawNetworks.find((item) => String(item.id) === withdrawForm.network_id)
@@ -2551,36 +2397,11 @@ function App() {
                 <strong>当前网络</strong>
                 <span>{currentWithdrawNetwork?.network_display || '--'}</span>
               </div>
-              <div>
-                <strong>钱包余额</strong>
-                <span>{formatMoney(user?.wallet_balance)}</span>
-              </div>
             </div>
-            <button className="primary-button" disabled={!hasWithdrawPassword || withdrawSubmitting} onClick={handleWithdrawSubmit}>
-              {withdrawSubmitting ? '提交中...' : '提交提现申请'}
-            </button>
           </article>
         </main>
       ) : (
-        <main className="main-card">
-          {renderAppView()}
-        </main>
-      )}
-
-      {route.view === 'app' && (
-        <nav className="bottom-nav">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={tab.key === activeTab ? 'nav-item active' : 'nav-item'}
-              onClick={() => guarded({ view: 'app', tab: tab.key })}
-            >
-              <span className="nav-icon">{renderTabIcon(tab.key, tab.key === activeTab)}</span>
-              <span className="nav-label">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
+        renderAppView()
       )}
     </div>
   )
