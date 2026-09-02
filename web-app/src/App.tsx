@@ -488,8 +488,20 @@ const clearStoredToken = () => {
 function parseRoute(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '')
   if (hash.startsWith('app/')) {
-    const tab = hash.slice(4) as TabKey
-    if (TABS.some((item) => item.key === tab)) return { view: 'app', tab }
+    const raw = hash.slice(4)
+    const map: Record<string, TabKey> = {
+      trading: 'markets',
+      auction: 'markets',
+      products: 'invest',
+      charity: 'invest',
+      profile: 'wallet',
+      markets: 'markets',
+      swap: 'swap',
+      invest: 'invest',
+      wallet: 'wallet',
+    }
+    const tab = map[raw] || 'markets'
+    return { view: 'app', tab }
   }
   if (hash === 'deposit') return { view: 'deposit' }
   if (hash === 'withdraw') return { view: 'withdraw' }
@@ -793,13 +805,13 @@ function App() {
   const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({ funds: true, settings: false, info: false })
   const t = I18N[lang]
 
-  const activeTab = route.view === 'app' ? route.tab : 'trading'
+  const activeTab = route.view === 'app' ? route.tab : 'markets'
 
   useEffect(() => {
     const onHashChange = () => setRoute(parseRoute())
     window.addEventListener('hashchange', onHashChange)
     if (!window.location.hash) {
-      navigateTo(token ? { view: 'app', tab: 'trading' } : { view: 'auth', mode: 'login' })
+      navigateTo(token ? { view: 'app', tab: 'markets' } : { view: 'auth', mode: 'login' })
     }
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [token])
@@ -840,7 +852,7 @@ function App() {
   }, [user?.language_code])
 
   useEffect(() => {
-    if (route.view !== 'app' || route.tab !== 'profile' || !user?.invite_code) {
+    if (route.view !== 'app' || route.tab !== 'wallet' || !user?.invite_code) {
       setInviteQr('')
       return
     }
@@ -900,7 +912,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (route.view === 'app' && route.tab === 'trading' && pairs.length === 0) {
+    if (route.view === 'app' && route.tab === 'markets' && pairs.length === 0) {
       setPairsLoading(true)
       apiRequest<ApiResult<TradingPair[]>>('/trading/pairs')
         .then((result) => {
@@ -931,7 +943,7 @@ function App() {
   }, [route, auctions.length, lang])
 
   useEffect(() => {
-    if (route.view === 'app' && route.tab === 'products' && products.length === 0) {
+    if (route.view === 'app' && route.tab === 'invest' && products.length === 0) {
       setProductsLoading(true)
       apiRequest<ApiResult<ProductItem[]>>(`/nft/products?status=active&limit=12&lang=${lang}`)
         .then((result) => setProducts(result.data || []))
@@ -1035,7 +1047,7 @@ function App() {
   }, [route])
 
   useEffect(() => {
-    if (!token || route.view !== 'app' || route.tab !== 'profile') return
+    if (!token || route.view !== 'app' || route.tab !== 'wallet') return
 
     setTransactionsLoading(true)
     setPasswordLoading(true)
@@ -1238,9 +1250,9 @@ function App() {
   useEffect(() => {
     if (!token || route.view !== 'app') return
     if (route.tab === 'auction') fetchAuctionHistory()
-    if (route.tab === 'products') fetchProductHoldings()
+    if (route.tab === 'invest') fetchProductHoldings()
     if (route.tab === 'charity') fetchCharityDonations()
-    if (route.tab === 'trading') fetchTradingOrders()
+    if (route.tab === 'markets') fetchTradingOrders()
   }, [route, token, lang])
 
   useEffect(() => {
@@ -2658,7 +2670,7 @@ function App() {
             <div>
               <h2>充值</h2>
             </div>
-            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'profile' })}>返回用户中心</button>
+            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>返回用户中心</button>
           </div>
 
           {depositNetworksLoading ? (
@@ -2758,7 +2770,7 @@ function App() {
             <div>
               <h2>提现</h2>
             </div>
-            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'profile' })}>返回用户中心</button>
+            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>返回用户中心</button>
           </div>
 
           {!hasWithdrawPassword && (
@@ -2828,11 +2840,12 @@ function App() {
           {TABS.map((tab) => (
             <button
               key={tab.key}
+              type="button"
               className={tab.key === activeTab ? 'nav-item active' : 'nav-item'}
               onClick={() => guarded({ view: 'app', tab: tab.key })}
             >
               <span className="nav-icon">{renderTabIcon(tab.key, tab.key === activeTab)}</span>
-              <small>{tab.label}</small>
+              <span className="nav-label">{tab.label}</span>
             </button>
           ))}
         </nav>
