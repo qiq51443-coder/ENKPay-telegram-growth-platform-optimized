@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { createChart } from 'lightweight-charts'
 import './App.css'
 
-type TabKey = 'trading' | 'auction' | 'products' | 'charity' | 'profile'
+type TabKey = 'markets' | 'swap' | 'invest' | 'wallet'
 type AuthMode = 'login' | 'register'
 type Route =
   | { view: 'auth'; mode: AuthMode }
