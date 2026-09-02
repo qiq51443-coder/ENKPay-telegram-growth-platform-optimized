@@ -21,7 +21,6 @@ interface WalletNetwork {
   bot_bindings?: string[];
   listener_mode?: 'polling' | 'stream';
   moralis_stream_id?: string;
-  // possible webhook provider fields returned from backend
   webhook_provider?: string;
   webhook_id?: string;
 }
@@ -49,6 +48,7 @@ interface DerivedAddress {
 }
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+
 function getBackendOrigin(): string {
   try {
     if (API_BASE.startsWith('http')) {
@@ -76,7 +76,6 @@ export const WalletNetworks: React.FC = () => {
   const [requireDepositBeforeTransfer, setRequireDepositBeforeTransfer] = useState(false);
   const [transferPermissionSaving, setTransferPermissionSaving] = useState(false);
 
-  // When switching to stream mode, pre-fill the webhook_url field based on provider
   const handleListenerModeChange = (mode: 'polling' | 'stream') => {
     setListenerMode(mode);
     if (mode === 'stream' && editingNetwork) {
@@ -162,16 +161,17 @@ export const WalletNetworks: React.FC = () => {
   const handleOpenModal = (network?: WalletNetwork) => {
     if (network) {
       setEditingNetwork(network);
-      // Don't show the mnemonic in the form for security
       const { hd_mnemonic, bot_bindings, ...formValues } = network as any;
-      // Map deposit_fee to form field deposit_fee_percent for display
-      form.setFieldsValue({ ...formValues, deposit_fee_percent: (network as any).deposit_fee, bot_ids: bot_bindings || [] });
+      form.setFieldsValue({
+        ...formValues,
+        deposit_fee_percent: (network as any).deposit_fee,
+        bot_ids: bot_bindings || [],
+      });
       setListenerMode(network.listener_mode || 'polling');
-
-      // Infer provider from network if possible
-      const provider = (network as any).webhook_provider || ((network as any).moralis_stream_id ? 'moralis' : 'trongrid');
+      const provider =
+        (network as any).webhook_provider ||
+        ((network as any).moralis_stream_id ? 'moralis' : 'trongrid');
       setStreamProvider(provider as any);
-
       if (network.listener_mode === 'stream') {
         const chainUpper = (network.chain_name || '').toUpperCase();
         const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
@@ -195,16 +195,23 @@ export const WalletNetworks: React.FC = () => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      // Map form field deposit_fee_percent to backend field deposit_fee
-      // Exclude stream-specific fields — those are handled separately via stream setup endpoints
-      const { deposit_fee_percent, hd_mnemonic, bot_ids, moralis_api_key, trongrid_api_key, webhook_url, quicknode_api_key, quicknode_webhook_id, stream_provider, ...rest } = values as any;
+      const {
+        deposit_fee_percent,
+        hd_mnemonic,
+        bot_ids,
+        moralis_api_key,
+        trongrid_api_key,
+        webhook_url,
+        quicknode_api_key,
+        quicknode_webhook_id,
+        quicknode_security_token,
+        stream_provider,
+        ...rest
+      } = values as any;
       const submitData: any = { ...rest, deposit_fee: deposit_fee_percent, bot_ids: bot_ids || [] };
-
-      // Only include hd_mnemonic if the user actually typed something
       if (hd_mnemonic && hd_mnemonic.trim()) {
         submitData.hd_mnemonic = hd_mnemonic.trim();
       }
-
       if (editingNetwork) {
         await apiClient.updateWalletNetwork(editingNetwork.id, submitData);
         await apiClient.updateWalletNetworkBots(editingNetwork.id, bot_ids || []);
@@ -213,7 +220,6 @@ export const WalletNetworks: React.FC = () => {
         await apiClient.createWalletNetwork(submitData);
         message.success('网络创建成功');
       }
-
       setModalOpen(false);
       form.resetFields();
       setEditingNetwork(null);
@@ -264,14 +270,30 @@ export const WalletNetworks: React.FC = () => {
 
   const handleStreamSetup = async () => {
     if (!editingNetwork) return;
-    const values = form.getFieldsValue(['moralis_api_key', 'trongrid_api_key', 'webhook_url', 'quicknode_api_key', 'quicknode_webhook_id', 'stream_provider']);
+    const values = form.getFieldsValue([
+      'moralis_api_key',
+      'trongrid_api_key',
+      'webhook_url',
+      'quicknode_api_key',
+      'quicknode_webhook_id',
+      'quicknode_security_token',
+      'stream_provider',
+    ]);
     const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
     const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
-    const provider = values.stream_provider || streamProvider || ((editingNetwork as any).webhook_provider || ((editingNetwork as any).moralis_stream_id ? 'moralis' : 'trongrid'));
+    const provider =
+      values.stream_provider ||
+      streamProvider ||
+      (editingNetwork as any).webhook_provider ||
+      ((editingNetwork as any).moralis_stream_id ? 'moralis' : 'trongrid');
+    const webhookUrl =
+      values.webhook_url ||
+      (isTron
+        ? `${getBackendOrigin()}/webhook/deposit/tron`
+        : provider === 'quicknode'
+          ? `${getBackendOrigin()}/webhook/deposit/quicknode`
+          : `${getBackendOrigin()}/webhook/deposit/moralis`);
 
-    const webhookUrl = values.webhook_url || (isTron ? `${getBackendOrigin()}/webhook/deposit/tron` : (provider === 'quicknode' ? `${getBackendOrigin()}/webhook/deposit/quicknode` : `${getBackendOrigin()}/webhook/deposit/moralis`));
-
-    // validation
     if (isTron && !values.trongrid_api_key) {
       message.error('请输入 TronGrid Pro API Key');
       return;
@@ -280,8 +302,13 @@ export const WalletNetworks: React.FC = () => {
       message.error('请输入 Moralis API Key 或切换到 QuickNode');
       return;
     }
-    if (!isTron && provider === 'quicknode' && !values.quicknode_api_key && !values.quicknode_webhook_id) {
-      message.error('请输入 QuickNode API Key 或在控制台手动创建 webhook 并填写 webhook id');
+    if (
+      !isTron &&
+      provider === 'quicknode' &&
+      !values.quicknode_api_key &&
+      !values.quicknode_webhook_id
+    ) {
+      message.error('请输入 QuickNode API Key（一键创建）或 Stream ID（仅绑定）');
       return;
     }
 
@@ -292,6 +319,7 @@ export const WalletNetworks: React.FC = () => {
         result = await apiClient.setupNetworkStreamWithQuickNode(editingNetwork.id, {
           quicknode_api_key: values.quicknode_api_key,
           quicknode_webhook_id: values.quicknode_webhook_id,
+          quicknode_security_token: values.quicknode_security_token,
           webhook_url: webhookUrl,
         });
       } else if (isTron) {
@@ -300,7 +328,6 @@ export const WalletNetworks: React.FC = () => {
           webhook_url: webhookUrl,
         });
       } else {
-        // moralis
         result = await apiClient.setupNetworkStream(editingNetwork.id, {
           moralis_api_key: values.moralis_api_key,
           webhook_url: webhookUrl,
@@ -312,8 +339,8 @@ export const WalletNetworks: React.FC = () => {
       const details = error.response?.data?.details;
       message.error(
         error.response?.data?.error ||
-        (typeof details === 'string' ? details : details ? JSON.stringify(details) : null) ||
-        '配置失败'
+          (typeof details === 'string' ? details : details ? JSON.stringify(details) : null) ||
+          '配置失败'
       );
     } finally {
       setStreamSetupLoading(false);
@@ -361,9 +388,7 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'network_name',
       key: 'network_name',
       width: 120,
-      render: (name: string) => (
-        <span style={{ fontWeight: 'bold' }}>{name}</span>
-      ),
+      render: (name: string) => <span style={{ fontWeight: 'bold' }}>{name}</span>,
     },
     {
       title: '显示名称',
@@ -376,9 +401,7 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'chain_name',
       key: 'chain_name',
       width: 100,
-      render: (name: string) => (
-        <Tag color="blue">{name}</Tag>
-      ),
+      render: (name: string) => <Tag color="blue">{name}</Tag>,
     },
     {
       title: '主地址',
@@ -394,14 +417,15 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'min_deposit_amount',
       key: 'min_deposit_amount',
       width: 100,
-      render: (amount: number | null | undefined) => amount != null ? `${Number(amount).toFixed(2)} USDT` : '-',
+      render: (amount: number | null | undefined) =>
+        amount != null ? `${Number(amount).toFixed(2)} USDT` : '-',
     },
     {
       title: '手续费',
       dataIndex: 'deposit_fee',
       key: 'deposit_fee',
       width: 80,
-      render: (fee: number | null | undefined) => fee != null ? `${fee}%` : '0%',
+      render: (fee: number | null | undefined) => (fee != null ? `${fee}%` : '0%'),
     },
     {
       title: '绑定Bot',
@@ -413,7 +437,7 @@ export const WalletNetworks: React.FC = () => {
         return (
           <Space wrap>
             {botIds.map((botId: string) => {
-              const bot = bots.find(b => b.id === botId);
+              const bot = bots.find((b) => b.id === botId);
               return (
                 <Tag key={botId} color="blue">
                   {bot ? `@${bot.username || bot.name}` : botId.substring(0, 8)}
@@ -441,9 +465,7 @@ export const WalletNetworks: React.FC = () => {
       key: 'is_active',
       width: 80,
       render: (isActive: boolean) => (
-        <Tag color={isActive ? 'green' : 'red'}>
-          {isActive ? '启用' : '禁用'}
-        </Tag>
+        <Tag color={isActive ? 'green' : 'red'}>{isActive ? '启用' : '禁用'}</Tag>
       ),
     },
     {
@@ -451,7 +473,7 @@ export const WalletNetworks: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => date ? new Date(date).toLocaleString('zh-CN') : '-',
+      render: (date: string) => (date ? new Date(date).toLocaleString('zh-CN') : '-'),
     },
     {
       title: '操作',
@@ -460,12 +482,7 @@ export const WalletNetworks: React.FC = () => {
       width: 320,
       render: (_: any, record: WalletNetwork) => (
         <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleOpenModal(record)}
-          >
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenModal(record)}>
             编辑
           </Button>
           <Button
@@ -572,16 +589,9 @@ export const WalletNetworks: React.FC = () => {
                 <Space direction="vertical" size={16} style={{ width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span>充值后才能发起转账</span>
-                    <Switch
-                      checked={requireDepositBeforeTransfer}
-                      onChange={setRequireDepositBeforeTransfer}
-                    />
+                    <Switch checked={requireDepositBeforeTransfer} onChange={setRequireDepositBeforeTransfer} />
                   </div>
-                  <Button
-                    type="primary"
-                    onClick={handleSaveTransferPermission}
-                    loading={transferPermissionSaving}
-                  >
+                  <Button type="primary" onClick={handleSaveTransferPermission} loading={transferPermissionSaving}>
                     保存
                   </Button>
                 </Space>
@@ -602,7 +612,7 @@ export const WalletNetworks: React.FC = () => {
                       style={{ width: 160 }}
                       allowClear
                     >
-                      {networks.map(n => (
+                      {networks.map((n) => (
                         <Select.Option key={String(n.id)} value={String(n.id)}>
                           {n.network_display || n.network_name}
                         </Select.Option>
@@ -627,7 +637,10 @@ export const WalletNetworks: React.FC = () => {
                             type="text"
                             size="small"
                             icon={<CopyOutlined />}
-                            onClick={() => { navigator.clipboard.writeText(addr); message.success('已复制'); }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(addr);
+                              message.success('已复制');
+                            }}
                           />
                         </Space>
                       ),
@@ -681,7 +694,8 @@ export const WalletNetworks: React.FC = () => {
                       dataIndex: 'created_at',
                       key: 'created_at',
                       width: 160,
-                      render: (date: string) => date ? new Date(date).toISOString().slice(0, 19).replace('T', ' ') + ' UTC' : '-',
+                      render: (date: string) =>
+                        date ? new Date(date).toISOString().slice(0, 19).replace('T', ' ') + ' UTC' : '-',
                     },
                   ]}
                   dataSource={derivedAddresses}
@@ -707,7 +721,7 @@ export const WalletNetworks: React.FC = () => {
         }}
         okText="保存"
         cancelText="取消"
-        width={600}
+        width={640}
       >
         <Form
           form={form}
@@ -736,11 +750,7 @@ export const WalletNetworks: React.FC = () => {
             <Input placeholder="TRON (TRC20)" />
           </Form.Item>
 
-          <Form.Item
-            name="chain_name"
-            label="链名"
-            rules={[{ required: true, message: '请输入链名' }]}
-          >
+          <Form.Item name="chain_name" label="链名" rules={[{ required: true, message: '请输入链名' }]}>
             <Select>
               <Select.Option value="TRON">Tron (TRON)</Select.Option>
               <Select.Option value="ETH">Ethereum (ETH)</Select.Option>
@@ -770,27 +780,15 @@ export const WalletNetworks: React.FC = () => {
             <Input placeholder="0x..." />
           </Form.Item>
 
-          <Form.Item
-            name="contract_address"
-            label="合约地址"
-            tooltip="ERC20/TRC20 代币合约地址，原生币可留空"
-          >
+          <Form.Item name="contract_address" label="合约地址" tooltip="ERC20/TRC20 代币合约地址，原生币可留空">
             <Input placeholder="代币合约地址（如 USDT 合约）" />
           </Form.Item>
 
-          <Form.Item
-            name="decimals"
-            label="代币精度"
-            tooltip="代币小数位数，USDT TRC20 为 6，ERC20 为 18"
-          >
+          <Form.Item name="decimals" label="代币精度" tooltip="代币小数位数，USDT TRC20 为 6，ERC20 为 18">
             <InputNumber min={0} max={18} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="rpc_url"
-            label="RPC 节点地址"
-            tooltip="区块链 RPC 节点 URL，留空使用默认节点"
-          >
+          <Form.Item name="rpc_url" label="RPC 节点地址" tooltip="区块链 RPC 节点 URL，留空使用默认节点">
             <Input placeholder="https://..." />
           </Form.Item>
 
@@ -822,27 +820,15 @@ export const WalletNetworks: React.FC = () => {
             <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="is_active"
-            label="状态"
-          >
+          <Form.Item name="is_active" label="状态">
             <Select>
               <Select.Option value={true}>启用</Select.Option>
               <Select.Option value={false}>禁用</Select.Option>
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="bot_ids"
-            label="授权Bot"
-            tooltip="选择可使用该网络的Bot，不选则全部Bot可用"
-          >
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder="不选则全部Bot可用"
-              optionFilterProp="children"
-            >
+          <Form.Item name="bot_ids" label="授权Bot" tooltip="选择可使用该网络的Bot，不选则全部Bot可用">
+            <Select mode="multiple" allowClear placeholder="不选则全部Bot可用" optionFilterProp="children">
               {bots.map((bot) => (
                 <Select.Option key={bot.id} value={bot.id}>
                   @{bot.username || bot.name}
@@ -853,102 +839,153 @@ export const WalletNetworks: React.FC = () => {
 
           {editingNetwork && (
             <>
-              <Form.Item label="监听模式" tooltip="轮询：定时扫链；Stream 回调：接收链上推送（延迟更低，API 消耗更少）">
-                <Radio.Group
-                  value={listenerMode}
-                  onChange={(e) => handleListenerModeChange(e.target.value)}
-                >
+              <Form.Item
+                label="监听模式"
+                tooltip="轮询：定时扫链；Stream 回调：接收链上推送（延迟更低，API 消耗更少）"
+              >
+                <Radio.Group value={listenerMode} onChange={(e) => handleListenerModeChange(e.target.value)}>
                   <Radio value="polling">轮询（默认）</Radio>
                   <Radio value="stream">Stream 回调</Radio>
                 </Radio.Group>
               </Form.Item>
 
-              {listenerMode === 'stream' && (() => {
-                const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
-                const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
-                const baseUrl = getBackendOrigin();
-                const webhookUrlMoralis = `${baseUrl}/webhook/deposit/moralis`;
-                const webhookUrlQuicknode = `${baseUrl}/webhook/deposit/quicknode`;
-                const webhookUrlTron = `${baseUrl}/webhook/deposit/tron`;
+              {listenerMode === 'stream' &&
+                (() => {
+                  const chainUpper = (editingNetwork.chain_name || '').toUpperCase();
+                  const isTron = chainUpper === 'TRON' || chainUpper === 'TRC20' || chainUpper === 'TRC';
+                  const baseUrl = getBackendOrigin();
+                  const webhookUrlMoralis = `${baseUrl}/webhook/deposit/moralis`;
+                  const webhookUrlQuicknode = `${baseUrl}/webhook/deposit/quicknode`;
+                  const webhookUrlTron = `${baseUrl}/webhook/deposit/tron`;
 
-                return (
-                  <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 6, padding: 16, marginBottom: 16 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 12 }}>
-                      Stream 配置
-                    </div>
+                  return (
+                    <div
+                      style={{
+                        background: '#fafafa',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: 6,
+                        padding: 16,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 12 }}>Stream 配置</div>
 
-                    <Form.Item label="Stream Provider" name="stream_provider" initialValue={streamProvider}>
-                      <Radio.Group onChange={(e) => { setStreamProvider(e.target.value); form.setFieldsValue({ webhook_url: e.target.value === 'quicknode' ? webhookUrlQuicknode : (isTron ? webhookUrlTron : webhookUrlMoralis) }); }}>
-                        <Radio value="moralis">Moralis</Radio>
-                        <Radio value="quicknode">QuickNode</Radio>
-                        <Radio value="trongrid">TronGrid (TRON)</Radio>
-                      </Radio.Group>
-                    </Form.Item>
-
-                    <Form.Item label="Webhook URL（确认/修改）" name="webhook_url" style={{ marginBottom: 8 }}>
-                      <Input placeholder={streamProvider === 'quicknode' ? webhookUrlQuicknode : (isTron ? webhookUrlTron : webhookUrlMoralis)} />
-                    </Form.Item>
-
-                    {streamProvider === 'moralis' && !isTron && (
-                      <Form.Item name="moralis_api_key" label="Moralis API Key" style={{ marginBottom: 8 }}>
-                        <Input.Password placeholder="输入 Moralis API Key" visibilityToggle />
-                      </Form.Item>
-                    )}
-
-                    {streamProvider === 'quicknode' && !isTron && (
-                      <>
-                        <Form.Item name="quicknode_api_key" label="QuickNode API Key" style={{ marginBottom: 8 }}>
-                          <Input.Password placeholder="输入 QuickNode API Key" visibilityToggle />
-                        </Form.Item>
-                        <Form.Item name="quicknode_webhook_id" label="QuickNode Webhook ID (可选)" style={{ marginBottom: 8 }}>
-                          <Input placeholder="若已在 QuickNode 控制台创建 webhook，则填写该 webhook id" />
-                        </Form.Item>
-                      </>
-                    )}
-
-                    {isTron && (
-                      <Form.Item name="trongrid_api_key" label="TronGrid Pro API Key" style={{ marginBottom: 8 }}>
-                        <Input.Password placeholder="输入 TronGrid Pro API Key" visibilityToggle />
-                      </Form.Item>
-                    )}
-
-                    <Space wrap>
-                      <Button
-                        type="primary"
-                        icon={<ThunderboltOutlined />}
-                        loading={streamSetupLoading}
-                        onClick={handleStreamSetup}
-                      >
-                        一键配置 Stream
-                      </Button>
-                      <Button
-                        icon={<ReloadOutlined />}
-                        loading={streamSyncLoading}
-                        disabled={editingNetwork.listener_mode !== 'stream'}
-                        onClick={handleStreamSync}
-                      >
-                        同步地址
-                      </Button>
-                      <Popconfirm
-                        title="确定要删除 Stream 并切回轮询模式吗？"
-                        onConfirm={handleStreamDelete}
-                        okText="确定"
-                        cancelText="取消"
-                        okButtonProps={{ danger: true }}
-                      >
-                        <Button
-                          danger
-                          icon={<DeleteOutlined />}
-                          loading={streamDeleteLoading}
-                          disabled={editingNetwork.listener_mode !== 'stream'}
+                      <Form.Item label="Stream Provider" name="stream_provider" initialValue={streamProvider}>
+                        <Radio.Group
+                          onChange={(e) => {
+                            setStreamProvider(e.target.value);
+                            form.setFieldsValue({
+                              webhook_url:
+                                e.target.value === 'quicknode'
+                                  ? webhookUrlQuicknode
+                                  : isTron
+                                    ? webhookUrlTron
+                                    : webhookUrlMoralis,
+                            });
+                          }}
                         >
-                          删除 Stream
+                          <Radio value="moralis">Moralis</Radio>
+                          <Radio value="quicknode">QuickNode</Radio>
+                          <Radio value="trongrid">TronGrid (TRON)</Radio>
+                        </Radio.Group>
+                      </Form.Item>
+
+                      <Form.Item label="Webhook URL（确认/修改）" name="webhook_url" style={{ marginBottom: 8 }}>
+                        <Input
+                          placeholder={
+                            streamProvider === 'quicknode'
+                              ? webhookUrlQuicknode
+                              : isTron
+                                ? webhookUrlTron
+                                : webhookUrlMoralis
+                          }
+                        />
+                      </Form.Item>
+
+                      {streamProvider === 'moralis' && !isTron && (
+                        <Form.Item name="moralis_api_key" label="Moralis API Key" style={{ marginBottom: 8 }}>
+                          <Input.Password placeholder="输入 Moralis API Key" visibilityToggle />
+                        </Form.Item>
+                      )}
+
+                      {streamProvider === 'quicknode' && !isTron && (
+                        <>
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 12 }}
+                            message="两种方式任选其一"
+                            description="① 填 API Key + Webhook URL → 一键创建 Stream（类似 Moralis）。② 在 Dashboard 建好后只填 Stream ID + Security Token 绑定。"
+                          />
+                          <Form.Item
+                            name="quicknode_api_key"
+                            label="QuickNode API Key（一键创建）"
+                            style={{ marginBottom: 8 }}
+                            tooltip="Dashboard → API Keys，需 STREAMS_REST 权限"
+                          >
+                            <Input.Password placeholder="用于 REST 创建 Stream" visibilityToggle />
+                          </Form.Item>
+                          <Form.Item
+                            name="quicknode_webhook_id"
+                            label="或：已有 Stream ID（仅绑定）"
+                            style={{ marginBottom: 8 }}
+                          >
+                            <Input placeholder="已在 QuickNode Dashboard 创建的 Stream ID" />
+                          </Form.Item>
+                          <Form.Item
+                            name="quicknode_security_token"
+                            label="Security Token（验签，可选）"
+                            style={{ marginBottom: 8 }}
+                            tooltip="Stream destination 的 security_token；一键创建时若 API 返回会自动保存"
+                          >
+                            <Input.Password placeholder="用于校验 x-qn-signature" visibilityToggle />
+                          </Form.Item>
+                        </>
+                      )}
+
+                      {isTron && (
+                        <Form.Item name="trongrid_api_key" label="TronGrid Pro API Key" style={{ marginBottom: 8 }}>
+                          <Input.Password placeholder="输入 TronGrid Pro API Key" visibilityToggle />
+                        </Form.Item>
+                      )}
+
+                      <Space wrap>
+                        <Button
+                          type="primary"
+                          icon={<ThunderboltOutlined />}
+                          loading={streamSetupLoading}
+                          onClick={handleStreamSetup}
+                        >
+                          一键配置 Stream
                         </Button>
-                      </Popconfirm>
-                    </Space>
-                  </div>
-                );
-              })()}
+                        <Button
+                          icon={<ReloadOutlined />}
+                          loading={streamSyncLoading}
+                          disabled={editingNetwork.listener_mode !== 'stream'}
+                          onClick={handleStreamSync}
+                        >
+                          同步地址
+                        </Button>
+                        <Popconfirm
+                          title="确定要删除 Stream 并切回轮询模式吗？"
+                          onConfirm={handleStreamDelete}
+                          okText="确定"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <Button
+                            danger
+                            icon={<DeleteOutlined />}
+                            loading={streamDeleteLoading}
+                            disabled={editingNetwork.listener_mode !== 'stream'}
+                          >
+                            删除 Stream
+                          </Button>
+                        </Popconfirm>
+                      </Space>
+                    </div>
+                  );
+                })()}
             </>
           )}
         </Form>
