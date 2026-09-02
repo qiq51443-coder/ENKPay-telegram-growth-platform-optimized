@@ -187,11 +187,10 @@ const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
 const TRADING_QUICK_AMOUNTS = [10, 50, 100, 500, 1000]
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
-  { key: 'trading', label: '即时交易', description: '查看当前开放的交易币对与最新价格。' },
-  { key: 'auction', label: '夺宝', description: '浏览当前进行中的夺宝项目。' },
-  { key: 'products', label: '定期产品', description: '查看平台当前开放的定期/NFT 产品。' },
-  { key: 'charity', label: '公益活动', description: '了解平台公益项目与进度。' },
-  { key: 'profile', label: '个人中心', description: '管理网页账户、提现密码与钱包操作。' },
+  { key: 'markets', label: '行情', description: '代币与交易对行情' },
+  { key: 'swap', label: '闪兑', description: '资产快速兑换' },
+  { key: 'invest', label: '投资', description: '定期与理财产品' },
+  { key: 'wallet', label: '钱包', description: '余额、充值与提现' },
 ]
 
 type Lang = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ar' | 'ja'
@@ -509,6 +508,7 @@ function parseRoute(): Route {
   return { view: 'auth', mode: 'login' }
 }
 
+
 function navigateTo(route: Route) {
   if (route.view === 'auth') window.location.hash = `/${route.mode}`
   if (route.view === 'app') window.location.hash = `/app/${route.tab}`
@@ -567,6 +567,28 @@ function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value))
 }
 
+
+function SwapIcon({ active }: { active: boolean }) {
+  const c = active ? '#F0B90B' : '#8899AA'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 3l4 4-4 4" /><path d="M20 7H4" />
+      <path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
+    </svg>
+  )
+}
+
+function WalletIcon({ active }: { active: boolean }) {
+  const c = active ? '#F0B90B' : '#8899AA'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+      <circle cx="17" cy="14" r="1.5" fill={c} stroke="none" />
+    </svg>
+  )
+}
+
 function TradingIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -614,10 +636,9 @@ function ProfileIcon({ active }: { active: boolean }) {
 }
 
 function renderTabIcon(tab: TabKey, active: boolean) {
-  if (tab === 'auction') return <AuctionIcon active={active} />
-  if (tab === 'products') return <ProductsIcon active={active} />
-  if (tab === 'charity') return <CharityIcon active={active} />
-  if (tab === 'profile') return <ProfileIcon active={active} />
+  if (tab === 'swap') return <SwapIcon active={active} />
+  if (tab === 'invest') return <ProductsIcon active={active} />
+  if (tab === 'wallet') return <WalletIcon active={active} />
   return <TradingIcon active={active} />
 }
 
@@ -934,7 +955,7 @@ function App() {
   }, [route, pairs.length])
 
   useEffect(() => {
-    if (route.view === 'app' && route.tab === 'auction' && auctions.length === 0) {
+    if (false && route.view === 'app' && auctions.length === 0) {
       setAuctionsLoading(true)
       apiRequest<ApiResult<AuctionItem[]>>(`/auctions?status=active&limit=12&lang=${lang}`)
         .then((result) => setAuctions(result.data || []))
@@ -952,7 +973,7 @@ function App() {
   }, [route, products.length, lang])
 
   useEffect(() => {
-    if (route.view === 'app' && route.tab === 'charity' && charity.length === 0) {
+    if (false && route.view === 'app' && charity.length === 0) {
       setCharityLoading(true)
       apiRequest<ApiResult<CharityItem[]>>(`/charity/projects?limit=12&lang=${lang}`)
         .then((result) => setCharity(result.data || []))
@@ -1020,7 +1041,7 @@ function App() {
   // HTTP price polling fallback (2s) — active only on the trading tab
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (route.view !== 'app' || route.tab !== 'trading') return
+    if (route.view !== 'app' || route.tab !== 'markets') return
 
     const fetchPrices = () => {
       apiRequest<ApiResult<TradingPair[]>>('/trading/pairs')
@@ -1249,9 +1270,9 @@ function App() {
 
   useEffect(() => {
     if (!token || route.view !== 'app') return
-    if (route.tab === 'auction') fetchAuctionHistory()
+    // auction tab removed: if (false) fetchAuctionHistory()
     if (route.tab === 'invest') fetchProductHoldings()
-    if (route.tab === 'charity') fetchCharityDonations()
+    // charity tab removed: if (false) fetchCharityDonations()
     if (route.tab === 'markets') fetchTradingOrders()
   }, [route, token, lang])
 
@@ -1555,7 +1576,7 @@ function App() {
       setToken(nextToken)
       setUser((result as any).user || null)
       setSuccessMsg(t.registerSuccess)
-      setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
+      setTimeout(() => navigateTo({ view: 'app', tab: 'markets' }), 800)
     } catch (error: any) {
       setErrorMsg(error.message)
     } finally {
@@ -1593,7 +1614,7 @@ function App() {
       setToken(nextToken)
       setUser((result as any).user || null)
       setSuccessMsg(t.loginSuccess)
-      setTimeout(() => navigateTo({ view: 'app', tab: 'trading' }), 800)
+      setTimeout(() => navigateTo({ view: 'app', tab: 'markets' }), 800)
     } catch (error: any) {
       setErrorMsg(error.message)
     } finally {
@@ -2421,20 +2442,35 @@ function App() {
     )
   }
 
+  const renderSwapPlaceholder = () => (
+    <div className="panel">
+      <div className="section-head">
+        <div>
+          <h2>闪兑</h2>
+          <p className="muted">资产快速兑换（即将开放）</p>
+        </div>
+      </div>
+      <div className="empty-card">
+        <p>闪兑功能将在后续版本上线。</p>
+        <p className="muted" style={{ marginTop: 8 }}>请先使用「钱包」充值/提现，或在「行情」查看价格。</p>
+      </div>
+    </div>
+  )
+
   const renderAppView = () => {
     switch (activeTab) {
-      case 'auction':
-        return renderAuction()
-      case 'products':
+      case 'swap':
+        return renderSwapPlaceholder()
+      case 'invest':
         return renderProducts()
-      case 'charity':
-        return renderCharity()
-      case 'profile':
+      case 'wallet':
         return renderProfile()
+      case 'markets':
       default:
         return renderTrading()
     }
   }
+
 
   const currentDepositNetwork = depositNetworks.find((item) => String(item.id) === selectedDepositNetwork)
   const currentWithdrawNetwork = withdrawNetworks.find((item) => String(item.id) === withdrawForm.network_id)
