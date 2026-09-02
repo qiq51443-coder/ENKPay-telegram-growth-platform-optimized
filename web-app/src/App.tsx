@@ -563,9 +563,6 @@ function formatCountdown(seconds: number) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value))
-}
 
 
 function SwapIcon({ active }: { active: boolean }) {
@@ -694,12 +691,8 @@ function App() {
 
   const [pairs, setPairs] = useState<TradingPair[]>([])
   const [pairsLoading, setPairsLoading] = useState(false)
-  const [auctions, setAuctions] = useState<AuctionItem[]>([])
-  const [auctionsLoading, setAuctionsLoading] = useState(false)
   const [products, setProducts] = useState<ProductItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
-  const [charity, setCharity] = useState<CharityItem[]>([])
-  const [charityLoading, setCharityLoading] = useState(false)
   const [transactions, setTransactions] = useState<WalletTransaction[]>([])
   const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [hasWithdrawPassword, setHasWithdrawPassword] = useState(false)
@@ -763,23 +756,11 @@ function App() {
   const [tradingSubmitting, setTradingSubmitting] = useState(false)
   const [tradingOrderError, setTradingOrderError] = useState('')
   const [tradingOrderSuccess, setTradingOrderSuccess] = useState('')
-  const [selectedAuction, setSelectedAuction] = useState<AuctionItem | null>(null)
-  const [auctionQuantity, setAuctionQuantity] = useState(1)
-  const [auctionSubmitting, setAuctionSubmitting] = useState(false)
-  const [auctionActionMessage, setAuctionActionMessage] = useState('')
-  const [auctionHistory, setAuctionHistory] = useState<AuctionHistoryItem[]>([])
-  const [auctionHistoryLoading, setAuctionHistoryLoading] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null)
   const [productSubmitting, setProductSubmitting] = useState(false)
   const [productActionMessage, setProductActionMessage] = useState('')
   const [productHoldings, setProductHoldings] = useState<ProductHolding[]>([])
   const [productHoldingsLoading, setProductHoldingsLoading] = useState(false)
-  const [selectedCharity, setSelectedCharity] = useState<CharityItem | null>(null)
-  const [charityDonateAmount, setCharityDonateAmount] = useState('10')
-  const [charitySubmitting, setCharitySubmitting] = useState(false)
-  const [charityActionMessage, setCharityActionMessage] = useState('')
-  const [charityDonations, setCharityDonations] = useState<CharityDonation[]>([])
-  const [charityDonationsLoading, setCharityDonationsLoading] = useState(false)
   const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -926,14 +907,6 @@ function App() {
     }
   }, [route, pairs.length])
 
-  useEffect(() => {
-    if (false && route.view === 'app' && auctions.length === 0) {
-      setAuctionsLoading(true)
-      apiRequest<ApiResult<AuctionItem[]>>(`/auctions?status=active&limit=12&lang=${lang}`)
-        .then((result) => setAuctions(result.data || []))
-        .finally(() => setAuctionsLoading(false))
-    }
-  }, [route, auctions.length, lang])
 
   useEffect(() => {
     if (route.view === 'app' && route.tab === 'invest' && products.length === 0) {
@@ -944,14 +917,6 @@ function App() {
     }
   }, [route, products.length, lang])
 
-  useEffect(() => {
-    if (false && route.view === 'app' && charity.length === 0) {
-      setCharityLoading(true)
-      apiRequest<ApiResult<CharityItem[]>>(`/charity/projects?limit=12&lang=${lang}`)
-        .then((result) => setCharity(result.data || []))
-        .finally(() => setCharityLoading(false))
-    }
-  }, [route, charity.length, lang])
 
   // WebSocket price subscription with exponential backoff reconnect
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1168,19 +1133,6 @@ function App() {
     }
   }
 
-  const fetchAuctionHistory = async () => {
-    if (!token) return
-    setAuctionHistoryLoading(true)
-    try {
-      const result = await apiRequest<ApiResult<AuctionHistoryItem[]>>('/web/app/auctions/history', {}, token)
-      setAuctionHistory(result.data || [])
-    } catch {
-      setAuctionHistory([])
-    } finally {
-      setAuctionHistoryLoading(false)
-    }
-  }
-
   const fetchProductHoldings = async () => {
     if (!token) return
     setProductHoldingsLoading(true)
@@ -1191,19 +1143,6 @@ function App() {
       setProductHoldings([])
     } finally {
       setProductHoldingsLoading(false)
-    }
-  }
-
-  const fetchCharityDonations = async () => {
-    if (!token) return
-    setCharityDonationsLoading(true)
-    try {
-      const result = await apiRequest<ApiResult<CharityDonation[]> & { summary?: { total_donated?: number } }>('/web/app/charity/donations', {}, token)
-      setCharityDonations(result.data || [])
-    } catch {
-      setCharityDonations([])
-    } finally {
-      setCharityDonationsLoading(false)
     }
   }
 
@@ -1240,13 +1179,6 @@ function App() {
     }
   }, [selectedTradingPair?.id, selectedTradingDuration])
 
-  useEffect(() => {
-    if (!token || route.view !== 'app') return
-    // auction tab removed: if (false) fetchAuctionHistory()
-    if (route.tab === 'invest') fetchProductHoldings()
-    // charity tab removed: if (false) fetchCharityDonations()
-    if (route.tab === 'markets') fetchTradingOrders()
-  }, [route, token, lang])
 
   useEffect(() => {
     if (!selectedTradingPair || !tradingChartRef.current) return
@@ -1692,25 +1624,6 @@ function App() {
     }
   }
 
-  const handleAuctionJoin = async () => {
-    if (!selectedAuction || !token || auctionSubmitting) return
-    setAuctionSubmitting(true)
-    setAuctionActionMessage('')
-    try {
-      const result = await apiRequest<ApiResult<null>>(`/web/app/auctions/${selectedAuction.id}/join`, {
-        method: 'POST',
-        body: JSON.stringify({ quantity: auctionQuantity }),
-      }, token)
-      setAuctionActionMessage(result.message || '参与成功')
-      fetchAuctionHistory()
-      refreshUserProfile()
-    } catch (error: any) {
-      setAuctionActionMessage(error.message)
-    } finally {
-      setAuctionSubmitting(false)
-    }
-  }
-
   const handleProductPurchase = async () => {
     if (!selectedProduct || !token || productSubmitting) return
     setProductSubmitting(true)
@@ -1726,28 +1639,6 @@ function App() {
       setProductActionMessage(error.message)
     } finally {
       setProductSubmitting(false)
-    }
-  }
-
-  const handleCharityDonate = async () => {
-    if (!selectedCharity || !token || charitySubmitting || Number(charityDonateAmount) <= 0) return
-    setCharitySubmitting(true)
-    setCharityActionMessage('')
-    try {
-      const result = await apiRequest<ApiResult<null>>('/web/app/charity/donate', {
-        method: 'POST',
-        body: JSON.stringify({
-          project_id: selectedCharity.id,
-          amount: Number(charityDonateAmount),
-        }),
-      }, token)
-      setCharityActionMessage(result.message || '捐赠成功')
-      fetchCharityDonations()
-      refreshUserProfile()
-    } catch (error: any) {
-      setCharityActionMessage(error.message)
-    } finally {
-      setCharitySubmitting(false)
     }
   }
 
