@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import express from 'express';
 import { query } from '../db';
-import { processDeposit } from '../services/deposit.service';
+import { processDeposit, decrypt } from '../services/deposit.service';
 import { verifyMoralisSignature } from '../services/moralis-stream.service';
 import { verifyQuickNodeSignature } from '../services/quicknode.service';
 
@@ -13,28 +13,60 @@ function verifyWebhookSignature(req: express.Request, res: express.Response): bo
     console.warn('[webhook-deposit] WEBHOOK_SECRET not set — webhook signature verification disabled');
     return true;
   }
-
   const signature = req.headers['x-webhook-signature'] as string | undefined;
   if (!signature) {
     res.status(401).json({ error: 'Missing webhook signature' });
     return false;
   }
-
   const expectedSig =
     'sha256=' +
     crypto
       .createHmac('sha256', webhookSecret)
       .update(JSON.stringify(req.body))
       .digest('hex');
-
   const sigBuf = Buffer.from(signature);
   const expectedBuf = Buffer.from(expectedSig);
   if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
     res.status(401).json({ error: 'Invalid webhook signature' });
     return false;
   }
-
   return true;
+}
+
+/** 从 env 或 deposit_networks 解密得到 QuickNode security token */
+async function resolveQuickNodeSecurityToken(): Promise<string> {
+  const fromEnv =
+    process.env.QUICKNODE_STREAM_SECURITY_TOKEN || process.env.QUICKNODE_WEBHOOK_SECRET || '';
+  if (fromEnv) return fromEnv;
+
+  try {
+    const rows = await query(
+      `SELECT webhook_api_key_encrypted FROM deposit_networks
+       WHERE webhook_provider = 'quicknode' AND webhook_api_key_encrypted IS NOT NULL
+       LIMIT 10`
+    );
+    for (const row of rows.rows) {
+      try {
+        const raw = decrypt(row.webhook_api_key_encrypted);
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.security_token && typeof parsed.security_token === 'string') {
+            return parsed.security_token;
+          }
+        } catch {
+          // 绑定模式可能只加密了 security token 字符串
+          if (raw && typeof raw === 'string' && !raw.startsWith('{') && raw.length > 8) {
+            return raw;
+          }
+        }
+      } catch {
+        /* skip bad row */
+      }
+    }
+  } catch (e: any) {
+    console.warn('[quicknode-webhook] failed to load security token from DB:', e.message);
+  }
+  return '';
 }
 
 router.post('/moralis', async (req, res) => {
@@ -82,9 +114,8 @@ router.post('/moralis', async (req, res) => {
     }
 
     const { id: networkId, min_confirmations, decimals, contract_address } = networkResult.rows[0];
-    const expectedTokenAddress = typeof contract_address === 'string'
-      ? contract_address.trim().toLowerCase()
-      : '';
+    const expectedTokenAddress =
+      typeof contract_address === 'string' ? contract_address.trim().toLowerCase() : '';
 
     if (!expectedTokenAddress) {
       console.warn(
@@ -103,9 +134,8 @@ router.post('/moralis', async (req, res) => {
         const toAddress: string = transfer.to || '';
         const fromAddress: string = transfer.from || '';
         const txHash: string = transfer.transactionHash || '';
-        const tokenAddress: string = typeof transfer.tokenAddress === 'string'
-          ? transfer.tokenAddress.trim().toLowerCase()
-          : '';
+        const tokenAddress: string =
+          typeof transfer.tokenAddress === 'string' ? transfer.tokenAddress.trim().toLowerCase() : '';
 
         if (!toAddress || !txHash) {
           continue;
@@ -115,9 +145,9 @@ router.post('/moralis', async (req, res) => {
           continue;
         }
 
-        const effectiveDecimals = transfer.tokenDecimals != null
-          ? Number(transfer.tokenDecimals)
-          : tokenDecimals;
+        const effectiveDecimals =
+          transfer.tokenDecimals != null ? Number(transfer.tokenDecimals) : tokenDecimals;
+
         const rawValue = BigInt(transfer.value || '0');
         const amount = Number(rawValue) / 10 ** effectiveDecimals;
 
@@ -126,9 +156,11 @@ router.post('/moralis', async (req, res) => {
            WHERE LOWER(address) = LOWER($1) AND network_id = $2 AND is_active = true`,
           [toAddress, networkId]
         );
+
         if (addrResult.rows.length === 0) {
           continue;
         }
+
         const userId = addrResult.rows[0].user_id;
 
         await processDeposit(
@@ -178,7 +210,7 @@ router.post('/tron', async (req, res) => {
     }
 
     const { user_id, network_id, min_confirmations, decimals } = addressResult.rows[0];
-    const amount = Number(BigInt(value) * 10000n / BigInt(Math.pow(10, decimals))) / 10000;
+    const amount = Number((BigInt(value) * 10000n) / BigInt(Math.pow(10, decimals))) / 10000;
 
     await processDeposit(
       user_id,
@@ -292,14 +324,18 @@ router.post('/bsc', async (req, res) => {
 
 /**
  * POST /webhook/deposit/quicknode
- * QuickNode Streams destination. Filter ERC20 Transfer for your token in Stream;
- * this handler matches `to` against user_deposit_addresses.
+ * QuickNode Streams destination.
+ * 验签：env QUICKNODE_STREAM_SECURITY_TOKEN 优先，否则从 DB 解密 security_token。
+ * 业务：解析 Transfer，按合约 / 充值地址匹配后 processDeposit。
  */
 router.post('/quicknode', async (req, res) => {
   try {
-    const secret = process.env.QUICKNODE_STREAM_SECURITY_TOKEN || process.env.QUICKNODE_WEBHOOK_SECRET;
+    const secret = await resolveQuickNodeSecurityToken();
+
     if (secret) {
-      const signature = (req.headers['x-qn-signature'] || req.headers['x-quicknode-signature']) as string | undefined;
+      const signature = (req.headers['x-qn-signature'] || req.headers['x-quicknode-signature']) as
+        | string
+        | undefined;
       const nonce = req.headers['x-qn-nonce'] as string | undefined;
       const timestamp = req.headers['x-qn-timestamp'] as string | undefined;
       const rawBody = (req as any).rawBody as string | undefined;
@@ -308,11 +344,14 @@ router.post('/quicknode', async (req, res) => {
         return res.status(401).json({ error: 'Invalid QuickNode signature' });
       }
     } else {
-      console.warn('[quicknode-webhook] QUICKNODE_STREAM_SECURITY_TOKEN not set — signature verification disabled');
+      console.warn(
+        '[quicknode-webhook] no security token (env or DB) — signature verification disabled'
+      );
     }
 
     const payload = req.body;
     let transfers: any[] = [];
+
     if (Array.isArray(payload)) {
       transfers = payload;
     } else if (Array.isArray(payload?.data)) {
@@ -320,7 +359,8 @@ router.post('/quicknode', async (req, res) => {
     } else {
       transfers = payload.erc20Transfers || payload.transfers || payload.events || [];
       if (!transfers.length && Array.isArray(payload.logs)) {
-        const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        const TRANSFER_TOPIC =
+          '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
         for (const log of payload.logs) {
           const topics = log.topics || [];
           if (topics[0] === TRANSFER_TOPIC && topics.length >= 3) {
@@ -347,7 +387,12 @@ router.post('/quicknode', async (req, res) => {
         const txHash: string = transfer.transactionHash || transfer.hash || transfer.txHash || '';
         const toAddress: string = transfer.to || transfer.to_address || '';
         const fromAddress: string = transfer.from || transfer.from_address || '';
-        const tokenAddress: string = (transfer.tokenAddress || transfer.contract || transfer.address || '').toLowerCase();
+        const tokenAddress: string = (
+          transfer.tokenAddress ||
+          transfer.contract ||
+          transfer.address ||
+          ''
+        ).toLowerCase();
         const rawValue = transfer.value || transfer.amount || '0';
 
         if (!txHash || !toAddress) continue;
