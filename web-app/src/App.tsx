@@ -506,6 +506,55 @@ function formatCountdown(seconds: number) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
+
+function SwapIcon({ active }: { active: boolean }) {
+  const c = active ? '#F0B90B' : '#8899AA'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 3l4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="M8 21l-4-4 4-4" />
+      <path d="M4 17h16" />
+    </svg>
+  )
+}
+
+function WalletIcon({ active }: { active: boolean }) {
+  const c = active ? '#F0B90B' : '#8899AA'
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+      <circle cx="17" cy="14" r="1.5" fill={c} stroke="none" />
+    </svg>
+  )
+}
+
+function TradingIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </svg>
+  )
+}
+
+function ProductsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#F0B90B' : '#8899AA'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  )
+}
+
+function renderTabIcon(tab: TabKey, active: boolean) {
+  if (tab === 'swap') return <SwapIcon active={active} />
+  if (tab === 'invest') return <ProductsIcon active={active} />
+  if (tab === 'wallet') return <WalletIcon active={active} />
+  return <TradingIcon active={active} />
+}
+
 function formatMoney(value?: number) {
   return `${Number(value || 0).toFixed(2)} USDT`
 }
