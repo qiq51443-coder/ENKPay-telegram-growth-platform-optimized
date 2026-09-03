@@ -2401,7 +2401,25 @@ function App() {
           </article>
         </main>
       ) : (
-        renderAppView()
+        <main className="main-card">
+          {renderAppView()}
+        </main>
+      )}
+
+      {route.view === 'app' && (
+        <nav className="bottom-nav" aria-label="主导航">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={tab.key === activeTab ? 'nav-item active' : 'nav-item'}
+              onClick={() => guarded({ view: 'app', tab: tab.key })}
+            >
+              <span className="nav-icon">{renderTabIcon(tab.key, tab.key === activeTab)}</span>
+              <span className="nav-label">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
       )}
     </div>
   )
