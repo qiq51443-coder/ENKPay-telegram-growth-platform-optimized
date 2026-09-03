@@ -815,11 +815,19 @@
     left: 0;
     right: 0;
     bottom: 0;
+    width: 100%;
+    max-width: none;
+    transform: none;
     border-radius: 0;
     border-top: 1px solid rgba(148, 163, 184, 0.16);
     border-left: none;
     border-right: none;
     border-bottom: none;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell {
+    padding-bottom: 96px;
   }
 
   .nav-item small {
