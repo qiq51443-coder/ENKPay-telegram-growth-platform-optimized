@@ -1,1 +1,247 @@
-SEE_FILE
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Layout, Menu, Button, Dropdown, Avatar, Badge } from 'antd';
+import {
+  UserOutlined,
+  RobotOutlined,
+  GiftOutlined,
+  SoundOutlined,
+  TeamOutlined,
+  AuditOutlined,
+  SettingOutlined,
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  BarChartOutlined,
+  AppstoreOutlined,
+  TrophyOutlined,
+  LineChartOutlined,
+  HeartOutlined,
+  WalletOutlined,
+  ThunderboltOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  MailOutlined,
+} from '@ant-design/icons';
+import { Login } from './pages/Login';
+import { Users } from './pages/Users';
+import { UserDetail } from './pages/UserDetail';
+import { WebAccounts } from './pages/WebAccounts';
+import { WebAccountDetail } from './pages/WebAccountDetail';
+import { WebAccountLedger } from './pages/WebAccountLedger';
+import { DepinConfig } from './pages/DepinConfig';
+import { DepinInvestments } from './pages/DepinInvestments';
+import { Bots } from './pages/Bots';
+import { RedPackets } from './pages/RedPackets';
+import { Broadcasts } from './pages/Broadcasts';
+import { Withdrawals } from './pages/Withdrawals';
+import { AdminUserManager } from './pages/AdminUserManager';
+import { AuditLogs } from './pages/AuditLogs';
+import { SystemSettings } from './pages/SystemSettings';
+import { NFTCategories } from './pages/NFTCategories';
+import { NFTProducts } from './pages/NFTProducts';
+import { Auctions } from './pages/Auctions';
+import { TradingPairs } from './pages/TradingPairs';
+import { CustomPriceControl } from './pages/CustomPriceControl';
+import { CharityProjects } from './pages/CharityProjects';
+import { WalletNetworks } from './pages/WalletNetworks';
+import { DepositRecords } from './pages/DepositRecords';
+import { TransferRecords } from './pages/TransferRecords';
+import { TradingRules } from './pages/TradingRules';
+import { TradingSessions } from './pages/TradingSessions';
+import { TradingOrders } from './pages/TradingOrders';
+import { TradingStrategyBot } from './pages/TradingStrategyBot';
+import { Orders } from './pages/Orders';
+import { Groups } from './pages/Groups';
+import { Announcements } from './pages/Announcements';
+import { Analytics } from './pages/Analytics';
+import { Sweep } from './pages/Sweep';
+import { BotSettings } from './pages/BotSettings';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+const { Header, Sider, Content } = Layout;
+
+const ProtectedLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedKey, setSelectedKey] = useState('analytics');
+  const [depositCount, setDepositCount] = useState(0);
+  const [withdrawalCount, setWithdrawalCount] = useState(0);
+
+  useEffect(() => {
+    const path = location.pathname.split('/')[1] || 'analytics';
+    setSelectedKey(path);
+    if (['web-accounts', 'web-ledger', 'depin-config', 'depin-investments'].includes(path)) {
+      setOpenKeys((keys) => (keys.includes('web-users') ? keys : [...keys, 'web-users']));
+    }
+  }, [location]);
+
+  useEffect(() => {
+    const fetchNotificationCounts = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { Authorization: `Bearer ${token}` };
+        const [depositRes, withdrawalRes] = await Promise.all([
+          fetch('/api/admin/wallet/deposits?status=pending&limit=1', { headers }).then((r) => r.json()).catch(() => null),
+          fetch('/api/admin/wallet/withdrawals?status=pending&limit=1', { headers }).then((r) => r.json()).catch(() => null),
+        ]);
+        if (depositRes?.pagination?.total != null) setDepositCount(depositRes.pagination.total);
+        if (withdrawalRes?.pagination?.total != null) setWithdrawalCount(withdrawalRes.pagination.total);
+      } catch {}
+    };
+    fetchNotificationCounts();
+    const interval = setInterval(fetchNotificationCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  const menuItems = [
+    { key: 'analytics', icon: <BarChartOutlined />, label: <Link to="/analytics">数据统计</Link> },
+    { key: 'users', icon: <UserOutlined />, label: <Link to="/users">Bot 用户</Link> },
+    {
+      key: 'web-users',
+      icon: <MailOutlined />,
+      label: '官网账号',
+      children: [
+        { key: 'web-accounts', label: <Link to="/web-accounts">账号列表</Link> },
+        { key: 'web-ledger', label: <Link to="/web-ledger">帐变记录</Link> },
+        { key: 'depin-config', label: <Link to="/depin-config">DePIN 配置</Link> },
+        { key: 'depin-investments', label: <Link to="/depin-investments">DePIN 投资详情</Link> },
+      ],
+    },
+    { key: 'groups', icon: <TeamOutlined />, label: <Link to="/groups">群组管理</Link> },
+    {
+      key: 'nft',
+      icon: <AppstoreOutlined />,
+      label: 'NFT 管理',
+      children: [{ key: 'nft-products', label: <Link to="/nft-products">NFT 产品</Link> }],
+    },
+    { key: 'auctions', icon: <TrophyOutlined />, label: <Link to="/auctions">竞拍管理</Link> },
+    {
+      key: 'trading',
+      icon: <LineChartOutlined />,
+      label: '交易管理',
+      children: [
+        { key: 'trading-pairs', label: <Link to="/trading-pairs">交易币种</Link> },
+        { key: 'custom-price', label: <Link to="/custom-price">自定义走势</Link> },
+        { key: 'trading-rules', label: <Link to="/trading-rules">交易规则</Link> },
+        { key: 'trading-sessions', label: <Link to="/trading-sessions">交易时段</Link> },
+        { key: 'trading-orders', label: <Link to="/trading-orders">交易订单</Link> },
+        { key: 'strategy-bot', label: <Link to="/strategy-bot">策略机器人</Link> },
+      ],
+    },
+    { key: 'charity', icon: <HeartOutlined />, label: <Link to="/charity">公益管理</Link> },
+    {
+      key: 'wallet',
+      icon: <WalletOutlined />,
+      label: '钱包管理',
+      children: [
+        { key: 'wallet-networks', label: <Link to="/wallet-networks">充值网络</Link> },
+        { key: 'sweep', label: <Link to="/sweep">归集管理</Link> },
+        { key: 'deposit-records', label: <Link to="/deposit-records">充值记录</Link> },
+        { key: 'transfer-records', label: <Link to="/transfer-records">转账记录</Link> },
+        { key: 'withdrawals', label: <Link to="/withdrawals">提现记录</Link> },
+        { key: 'orders', label: <Link to="/orders">订单管理</Link> },
+      ],
+    },
+    { key: 'bots', icon: <RobotOutlined />, label: <Link to="/bots">Bot 管理</Link> },
+    { key: 'red-packets', icon: <GiftOutlined />, label: <Link to="/red-packets">红包管理</Link> },
+    { key: 'broadcasts', icon: <SoundOutlined />, label: <Link to="/broadcasts">广播管理</Link> },
+    { key: 'announcements', icon: <ThunderboltOutlined />, label: <Link to="/announcements">公告管理</Link> },
+    { key: 'admin-users', icon: <TeamOutlined />, label: <Link to="/admin-users">管理员</Link> },
+    { key: 'audit-logs', icon: <AuditOutlined />, label: <Link to="/audit-logs">审计日志</Link> },
+    { key: 'bot-settings', icon: <RobotOutlined />, label: <Link to="/bot-settings">Bot设置</Link> },
+    { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings">系统设置</Link> },
+  ];
+
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider trigger={null} collapsible collapsed={collapsed} width={220} style={{ overflow: 'auto', height: '100vh', position: 'fixed', left: 0, top: 0, bottom: 0 }}>
+        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: collapsed ? 16 : 18, fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          {collapsed ? '💳' : '💳 ENK Pay'}
+        </div>
+        <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} openKeys={collapsed ? [] : openKeys} onOpenChange={(keys) => setOpenKeys(keys)} items={menuItems} style={{ borderRight: 0 }} />
+      </Sider>
+      <Layout style={{ marginLeft: collapsed ? 80 : 220 }}>
+        <Header style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 16px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 4px rgba(0,21,41,.08)' }}>
+          <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} style={{ fontSize: 16, width: 64, height: 64 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Badge count={depositCount} size="small">
+              <Button type="text" icon={<ArrowDownOutlined />} onClick={() => navigate('/deposit-records')} title="待处理充值" />
+            </Badge>
+            <Badge count={withdrawalCount} size="small">
+              <Button type="text" icon={<ArrowUpOutlined />} onClick={() => navigate('/withdrawals')} title="待处理提现" />
+            </Badge>
+            <Dropdown menu={{ items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout }] }} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} />
+                <span>管理员</span>
+              </div>
+            </Dropdown>
+          </div>
+        </Header>
+        <Content style={{ margin: '24px 16px', padding: 24, background: '#fff', minHeight: 280, borderRadius: 8 }}>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </Content>
+      </Layout>
+    </Layout>
+  );
+};
+
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  return <ProtectedLayout>{children}</ProtectedLayout>;
+};
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+      <Route path="/users/:id" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
+      <Route path="/web-accounts" element={<ProtectedRoute><WebAccounts /></ProtectedRoute>} />
+      <Route path="/web-accounts/:id" element={<ProtectedRoute><WebAccountDetail /></ProtectedRoute>} />
+      <Route path="/web-ledger" element={<ProtectedRoute><WebAccountLedger /></ProtectedRoute>} />
+      <Route path="/depin-config" element={<ProtectedRoute><DepinConfig /></ProtectedRoute>} />
+      <Route path="/depin-investments" element={<ProtectedRoute><DepinInvestments /></ProtectedRoute>} />
+      <Route path="/bots" element={<ProtectedRoute><Bots /></ProtectedRoute>} />
+      <Route path="/withdrawals" element={<ProtectedRoute><Withdrawals /></ProtectedRoute>} />
+      <Route path="/red-packets" element={<ProtectedRoute><RedPackets /></ProtectedRoute>} />
+      <Route path="/broadcasts" element={<ProtectedRoute><Broadcasts /></ProtectedRoute>} />
+      <Route path="/admin-users" element={<ProtectedRoute><AdminUserManager /></ProtectedRoute>} />
+      <Route path="/audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
+      <Route path="/bot-settings" element={<ProtectedRoute><BotSettings /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><SystemSettings /></ProtectedRoute>} />
+      <Route path="/nft-categories" element={<ProtectedRoute><NFTCategories /></ProtectedRoute>} />
+      <Route path="/nft-products" element={<ProtectedRoute><NFTProducts /></ProtectedRoute>} />
+      <Route path="/auctions" element={<ProtectedRoute><Auctions /></ProtectedRoute>} />
+      <Route path="/trading-pairs" element={<ProtectedRoute><TradingPairs /></ProtectedRoute>} />
+      <Route path="/custom-price" element={<ProtectedRoute><CustomPriceControl /></ProtectedRoute>} />
+      <Route path="/charity" element={<ProtectedRoute><CharityProjects /></ProtectedRoute>} />
+      <Route path="/wallet-networks" element={<ProtectedRoute><WalletNetworks /></ProtectedRoute>} />
+      <Route path="/deposit-records" element={<ProtectedRoute><DepositRecords /></ProtectedRoute>} />
+      <Route path="/transfer-records" element={<ProtectedRoute><TransferRecords /></ProtectedRoute>} />
+      <Route path="/trading-rules" element={<ProtectedRoute><TradingRules /></ProtectedRoute>} />
+      <Route path="/trading-sessions" element={<ProtectedRoute><TradingSessions /></ProtectedRoute>} />
+      <Route path="/trading-orders" element={<ProtectedRoute><TradingOrders /></ProtectedRoute>} />
+      <Route path="/strategy-bot" element={<ProtectedRoute><TradingStrategyBot /></ProtectedRoute>} />
+      <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+      <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+      <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+      <Route path="/sweep" element={<ProtectedRoute><Sweep /></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/analytics" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/analytics" replace />} />
+      <Route path="*" element={<Navigate to="/analytics" replace />} />
+    </Routes>
+  );
+}
+
+export default App;
