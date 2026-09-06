@@ -654,12 +654,9 @@ function App() {
   const [, setTradingRules] = useState<TradingRule[]>([])
   const [selectedTradingDuration, setSelectedTradingDuration] = useState(60)
   const [, setTradingCountdown] = useState(0)
-  const [, setTradingConfirmOpen] = useState(false)
   const [, setTradingOrders] = useState<TradingOrder[]>([])
   const [, setTradingOrdersLoading] = useState(false)
   const [klineInterval] = useState('1m')
-  const [, setTradingOrderError] = useState('')
-  const [, setTradingOrderSuccess] = useState('')
   const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -987,13 +984,6 @@ function App() {
     ]
   }, [user])
 
-  const refreshUserProfile = async () => {
-    if (!token) return
-    try {
-      const result = await apiRequest<ApiResult<WebUser>>('/web/auth/me', {}, token)
-      setUser(result.user || null)
-    } catch {}
-  }
 
   const fetchTradingOrders = async () => {
     if (!token) return
@@ -1001,9 +991,8 @@ function App() {
     try {
       const result = await apiRequest<ApiResult<TradingOrder[]>>('/web/app/trading/orders?limit=30', {}, token)
       setTradingOrders(result.data || [])
-    } catch (error: any) {
+    } catch {
       setTradingOrders([])
-      setTradingOrderError(error.message)
     } finally {
       setTradingOrdersLoading(false)
     }
