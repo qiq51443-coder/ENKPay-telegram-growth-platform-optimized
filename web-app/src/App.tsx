@@ -134,7 +134,7 @@ const TRADING_QUICK_AMOUNTS = [10, 50, 100, 500, 1000]
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
   { key: 'markets', label: '行情', description: '代币与交易对行情' },
   { key: 'swap', label: '闪兑', description: '资产快速兑换' },
-  { key: 'invest', label: '投资', description: '定期与理财产品' },
+  { key: 'invest', label: '算力', description: 'DePIN 节点 · 兑换 · 质押' },
   { key: 'wallet', label: '钱包', description: '余额、充值与提现' },
 ]
 
@@ -1791,75 +1791,170 @@ function App() {
     )
   }
 
+  const [depinTab, setDepinTab] = useState<'node' | 'exchange' | 'stake'>('node')
+  const [depinPlans, setDepinPlans] = useState<any[]>([])
+  const [depinPositions, setDepinPositions] = useState<any[]>([])
+  const [depinLoading, setDepinLoading] = useState(false)
+  const [depinMsg, setDepinMsg] = useState('')
+  const [stakeAmount, setStakeAmount] = useState('')
+  const [stakeDays, setStakeDays] = useState(30)
+  const [exchangeAmount, setExchangeAmount] = useState('')
+
+  const loadDepin = async () => {
+    if (!token) return
+    setDepinLoading(true)
+    try {
+      const [plans, pos] = await Promise.all([
+        apiRequest<any>('/depin/web/plans', {}, token),
+        apiRequest<any>('/depin/web/positions', {}, token),
+      ])
+      setDepinPlans(Array.isArray(plans?.items) ? plans.items : [])
+      setDepinPositions(Array.isArray(pos?.items) ? pos.items : [])
+    } catch (e: any) {
+      console.error(e)
+    } finally {
+      setDepinLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (route.view === 'app' && route.tab === 'invest' && token) {
+      loadDepin()
+    }
+  }, [route, token])
+
+  const buyNode = async (planId: number) => {
+    if (!token) return
+    setDepinMsg('')
+    try {
+      const r = await apiRequest<any>('/depin/web/buy-node', { method: 'POST', body: JSON.stringify({ plan_id: planId }) }, token)
+      if (r?.error) throw new Error(r.error)
+      setDepinMsg('节点购买成功')
+      loadDepin()
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+    } catch (e: any) {
+      setDepinMsg(e.message || '购买失败')
+    }
+  }
+
+  const doStake = async () => {
+    if (!token) return
+    setDepinMsg('')
+    try {
+      const r = await apiRequest<any>('/depin/web/stake', {
+        method: 'POST',
+        body: JSON.stringify({ amount: Number(stakeAmount), lock_days: stakeDays }),
+      }, token)
+      if (r?.error) throw new Error(r.error)
+      setDepinMsg('质押成功（本金锁仓至到期，收益可后续提取）')
+      setStakeAmount('')
+      loadDepin()
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+    } catch (e: any) {
+      setDepinMsg(e.message || '质押失败')
+    }
+  }
+
+  const doExchange = async () => {
+    if (!token) return
+    setDepinMsg('')
+    try {
+      const r = await apiRequest<any>('/depin/web/token-exchange', {
+        method: 'POST',
+        body: JSON.stringify({ amount: Number(exchangeAmount) }),
+      }, token)
+      if (r?.error) throw new Error(r.error)
+      setDepinMsg('兑换成功（记账）')
+      setExchangeAmount('')
+      loadDepin()
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+    } catch (e: any) {
+      setDepinMsg(e.message || '兑换失败')
+    }
+  }
+
   const renderProducts = () => (
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <h2>定期产品</h2>
+          <h2>DePIN 算力</h2>
+          <p className="muted">可用余额 {Number(user?.wallet_balance || 0).toFixed(2)} USDT · 三种模式均为平台记账</p>
         </div>
       </div>
-      <div className="content-grid content-grid-wide">
+      <div className="trading-quick-amounts" style={{ marginBottom: 16 }}>
+        <button type="button" className={`trading-quick-btn${depinTab === 'node' ? ' active' : ''}`} onClick={() => setDepinTab('node')}>购买节点</button>
+        <button type="button" className={`trading-quick-btn${depinTab === 'exchange' ? ' active' : ''}`} onClick={() => setDepinTab('exchange')}>兑换代币</button>
+        <button type="button" className={`trading-quick-btn${depinTab === 'stake' ? ' active' : ''}`} onClick={() => setDepinTab('stake')}>资产质押</button>
+      </div>
+      {depinMsg && <div className={depinMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{depinMsg}</div>}
+
+      {depinTab === 'node' && (
         <div className="grid-cards feature-grid">
-          {productsLoading ? <div className="empty-card">正在加载产品...</div> : products.map((item) => (
-            <article className="panel-card feature-card" key={item.id} onClick={() => { setSelectedProduct(item); setProductActionMessage('') }}>
-              <div className="feature-cover">
-                {item.image_url ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} /> : <span>💰</span>}
-              </div>
-              <strong>{item.name}</strong>
-              <span>年化收益：{Number(item.annual_yield || Number(item.daily_yield_rate || 0) * 365 * 100).toFixed(2)}%</span>
-              <span>最低投入：{formatMoney(item.price)}</span>
-              <span>期限：{item.duration_days || item.term_days || 0} 天</span>
+          {depinLoading && <div className="empty-card">加载中...</div>}
+          {!depinLoading && depinPlans.map((p) => (
+            <article className="panel-card feature-card" key={p.id}>
+              <strong>{p.name}</strong>
+              <span>{p.description || '算力节点套餐'}</span>
+              <span>价格：{Number(p.price).toFixed(2)} USDT</span>
+              <span>日收益：{Number(p.daily_yield_rate).toFixed(2)}%</span>
+              <span>周期：{p.term_days} 天</span>
+              <button className="primary-button" style={{ marginTop: 8 }} onClick={() => buyNode(Number(p.id))}>购买部署</button>
             </article>
           ))}
-          {!productsLoading && !products.length && <div className="empty-card">当前没有可展示的定期产品。</div>}
-        </div>
-        <article className="panel-card side-panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">我的持仓</span>
-              <h3>收益状态</h3>
-            </div>
-          </div>
-          {productHoldingsLoading ? <div className="empty-card inset">正在加载...</div> : (
-            <div className="list-stack">
-              {productHoldings.slice(0, 6).map((item) => (
-                <div className="list-item" key={item.id}>
-                  <div>
-                    <strong>{item.product_name}</strong>
-                    <span>{formatCompactDate(item.start_date)} - {formatCompactDate(item.end_date)}</span>
-                  </div>
-                  <div>
-                    <strong>{formatMoney(item.amount)}</strong>
-                    <span>累计收益 {formatMoney(item.total_income)}</span>
-                  </div>
-                </div>
-              ))}
-              {!productHoldings.length && <div className="empty-card inset">暂无持仓。</div>}
-            </div>
-          )}
-        </article>
-      </div>
-
-      {selectedProduct && (
-        <div className="overlay-modal" onClick={() => setSelectedProduct(null)}>
-          <div className="dialog-card large" onClick={(event) => event.stopPropagation()}>
-            <h3>{selectedProduct.name}</h3>
-            <div className="dialog-row"><span>最低投入</span><strong>{formatMoney(selectedProduct.price)}</strong></div>
-            <div className="dialog-row"><span>期限</span><strong>{selectedProduct.duration_days || selectedProduct.term_days || 0} 天</strong></div>
-            <div className="dialog-row"><span>预期年化</span><strong>{Number(selectedProduct.annual_yield || Number(selectedProduct.daily_yield_rate || 0) * 365 * 100).toFixed(2)}%</strong></div>
-            <p className="muted-text">{selectedProduct.description || '确认购买后，持仓会展示在“我的持仓”区域。'}</p>
-            {productActionMessage && <div className={productActionMessage.includes('成功') ? 'hint-box success' : 'hint-box error'}>{productActionMessage}</div>}
-            <div className="button-row">
-              <button className="secondary-button" onClick={() => setSelectedProduct(null)}>关闭</button>
-              <button className="primary-button" disabled={productSubmitting || !token} onClick={handleProductPurchase}>
-                {productSubmitting ? '购买中...' : '确认购买'}
-              </button>
-            </div>
-          </div>
+          {!depinLoading && !depinPlans.length && <div className="empty-card">暂无节点套餐，请在管理端「节点套餐」添加</div>}
         </div>
       )}
+
+      {depinTab === 'exchange' && (
+        <div className="panel-card" style={{ maxWidth: 420 }}>
+          <p className="muted">将 USDT 按 1:1 兑换为 ENK-GPU（奖励余额，草稿）</p>
+          <input className="trading-amount-input" type="number" value={exchangeAmount} onChange={(e) => setExchangeAmount(e.target.value)} placeholder="兑换金额 USDT" />
+          <button className="primary-button" style={{ marginTop: 12 }} onClick={doExchange}>确认兑换</button>
+        </div>
+      )}
+
+      {depinTab === 'stake' && (
+        <div className="panel-card" style={{ maxWidth: 420 }}>
+          <p className="muted">锁仓期间本金不可提现，到期自动返还；展示型日收益随锁仓天数变化</p>
+          <input className="trading-amount-input" type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder="质押金额 USDT" />
+          <div className="trading-quick-amounts" style={{ marginTop: 8 }}>
+            {[30, 60, 90, 180].map((d) => (
+              <button key={d} type="button" className={`trading-quick-btn${stakeDays === d ? ' active' : ''}`} onClick={() => setStakeDays(d)}>{d}天</button>
+            ))}
+          </div>
+          <button className="primary-button" style={{ marginTop: 12 }} onClick={doStake}>确认质押</button>
+        </div>
+      )}
+
+      <div className="section-head" style={{ marginTop: 24 }}>
+        <div><h3>我的持仓</h3></div>
+      </div>
+      <div className="list-stack">
+        {depinPositions.slice(0, 20).map((item) => (
+          <div className="list-item" key={item.id}>
+            <div>
+              <strong>{item.mode}</strong>
+              <span>{item.status} · {item.lock_days ? `${item.lock_days}天` : ''}</span>
+            </div>
+            <div>
+              <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
+            </div>
+          </div>
+        ))}
+        {!depinPositions.length && <div className="empty-card inset">暂无 DePIN 持仓</div>}
+      </div>
     </section>
   )
+
 
   const renderProfile = () => {
     const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
@@ -2034,17 +2129,66 @@ function App() {
     )
   }
 
+
+  const [swapAmount, setSwapAmount] = useState('')
+  const [swapLoading, setSwapLoading] = useState(false)
+  const [swapMsg, setSwapMsg] = useState('')
+
+  const handleSwap = async () => {
+    if (!token) return
+    const amt = Number(swapAmount)
+    if (!amt || amt <= 0) {
+      setSwapMsg('请输入有效金额')
+      return
+    }
+    setSwapLoading(true)
+    setSwapMsg('')
+    try {
+      const result = await apiRequest<any>('/depin/web/swap', {
+        method: 'POST',
+        body: JSON.stringify({ from_amount: amt, to_asset: 'ENK-GPU' }),
+      }, token)
+      if (result?.error) throw new Error(result.error)
+      const got = result?.item?.to_amount ?? amt
+      setSwapMsg(`兑换成功：${amt} USDT → ${Number(got).toFixed(4)} ENK-GPU（记入奖励余额）`)
+      setSwapAmount('')
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+    } catch (e: any) {
+      setSwapMsg(e.message || '兑换失败')
+    } finally {
+      setSwapLoading(false)
+    }
+  }
+
   const renderSwapPlaceholder = () => (
     <div className="panel">
       <div className="section-head">
         <div>
           <h2>闪兑</h2>
-          <p className="muted">资产快速兑换（即将开放）</p>
+          <p className="muted">平台余额兑换草稿（USDT → ENK-GPU）</p>
         </div>
       </div>
-      <div className="empty-card">
-        <p>闪兑功能将在后续版本上线。</p>
-        <p className="muted" style={{ marginTop: 8 }}>请先使用「钱包」充值/提现，或在「行情」查看价格。</p>
+      <div className="panel-card" style={{ maxWidth: 420 }}>
+        <p className="muted">可用余额：{Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
+        <label style={{ display: 'block', marginTop: 12 }}>
+          <span>兑换数量 (USDT)</span>
+          <input
+            className="trading-amount-input"
+            type="number"
+            min="0"
+            value={swapAmount}
+            onChange={(e) => setSwapAmount(e.target.value)}
+            placeholder="输入金额"
+          />
+        </label>
+        <p className="muted" style={{ marginTop: 8 }}>预计获得：{Number(swapAmount || 0).toFixed(4)} ENK-GPU</p>
+        {swapMsg && <div className={swapMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{swapMsg}</div>}
+        <button className="primary-button" style={{ marginTop: 12 }} disabled={swapLoading || !token} onClick={handleSwap}>
+          {swapLoading ? '处理中...' : '确认闪兑'}
+        </button>
       </div>
     </div>
   )
