@@ -976,7 +976,6 @@ function App() {
   const summaryCards = useMemo(() => {
     if (!user) return []
     return [
-      { label: '总资产估值', value: formatMoney(totalAssetUsdt || user.wallet_balance) },
       { label: 'USDT 余额', value: formatMoney(user.wallet_balance) },
       { label: '冻结金额', value: formatMoney(user.frozen_balance) },
       { label: '累计充值', value: formatMoney(user.total_recharged) },
@@ -1605,15 +1604,27 @@ function App() {
       <section className="view-stack">
         <div className="hero-panel profile-hero">
           <div>
-            <span className="eyebrow">个人中心</span>
-            <h2>{user?.email || user?.username || 'ENKPay User'}</h2>
-            <p>UID：{user?.unique_id} · 邀请码：{user?.invite_code || user?.unique_id} · 邀请人数：{user?.invite_count || 0}</p>
+            <span className="eyebrow">资产</span>
+            <h2>≈ {Number(totalAssetUsdt || user?.wallet_balance || 0).toFixed(2)} USDT</h2>
+            <p>{user?.email || user?.username || ''} · UID {user?.unique_id}</p>
           </div>
           <div className="button-row">
             <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>充值</button>
             <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>提现</button>
           </div>
         </div>
+        <div className="list-stack" style={{ marginTop: 12 }}>
+          {(tokenBalances.length ? tokenBalances : [{ symbol: 'USDT', amount: Number(user?.wallet_balance || 0), value_usdt: Number(user?.wallet_balance || 0) }]).map((a) => (
+            <div className="list-item" key={a.symbol}>
+              <div>
+                <strong>{a.symbol}</strong>
+                <span>{Number(a.amount || 0).toFixed(6)}</span>
+              </div>
+              <strong>≈ {Number(a.value_usdt || 0).toFixed(2)} USDT</strong>
+            </div>
+          ))}
+        </div>
+
 
         <div className="grid-cards compact">
           {summaryCards.map((item) => (
