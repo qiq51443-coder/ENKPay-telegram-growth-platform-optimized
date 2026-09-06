@@ -93,20 +93,6 @@ interface TradingOrder {
   duration?: number
 }
 
-interface ProductHolding {
-  id: string
-  product_id: string
-  product_name: string
-  image_url?: string
-  amount: number
-  daily_yield_rate?: number
-  term_days?: number
-  start_date: string
-  end_date: string
-  status: string
-  total_income?: number
-}
-
 interface WalletNetwork {
   id: number
   network_name: string
@@ -505,7 +491,6 @@ function formatCountdown(seconds: number) {
   const secs = Math.max(0, seconds % 60)
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
-
 
 function SwapIcon({ active }: { active: boolean }) {
   const c = active ? '#F0B90B' : '#8899AA'
@@ -1062,7 +1047,6 @@ function App() {
     }
   }
 
-
   useEffect(() => {
     if (!selectedTradingPair) return
     fetchTradingRules(selectedTradingPair.id)
@@ -1507,7 +1491,6 @@ function App() {
     }
   }
 
-
   const renderTrading = () => {
     if (selectedTradingPair) {
       const pair = selectedTradingPair
@@ -1921,7 +1904,6 @@ function App() {
     </section>
   )
 
-
   const renderProfile = () => {
     const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
     const toggleGroup = (key: string) => setProfileOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -2094,7 +2076,6 @@ function App() {
       </section>
     )
   }
-
 
   const [swapAmount, setSwapAmount] = useState('')
   const [swapLoading, setSwapLoading] = useState(false)
