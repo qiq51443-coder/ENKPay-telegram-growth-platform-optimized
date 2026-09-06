@@ -1,4 +1,4 @@
--- DePIN node plans + user positions (platform bookkeeping)
+-- DePIN + web token balances (platform bookkeeping)
 CREATE TABLE IF NOT EXISTS depin_node_plans (
   id SERIAL PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
@@ -36,11 +36,21 @@ CREATE TABLE IF NOT EXISTS depin_swap_orders (
   user_id UUID NOT NULL,
   from_asset VARCHAR(32) NOT NULL DEFAULT 'USDT',
   to_asset VARCHAR(32) NOT NULL,
-  from_amount NUMERIC(18, 6) NOT NULL,
-  to_amount NUMERIC(18, 6) NOT NULL,
-  rate NUMERIC(18, 8) NOT NULL DEFAULT 1,
+  from_amount NUMERIC(24, 8) NOT NULL,
+  to_amount NUMERIC(24, 8) NOT NULL,
+  rate NUMERIC(24, 10) NOT NULL DEFAULT 1,
   status VARCHAR(32) NOT NULL DEFAULT 'done',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_depin_swap_user ON depin_swap_orders(user_id);
+
+CREATE TABLE IF NOT EXISTS web_token_balances (
+  user_id UUID NOT NULL,
+  symbol VARCHAR(32) NOT NULL,
+  amount NUMERIC(24, 8) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_web_token_balances_user ON web_token_balances(user_id);
