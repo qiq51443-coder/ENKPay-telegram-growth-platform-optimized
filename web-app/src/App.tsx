@@ -39,10 +39,14 @@ interface TradingPair {
   id: string
   symbol: string
   display_name: string
+  base_currency?: string
+  quote_currency?: string
   icon_url?: string
   pair_type?: string
   current_price?: number
   price_change_24h?: number
+  volume_24h?: number
+  quote_volume?: number
 }
 
 interface ProductItem {
@@ -1428,13 +1432,103 @@ function App() {
   }
 
 
+  const [marketDetailId, setMarketDetailId] = useState<string | null>(null)
+  const [marketKline, setMarketKline] = useState<Array<{ time: number; value: number }>>([])
+  const [marketKlineLoading, setMarketKlineLoading] = useState(false)
+
+  useEffect(() => {
+    if (!marketDetailId) {
+      setMarketKline([])
+      return
+    }
+    let cancelled = false
+    setMarketKlineLoading(true)
+    apiRequest<ApiResult<any[]>>(`/trading/pairs/${marketDetailId}/kline?interval=1h&limit=48`)
+      .then((result) => {
+        if (cancelled) return
+        const rows = result.data || []
+        const mapped = rows.map((c: any) => ({
+          time: Number(c.open_time || c.time || c.timestamp || 0),
+          value: Number(c.close || c.price || 0),
+        })).filter((c) => c.time > 0 && c.value > 0)
+        setMarketKline(mapped)
+      })
+      .catch(() => {
+        if (!cancelled) setMarketKline([])
+      })
+      .finally(() => {
+        if (!cancelled) setMarketKlineLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [marketDetailId])
+
   const renderTrading = () => {
+    const detailPair = marketDetailId ? pairs.find((p) => String(p.id) === String(marketDetailId)) : null
+    if (detailPair) {
+      const priceInfo = livePrice[detailPair.id] || { price: Number(detailPair.current_price || 0), change24h: Number(detailPair.price_change_24h || 0) }
+      const change = Number(priceInfo.change24h || 0)
+      const vol = detailPair.volume_24h ?? detailPair.quote_volume
+      const base = String(detailPair.base_currency || detailPair.symbol || '').split('/')[0]
+      return (
+        <section className="view-stack">
+          <div className="section-head">
+            <div>
+              <button type="button" className="trading-quick-btn" onClick={() => setMarketDetailId(null)}>← 返回</button>
+              <h2 style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                {detailPair.icon_url ? (
+                  <img src={detailPair.icon_url} alt="" width={28} height={28} style={{ borderRadius: '50%' }} />
+                ) : (
+                  <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#333', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{base.slice(0, 1)}</span>
+                )}
+                {base}
+              </h2>
+              <p className="muted">{detailPair.symbol}</p>
+            </div>
+          </div>
+          <div className="panel-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div>
+                <div className="muted">最新价</div>
+                <strong style={{ fontSize: 22 }}>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className="muted">24h</div>
+                <strong className={change >= 0 ? 'price-up' : 'price-down'}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</strong>
+              </div>
+            </div>
+            <div className="muted">24h 量：{vol != null ? Number(vol).toLocaleString() : '—'}</div>
+            <div style={{ marginTop: 16, minHeight: 160 }}>
+              {marketKlineLoading && <div className="empty-card">K线加载中...</div>}
+              {!marketKlineLoading && marketKline.length > 0 && (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  近 {marketKline.length} 根 1h 收盘：{marketKline.slice(-6).map((c) => c.value.toFixed(4)).join(' → ')}
+                </div>
+              )}
+              {!marketKlineLoading && !marketKline.length && <div className="empty-card">暂无 K 线数据</div>}
+            </div>
+            <button
+              className="primary-button"
+              style={{ marginTop: 16 }}
+              onClick={() => {
+                const b = base.toUpperCase()
+                setSwapFrom('USDT')
+                setSwapTo(b)
+                guarded({ view: 'app', tab: 'swap' })
+              }}
+            >
+              去闪兑 {base}
+            </button>
+          </div>
+        </section>
+      )
+    }
+
     return (
       <section className="view-stack">
         <div className="section-head">
           <div>
             <h2>行情</h2>
-            <p className="muted">实时价格</p>
+            <p className="muted">点击查看详情</p>
           </div>
         </div>
         <div className="list-stack markets-list">
@@ -1442,22 +1536,34 @@ function App() {
           {!pairsLoading && pairs.map((pair) => {
             const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
             const change = Number(priceInfo.change24h || 0)
-            const vol = (pair as any).volume_24h ?? (pair as any).quote_volume ?? null
-            const base = String((pair as any).base_currency || pair.symbol || '').split('/')[0]
+            const vol = pair.volume_24h ?? pair.quote_volume
+            const base = String(pair.base_currency || pair.symbol || '').split('/')[0]
             return (
-              <div className="list-item" key={pair.id}>
-                <div>
-                  <strong>{base || pair.symbol}</strong>
-                  <span>{pair.symbol}</span>
+              <button
+                type="button"
+                className="list-item"
+                key={pair.id}
+                onClick={() => setMarketDetailId(String(pair.id))}
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 'none', color: 'inherit' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {pair.icon_url ? (
+                    <img src={pair.icon_url} alt="" width={32} height={32} style={{ borderRadius: '50%', flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  ) : (
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#2a2f3a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{base.slice(0, 1)}</span>
+                  )}
+                  <div>
+                    <strong>{base || pair.symbol}</strong>
+                    <span>{pair.symbol}{vol != null ? ` · 量 ${Number(vol).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : ''}</span>
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <strong>{Number(priceInfo.price || 0).toFixed(pair.symbol?.includes('BTC') ? 2 : 4)}</strong>
+                  <strong>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong>
                   <span className={change >= 0 ? 'price-up' : 'price-down'}>
                     {change >= 0 ? '+' : ''}{change.toFixed(2)}%
-                    {vol != null ? ` · 量 ${Number(vol).toLocaleString()}` : ''}
                   </span>
                 </div>
-              </div>
+              </button>
             )
           })}
           {!pairsLoading && !pairs.length && <div className="empty-card">暂无行情</div>}
@@ -1465,7 +1571,6 @@ function App() {
       </section>
     )
   }
-
 
   const [depinTab, setDepinTab] = useState<'node' | 'stake'>('node')
   const [depinPlans, setDepinPlans] = useState<any[]>([])
