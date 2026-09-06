@@ -217,7 +217,7 @@ router.post('/web/token-exchange', authenticateWebUser, async (req: WebAuthReque
         `INSERT INTO depin_positions (user_id, mode, amount, status, meta) VALUES ($1,'token_exchange',$2,'done',$3) RETURNING *`,
         [userId, fromAmount, JSON.stringify({ to_asset: 'ENK-GPU', to_amount: toAmount, rate })]
       );
-      return pos.rows[0];
+      return pos.rows[0]; 
     });
     res.json({ success: true, item });
   } catch (e: any) {
