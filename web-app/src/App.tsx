@@ -1002,7 +1002,8 @@ function App() {
   const summaryCards = useMemo(() => {
     if (!user) return []
     return [
-      { label: '可用余额', value: formatMoney(user.wallet_balance) },
+      { label: '总资产估值', value: formatMoney(totalAssetUsdt || user.wallet_balance) },
+      { label: 'USDT 余额', value: formatMoney(user.wallet_balance) },
       { label: '冻结金额', value: formatMoney(user.frozen_balance) },
       { label: '累计充值', value: formatMoney(user.total_recharged) },
       { label: '累计提现', value: formatMoney(user.total_withdrawn) },
@@ -1492,262 +1493,51 @@ function App() {
   }
 
   const renderTrading = () => {
-    if (selectedTradingPair) {
-      const pair = selectedTradingPair
-      const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
-      const change = Number(priceInfo.change24h)
-      const currentRule = tradingRules.find((item) => item.duration_seconds === selectedTradingDuration) || tradingRules[0]
-      const pairOrders = tradingOrders.filter((item) => String(item.pair_id) === String(pair.id))
-      const activeOrder = pairOrders.find((item) => item.status === 'active' || item.status === 'pending')
-      return (
-        <section className="view-stack">
-          <div className="trading-detail-header">
-            <button
-              className="trading-back-btn"
-              onClick={() => {
-                setSelectedTradingPair(null)
-                setTradingOrderError('')
-                setTradingOrderSuccess('')
-                setTradingConfirmOpen(false)
-              }}
-            >
-              ←
-            </button>
-            {pair.icon_url ? (
-              <img src={resolveAssetUrl(pair.icon_url)} alt={pair.symbol} className="pair-icon" />
-            ) : (
-              <div className="pair-icon-fallback">{pair.symbol[0]}</div>
-            )}
-            <div className="pair-title-group">
-              <h2>{pair.display_name}</h2>
-              <span className="pair-symbol">{pair.symbol}</span>
-            </div>
-          </div>
-
-          <div className="trading-price-card">
-            <div className="price-stack">
-              <div className="trading-price-big" data-price-id={pair.id}>
-                ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
-              </div>
-            </div>
-            <div className={change >= 0 ? 'pill positive' : 'pill negative'}>
-              {change >= 0 ? '+' : ''}{change.toFixed(2)}% 24H
-            </div>
-            <div className="pill">{formatCountdown(tradingCountdown)}</div>
-          </div>
-
-          <div className="trading-detail-layout">
-            <div className="view-stack">
-              <article className="panel-card chart-panel">
-                <div className="section-head">
-                  <div>
-                    <h3>{pair.symbol}</h3>
-                  </div>
-                  <div className="kline-tabs">
-                    {['1m', '5m', '15m', '1h', '4h', '1d'].map((item) => (
-                      <button
-                        key={item}
-                        className={klineInterval === item ? 'secondary-button small is-active' : 'secondary-button small'}
-                        onClick={() => setKlineInterval(item)}
-                      >
-                        {item.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div ref={tradingChartRef} className="trading-chart" />
-              </article>
-
-              <article className="panel-card">
-                <div className="section-head">
-                  <div>
-                    <h3>最近订单</h3>
-                  </div>
-                  {tradingOrdersLoading && <span className="muted-text">加载中...</span>}
-                </div>
-                <div className="list-stack">
-                  {pairOrders.slice(0, 6).map((order) => (
-                    <div className="list-item" key={order.id}>
-                      <div>
-                        <strong>{order.direction === 'up' ? '▲ UP' : '▼ DOWN'}</strong>
-                        <span>{order.period_label || formatCompactDate(order.session_start || order.created_at)}</span>
-                      </div>
-                      <div>
-                        <strong>{formatMoney(order.amount)}</strong>
-                        <span>{order.result ? `${order.result.toUpperCase()} / ${formatCompactDate(order.created_at)}` : order.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {!pairOrders.length && <div className="empty-card inset">暂无订单记录。</div>}
-                </div>
-              </article>
-            </div>
-
-            <article className="trading-order-panel">
-              <div>
-                <div className="trading-order-label">选择周期</div>
-                <div className="duration-list">
-                  {(tradingRules.length ? tradingRules : [{ id: 'default', duration_seconds: 60, odds: 1.85, min_bet: 1, max_bet: 1000 }]).map((rule) => (
-                    <button
-                      key={rule.id}
-                      className={selectedTradingDuration === rule.duration_seconds ? 'trading-quick-btn active' : 'trading-quick-btn'}
-                      onClick={() => setSelectedTradingDuration(Number(rule.duration_seconds))}
-                    >
-                      {rule.duration_seconds / 60}m · {Number(rule.odds).toFixed(2)}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="session-meta">
-                <div>
-                  <span className="muted-text">距下一期</span>
-                  <strong>{formatCountdown(tradingCountdown)}</strong>
-                </div>
-                <div>
-                  <span className="muted-text">赔率</span>
-                  <strong>{Number(currentRule?.odds || 1.85).toFixed(2)}x</strong>
-                </div>
-                <div>
-                  <span className="muted-text">限额</span>
-                  <strong>{Number(currentRule?.min_bet || 1)} - {Number(currentRule?.max_bet || 1000)} USDT</strong>
-                </div>
-              </div>
-
-              <div>
-                <div className="trading-order-label">下单金额 (USDT)</div>
-                <div className="trading-quick-amounts">
-                  {TRADING_QUICK_AMOUNTS.map((value) => (
-                    <button
-                      key={value}
-                      className={`trading-quick-btn${Number(tradingAmount) === value ? ' active' : ''}`}
-                      onClick={() => setTradingAmount(String(value))}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  className="trading-amount-input"
-                  value={tradingAmount}
-                  onChange={(event) => {
-                    setTradingAmount(event.target.value)
-                    setTradingOrderError('')
-                    setTradingOrderSuccess('')
-                  }}
-                  placeholder="自定义金额"
-                  min="0"
-                />
-                {user && <div className="trading-balance-hint">可用余额：{Number(user.tradable_balance).toFixed(2)} USDT</div>}
-                <div className="muted-text">预期收益：{formatMoney(Number(tradingAmount || 0) * Number(currentRule?.odds || 1.85) - Number(tradingAmount || 0))}</div>
-              </div>
-
-              {activeOrder && (
-                <div className="active-order-card">
-                  <strong>当前持仓</strong>
-                  <span>{activeOrder.direction === 'up' ? '▲ UP' : '▼ DOWN'} · {formatMoney(activeOrder.amount)}</span>
-                  <span>{activeOrder.period_label || formatCompactDate(activeOrder.session_end || activeOrder.created_at)}</span>
-                </div>
-              )}
-
-              <div className="trading-buttons">
-                <button
-                  className="trading-up-btn"
-                  disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
-                  onClick={() => { setSelectedTradingDirection('up'); setTradingConfirmOpen(true) }}
-                >
-                  ▲ UP
-                </button>
-                <button
-                  className="trading-down-btn"
-                  disabled={!tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting}
-                  onClick={() => { setSelectedTradingDirection('down'); setTradingConfirmOpen(true) }}
-                >
-                  ▼ DOWN
-                </button>
-              </div>
-              {tradingOrderError && <div className="hint-box error">{tradingOrderError}</div>}
-              {tradingOrderSuccess && <div className="hint-box success">{tradingOrderSuccess}</div>}
-            </article>
-          </div>
-
-          {tradingConfirmOpen && (
-            <div className="overlay-modal" onClick={() => setTradingConfirmOpen(false)}>
-              <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
-                <h3>确认下单</h3>
-                <div className="dialog-row"><span>交易对</span><strong>{pair.display_name}</strong></div>
-                <div className="dialog-row"><span>方向</span><strong>{selectedTradingDirection === 'up' ? '▲ UP' : '▼ DOWN'}</strong></div>
-                <div className="dialog-row"><span>金额</span><strong>{formatMoney(Number(tradingAmount || 0))}</strong></div>
-                <div className="dialog-row"><span>周期</span><strong>{selectedTradingDuration / 60} 分钟</strong></div>
-                <div className="button-row">
-                  <button className="secondary-button" onClick={() => setTradingConfirmOpen(false)}>取消</button>
-                  <button className="primary-button" disabled={tradingSubmitting} onClick={handleTradingOrder}>
-                    {tradingSubmitting ? '提交中...' : '确认'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-      )
-    }
-
     return (
       <section className="view-stack">
-        {pairsLoading ? (
-          <div className="empty-card">正在加载交易对...</div>
-        ) : (
-          <div className="pair-list">
-            {pairs.map((pair) => {
-              const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
-              const change = Number(priceInfo.change24h)
-              return (
-                <div
-                  key={pair.id}
-                  className="pair-row"
-                  onClick={() => {
-                    setSelectedTradingPair(pair)
-                    setTradingOrderError('')
-                    setTradingOrderSuccess('')
-                  }}
-                >
-                  <div className="pair-row-left">
-                    {pair.icon_url ? (
-                      <img src={resolveAssetUrl(pair.icon_url)} alt={pair.symbol} className="pair-icon" />
-                    ) : (
-                      <div className="pair-icon-fallback">{pair.symbol[0]}</div>
-                    )}
-                    <div>
-                      <div className="pair-name">{pair.display_name}</div>
-                      <div className="pair-symbol">{pair.symbol}</div>
-                    </div>
-                  </div>
-                  <div className="pair-row-right">
-                    <div className="pair-price" data-price-id={pair.id}>
-                      ${priceInfo.price > 0 ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '--'}
-                    </div>
-                    <div className={change >= 0 ? 'pill positive' : 'pill negative'} style={{ marginTop: 2 }}>
-                      {change >= 0 ? '+' : ''}{change.toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            {!pairs.length && <div className="empty-card">当前没有可展示的交易对。</div>}
+        <div className="section-head">
+          <div>
+            <h2>行情</h2>
+            <p className="muted">实时价格</p>
           </div>
-        )}
+        </div>
+        <div className="list-stack markets-list">
+          {pairsLoading && <div className="empty-card">加载中...</div>}
+          {!pairsLoading && pairs.map((pair) => {
+            const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
+            const change = Number(priceInfo.change24h || 0)
+            const vol = (pair as any).volume_24h ?? (pair as any).quote_volume ?? null
+            const base = String((pair as any).base_currency || pair.symbol || '').split('/')[0]
+            return (
+              <div className="list-item" key={pair.id}>
+                <div>
+                  <strong>{base || pair.symbol}</strong>
+                  <span>{pair.symbol}</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <strong>{Number(priceInfo.price || 0).toFixed(pair.symbol?.includes('BTC') ? 2 : 4)}</strong>
+                  <span className={change >= 0 ? 'price-up' : 'price-down'}>
+                    {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                    {vol != null ? ` · 量 ${Number(vol).toLocaleString()}` : ''}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+          {!pairsLoading && !pairs.length && <div className="empty-card">暂无行情</div>}
+        </div>
       </section>
     )
   }
 
-  const [depinTab, setDepinTab] = useState<'node' | 'exchange' | 'stake'>('node')
+
+  const [depinTab, setDepinTab] = useState<'node' | 'stake'>('node')
   const [depinPlans, setDepinPlans] = useState<any[]>([])
   const [depinPositions, setDepinPositions] = useState<any[]>([])
   const [depinLoading, setDepinLoading] = useState(false)
   const [depinMsg, setDepinMsg] = useState('')
   const [stakeAmount, setStakeAmount] = useState('')
   const [stakeDays, setStakeDays] = useState(30)
-  const [exchangeAmount, setExchangeAmount] = useState('')
 
   const loadDepin = async () => {
     if (!token) return
@@ -1778,7 +1568,7 @@ function App() {
     try {
       const r = await apiRequest<any>('/depin/web/buy-node', { method: 'POST', body: JSON.stringify({ plan_id: planId }) }, token)
       if (r?.error) throw new Error(r.error)
-      setDepinMsg('节点购买成功')
+      setDepinMsg('购买成功')
       loadDepin()
       try {
         const me = await apiRequest<any>('/web/auth/me', {}, token)
@@ -1798,7 +1588,7 @@ function App() {
         body: JSON.stringify({ amount: Number(stakeAmount), lock_days: stakeDays }),
       }, token)
       if (r?.error) throw new Error(r.error)
-      setDepinMsg('质押成功（本金锁仓至到期，收益可后续提取）')
+      setDepinMsg('质押成功')
       setStakeAmount('')
       loadDepin()
       try {
@@ -1810,70 +1600,38 @@ function App() {
     }
   }
 
-  const doExchange = async () => {
-    if (!token) return
-    setDepinMsg('')
-    try {
-      const r = await apiRequest<any>('/depin/web/token-exchange', {
-        method: 'POST',
-        body: JSON.stringify({ amount: Number(exchangeAmount) }),
-      }, token)
-      if (r?.error) throw new Error(r.error)
-      setDepinMsg('兑换成功（记账）')
-      setExchangeAmount('')
-      loadDepin()
-      try {
-        const me = await apiRequest<any>('/web/auth/me', {}, token)
-        if (me?.user) setUser(me.user)
-      } catch {}
-    } catch (e: any) {
-      setDepinMsg(e.message || '兑换失败')
-    }
-  }
-
   const renderProducts = () => (
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <h2>DePIN 算力</h2>
-          <p className="muted">可用余额 {Number(user?.wallet_balance || 0).toFixed(2)} USDT · 三种模式均为平台记账</p>
+          <h2>算力</h2>
+          <p className="muted">余额 {Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
         </div>
       </div>
       <div className="trading-quick-amounts" style={{ marginBottom: 16 }}>
         <button type="button" className={`trading-quick-btn${depinTab === 'node' ? ' active' : ''}`} onClick={() => setDepinTab('node')}>购买节点</button>
-        <button type="button" className={`trading-quick-btn${depinTab === 'exchange' ? ' active' : ''}`} onClick={() => setDepinTab('exchange')}>兑换代币</button>
         <button type="button" className={`trading-quick-btn${depinTab === 'stake' ? ' active' : ''}`} onClick={() => setDepinTab('stake')}>资产质押</button>
       </div>
       {depinMsg && <div className={depinMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{depinMsg}</div>}
 
       {depinTab === 'node' && (
-        <div className="grid-cards feature-grid">
+        <div className="list-stack">
           {depinLoading && <div className="empty-card">加载中...</div>}
           {!depinLoading && depinPlans.map((p) => (
-            <article className="panel-card feature-card" key={p.id}>
-              <strong>{p.name}</strong>
-              <span>{p.description || '算力节点套餐'}</span>
-              <span>价格：{Number(p.price).toFixed(2)} USDT</span>
-              <span>日收益：{Number(p.daily_yield_rate).toFixed(2)}%</span>
-              <span>周期：{p.term_days} 天</span>
-              <button className="primary-button" style={{ marginTop: 8 }} onClick={() => buyNode(Number(p.id))}>购买部署</button>
-            </article>
+            <div className="list-item" key={p.id}>
+              <div>
+                <strong>{p.name}</strong>
+                <span>{Number(p.price).toFixed(2)} USDT · 日收益 {Number(p.daily_yield_rate).toFixed(2)}% · {p.term_days}天</span>
+              </div>
+              <button className="primary-button" style={{ width: 'auto', padding: '8px 14px' }} onClick={() => buyNode(Number(p.id))}>购买</button>
+            </div>
           ))}
-          {!depinLoading && !depinPlans.length && <div className="empty-card">暂无节点套餐，请在管理端「节点套餐」添加</div>}
-        </div>
-      )}
-
-      {depinTab === 'exchange' && (
-        <div className="panel-card" style={{ maxWidth: 420 }}>
-          <p className="muted">将 USDT 按 1:1 兑换为 ENK-GPU（奖励余额，草稿）</p>
-          <input className="trading-amount-input" type="number" value={exchangeAmount} onChange={(e) => setExchangeAmount(e.target.value)} placeholder="兑换金额 USDT" />
-          <button className="primary-button" style={{ marginTop: 12 }} onClick={doExchange}>确认兑换</button>
+          {!depinLoading && !depinPlans.length && <div className="empty-card">暂无节点套餐</div>}
         </div>
       )}
 
       {depinTab === 'stake' && (
-        <div className="panel-card" style={{ maxWidth: 420 }}>
-          <p className="muted">锁仓期间本金不可提现，到期自动返还；展示型日收益随锁仓天数变化</p>
+        <div className="panel-card" style={{ maxWidth: 480 }}>
           <input className="trading-amount-input" type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder="质押金额 USDT" />
           <div className="trading-quick-amounts" style={{ marginTop: 8 }}>
             {[30, 60, 90, 180].map((d) => (
@@ -1888,21 +1646,20 @@ function App() {
         <div><h3>我的持仓</h3></div>
       </div>
       <div className="list-stack">
-        {depinPositions.slice(0, 20).map((item) => (
+        {depinPositions.slice(0, 30).map((item) => (
           <div className="list-item" key={item.id}>
             <div>
-              <strong>{item.mode}</strong>
-              <span>{item.status} · {item.lock_days ? `${item.lock_days}天` : ''}</span>
+              <strong>{item.mode === 'node_server' ? '节点' : item.mode === 'asset_stake' ? '质押' : item.mode}</strong>
+              <span>{item.status}{item.lock_days ? ` · ${item.lock_days}天` : ''}</span>
             </div>
-            <div>
-              <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
-            </div>
+            <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
           </div>
         ))}
-        {!depinPositions.length && <div className="empty-card inset">暂无 DePIN 持仓</div>}
+        {!depinPositions.length && <div className="empty-card inset">暂无持仓</div>}
       </div>
     </section>
   )
+
 
   const renderProfile = () => {
     const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
@@ -2072,14 +1829,89 @@ function App() {
           </div>
         </div>
 
-        {user?.wallet_tip_message && <div className="tip-box">{user.wallet_tip_message}</div>}
+        {/* tips removed for cleaner DEX UI */}
       </section>
     )
   }
 
+  const [swapFrom, setSwapFrom] = useState('USDT')
+  const [swapTo, setSwapTo] = useState('')
   const [swapAmount, setSwapAmount] = useState('')
   const [swapLoading, setSwapLoading] = useState(false)
   const [swapMsg, setSwapMsg] = useState('')
+  const [tokenBalances, setTokenBalances] = useState<Array<{ symbol: string; amount: number; price_usdt: number; value_usdt: number }>>([])
+  const [totalAssetUsdt, setTotalAssetUsdt] = useState(0)
+
+  const loadBalances = async () => {
+    if (!token) return
+    try {
+      const r = await apiRequest<any>('/depin/web/balances', {}, token)
+      if (Array.isArray(r?.assets)) {
+        setTokenBalances(r.assets)
+        setTotalAssetUsdt(Number(r.total_usdt || 0))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    if (!token) return
+    if (route.view === 'app' && (route.tab === 'swap' || route.tab === 'wallet')) {
+      loadBalances()
+      const t = setInterval(loadBalances, 15000)
+      return () => clearInterval(t)
+    }
+  }, [route, token])
+
+  const pairBases = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of pairs) {
+      const base = String((p as any).base_currency || p.symbol || '').toUpperCase().split('/')[0]
+      if (base && base !== 'USDT') set.add(base)
+    }
+    return Array.from(set)
+  }, [pairs])
+
+  useEffect(() => {
+    if (!swapTo && pairBases.length) setSwapTo(pairBases[0])
+  }, [pairBases, swapTo])
+
+  const priceOf = (sym: string) => {
+    if (sym === 'USDT') return 1
+    const p = pairs.find((x) => {
+      const b = String((x as any).base_currency || x.symbol || '').toUpperCase().split('/')[0]
+      return b === sym || String(x.symbol).toUpperCase() === sym || String(x.symbol).toUpperCase() === `${sym}/USDT`
+    })
+    return p ? Number(p.current_price || 0) : 0
+  }
+
+  const estimatedOut = useMemo(() => {
+    const amt = Number(swapAmount)
+    if (!amt || !swapFrom || !swapTo) return 0
+    if (swapFrom === 'USDT') {
+      const px = priceOf(swapTo)
+      return px > 0 ? amt / px : 0
+    }
+    if (swapTo === 'USDT') {
+      return amt * priceOf(swapFrom)
+    }
+    return 0
+  }, [swapAmount, swapFrom, swapTo, pairs])
+
+  const balanceOf = (sym: string) => {
+    const row = tokenBalances.find((a) => a.symbol === sym)
+    if (row) return row.amount
+    if (sym === 'USDT') return Number(user?.wallet_balance || 0)
+    return 0
+  }
+
+  const flipSwap = () => {
+    setSwapFrom(swapTo || 'USDT')
+    setSwapTo(swapFrom)
+    setSwapAmount('')
+    setSwapMsg('')
+  }
 
   const handleSwap = async () => {
     if (!token) return
@@ -2088,17 +1920,22 @@ function App() {
       setSwapMsg('请输入有效金额')
       return
     }
+    if (!swapFrom || !swapTo) {
+      setSwapMsg('请选择币种')
+      return
+    }
     setSwapLoading(true)
     setSwapMsg('')
     try {
       const result = await apiRequest<any>('/depin/web/swap', {
         method: 'POST',
-        body: JSON.stringify({ from_amount: amt, to_asset: 'ENK-GPU' }),
+        body: JSON.stringify({ from_symbol: swapFrom, to_symbol: swapTo, from_amount: amt }),
       }, token)
       if (result?.error) throw new Error(result.error)
-      const got = result?.item?.to_amount ?? amt
-      setSwapMsg(`兑换成功：${amt} USDT → ${Number(got).toFixed(4)} ENK-GPU（记入奖励余额）`)
+      const got = result?.to_amount ?? result?.item?.to_amount
+      setSwapMsg(`成功：${amt} ${swapFrom} → ${Number(got).toFixed(6)} ${swapTo}`)
       setSwapAmount('')
+      await loadBalances()
       try {
         const me = await apiRequest<any>('/web/auth/me', {}, token)
         if (me?.user) setUser(me.user)
@@ -2115,30 +1952,50 @@ function App() {
       <div className="section-head">
         <div>
           <h2>闪兑</h2>
-          <p className="muted">平台余额兑换草稿（USDT → ENK-GPU）</p>
+          <p className="muted">与 USDT 兑换 · 汇率取自实时行情</p>
         </div>
       </div>
-      <div className="panel-card" style={{ maxWidth: 420 }}>
-        <p className="muted">可用余额：{Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
-        <label style={{ display: 'block', marginTop: 12 }}>
-          <span>兑换数量 (USDT)</span>
-          <input
-            className="trading-amount-input"
-            type="number"
-            min="0"
-            value={swapAmount}
-            onChange={(e) => setSwapAmount(e.target.value)}
-            placeholder="输入金额"
-          />
-        </label>
-        <p className="muted" style={{ marginTop: 8 }}>预计获得：{Number(swapAmount || 0).toFixed(4)} ENK-GPU</p>
+      <div className="panel-card" style={{ maxWidth: 440, margin: '0 auto' }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span className="muted">支付</span>
+            <span className="muted">余额 {balanceOf(swapFrom).toFixed(4)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="trading-amount-input" style={{ flex: 1 }} type="number" min="0" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} placeholder="0" />
+            <select className="trading-amount-input" style={{ width: 120 }} value={swapFrom} onChange={(e) => setSwapFrom(e.target.value)}>
+              <option value="USDT">USDT</option>
+              {pairBases.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', margin: '8px 0' }}>
+          <button type="button" className="trading-quick-btn" onClick={flipSwap}>↕</button>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span className="muted">获得</span>
+            <span className="muted">余额 {balanceOf(swapTo || 'USDT').toFixed(4)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="trading-amount-input" style={{ flex: 1 }} type="number" readOnly value={estimatedOut ? estimatedOut.toFixed(6) : ''} placeholder="0" />
+            <select className="trading-amount-input" style={{ width: 120 }} value={swapTo} onChange={(e) => setSwapTo(e.target.value)}>
+              <option value="USDT">USDT</option>
+              {pairBases.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        {swapFrom !== 'USDT' && swapTo !== 'USDT' && (
+          <div className="hint-box error">请保证一侧为 USDT</div>
+        )}
         {swapMsg && <div className={swapMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{swapMsg}</div>}
         <button className="primary-button" style={{ marginTop: 12 }} disabled={swapLoading || !token} onClick={handleSwap}>
-          {swapLoading ? '处理中...' : '确认闪兑'}
+          {swapLoading ? '兑换中...' : '确认闪兑'}
         </button>
       </div>
     </div>
   )
+
 
   const renderAppView = () => {
     switch (activeTab) {
