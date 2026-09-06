@@ -1,1 +1,1 @@
-PLACEHOLDER
+import './server-app';
