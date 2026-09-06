@@ -5,6 +5,67 @@ import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
 
 const router = express.Router();
 
+let tablesReady = false;
+async function ensureWebTables() {
+  if (tablesReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS web_token_balances (
+      user_id UUID NOT NULL,
+      symbol VARCHAR(32) NOT NULL,
+      amount NUMERIC(24, 8) NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, symbol)
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_web_token_balances_user ON web_token_balances(user_id)`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS depin_node_plans (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(120) NOT NULL,
+      description TEXT,
+      price NUMERIC(18, 6) NOT NULL DEFAULT 0,
+      daily_yield_rate NUMERIC(10, 4) NOT NULL DEFAULT 0,
+      term_days INT NOT NULL DEFAULT 30,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS depin_positions (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL,
+      mode VARCHAR(32) NOT NULL,
+      plan_id INT,
+      amount NUMERIC(18, 6) NOT NULL DEFAULT 0,
+      lock_days INT,
+      daily_yield_rate NUMERIC(10, 4),
+      status VARCHAR(32) NOT NULL DEFAULT 'active',
+      start_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      end_at TIMESTAMPTZ,
+      total_yield NUMERIC(18, 6) NOT NULL DEFAULT 0,
+      meta JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS depin_swap_orders (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL,
+      from_asset VARCHAR(32) NOT NULL DEFAULT 'USDT',
+      to_asset VARCHAR(32) NOT NULL,
+      from_amount NUMERIC(24, 8) NOT NULL,
+      to_amount NUMERIC(24, 8) NOT NULL,
+      rate NUMERIC(24, 10) NOT NULL DEFAULT 1,
+      status VARCHAR(32) NOT NULL DEFAULT 'done',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  tablesReady = true;
+}
+
+
 async function getUsdtBalance(client: any, userId: string): Promise<number> {
   const r = await client.query(`SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE`, [userId]);
   if (!r.rows.length) throw new Error('用户不存在');
@@ -83,6 +144,7 @@ async function resolvePriceUsdt(symbol: string): Promise<number> {
 // ---------- Admin plans (unchanged API) ----------
 router.get('/admin/plans', authenticateAdmin, async (_req, res) => {
   try {
+    await ensureWebTables();
     const result = await query(`SELECT * FROM depin_node_plans ORDER BY sort_order ASC, id DESC`);
     res.json({ success: true, items: result.rows });
   } catch (e: any) {
@@ -157,6 +219,7 @@ router.get('/admin/investments', authenticateAdmin, async (req: AuthRequest, res
 // ---------- Web balances ----------
 router.get('/web/balances', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
+    await ensureWebTables();
     const userId = req.webUser!.id;
     const userRes = await query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
     const usdt = userRes.rows.length ? parseFloat(userRes.rows[0].wallet_balance || 0) : 0;
@@ -194,6 +257,7 @@ router.get('/web/balances', authenticateWebUser, async (req: WebAuthRequest, res
 // ---------- Web swap: always one side USDT ----------
 router.post('/web/swap', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
+    await ensureWebTables();
     const userId = req.webUser!.id;
     let fromSymbol = String(req.body?.from_symbol || '').toUpperCase();
     let toSymbol = String(req.body?.to_symbol || '').toUpperCase();
@@ -240,6 +304,7 @@ router.post('/web/swap', authenticateWebUser, async (req: WebAuthRequest, res) =
 // ---------- Depin web ----------
 router.get('/web/plans', authenticateWebUser, async (_req, res) => {
   try {
+    await ensureWebTables();
     const result = await query(
       `SELECT id, name, description, price, daily_yield_rate, term_days
        FROM depin_node_plans WHERE is_active = true ORDER BY sort_order ASC, id DESC`
@@ -252,6 +317,7 @@ router.get('/web/plans', authenticateWebUser, async (_req, res) => {
 
 router.get('/web/positions', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
+    await ensureWebTables();
     const result = await query(
       `SELECT * FROM depin_positions WHERE user_id = $1 ORDER BY id DESC LIMIT 100`,
       [req.webUser!.id]
@@ -268,6 +334,7 @@ router.get('/web/positions', authenticateWebUser, async (req: WebAuthRequest, re
 
 router.post('/web/buy-node', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
+    await ensureWebTables();
     const userId = req.webUser!.id;
     const planId = parseInt(String(req.body?.plan_id), 10);
     if (!planId) return res.status(400).json({ error: 'plan_id required' });
@@ -294,6 +361,7 @@ router.post('/web/buy-node', authenticateWebUser, async (req: WebAuthRequest, re
 
 router.post('/web/stake', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
+    await ensureWebTables();
     const userId = req.webUser!.id;
     const amount = Number(req.body?.amount);
     const lockDays = Number(req.body?.lock_days);
