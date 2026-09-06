@@ -635,7 +635,7 @@ function App() {
   const [pairs, setPairs] = useState<TradingPair[]>([])
   const [pairsLoading, setPairsLoading] = useState(false)
   const [products, setProducts] = useState<ProductItem[]>([])
-  const [productsLoading, setProductsLoading] = useState(false)
+  const [_productsLoading, setProductsLoading] = useState(false)
   const [transactions, setTransactions] = useState<WalletTransaction[]>([])
   const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [hasWithdrawPassword, setHasWithdrawPassword] = useState(false)
@@ -698,11 +698,11 @@ function App() {
   const [tradingSubmitting, setTradingSubmitting] = useState(false)
   const [tradingOrderError, setTradingOrderError] = useState('')
   const [tradingOrderSuccess, setTradingOrderSuccess] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null)
+  const [selectedProduct, _setSelectedProduct] = useState<ProductItem | null>(null)
   const [productSubmitting, setProductSubmitting] = useState(false)
-  const [productActionMessage, setProductActionMessage] = useState('')
-  const [productHoldings, setProductHoldings] = useState<ProductHolding[]>([])
-  const [productHoldingsLoading, setProductHoldingsLoading] = useState(false)
+  const [_productActionMessage, setProductActionMessage] = useState('')
+  const [_productHoldings, setProductHoldings] = useState<ProductHolding[]>([])
+  const [_productHoldingsLoading, setProductHoldingsLoading] = useState(false)
   const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -1524,7 +1524,7 @@ function App() {
     }
   }
 
-  const handleProductPurchase = async () => {
+  const _handleProductPurchase = async () => {
     if (!selectedProduct || !token || productSubmitting) return
     setProductSubmitting(true)
     setProductActionMessage('')
