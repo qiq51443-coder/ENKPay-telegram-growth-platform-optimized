@@ -116,7 +116,6 @@ interface WalletTransaction {
 
 const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
-const TRADING_QUICK_AMOUNTS = [10, 50, 100, 500, 1000]
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
   { key: 'markets', label: '行情', description: '代币与交易对行情' },
   { key: 'swap', label: '闪兑', description: '资产快速兑换' },
@@ -470,27 +469,8 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   return data as T
 }
 
-function resolveAssetUrl(url?: string | null) {
-  if (!url) return ''
-  if (/^(data:|https?:|\/\/)/.test(url)) return url
-  return url.startsWith('/') ? url : `/${url}`
-}
 
-function formatCompactDate(value?: string) {
-  if (!value) return '--'
-  return new Date(value).toLocaleString([], {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
-function formatCountdown(seconds: number) {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.max(0, seconds % 60)
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-}
 
 function SwapIcon({ active }: { active: boolean }) {
   const c = active ? '#F0B90B' : '#8899AA'
@@ -670,19 +650,16 @@ function App() {
   const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
   const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
   const [livePrice, setLivePrice] = useState<Record<string, { price: number; change24h: number }>>({})
-  const [selectedTradingPair, setSelectedTradingPair] = useState<TradingPair | null>(null)
-  const [tradingRules, setTradingRules] = useState<TradingRule[]>([])
+  const [selectedTradingPair] = useState<TradingPair | null>(null)
+  const [, setTradingRules] = useState<TradingRule[]>([])
   const [selectedTradingDuration, setSelectedTradingDuration] = useState(60)
-  const [tradingCountdown, setTradingCountdown] = useState(0)
-  const [selectedTradingDirection, setSelectedTradingDirection] = useState<'up' | 'down'>('up')
-  const [tradingConfirmOpen, setTradingConfirmOpen] = useState(false)
-  const [tradingOrders, setTradingOrders] = useState<TradingOrder[]>([])
-  const [tradingOrdersLoading, setTradingOrdersLoading] = useState(false)
-  const [klineInterval, setKlineInterval] = useState('1m')
-  const [tradingAmount, setTradingAmount] = useState('')
-  const [tradingSubmitting, setTradingSubmitting] = useState(false)
-  const [tradingOrderError, setTradingOrderError] = useState('')
-  const [tradingOrderSuccess, setTradingOrderSuccess] = useState('')
+  const [, setTradingCountdown] = useState(0)
+  const [, setTradingConfirmOpen] = useState(false)
+  const [, setTradingOrders] = useState<TradingOrder[]>([])
+  const [, setTradingOrdersLoading] = useState(false)
+  const [klineInterval] = useState('1m')
+  const [, setTradingOrderError] = useState('')
+  const [, setTradingOrderSuccess] = useState('')
   const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -1462,35 +1439,6 @@ function App() {
     })
   }
 
-  const handleTradingOrder = async () => {
-    if (!selectedTradingPair || !tradingAmount || Number(tradingAmount) <= 0 || tradingSubmitting) return
-    setTradingSubmitting(true)
-    setTradingOrderError('')
-    setTradingOrderSuccess('')
-    try {
-      const result = await apiRequest<ApiResult<{ expected_profit?: number }>>('/web/app/trading/quick-session', {
-        method: 'POST',
-        body: JSON.stringify({
-          pair_id: selectedTradingPair.id,
-          duration: selectedTradingDuration,
-          direction: selectedTradingDirection,
-          amount: Number(tradingAmount),
-        }),
-      }, token)
-      setTradingOrderSuccess(
-        result.message ||
-          (selectedTradingDirection === 'up' ? '买涨订单已提交' : '买跌订单已提交')
-      )
-      setTradingAmount('')
-      setTradingConfirmOpen(false)
-      fetchTradingOrders()
-      refreshUserProfile()
-    } catch (error: any) {
-      setTradingOrderError(error.message)
-    } finally {
-      setTradingSubmitting(false)
-    }
-  }
 
   const renderTrading = () => {
     return (
