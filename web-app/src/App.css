@@ -1723,3 +1723,42 @@
     min-height: unset;
   }
 }
+
+/* Markets list mobile optimization */
+.markets-list .list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.markets-list .list-item img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+@media (max-width: 600px) {
+  .markets-list .list-item {
+    padding: 10px 12px;
+  }
+  .markets-list .list-item strong {
+    font-size: 14px;
+  }
+  .markets-list .list-item span {
+    font-size: 11px;
+  }
+  .section-head h2 {
+    font-size: 18px;
+  }
+  .main-card {
+    margin: 8px;
+    padding: 12px;
+  }
+  .bottom-nav {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
