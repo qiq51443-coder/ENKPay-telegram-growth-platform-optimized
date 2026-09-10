@@ -120,11 +120,20 @@ interface WalletTransaction {
 
 const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
+const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
+  zh: { markets: '行情', swap: '闪兑', invest: '算力', wallet: '钱包' },
+  en: { markets: 'Markets', swap: 'Swap', invest: 'Compute', wallet: 'Wallet' },
+  fr: { markets: 'Marchés', swap: 'Échange', invest: 'Compute', wallet: 'Portefeuille' },
+  de: { markets: 'Märkte', swap: 'Tausch', invest: 'Compute', wallet: 'Wallet' },
+  es: { markets: 'Mercados', swap: 'Intercambio', invest: 'Compute', wallet: 'Billetera' },
+  ar: { markets: 'الأسواق', swap: 'تبديل', invest: 'الحوسبة', wallet: 'المحفظة' },
+  ja: { markets: '相場', swap: 'スワップ', invest: '演算力', wallet: 'ウォレット' },
+}
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
   { key: 'markets', label: '行情', description: '代币与交易对行情' },
   { key: 'swap', label: '闪兑', description: '资产快速兑换' },
-  { key: 'invest', label: '算力', description: 'DePIN 节点 · 兑换 · 质押' },
-  { key: 'wallet', label: '钱包', description: '余额、充值与提现' },
+  { key: 'invest', label: '算力', description: 'DePIN 节点 · 质押' },
+  { key: 'wallet', label: '钱包', description: '充值提现与资产' },
 ]
 
 type Lang = 'zh' | 'en' | 'fr' | 'de' | 'es' | 'ar' | 'ja'
@@ -1527,7 +1536,7 @@ function App() {
       <section className="view-stack">
         <div className="section-head">
           <div>
-            <h2>行情</h2>
+            <h2>{TAB_I18N[lang]?.markets || '行情'}</h2>
             <p className="muted">点击查看详情</p>
           </div>
         </div>
@@ -1645,7 +1654,7 @@ function App() {
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <h2>算力</h2>
+          <h2>{TAB_I18N[lang]?.invest || '算力'}</h2>
           <p className="muted">余额 {Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
         </div>
       </div>
@@ -2004,7 +2013,7 @@ function App() {
     <div className="panel">
       <div className="section-head">
         <div>
-          <h2>闪兑</h2>
+          <h2>{TAB_I18N[lang]?.swap || '闪兑'}</h2>
           <p className="muted">与 USDT 兑换 · 汇率取自实时行情</p>
         </div>
       </div>
@@ -2466,7 +2475,7 @@ function App() {
               onClick={() => guarded({ view: 'app', tab: tab.key })}
             >
               <span className="nav-icon">{renderTabIcon(tab.key, tab.key === activeTab)}</span>
-              <span className="nav-label">{tab.label}</span>
+              <span className="nav-label">{TAB_I18N[lang]?.[tab.key] || tab.label}</span>
             </button>
           ))}
         </nav>
