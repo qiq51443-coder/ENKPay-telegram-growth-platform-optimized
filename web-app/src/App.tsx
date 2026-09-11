@@ -132,6 +132,7 @@ const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
 
 const UI: Record<Lang, Record<string, string>> = {
   zh: {
+    assets: '资产', deposit: '充值', withdraw: '提现',
     marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
     kline: 'K线', klineLoading: 'K线加载中...', noKline: '暂无K线数据', goSwap: '去闪兑', loading: '加载中...', noMarkets: '暂无行情',
     swapTitle: '闪兑', swapSub: '与 USDT 兑换 · 汇率取自实时行情', pay: '支付', receive: '获得', balance: '余额', max: '最大',
@@ -142,6 +143,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
   en: {
+    assets: 'Assets', deposit: 'Deposit', withdraw: 'Withdraw',
     marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
     kline: 'Chart', klineLoading: 'Loading chart...', noKline: 'No chart data', goSwap: 'Swap', loading: 'Loading...', noMarkets: 'No markets',
     swapTitle: 'Swap', swapSub: 'Trade vs USDT · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
@@ -152,6 +154,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
+    assets: 'Actifs', deposit: 'Dépôt', withdraw: 'Retrait',
     marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
     kline: 'Graphique', klineLoading: 'Chargement...', noKline: 'Pas de données', goSwap: 'Échanger', loading: 'Chargement...', noMarkets: 'Aucun',
     swapTitle: 'Échange', swapSub: 'Contre USDT', pay: 'Vous payez', receive: 'Vous recevez', balance: 'Solde', max: 'Max',
@@ -162,6 +165,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
   de: {
+    assets: 'Vermögen', deposit: 'Einzahlung', withdraw: 'Auszahlung',
     marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Chart', klineLoading: 'Lädt...', noKline: 'Keine Daten', goSwap: 'Tausch', loading: 'Lädt...', noMarkets: 'Keine',
     swapTitle: 'Tausch', swapSub: 'Gegen USDT', pay: 'Zahlen', receive: 'Erhalten', balance: 'Guthaben', max: 'Max',
@@ -172,6 +176,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
   es: {
+    assets: 'Activos', deposit: 'Depósito', withdraw: 'Retiro',
     marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Gráfico', klineLoading: 'Cargando...', noKline: 'Sin datos', goSwap: 'Intercambiar', loading: 'Cargando...', noMarkets: 'Vacío',
     swapTitle: 'Swap', swapSub: 'Contra USDT', pay: 'Pagas', receive: 'Recibes', balance: 'Saldo', max: 'Máx',
@@ -182,6 +187,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
   },
   ar: {
+    assets: 'الأصول', deposit: 'إيداع', withdraw: 'سحب',
     marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
     kline: 'الرسم', klineLoading: 'جاري التحميل...', noKline: 'لا بيانات', goSwap: 'تبديل', loading: 'جاري...', noMarkets: 'لا يوجد',
     swapTitle: 'تبديل', swapSub: 'مقابل USDT', pay: 'تدفع', receive: 'تستلم', balance: 'الرصيد', max: 'الكل',
@@ -192,6 +198,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
   },
   ja: {
+    assets: '資産', deposit: '入金', withdraw: '出金',
     marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
     kline: 'チャート', klineLoading: '読込中...', noKline: 'データなし', goSwap: 'スワップへ', loading: '読込中...', noMarkets: 'なし',
     swapTitle: 'スワップ', swapSub: 'USDTとの交換', pay: '支払', receive: '受取', balance: '残高', max: '最大',
@@ -665,6 +672,20 @@ function getChainIcon(chainName: string) {
 function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute())
   const [token, setToken] = useState(getStoredToken())
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const t = localStorage.getItem('enkpay_theme')
+      return t === 'light' ? 'light' : 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('enkpay_theme', theme)
+    } catch {}
+  }, [theme])
   const [user, setUser] = useState<WebUser | null>(null)
   const [loadingUser, setLoadingUser] = useState(Boolean(getStoredToken()))
   const [globalError, setGlobalError] = useState('')
@@ -1057,7 +1078,6 @@ function App() {
     if (!user) return []
     return [
       { label: 'USDT 余额', value: formatMoney(user.wallet_balance) },
-      { label: '冻结金额', value: formatMoney(user.frozen_balance) },
       { label: '累计充值', value: formatMoney(user.total_recharged) },
       { label: '累计提现', value: formatMoney(user.total_withdrawn) },
     ]
@@ -1659,7 +1679,7 @@ function App() {
         <div className="section-head">
           <div>
             <h2>{ui.marketsTitle}</h2>
-            <p className="muted">{ui.marketsSub}</p>
+            <p className="muted" style={{ fontSize: 12 }}>{ui.marketsSub}</p>
           </div>
         </div>
         <div className="list-stack markets-list">
@@ -1672,23 +1692,22 @@ function App() {
             return (
               <button
                 type="button"
-                className="list-item"
+                className="list-item market-row"
                 key={pair.id}
                 onClick={() => setMarketDetailId(String(pair.id))}
-                style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 'none', color: 'inherit' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="mk-left">
                   {pair.icon_url ? (
                     <img src={pair.icon_url} alt="" width={32} height={32} style={{ borderRadius: '50%', flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                   ) : (
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#2a2f3a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{base.slice(0, 1)}</span>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-card-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>{base.slice(0, 1)}</span>
                   )}
                   <div>
                     <strong>{base || pair.symbol}</strong>
-                    <span>{pair.symbol}{vol != null ? ` · 量 ${Number(vol).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : ''}</span>
+                    <span>{pair.symbol}</span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="mk-right">
                   <strong>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong>
                   <span className={change >= 0 ? 'price-up' : 'price-down'}>
                     {change >= 0 ? '+' : ''}{change.toFixed(2)}%
@@ -1991,13 +2010,13 @@ function App() {
       <section className="view-stack">
         <div className="hero-panel profile-hero">
           <div>
-            <span className="eyebrow">资产</span>
+            <span className="eyebrow">{ui.assets}</span>
             <h2>≈ {Number(totalAssetUsdt || user?.wallet_balance || 0).toFixed(2)} USDT</h2>
             <p>{user?.email || user?.username || ''} · UID {user?.unique_id}</p>
           </div>
           <div className="button-row">
-            <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>充值</button>
-            <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>提现</button>
+            <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>{ui.deposit}</button>
+            <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>{ui.withdraw}</button>
           </div>
         </div>
         <div className="list-stack" style={{ marginTop: 12 }}>
@@ -2174,6 +2193,7 @@ function App() {
   const [swapAmount, setSwapAmount] = useState('')
   const [swapLoading, setSwapLoading] = useState(false)
   const [swapMsg, setSwapMsg] = useState('')
+  const [coinPicker, setCoinPicker] = useState<'from' | 'to' | null>(null)
   const [tokenBalances, setTokenBalances] = useState<Array<{ symbol: string; amount: number; price_usdt: number; value_usdt: number }>>([])
   const [totalAssetUsdt, setTotalAssetUsdt] = useState(0)
 
@@ -2306,12 +2326,11 @@ function App() {
               </button>
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input className="trading-amount-input" style={{ flex: 1 }} type="number" min="0" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} placeholder="0" />
-            <select className="trading-amount-input" style={{ width: 120 }} value={swapFrom} onChange={(e) => setSwapFrom(e.target.value)}>
-              <option value="USDT">USDT</option>
-              {pairBases.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <button type="button" className="coin-select-btn" onClick={() => setCoinPicker('from')}>
+              {swapFrom} ▾
+            </button>
           </div>
         </div>
         <div style={{ textAlign: 'center', margin: '8px 0' }}>
@@ -2320,14 +2339,13 @@ function App() {
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span className="muted">{ui.receive}</span>
-            <span className="muted">余额 {balanceOf(swapTo || 'USDT').toFixed(4)}</span>
+            <span className="muted">{ui.balance} {balanceOf(swapTo || 'USDT').toFixed(4)}</span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input className="trading-amount-input" style={{ flex: 1 }} type="number" readOnly value={estimatedOut ? estimatedOut.toFixed(6) : ''} placeholder="0" />
-            <select className="trading-amount-input" style={{ width: 120 }} value={swapTo} onChange={(e) => setSwapTo(e.target.value)}>
-              <option value="USDT">USDT</option>
-              {pairBases.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <button type="button" className="coin-select-btn" onClick={() => setCoinPicker('to')}>
+              {swapTo} ▾
+            </button>
           </div>
         </div>
         {swapFrom !== 'USDT' && swapTo !== 'USDT' && (
@@ -2338,6 +2356,33 @@ function App() {
           {swapLoading ? ui.swapping : ui.confirmSwap}
         </button>
       </div>
+
+      {coinPicker && (
+        <div className="coin-picker-backdrop" onClick={() => setCoinPicker(null)}>
+          <div className="coin-picker-sheet" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <strong>{ui.swapTitle}</strong>
+              <button type="button" className="theme-toggle" onClick={() => setCoinPicker(null)}>✕</button>
+            </div>
+            {['USDT', ...pairBases].filter((v, i, a) => a.indexOf(v) === i).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`coin-picker-item${(coinPicker === 'from' ? swapFrom : swapTo) === s ? ' active' : ''}`}
+                onClick={() => {
+                  if (coinPicker === 'from') setSwapFrom(s)
+                  else setSwapTo(s)
+                  setCoinPicker(null)
+                }}
+              >
+                <span>{s}</span>
+                {(coinPicker === 'from' ? swapFrom : swapTo) === s ? <span>✓</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 
@@ -2360,7 +2405,7 @@ function App() {
   const currentWithdrawNetwork = withdrawNetworks.find((item) => String(item.id) === withdrawForm.network_id)
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       <header className="topbar">
         <div className="topbar-brand">
           {brandLogoUrl ? (
@@ -2374,6 +2419,15 @@ function App() {
           </div>
         </div>
         <div className="topbar-right">
+          <button
+            type="button"
+            className="theme-toggle"
+            aria-label="Toggle theme"
+            title={theme === 'dark' ? 'Light' : 'Dark'}
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
           <div className="lang-dropdown-wrap">
             <button
               className="lang-trigger"
