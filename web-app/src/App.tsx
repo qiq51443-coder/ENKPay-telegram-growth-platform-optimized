@@ -662,13 +662,6 @@ function getChainIcon(chainName: string) {
   )
 }
 
-function cardTitle(route: Route) {
-  if (route.view === 'deposit') return '独立充值页'
-  if (route.view === 'withdraw') return '独立提现页'
-  if (route.view === 'auth') return ''
-  return TABS.find((tab) => tab.key === route.tab)?.label || 'ENKPay'
-}
-
 function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute())
   const [token, setToken] = useState(getStoredToken())
