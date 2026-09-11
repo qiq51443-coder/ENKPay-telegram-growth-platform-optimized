@@ -10,12 +10,24 @@ interface Plan {
   id: number;
   name: string;
   description?: string;
+  description_i18n?: Record<string, string>;
   price: number;
   daily_yield_rate: number;
   term_days: number;
   sort_order: number;
   is_active: boolean;
 }
+
+const LANGS = [
+  { key: 'zh', label: '中文' },
+  { key: 'en', label: 'English' },
+  { key: 'fr', label: 'Français' },
+  { key: 'de', label: 'Deutsch' },
+  { key: 'es', label: 'Español' },
+  { key: 'ar', label: 'العربية' },
+  { key: 'ja', label: '日本語' },
+] as const;
+
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('token');
@@ -56,6 +68,7 @@ const DepinPlansPage: React.FC = () => {
     form.setFieldsValue({
       name: '',
       description: '',
+      desc_zh: '', desc_en: '', desc_fr: '', desc_de: '', desc_es: '', desc_ar: '', desc_ja: '',
       price: 100,
       daily_yield_rate: 0.5,
       term_days: 30,
@@ -67,9 +80,17 @@ const DepinPlansPage: React.FC = () => {
 
   const openEdit = (row: Plan) => {
     setEditing(row);
+    const i18n = row.description_i18n || {};
     form.setFieldsValue({
       name: row.name,
       description: row.description,
+      desc_zh: i18n.zh || row.description || '',
+      desc_en: i18n.en || '',
+      desc_fr: i18n.fr || '',
+      desc_de: i18n.de || '',
+      desc_es: i18n.es || '',
+      desc_ar: i18n.ar || '',
+      desc_ja: i18n.ja || '',
       price: Number(row.price),
       daily_yield_rate: Number(row.daily_yield_rate),
       term_days: Number(row.term_days),
@@ -81,9 +102,19 @@ const DepinPlansPage: React.FC = () => {
 
   const handleSave = async () => {
     const v = await form.validateFields();
+    const description_i18n = {
+      zh: v.desc_zh || v.description || '',
+      en: v.desc_en || '',
+      fr: v.desc_fr || '',
+      de: v.desc_de || '',
+      es: v.desc_es || '',
+      ar: v.desc_ar || '',
+      ja: v.desc_ja || '',
+    };
     const body = {
       name: v.name,
-      description: v.description,
+      description: v.desc_zh || v.description || v.desc_en || '',
+      description_i18n,
       price: Number(v.price),
       daily_yield_rate: Number(v.daily_yield_rate),
       term_days: Number(v.term_days),
@@ -194,8 +225,49 @@ const DepinPlansPage: React.FC = () => {
           <Form.Item name="name" label="服务器/套餐名称" rules={[{ required: true }]}>
             <Input placeholder="例如：基础算力节点 A1" />
           </Form.Item>
-          <Form.Item name="description" label="说明">
-            <Input.TextArea rows={2} />
+          <Form.Item label="说明（7语）">
+            <div style={{ width: '100%' }}>
+              <Button
+                type="dashed"
+                style={{ marginBottom: 8 }}
+                onClick={async () => {
+                  const base = form.getFieldValue('desc_zh') || form.getFieldValue('desc_en');
+                  if (!base) {
+                    message.warning('请先填写中文或英文说明');
+                    return;
+                  }
+                  try {
+                    const res = await fetch('/api/depin/admin/translate', {
+                      method: 'POST',
+                      headers: authHeaders(),
+                      body: JSON.stringify({ text: base }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || '翻译失败');
+                    const t = data.translations || {};
+                    form.setFieldsValue({
+                      desc_zh: t.zh || base,
+                      desc_en: t.en || '',
+                      desc_fr: t.fr || '',
+                      desc_de: t.de || '',
+                      desc_es: t.es || '',
+                      desc_ar: t.ar || '',
+                      desc_ja: t.ja || '',
+                    });
+                    message.success('已同步翻译 7 语');
+                  } catch (e: any) {
+                    message.error(e.message || '翻译失败');
+                  }
+                }}
+              >
+                一键翻译并填充 7 语
+              </Button>
+              {LANGS.map((l) => (
+                <Form.Item key={l.key} name={`desc_${l.key}`} label={l.label} style={{ marginBottom: 8 }}>
+                  <Input.TextArea rows={2} placeholder={`${l.label} 说明`} />
+                </Form.Item>
+              ))}
+            </div>
           </Form.Item>
           <Form.Item name="price" label="价格 (USDT)" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
