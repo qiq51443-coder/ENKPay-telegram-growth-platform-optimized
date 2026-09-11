@@ -1687,7 +1687,6 @@ function App() {
           {!pairsLoading && pairs.map((pair) => {
             const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
             const change = Number(priceInfo.change24h || 0)
-            const vol = pair.volume_24h ?? pair.quote_volume
             const base = String(pair.base_currency || pair.symbol || '').split('/')[0]
             return (
               <button
