@@ -1717,9 +1717,24 @@ function App() {
   const [depinMsg, setDepinMsg] = useState('')
   const [depinSummary, setDepinSummary] = useState<any>(null)
   const [claimingId, setClaimingId] = useState<number | null>(null)
+  const [marketOverview, setMarketOverview] = useState<any[]>([])
+  const [marketOpen, setMarketOpen] = useState(true)
+  const [marketLoading, setMarketLoading] = useState(false)
   const [stakeAmount, setStakeAmount] = useState('')
   const [stakeDays, setStakeDays] = useState(30)
 
+
+  const loadMarketOverview = async () => {
+    setMarketLoading(true)
+    try {
+      const r = await apiRequest<any>('/depin/web/market-overview')
+      setMarketOverview(Array.isArray(r?.items) ? r.items : [])
+    } catch {
+      setMarketOverview([])
+    } finally {
+      setMarketLoading(false)
+    }
+  }
   const loadDepin = async () => {
     if (!token) return
     setDepinLoading(true)
@@ -1739,8 +1754,9 @@ function App() {
   }
 
   useEffect(() => {
-    if (route.view === 'app' && route.tab === 'invest' && token) {
-      loadDepin()
+    if (route.view === 'app' && route.tab === 'invest') {
+      loadMarketOverview()
+      if (token) loadDepin()
     }
   }, [route, token])
 
@@ -1828,6 +1844,54 @@ function App() {
 
   const renderProducts = () => (
     <section className="view-stack">
+      <div className="panel-card" style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setMarketOpen((v) => !v)}
+          style={{
+            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0,
+          }}
+        >
+          <div style={{ textAlign: 'left' }}>
+            <strong>DePIN Market</strong>
+            <span className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>CoinGecko</span>
+          </div>
+          <span className="muted" style={{ fontSize: 18 }}>{marketOpen ? '▾' : '▸'}</span>
+        </button>
+        {marketOpen && (
+          <div style={{ marginTop: 12 }}>
+            {marketLoading && <div className="muted" style={{ fontSize: 12 }}>{ui.loading}</div>}
+            {!marketLoading && !marketOverview.length && <div className="muted" style={{ fontSize: 12 }}>—</div>}
+            <div style={{ display: 'grid', gap: 8 }}>
+              {marketOverview.map((c) => {
+                const ch = Number(c.change_24h || 0)
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      {c.image ? (
+                        <img src={c.image} alt="" width={28} height={28} style={{ borderRadius: '50%' }} />
+                      ) : (
+                        <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#2a2f3a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>{String(c.symbol || '?').slice(0, 1)}</span>
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <strong style={{ fontSize: 14 }}>{c.symbol}</strong>
+                        <span className="muted" style={{ display: 'block', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <strong style={{ fontSize: 14 }}>${Number(c.price_usd || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong>
+                      <span className={ch >= 0 ? 'price-up' : 'price-down'} style={{ display: 'block', fontSize: 12 }}>
+                        {ch >= 0 ? '+' : ''}{ch.toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="section-head">
         <div>
           <h2>{ui.investTitle}</h2>
@@ -1843,15 +1907,22 @@ function App() {
       {depinTab === 'node' && (
         <div className="list-stack">
           {depinLoading && <div className="empty-card">加载中...</div>}
-          {!depinLoading && depinPlans.map((p) => (
-            <div className="list-item" key={p.id}>
-              <div>
-                <strong>{p.name}</strong>
-                <span>{Number(p.price).toFixed(2)} USDT · 日收益 {Number(p.daily_yield_rate).toFixed(2)}% · {p.term_days}天</span>
+          {!depinLoading && depinPlans.map((p) => {
+            const i18n = (p.description_i18n && typeof p.description_i18n === 'object') ? p.description_i18n : {}
+            const desc = i18n[lang] || i18n.en || i18n.zh || p.description || ''
+            return (
+            <div className="list-item" key={p.id} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 12 }}>
+                <div>
+                  <strong>{p.name}</strong>
+                  <span>{Number(p.price).toFixed(2)} USDT · {ui.dailyYield} {Number(p.daily_yield_rate).toFixed(2)}% · {p.term_days}{ui.days}</span>
+                  {desc ? <span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>{desc}</span> : null}
+                </div>
+                <button className="primary-button" style={{ width: 'auto', padding: '8px 14px', flexShrink: 0 }} onClick={() => buyNode(Number(p.id))}>{ui.buy}</button>
               </div>
-              <button className="primary-button" style={{ width: 'auto', padding: '8px 14px' }} onClick={() => buyNode(Number(p.id))}>购买</button>
             </div>
-          ))}
+            )
+          })}
           {!depinLoading && !depinPlans.length && <div className="empty-card">暂无节点套餐</div>}
         </div>
       )}
@@ -2307,7 +2378,6 @@ function App() {
           <div>
             <span className="brand-name">{brandName}</span>
             {route.view === 'auth' && currentSlogan && <p className="muted-text brand-slogan">{currentSlogan}</p>}
-            {route.view !== 'auth' && <h1>{cardTitle(route)}</h1>}
           </div>
         </div>
         <div className="topbar-right">
