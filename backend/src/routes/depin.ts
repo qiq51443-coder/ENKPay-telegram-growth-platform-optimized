@@ -5,6 +5,29 @@ import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
 
 const router = express.Router();
 
+function enrichPosition(row: any) {
+  const amount = parseFloat(row.amount || 0);
+  const rate = parseFloat(row.daily_yield_rate || 0); // percent per day
+  const claimed = parseFloat(row.total_yield || 0);
+  const start = row.start_at ? new Date(row.start_at).getTime() : Date.now();
+  const end = row.end_at ? new Date(row.end_at).getTime() : null;
+  const now = Date.now();
+  const effectiveEnd = end && end < now ? end : now;
+  const days = Math.max(0, (effectiveEnd - start) / (24 * 3600 * 1000));
+  const accrued = amount * (rate / 100) * days;
+  const claimable = Math.max(0, accrued - claimed);
+  const is_matured = !!(end && end <= now);
+  return {
+    ...row,
+    accrued_yield: Number(accrued.toFixed(8)),
+    claimable_yield: Number(claimable.toFixed(8)),
+    claimed_yield: claimed,
+    elapsed_days: Number(days.toFixed(4)),
+    is_matured,
+  };
+}
+
+
 let tablesReady = false;
 async function ensureWebTables() {
   if (tablesReady) return;
@@ -134,6 +157,7 @@ router.delete('/admin/plans/:id', authenticateAdmin, async (req: AuthRequest, re
 
 router.get('/admin/investments', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
+    await ensureWebTables();
     const { search, mode, limit } = req.query as any;
     const params: any[] = [];
     let sql = `SELECT p.*, u.email AS user_email FROM depin_positions p LEFT JOIN users u ON u.id = p.user_id WHERE 1=1`;
@@ -141,7 +165,14 @@ router.get('/admin/investments', authenticateAdmin, async (req: AuthRequest, res
     if (search) { params.push(`%${search}%`); sql += ` AND u.email ILIKE $${params.length}`; }
     params.push(Math.min(parseInt(limit || '50', 10) || 50, 200));
     sql += ` ORDER BY p.id DESC LIMIT $${params.length}`;
-    res.json({ success: true, items: (await query(sql, params)).rows });
+    const rows = (await query(sql, params)).rows.map(enrichPosition);
+    const summary = {
+      count: rows.length,
+      total_principal: rows.reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
+      total_claimable: rows.reduce((s: number, i: any) => s + Number(i.claimable_yield || 0), 0),
+      total_claimed: rows.reduce((s: number, i: any) => s + Number(i.claimed_yield || 0), 0),
+    };
+    res.json({ success: true, items: rows, summary });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -272,9 +303,18 @@ router.get('/web/plans', authenticateWebUser, async (_req, res) => {
 router.get('/web/positions', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
     await ensureWebTables();
-    res.json({ success: true, items: (await query(`SELECT * FROM depin_positions WHERE user_id = $1 ORDER BY id DESC LIMIT 100`, [req.webUser!.id])).rows });
+    const rows = (await query(`SELECT * FROM depin_positions WHERE user_id = $1 ORDER BY id DESC LIMIT 100`, [req.webUser!.id])).rows;
+    const items = rows.map(enrichPosition);
+    const summary = {
+      position_count: items.length,
+      total_principal: items.reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
+      total_accrued: items.reduce((s: number, i: any) => s + Number(i.accrued_yield || 0), 0),
+      total_claimable: items.reduce((s: number, i: any) => s + Number(i.claimable_yield || 0), 0),
+      total_claimed: items.reduce((s: number, i: any) => s + Number(i.claimed_yield || 0), 0),
+    };
+    res.json({ success: true, items, summary });
   } catch (e: any) {
-    if (String(e.message || '').includes('does not exist')) return res.json({ success: true, items: [] });
+    if (String(e.message || '').includes('does not exist')) return res.json({ success: true, items: [], summary: {} });
     res.status(500).json({ error: e.message });
   }
 });
@@ -323,5 +363,48 @@ router.post('/web/stake', authenticateWebUser, async (req: WebAuthRequest, res) 
     res.json({ success: true, item });
   } catch (e: any) { res.status(400).json({ error: e.message || '质押失败' }); }
 });
+
+/** 领取可提现收益（本金锁仓期间可领收益） */
+router.post('/web/claim-yield', authenticateWebUser, async (req: WebAuthRequest, res) => {
+  try {
+    await ensureWebTables();
+    const userId = req.webUser!.id;
+    const positionId = parseInt(String(req.body?.position_id), 10);
+    if (!positionId) return res.status(400).json({ error: 'position_id required' });
+
+    const result = await transaction(async (client) => {
+      const posRes = await client.query(
+        `SELECT * FROM depin_positions WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+        [positionId, userId]
+      );
+      if (!posRes.rows.length) throw new Error('持仓不存在');
+      const pos = enrichPosition(posRes.rows[0]);
+      const claimable = Number(pos.claimable_yield || 0);
+      if (claimable <= 0) throw new Error('暂无可领取收益');
+
+      await client.query(
+        `UPDATE depin_positions SET total_yield = total_yield + $1 WHERE id = $2`,
+        [claimable, positionId]
+      );
+      await addTokenBalance(client, userId, 'USDT', claimable);
+      const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
+      try {
+        await client.query(
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+           VALUES ($1, 'product_yield', $2, $3, $4, $5)`,
+          [userId, claimable, parseFloat(String(bal.rows[0]?.wallet_balance ?? 0)),
+           `DePIN 收益领取 #${positionId}`, String(positionId)]
+        );
+      } catch (e: any) {
+        console.warn('[depin] claim ledger skipped', e.message);
+      }
+      return { claimed: claimable, position_id: positionId };
+    });
+    res.json({ success: true, ...result });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message || '领取失败' });
+  }
+});
+
 
 export default router;
