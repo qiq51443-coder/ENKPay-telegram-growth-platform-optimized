@@ -1793,11 +1793,30 @@ function App() {
         body: JSON.stringify({ position_id: positionId }),
       }, token)
       if (r?.error) throw new Error(r.error)
-      setDepinMsg(`${ui.claim} +${Number(r.claimed || 0).toFixed(4)} USDT`)
+      const claimed = Number(r.claimed || 0)
+      setDepinMsg(`${ui.claim} +${claimed.toFixed(4)} USDT`)
+      // 立即用接口返回的余额更新 UI，避免 /me 缓存或字段不一致
+      if (r.wallet_balance != null || r.balance != null) {
+        setUser((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                wallet_balance: r.wallet_balance != null ? Number(r.wallet_balance) : prev.wallet_balance,
+                balance: r.balance != null ? Number(r.balance) : prev.balance,
+              }
+            : prev
+        )
+      }
       await loadDepin()
       try {
         const me = await apiRequest<any>('/web/auth/me', {}, token)
-        if (me?.user) setUser(me.user)
+        if (me?.user) {
+          setUser((prev: any) => ({
+            ...me.user,
+            wallet_balance: Number(me.user.wallet_balance ?? r.wallet_balance ?? prev?.wallet_balance ?? 0),
+            balance: Number(me.user.balance ?? r.balance ?? prev?.balance ?? 0),
+          }))
+        }
       } catch {}
       try { await loadBalances() } catch {}
     } catch (e: any) {
