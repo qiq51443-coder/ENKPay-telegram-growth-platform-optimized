@@ -32,6 +32,7 @@ import { WebAccountLedger } from './pages/WebAccountLedger';
 import { DepinConfig } from './pages/DepinConfig';
 import { DepinPlans } from './pages/DepinPlans';
 import { DepinInvestments } from './pages/DepinInvestments';
+import { DepinMarketCoins } from './pages/DepinMarketCoins';
 import { Bots } from './pages/Bots';
 import { RedPackets } from './pages/RedPackets';
 import { Broadcasts } from './pages/Broadcasts';
@@ -74,7 +75,7 @@ const ProtectedLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
   useEffect(() => {
     const path = location.pathname.split('/')[1] || 'analytics';
     setSelectedKey(path);
-    if (['web-accounts', 'web-ledger', 'depin-config', 'depin-plans', 'depin-investments'].includes(path)) {
+    if (['web-accounts', 'web-ledger', 'depin-config', 'depin-plans', 'depin-market-coins', 'depin-investments'].includes(path)) {
       setOpenKeys((keys) => (keys.includes('web-users') ? keys : [...keys, 'web-users']));
     }
   }, [location]);
@@ -114,6 +115,7 @@ const ProtectedLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
         { key: 'web-ledger', label: <Link to="/web-ledger">帐变记录</Link> },
         { key: 'depin-config', label: <Link to="/depin-config">DePIN 配置</Link> },
         { key: 'depin-plans', label: <Link to="/depin-plans">节点套餐</Link> },
+        { key: 'depin-market-coins', label: <Link to="/depin-market-coins">市场代币</Link> },
         { key: 'depin-investments', label: <Link to="/depin-investments">DePIN 投资详情</Link> },
       ],
     },
@@ -214,6 +216,7 @@ function App() {
       <Route path="/web-ledger" element={<ProtectedRoute><WebAccountLedger /></ProtectedRoute>} />
       <Route path="/depin-config" element={<ProtectedRoute><DepinConfig /></ProtectedRoute>} />
       <Route path="/depin-plans" element={<ProtectedRoute><DepinPlans /></ProtectedRoute>} />
+      <Route path="/depin-market-coins" element={<ProtectedRoute><DepinMarketCoins /></ProtectedRoute>} />
       <Route path="/depin-investments" element={<ProtectedRoute><DepinInvestments /></ProtectedRoute>} />
       <Route path="/bots" element={<ProtectedRoute><Bots /></ProtectedRoute>} />
       <Route path="/withdrawals" element={<ProtectedRoute><Withdrawals /></ProtectedRoute>} />
