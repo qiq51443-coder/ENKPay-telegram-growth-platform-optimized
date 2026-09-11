@@ -129,6 +129,79 @@ const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
   ar: { markets: 'الأسواق', swap: 'تبديل', invest: 'الحوسبة', wallet: 'المحفظة' },
   ja: { markets: '相場', swap: 'スワップ', invest: '演算力', wallet: 'ウォレット' },
 }
+
+const UI: Record<Lang, Record<string, string>> = {
+  zh: {
+    marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
+    kline: 'K线', klineLoading: 'K线加载中...', noKline: '暂无K线数据', goSwap: '去闪兑', loading: '加载中...', noMarkets: '暂无行情',
+    swapTitle: '闪兑', swapSub: '与 USDT 兑换 · 汇率取自实时行情', pay: '支付', receive: '获得', balance: '余额', max: '最大',
+    confirmSwap: '确认闪兑', swapping: '兑换中...', needUsdt: '请保证一侧为 USDT', swapOk: '闪兑成功',
+    investTitle: '算力', investSub: '购买节点 · 资产质押', buyNode: '购买节点', stake: '资产质押', myPositions: '我的持仓与收益',
+    noPlans: '暂无节点套餐', noPositions: '暂无持仓', buy: '购买', stakeBtn: '确认质押', dailyYield: '日收益', days: '天',
+    principal: '本金', accrued: '累计收益', claimable: '可领取', claimed: '已领取', claim: '领取收益', claiming: '领取中...',
+    matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
+  },
+  en: {
+    marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
+    kline: 'Chart', klineLoading: 'Loading chart...', noKline: 'No chart data', goSwap: 'Swap', loading: 'Loading...', noMarkets: 'No markets',
+    swapTitle: 'Swap', swapSub: 'Trade vs USDT · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
+    confirmSwap: 'Confirm swap', swapping: 'Swapping...', needUsdt: 'One side must be USDT', swapOk: 'Swap success',
+    investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Buy node', stake: 'Stake', myPositions: 'Positions & yield',
+    noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'days',
+    principal: 'Principal', accrued: 'Accrued', claimable: 'Claimable', claimed: 'Claimed', claim: 'Claim', claiming: 'Claiming...',
+    matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
+  },
+  fr: {
+    marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
+    kline: 'Graphique', klineLoading: 'Chargement...', noKline: 'Pas de données', goSwap: 'Échanger', loading: 'Chargement...', noMarkets: 'Aucun',
+    swapTitle: 'Échange', swapSub: 'Contre USDT', pay: 'Vous payez', receive: 'Vous recevez', balance: 'Solde', max: 'Max',
+    confirmSwap: 'Confirmer', swapping: 'Échange...', needUsdt: 'Un côté doit être USDT', swapOk: 'Succès',
+    investTitle: 'Compute', investSub: 'Nœuds · Staking', buyNode: 'Acheter', stake: 'Staker', myPositions: 'Positions',
+    noPlans: 'Aucun plan', noPositions: 'Aucune position', buy: 'Acheter', stakeBtn: 'Staker', dailyYield: 'Rendement/j', days: 'jours',
+    principal: 'Principal', accrued: 'Accumulé', claimable: 'Réclamable', claimed: 'Réclamé', claim: 'Réclamer', claiming: '...',
+    matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
+  },
+  de: {
+    marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
+    kline: 'Chart', klineLoading: 'Lädt...', noKline: 'Keine Daten', goSwap: 'Tausch', loading: 'Lädt...', noMarkets: 'Keine',
+    swapTitle: 'Tausch', swapSub: 'Gegen USDT', pay: 'Zahlen', receive: 'Erhalten', balance: 'Guthaben', max: 'Max',
+    confirmSwap: 'Bestätigen', swapping: '...', needUsdt: 'Eine Seite muss USDT sein', swapOk: 'Erfolg',
+    investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node kaufen', stake: 'Staken', myPositions: 'Positionen',
+    noPlans: 'Keine Pläne', noPositions: 'Keine Positionen', buy: 'Kaufen', stakeBtn: 'Staken', dailyYield: 'Tageszins', days: 'Tage',
+    principal: 'Kapital', accrued: 'Aufgelaufen', claimable: 'Abrufbar', claimed: 'Abgerufen', claim: 'Abrufen', claiming: '...',
+    matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
+  },
+  es: {
+    marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
+    kline: 'Gráfico', klineLoading: 'Cargando...', noKline: 'Sin datos', goSwap: 'Intercambiar', loading: 'Cargando...', noMarkets: 'Vacío',
+    swapTitle: 'Swap', swapSub: 'Contra USDT', pay: 'Pagas', receive: 'Recibes', balance: 'Saldo', max: 'Máx',
+    confirmSwap: 'Confirmar', swapping: '...', needUsdt: 'Un lado debe ser USDT', swapOk: 'Éxito',
+    investTitle: 'Compute', investSub: 'Nodos · Staking', buyNode: 'Comprar nodo', stake: 'Stake', myPositions: 'Posiciones',
+    noPlans: 'Sin planes', noPositions: 'Sin posiciones', buy: 'Comprar', stakeBtn: 'Stake', dailyYield: 'Rend. diario', days: 'días',
+    principal: 'Principal', accrued: 'Acumulado', claimable: 'Reclamable', claimed: 'Reclamado', claim: 'Reclamar', claiming: '...',
+    matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
+  },
+  ar: {
+    marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
+    kline: 'الرسم', klineLoading: 'جاري التحميل...', noKline: 'لا بيانات', goSwap: 'تبديل', loading: 'جاري...', noMarkets: 'لا يوجد',
+    swapTitle: 'تبديل', swapSub: 'مقابل USDT', pay: 'تدفع', receive: 'تستلم', balance: 'الرصيد', max: 'الكل',
+    confirmSwap: 'تأكيد', swapping: '...', needUsdt: 'يجب أن يكون أحد الجانبين USDT', swapOk: 'تم',
+    investTitle: 'الحوسبة', investSub: 'عقد · رهن', buyNode: 'شراء عقدة', stake: 'رهن', myPositions: 'المراكز',
+    noPlans: 'لا خطط', noPositions: 'لا مراكز', buy: 'شراء', stakeBtn: 'رهن', dailyYield: 'عائد يومي', days: 'يوم',
+    principal: 'الأصل', accrued: 'المتراكم', claimable: 'قابل للسحب', claimed: 'تم السحب', claim: 'سحب', claiming: '...',
+    matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
+  },
+  ja: {
+    marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
+    kline: 'チャート', klineLoading: '読込中...', noKline: 'データなし', goSwap: 'スワップへ', loading: '読込中...', noMarkets: 'なし',
+    swapTitle: 'スワップ', swapSub: 'USDTとの交換', pay: '支払', receive: '受取', balance: '残高', max: '最大',
+    confirmSwap: '確定', swapping: '処理中...', needUsdt: '片側はUSDTにしてください', swapOk: '成功',
+    investTitle: '演算力', investSub: 'ノード · ステーキング', buyNode: 'ノード購入', stake: 'ステーク', myPositions: '保有と収益',
+    noPlans: 'プランなし', noPositions: '保有なし', buy: '購入', stakeBtn: 'ステーク', dailyYield: '日次利回り', days: '日',
+    principal: '元本', accrued: '累計収益', claimable: '受取可能', claimed: '受取済', claim: '受取', claiming: '処理中...',
+    matured: '満期', active: '運用中', totalClaimable: '受取可能合計', wallet: 'ウォレット', totalAssets: '総資産',
+  },
+}
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
   { key: 'markets', label: '行情', description: '代币与交易对行情' },
   { key: 'swap', label: '闪兑', description: '资产快速兑换' },
@@ -687,6 +760,7 @@ function App() {
   const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({ funds: true, settings: false, info: false })
   const t = I18N[lang]
+  const ui = UI[lang] || UI.en
 
   const activeTab = route.view === 'app' ? route.tab : 'markets'
 
@@ -1442,6 +1516,8 @@ function App() {
 
 
   const [marketDetailId, setMarketDetailId] = useState<string | null>(null)
+  const marketDetailChartRef = useRef<HTMLDivElement | null>(null)
+  const marketDetailChartApi = useRef<any>(null)
   const [marketKline, setMarketKline] = useState<Array<{ time: number; value: number }>>([])
   const [marketKlineLoading, setMarketKlineLoading] = useState(false)
 
@@ -1471,6 +1547,62 @@ function App() {
     return () => { cancelled = true }
   }, [marketDetailId])
 
+  useEffect(() => {
+    if (!marketDetailId || !marketDetailChartRef.current || marketKline.length < 2) {
+      if (marketDetailChartApi.current) {
+        try { marketDetailChartApi.current.remove() } catch {}
+        marketDetailChartApi.current = null
+      }
+      return
+    }
+    try {
+      if (marketDetailChartApi.current) {
+        try { marketDetailChartApi.current.remove() } catch {}
+        marketDetailChartApi.current = null
+      }
+      const chart = createChart(marketDetailChartRef.current, {
+        layout: { background: { color: 'transparent' }, textColor: '#9aa4b2' },
+        grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+        width: marketDetailChartRef.current.clientWidth || 320,
+        height: 220,
+        timeScale: { borderVisible: false },
+        rightPriceScale: { borderVisible: false },
+      })
+      const series = chart.addAreaSeries({
+        lineColor: '#F0B90B',
+        topColor: 'rgba(240,185,11,0.35)',
+        bottomColor: 'rgba(240,185,11,0.02)',
+        lineWidth: 2,
+      })
+      const data = marketKline
+        .map((c) => ({ time: (c.time > 1e12 ? Math.floor(c.time / 1000) : Math.floor(c.time)) as any, value: c.value }))
+        .filter((c) => c.time > 0 && c.value > 0)
+        .sort((a, b) => a.time - b.time)
+      // dedupe times
+      const seen = new Set<number>()
+      const unique = data.filter((d) => (seen.has(d.time) ? false : (seen.add(d.time), true)))
+      if (unique.length >= 2) {
+        series.setData(unique)
+        chart.timeScale().fitContent()
+      }
+      marketDetailChartApi.current = chart
+      const onResize = () => {
+        if (marketDetailChartRef.current && marketDetailChartApi.current) {
+          marketDetailChartApi.current.applyOptions({ width: marketDetailChartRef.current.clientWidth })
+        }
+      }
+      window.addEventListener('resize', onResize)
+      return () => {
+        window.removeEventListener('resize', onResize)
+        try { chart.remove() } catch {}
+        marketDetailChartApi.current = null
+      }
+    } catch (e) {
+      console.warn('market chart', e)
+    }
+  }, [marketDetailId, marketKline])
+
+
   const renderTrading = () => {
     const detailPair = marketDetailId ? pairs.find((p) => String(p.id) === String(marketDetailId)) : null
     if (detailPair) {
@@ -1482,7 +1614,7 @@ function App() {
         <section className="view-stack">
           <div className="section-head">
             <div>
-              <button type="button" className="trading-quick-btn" onClick={() => setMarketDetailId(null)}>← 返回</button>
+              <button type="button" className="trading-quick-btn" onClick={() => setMarketDetailId(null)}>← {ui.back}</button>
               <h2 style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
                 {detailPair.icon_url ? (
                   <img src={detailPair.icon_url} alt="" width={28} height={28} style={{ borderRadius: '50%' }} />
@@ -1497,23 +1629,20 @@ function App() {
           <div className="panel-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
               <div>
-                <div className="muted">最新价</div>
+                <div className="muted">{ui.latestPrice}</div>
                 <strong style={{ fontSize: 22 }}>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div className="muted">24h</div>
+                <div className="muted">{ui.change24h}</div>
                 <strong className={change >= 0 ? 'price-up' : 'price-down'}>{change >= 0 ? '+' : ''}{change.toFixed(2)}%</strong>
               </div>
             </div>
-            <div className="muted">24h 量：{vol != null ? Number(vol).toLocaleString() : '—'}</div>
-            <div style={{ marginTop: 16, minHeight: 160 }}>
-              {marketKlineLoading && <div className="empty-card">K线加载中...</div>}
-              {!marketKlineLoading && marketKline.length > 0 && (
-                <div className="muted" style={{ fontSize: 12 }}>
-                  近 {marketKline.length} 根 1h 收盘：{marketKline.slice(-6).map((c) => c.value.toFixed(4)).join(' → ')}
-                </div>
-              )}
-              {!marketKlineLoading && !marketKline.length && <div className="empty-card">暂无 K 线数据</div>}
+            <div className="muted">{ui.volume24h}：{vol != null ? Number(vol).toLocaleString() : '—'}</div>
+            <div style={{ marginTop: 16 }}>
+              <div className="muted" style={{ marginBottom: 8 }}>{ui.kline} (1h)</div>
+              {marketKlineLoading && <div className="empty-card">{ui.klineLoading}</div>}
+              {!marketKlineLoading && marketKline.length < 2 && <div className="empty-card">{ui.noKline}</div>}
+              <div ref={marketDetailChartRef} style={{ width: '100%', height: 220, display: marketKline.length >= 2 ? 'block' : 'none' }} />
             </div>
             <button
               className="primary-button"
@@ -1525,7 +1654,7 @@ function App() {
                 guarded({ view: 'app', tab: 'swap' })
               }}
             >
-              去闪兑 {base}
+              {ui.goSwap} {base}
             </button>
           </div>
         </section>
@@ -1536,12 +1665,12 @@ function App() {
       <section className="view-stack">
         <div className="section-head">
           <div>
-            <h2>{TAB_I18N[lang]?.markets || '行情'}</h2>
-            <p className="muted">点击查看详情</p>
+            <h2>{ui.marketsTitle}</h2>
+            <p className="muted">{ui.marketsSub}</p>
           </div>
         </div>
         <div className="list-stack markets-list">
-          {pairsLoading && <div className="empty-card">加载中...</div>}
+          {pairsLoading && <div className="empty-card">{ui.loading}</div>}
           {!pairsLoading && pairs.map((pair) => {
             const priceInfo = livePrice[pair.id] || { price: Number(pair.current_price || 0), change24h: Number(pair.price_change_24h || 0) }
             const change = Number(priceInfo.change24h || 0)
@@ -1575,7 +1704,7 @@ function App() {
               </button>
             )
           })}
-          {!pairsLoading && !pairs.length && <div className="empty-card">暂无行情</div>}
+          {!pairsLoading && !pairs.length && <div className="empty-card">{ui.noMarkets}</div>}
         </div>
       </section>
     )
@@ -1586,6 +1715,8 @@ function App() {
   const [depinPositions, setDepinPositions] = useState<any[]>([])
   const [depinLoading, setDepinLoading] = useState(false)
   const [depinMsg, setDepinMsg] = useState('')
+  const [depinSummary, setDepinSummary] = useState<any>(null)
+  const [claimingId, setClaimingId] = useState<number | null>(null)
   const [stakeAmount, setStakeAmount] = useState('')
   const [stakeDays, setStakeDays] = useState(30)
 
@@ -1599,6 +1730,7 @@ function App() {
       ])
       setDepinPlans(Array.isArray(plans?.items) ? plans.items : [])
       setDepinPositions(Array.isArray(pos?.items) ? pos.items : [])
+      setDepinSummary(pos?.summary || null)
     } catch (e: any) {
       console.error(e)
     } finally {
@@ -1650,17 +1782,42 @@ function App() {
     }
   }
 
+
+  const handleClaimYield = async (positionId: number) => {
+    if (!token) return
+    setClaimingId(positionId)
+    setDepinMsg('')
+    try {
+      const r = await apiRequest<any>('/depin/web/claim-yield', {
+        method: 'POST',
+        body: JSON.stringify({ position_id: positionId }),
+      }, token)
+      if (r?.error) throw new Error(r.error)
+      setDepinMsg(`${ui.claim} +${Number(r.claimed || 0).toFixed(4)} USDT`)
+      await loadDepin()
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+      try { await loadBalances() } catch {}
+    } catch (e: any) {
+      setDepinMsg(e.message || 'claim failed')
+    } finally {
+      setClaimingId(null)
+    }
+  }
+
   const renderProducts = () => (
     <section className="view-stack">
       <div className="section-head">
         <div>
-          <h2>{TAB_I18N[lang]?.invest || '算力'}</h2>
-          <p className="muted">余额 {Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
+          <h2>{ui.investTitle}</h2>
+          <p className="muted">{ui.balance} {Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
         </div>
       </div>
       <div className="trading-quick-amounts" style={{ marginBottom: 16 }}>
-        <button type="button" className={`trading-quick-btn${depinTab === 'node' ? ' active' : ''}`} onClick={() => setDepinTab('node')}>购买节点</button>
-        <button type="button" className={`trading-quick-btn${depinTab === 'stake' ? ' active' : ''}`} onClick={() => setDepinTab('stake')}>资产质押</button>
+        <button type="button" className={`trading-quick-btn${depinTab === 'node' ? ' active' : ''}`} onClick={() => setDepinTab('node')}>{ui.buyNode}</button>
+        <button type="button" className={`trading-quick-btn${depinTab === 'stake' ? ' active' : ''}`} onClick={() => setDepinTab('stake')}>{ui.stake}</button>
       </div>
       {depinMsg && <div className={depinMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{depinMsg}</div>}
 
@@ -1693,19 +1850,52 @@ function App() {
       )}
 
       <div className="section-head" style={{ marginTop: 24 }}>
-        <div><h3>我的持仓</h3></div>
+        <div>
+          <h3>{ui.myPositions}</h3>
+          {depinSummary && (
+            <p className="muted">
+              {ui.totalClaimable}: {Number(depinSummary.total_claimable || 0).toFixed(4)} USDT
+            </p>
+          )}
+        </div>
       </div>
       <div className="list-stack">
-        {depinPositions.slice(0, 30).map((item) => (
-          <div className="list-item" key={item.id}>
-            <div>
-              <strong>{item.mode === 'node_server' ? '节点' : item.mode === 'asset_stake' ? '质押' : item.mode}</strong>
-              <span>{item.status}{item.lock_days ? ` · ${item.lock_days}天` : ''}</span>
+        {depinPositions.slice(0, 30).map((item) => {
+          const claimable = Number(item.claimable_yield || 0)
+          const accrued = Number(item.accrued_yield || 0)
+          const claimed = Number(item.claimed_yield || item.total_yield || 0)
+          return (
+            <div className="list-item" key={item.id} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <div>
+                  <strong>{item.mode === 'node_server' ? ui.buyNode : item.mode === 'asset_stake' ? ui.stake : item.mode}</strong>
+                  <span>
+                    {item.is_matured ? ui.matured : ui.active}
+                    {item.lock_days ? ` · ${item.lock_days}${ui.days}` : ''}
+                    {item.daily_yield_rate != null ? ` · ${ui.dailyYield} ${Number(item.daily_yield_rate).toFixed(2)}%` : ''}
+                  </span>
+                </div>
+                <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
+              </div>
+              <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <span>{ui.accrued}: {accrued.toFixed(4)}</span>
+                <span>{ui.claimable}: {claimable.toFixed(4)}</span>
+                <span>{ui.claimed}: {claimed.toFixed(4)}</span>
+              </div>
+              {claimable > 0 && (
+                <button
+                  className="primary-button"
+                  style={{ width: 'auto', alignSelf: 'flex-end', padding: '6px 12px' }}
+                  disabled={claimingId === Number(item.id)}
+                  onClick={() => handleClaimYield(Number(item.id))}
+                >
+                  {claimingId === Number(item.id) ? ui.claiming : ui.claim}
+                </button>
+              )}
             </div>
-            <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
-          </div>
-        ))}
-        {!depinPositions.length && <div className="empty-card inset">暂无持仓</div>}
+          )
+        })}
+        {!depinPositions.length && <div className="empty-card inset">{ui.noPositions}</div>}
       </div>
     </section>
   )
@@ -2013,15 +2203,25 @@ function App() {
     <div className="panel">
       <div className="section-head">
         <div>
-          <h2>{TAB_I18N[lang]?.swap || '闪兑'}</h2>
-          <p className="muted">与 USDT 兑换 · 汇率取自实时行情</p>
+          <h2>{ui.swapTitle}</h2>
+          <p className="muted">{ui.swapSub}</p>
         </div>
       </div>
       <div className="panel-card" style={{ maxWidth: 440, margin: '0 auto' }}>
         <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span className="muted">支付</span>
-            <span className="muted">余额 {balanceOf(swapFrom).toFixed(4)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
+            <span className="muted">{ui.pay}</span>
+            <span className="muted">
+              {ui.balance} {balanceOf(swapFrom).toFixed(4)}{' '}
+              <button
+                type="button"
+                className="trading-quick-btn"
+                style={{ marginLeft: 6, padding: '2px 8px', fontSize: 12 }}
+                onClick={() => setSwapAmount(String(balanceOf(swapFrom) || 0))}
+              >
+                {ui.max}
+              </button>
+            </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="trading-amount-input" style={{ flex: 1 }} type="number" min="0" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} placeholder="0" />
@@ -2036,7 +2236,7 @@ function App() {
         </div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span className="muted">获得</span>
+            <span className="muted">{ui.receive}</span>
             <span className="muted">余额 {balanceOf(swapTo || 'USDT').toFixed(4)}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -2048,11 +2248,11 @@ function App() {
           </div>
         </div>
         {swapFrom !== 'USDT' && swapTo !== 'USDT' && (
-          <div className="hint-box error">请保证一侧为 USDT</div>
+          <div className="hint-box error">{ui.needUsdt}</div>
         )}
         {swapMsg && <div className={swapMsg.includes('成功') ? 'hint-box success' : 'hint-box error'}>{swapMsg}</div>}
         <button className="primary-button" style={{ marginTop: 12 }} disabled={swapLoading || !token} onClick={handleSwap}>
-          {swapLoading ? '兑换中...' : '确认闪兑'}
+          {swapLoading ? ui.swapping : ui.confirmSwap}
         </button>
       </div>
     </div>
