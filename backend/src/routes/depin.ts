@@ -66,13 +66,26 @@ async function addTokenBalance(client: any, userId: string, symbol: string, delt
   if (sym === 'USDT') {
     if (delta < 0) {
       const r = await client.query(
-        `UPDATE users SET wallet_balance = wallet_balance + $1, updated_at = NOW()
-         WHERE id = $2 AND wallet_balance >= $3 RETURNING wallet_balance`,
+        `UPDATE users
+         SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
+             balance = COALESCE(balance, 0) + $1,
+             updated_at = NOW()
+         WHERE id = $2
+           AND COALESCE(wallet_balance, 0) >= $3
+           AND COALESCE(balance, 0) + $1 >= 0
+         RETURNING wallet_balance, balance`,
         [delta, userId, Math.abs(delta)]
       );
       if (!r.rows.length) throw new Error('USDT 余额不足');
     } else {
-      await client.query(`UPDATE users SET wallet_balance = wallet_balance + $1, updated_at = NOW() WHERE id = $2`, [delta, userId]);
+      await client.query(
+        `UPDATE users
+         SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
+             balance = COALESCE(balance, 0) + $1,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [delta, userId]
+      );
     }
     return;
   }
@@ -380,28 +393,74 @@ router.post('/web/claim-yield', authenticateWebUser, async (req: WebAuthRequest,
       if (!posRes.rows.length) throw new Error('持仓不存在');
       const pos = enrichPosition(posRes.rows[0]);
       const claimable = Number(pos.claimable_yield || 0);
-      if (claimable <= 0) throw new Error('暂无可领取收益');
+      if (claimable <= 0.00000001) throw new Error('暂无可领取收益');
 
+      // 1) 标记已领取收益（防止重复领取）
       await client.query(
-        `UPDATE depin_positions SET total_yield = total_yield + $1 WHERE id = $2`,
+        `UPDATE depin_positions SET total_yield = COALESCE(total_yield, 0) + $1 WHERE id = $2`,
         [claimable, positionId]
       );
-      await addTokenBalance(client, userId, 'USDT', claimable);
-      const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
+
+      // 2) 同步增加 balance + wallet_balance（与管理员调账一致）
+      const balRes = await client.query(
+        `UPDATE users
+         SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
+             balance = COALESCE(balance, 0) + $1,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING wallet_balance, balance`,
+        [claimable, userId]
+      );
+      if (!balRes.rows.length) throw new Error('用户不存在，无法入账');
+      const walletAfter = parseFloat(String(balRes.rows[0].wallet_balance ?? 0));
+      const balanceAfter = parseFloat(String(balRes.rows[0].balance ?? walletAfter));
+
+      // 3) 写入流水（多种表结构兼容，必须尽量成功）
+      let ledgerOk = false;
+      const desc = `DePIN 收益领取 #${positionId}`;
       try {
         await client.query(
-          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-           VALUES ($1, 'product_yield', $2, $3, $4, $5)`,
-          [userId, claimable, parseFloat(String(bal.rows[0]?.wallet_balance ?? 0)),
-           `DePIN 收益领取 #${positionId}`, String(positionId)]
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+           VALUES ($1, 'depin_yield', $2, $3, $4)`,
+          [userId, claimable, walletAfter, desc]
         );
-      } catch (e: any) {
-        console.warn('[depin] claim ledger skipped', e.message);
+        ledgerOk = true;
+      } catch (e1: any) {
+        console.warn('[depin] claim tx v1', e1.message);
+        try {
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             VALUES ($1, 'product_yield', $2, $3, $4, $5)`,
+            [userId, claimable, walletAfter, desc, String(positionId)]
+          );
+          ledgerOk = true;
+        } catch (e2: any) {
+          console.warn('[depin] claim tx v2', e2.message);
+          try {
+            await client.query(
+              `INSERT INTO transactions (user_id, type, amount, description)
+               VALUES ($1, 'depin_yield', $2, $3)`,
+              [userId, claimable, desc]
+            );
+            ledgerOk = true;
+          } catch (e3: any) {
+            console.error('[depin] claim ledger FAILED', e3.message);
+          }
+        }
       }
-      return { claimed: claimable, position_id: positionId };
+
+      return {
+        claimed: claimable,
+        position_id: positionId,
+        wallet_balance: walletAfter,
+        balance: balanceAfter,
+        ledger_ok: ledgerOk,
+      };
     });
+
     res.json({ success: true, ...result });
   } catch (e: any) {
+    console.error('[depin] claim-yield error', e);
     res.status(400).json({ error: e.message || '领取失败' });
   }
 });
