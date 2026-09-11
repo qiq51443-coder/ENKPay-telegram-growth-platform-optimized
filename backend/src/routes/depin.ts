@@ -2,6 +2,7 @@ import express from 'express';
 import { query, transaction } from '../db';
 import { authenticateAdmin, AuthRequest } from '../middleware/auth';
 import { authenticateWebUser, WebAuthRequest } from '../middleware/web-auth';
+import { translateToAllLangs } from '../utils/translate';
 
 const router = express.Router();
 
@@ -40,7 +41,9 @@ async function ensureWebTables() {
     price NUMERIC(18, 6) NOT NULL DEFAULT 0, daily_yield_rate NUMERIC(10, 4) NOT NULL DEFAULT 0,
     term_days INT NOT NULL DEFAULT 30, sort_order INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    ALTER TABLE depin_node_plans ADD COLUMN IF NOT EXISTS description_i18n JSONB DEFAULT '{}'::jsonb;
+  `);
   await query(`CREATE TABLE IF NOT EXISTS depin_positions (
     id SERIAL PRIMARY KEY, user_id UUID NOT NULL, mode VARCHAR(32) NOT NULL, plan_id INT,
     amount NUMERIC(18, 6) NOT NULL DEFAULT 0, lock_days INT, daily_yield_rate NUMERIC(10, 4),
@@ -52,6 +55,18 @@ async function ensureWebTables() {
     to_asset VARCHAR(32) NOT NULL, from_amount NUMERIC(24, 8) NOT NULL, to_amount NUMERIC(24, 8) NOT NULL,
     rate NUMERIC(24, 10) NOT NULL DEFAULT 1, status VARCHAR(32) NOT NULL DEFAULT 'done',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS depin_market_coins (
+      id SERIAL PRIMARY KEY,
+      coingecko_id VARCHAR(80) NOT NULL UNIQUE,
+      symbol VARCHAR(32) NOT NULL,
+      name VARCHAR(120) NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
   tablesReady = true;
 }
 
@@ -130,12 +145,12 @@ router.get('/admin/plans', authenticateAdmin, async (_req, res) => {
 
 router.post('/admin/plans', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
-    const { name, description, price, daily_yield_rate, term_days, sort_order, is_active } = req.body || {};
+    const { name, description, description_i18n, price, daily_yield_rate, term_days, sort_order, is_active } = req.body || {};
     if (!name || price == null) return res.status(400).json({ error: 'name and price required' });
     const result = await query(
-      `INSERT INTO depin_node_plans (name, description, price, daily_yield_rate, term_days, sort_order, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7,true)) RETURNING *`,
-      [String(name).slice(0, 120), description || null, Number(price), Number(daily_yield_rate ?? 0), Number(term_days ?? 30), Number(sort_order ?? 0), is_active]
+      `INSERT INTO depin_node_plans (name, description, description_i18n, price, daily_yield_rate, term_days, sort_order, is_active)
+       VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,COALESCE($8,true)) RETURNING *`,
+      [String(name).slice(0, 120), description || null, JSON.stringify(description_i18n || {}), Number(price), Number(daily_yield_rate ?? 0), Number(term_days ?? 30), Number(sort_order ?? 0), is_active]
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -144,13 +159,15 @@ router.post('/admin/plans', authenticateAdmin, async (req: AuthRequest, res) => 
 router.put('/admin/plans/:id', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { name, description, price, daily_yield_rate, term_days, sort_order, is_active } = req.body || {};
+    const { name, description, description_i18n, price, daily_yield_rate, term_days, sort_order, is_active } = req.body || {};
     const result = await query(
       `UPDATE depin_node_plans SET name = COALESCE($1,name), description = COALESCE($2,description),
-       price = COALESCE($3,price), daily_yield_rate = COALESCE($4,daily_yield_rate),
-       term_days = COALESCE($5,term_days), sort_order = COALESCE($6,sort_order),
-       is_active = COALESCE($7,is_active), updated_at = NOW() WHERE id = $8 RETURNING *`,
-      [name ?? null, description ?? null, price != null ? Number(price) : null,
+       description_i18n = COALESCE($3::jsonb, description_i18n),
+       price = COALESCE($4,price), daily_yield_rate = COALESCE($5,daily_yield_rate),
+       term_days = COALESCE($6,term_days), sort_order = COALESCE($7,sort_order),
+       is_active = COALESCE($8,is_active), updated_at = NOW() WHERE id = $9 RETURNING *`,
+      [name ?? null, description ?? null, description_i18n != null ? JSON.stringify(description_i18n) : null,
+        price != null ? Number(price) : null,
         daily_yield_rate != null ? Number(daily_yield_rate) : null,
         term_days != null ? Number(term_days) : null,
         sort_order != null ? Number(sort_order) : null,
@@ -309,7 +326,7 @@ router.post('/web/swap', authenticateWebUser, async (req: WebAuthRequest, res) =
 router.get('/web/plans', authenticateWebUser, async (_req, res) => {
   try {
     await ensureWebTables();
-    res.json({ success: true, items: (await query(`SELECT id, name, description, price, daily_yield_rate, term_days FROM depin_node_plans WHERE is_active = true ORDER BY sort_order ASC, id DESC`)).rows });
+    res.json({ success: true, items: (await query(`SELECT id, name, description, description_i18n, price, daily_yield_rate, term_days FROM depin_node_plans WHERE is_active = true ORDER BY sort_order ASC, id DESC`)).rows });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
@@ -465,5 +482,160 @@ router.post('/web/claim-yield', authenticateWebUser, async (req: WebAuthRequest,
   }
 });
 
+
+
+/** 内存缓存 CoinGecko */
+let marketCache: { at: number; items: any[] } | null = null;
+const MARKET_TTL_MS = 10 * 60 * 1000;
+
+async function fetchCoinGeckoMarkets(ids: string[]): Promise<any[]> {
+  if (!ids.length) return [];
+  const url =
+    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=' +
+    encodeURIComponent(ids.join(',')) +
+    '&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h';
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (process.env.COINGECKO_API_KEY) {
+    headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY;
+  }
+  const resp = await fetch(url, { headers });
+  if (!resp.ok) throw new Error(`CoinGecko HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (!Array.isArray(data)) return [];
+  return data.map((c: any) => ({
+    id: c.id,
+    symbol: String(c.symbol || '').toUpperCase(),
+    name: c.name,
+    image: c.image,
+    price_usd: c.current_price,
+    change_24h: c.price_change_percentage_24h,
+    market_cap: c.market_cap,
+  }));
+}
+
+router.get('/web/market-overview', async (_req, res) => {
+  try {
+    await ensureWebTables();
+    let coins = (await query(
+      `SELECT coingecko_id, symbol, name, sort_order FROM depin_market_coins WHERE is_active = true ORDER BY sort_order ASC, id ASC`
+    )).rows;
+    if (!coins.length) {
+      // 默认种子
+      const defaults = [
+        ['filecoin', 'FIL', 'Filecoin', 1],
+        ['helium', 'HNT', 'Helium', 2],
+        ['akash-network', 'AKT', 'Akash', 3],
+        ['theta-token', 'THETA', 'Theta', 4],
+        ['render-token', 'RNDR', 'Render', 5],
+        ['io-net', 'IO', 'io.net', 6],
+      ];
+      for (const [id, sym, name, ord] of defaults) {
+        await query(
+          `INSERT INTO depin_market_coins (coingecko_id, symbol, name, sort_order, is_active)
+           VALUES ($1,$2,$3,$4,true) ON CONFLICT (coingecko_id) DO NOTHING`,
+          [id, sym, name, ord]
+        );
+      }
+      coins = (await query(
+        `SELECT coingecko_id, symbol, name, sort_order FROM depin_market_coins WHERE is_active = true ORDER BY sort_order ASC, id ASC`
+      )).rows;
+    }
+
+    const ids = coins.map((c: any) => c.coingecko_id);
+    const now = Date.now();
+    if (marketCache && now - marketCache.at < MARKET_TTL_MS) {
+      return res.json({ success: true, source: 'coingecko', cached: true, updated_at: new Date(marketCache.at).toISOString(), items: marketCache.items });
+    }
+    try {
+      const items = await fetchCoinGeckoMarkets(ids);
+      // 按管理端排序
+      const order = new Map(ids.map((id, i) => [id, i]));
+      items.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+      marketCache = { at: now, items };
+      res.json({ success: true, source: 'coingecko', cached: false, updated_at: new Date(now).toISOString(), items });
+    } catch (e: any) {
+      if (marketCache) {
+        return res.json({ success: true, source: 'coingecko', cached: true, stale: true, updated_at: new Date(marketCache.at).toISOString(), items: marketCache.items });
+      }
+      res.json({ success: true, source: 'coingecko', items: [], error: e.message });
+    }
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/admin/market-coins', authenticateAdmin, async (_req, res) => {
+  try {
+    await ensureWebTables();
+    const items = (await query(`SELECT * FROM depin_market_coins ORDER BY sort_order ASC, id ASC`)).rows;
+    res.json({ success: true, items });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/market-coins', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    await ensureWebTables();
+    const { coingecko_id, symbol, name, sort_order, is_active } = req.body || {};
+    if (!coingecko_id || !symbol) return res.status(400).json({ error: 'coingecko_id and symbol required' });
+    const r = await query(
+      `INSERT INTO depin_market_coins (coingecko_id, symbol, name, sort_order, is_active)
+       VALUES ($1,$2,$3,$4,COALESCE($5,true))
+       ON CONFLICT (coingecko_id) DO UPDATE SET symbol=EXCLUDED.symbol, name=EXCLUDED.name, sort_order=EXCLUDED.sort_order, is_active=EXCLUDED.is_active
+       RETURNING *`,
+      [String(coingecko_id).toLowerCase(), String(symbol).toUpperCase(), name || symbol, Number(sort_order || 0), is_active]
+    );
+    marketCache = null;
+    res.json({ success: true, item: r.rows[0] });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/admin/market-coins/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { symbol, name, sort_order, is_active, coingecko_id } = req.body || {};
+    const r = await query(
+      `UPDATE depin_market_coins SET
+         symbol = COALESCE($1, symbol),
+         name = COALESCE($2, name),
+         sort_order = COALESCE($3, sort_order),
+         is_active = COALESCE($4, is_active),
+         coingecko_id = COALESCE($5, coingecko_id)
+       WHERE id = $6 RETURNING *`,
+      [symbol ? String(symbol).toUpperCase() : null, name ?? null, sort_order != null ? Number(sort_order) : null,
+       typeof is_active === 'boolean' ? is_active : null, coingecko_id ? String(coingecko_id).toLowerCase() : null, id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    marketCache = null;
+    res.json({ success: true, item: r.rows[0] });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/admin/market-coins/:id', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    await query(`DELETE FROM depin_market_coins WHERE id = $1`, [parseInt(req.params.id, 10)]);
+    marketCache = null;
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+router.post('/admin/translate', authenticateAdmin, async (req: AuthRequest, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'text required' });
+    const translations = await translateToAllLangs(text);
+    res.json({ success: true, translations });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || '翻译失败' });
+  }
+});
 
 export default router;
