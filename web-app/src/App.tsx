@@ -737,7 +737,6 @@ function App() {
   const [mailServiceEnabled, setMailServiceEnabled] = useState(true)
   const [contactTelegram, setContactTelegram] = useState('')
   const [slogans, setSlogans] = useState<Partial<Record<Lang, string>>>({})
-  const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
   const [livePrice, setLivePrice] = useState<Record<string, { price: number; change24h: number }>>({})
   const [selectedTradingPair] = useState<TradingPair | null>(null)
   const [, setTradingRules] = useState<TradingRule[]>([])
