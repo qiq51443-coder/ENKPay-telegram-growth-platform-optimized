@@ -2286,13 +2286,27 @@ function App() {
         body: JSON.stringify({ from_symbol: swapFrom, to_symbol: swapTo, from_amount: amt }),
       }, token)
       if (result?.error) throw new Error(result.error)
-      const got = result?.to_amount ?? result?.item?.to_amount
-      setSwapMsg(`成功：${amt} ${swapFrom} → ${Number(got).toFixed(6)} ${swapTo}`)
+      if (!result?.success) throw new Error(result?.error || '兑换失败')
+      const got = Number(result?.to_amount ?? result?.item?.to_amount)
+      if (!Number.isFinite(got) || got <= 0) throw new Error('兑换结果无效，请重试')
+      setSwapMsg(`${ui.swapOk}: ${amt} ${swapFrom} → ${got.toFixed(6)} ${swapTo}`)
       setSwapAmount('')
+      if (result.wallet_balance != null) {
+        setUser((prev: any) =>
+          prev
+            ? { ...prev, wallet_balance: Number(result.wallet_balance), balance: Number(result.wallet_balance) }
+            : prev
+        )
+      }
       await loadBalances()
       try {
         const me = await apiRequest<any>('/web/auth/me', {}, token)
-        if (me?.user) setUser(me.user)
+        if (me?.user) {
+          setUser((prev: any) => ({
+            ...me.user,
+            wallet_balance: Number(me.user.wallet_balance ?? result.wallet_balance ?? prev?.wallet_balance ?? 0),
+          }))
+        }
       } catch {}
     } catch (e: any) {
       setSwapMsg(e.message || '兑换失败')
