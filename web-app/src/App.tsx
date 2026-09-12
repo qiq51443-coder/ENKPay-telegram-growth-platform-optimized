@@ -132,6 +132,7 @@ const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
 
 const UI: Record<Lang, Record<string, string>> = {
   zh: {
+    fundHistory: '资金记录', noHistory: '暂无记录', invite: '邀请', copy: '复制',
     assets: '资产', deposit: '充值', withdraw: '提现',
     marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
     kline: 'K线', klineLoading: 'K线加载中...', noKline: '暂无K线数据', goSwap: '去闪兑', loading: '加载中...', noMarkets: '暂无行情',
@@ -143,6 +144,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
   en: {
+    fundHistory: 'History', noHistory: 'No records', invite: 'Invite', copy: 'Copy',
     assets: 'Assets', deposit: 'Deposit', withdraw: 'Withdraw',
     marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
     kline: 'Chart', klineLoading: 'Loading chart...', noKline: 'No chart data', goSwap: 'Swap', loading: 'Loading...', noMarkets: 'No markets',
@@ -154,6 +156,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
+    fundHistory: 'Historique', noHistory: 'Aucun', invite: 'Inviter', copy: 'Copier',
     assets: 'Actifs', deposit: 'Dépôt', withdraw: 'Retrait',
     marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
     kline: 'Graphique', klineLoading: 'Chargement...', noKline: 'Pas de données', goSwap: 'Échanger', loading: 'Chargement...', noMarkets: 'Aucun',
@@ -165,6 +168,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
   de: {
+    fundHistory: 'Verlauf', noHistory: 'Keine', invite: 'Einladen', copy: 'Kopieren',
     assets: 'Vermögen', deposit: 'Einzahlung', withdraw: 'Auszahlung',
     marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Chart', klineLoading: 'Lädt...', noKline: 'Keine Daten', goSwap: 'Tausch', loading: 'Lädt...', noMarkets: 'Keine',
@@ -176,6 +180,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
   es: {
+    fundHistory: 'Historial', noHistory: 'Sin registros', invite: 'Invitar', copy: 'Copiar',
     assets: 'Activos', deposit: 'Depósito', withdraw: 'Retiro',
     marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Gráfico', klineLoading: 'Cargando...', noKline: 'Sin datos', goSwap: 'Intercambiar', loading: 'Cargando...', noMarkets: 'Vacío',
@@ -187,6 +192,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
   },
   ar: {
+    fundHistory: 'السجل', noHistory: 'لا سجلات', invite: 'دعوة', copy: 'نسخ',
     assets: 'الأصول', deposit: 'إيداع', withdraw: 'سحب',
     marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
     kline: 'الرسم', klineLoading: 'جاري التحميل...', noKline: 'لا بيانات', goSwap: 'تبديل', loading: 'جاري...', noMarkets: 'لا يوجد',
@@ -198,6 +204,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
   },
   ja: {
+    fundHistory: '履歴', noHistory: '記録なし', invite: '招待', copy: 'コピー',
     assets: '資産', deposit: '入金', withdraw: '出金',
     marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
     kline: 'チャート', klineLoading: '読込中...', noKline: 'データなし', goSwap: 'スワップへ', loading: '読込中...', noMarkets: 'なし',
@@ -772,7 +779,6 @@ function App() {
   const lastCandleRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null)
   const livePriceRef = useRef<Record<string, { price: number; change24h: number }>>({})
   const chartTickRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({ funds: true, settings: false, info: false })
   const t = I18N[lang]
   const ui = UI[lang] || UI.en
 
@@ -1074,14 +1080,6 @@ function App() {
       .finally(() => setWithdrawNetworksLoading(false))
   }, [route, token, withdrawForm.network_id])
 
-  const summaryCards = useMemo(() => {
-    if (!user) return []
-    return [
-      { label: 'USDT 余额', value: formatMoney(user.wallet_balance) },
-      { label: '累计充值', value: formatMoney(user.total_recharged) },
-      { label: '累计提现', value: formatMoney(user.total_withdrawn) },
-    ]
-  }, [user])
 
 
   const fetchTradingOrders = async () => {
@@ -1639,11 +1637,11 @@ function App() {
               <p className="muted">{detailPair.symbol}</p>
             </div>
           </div>
-          <div className="panel-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div className="panel-card market-detail-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 16 }}>
               <div>
                 <div className="muted">{ui.latestPrice}</div>
-                <strong style={{ fontSize: 22 }}>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong>
+                <strong style={{ fontSize: 28, fontVariantNumeric: 'tabular-nums' }}>{Number(priceInfo.price || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="muted">{ui.change24h}</div>
@@ -2003,186 +2001,96 @@ function App() {
 
 
   const renderProfile = () => {
-    const inviteLink = user?.invite_code ? `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}` : ''
-    const toggleGroup = (key: string) => setProfileOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+    const typeLabel = (t: string) => {
+      const map: Record<string, string> = {
+        depin_swap: ui.swapTitle || 'Swap',
+        depin_buy_node: ui.buyNode || 'Buy node',
+        depin_stake: ui.stake || 'Stake',
+        depin_yield: ui.claim || 'Yield',
+        product_yield: ui.claim || 'Yield',
+        deposit: ui.deposit,
+        withdraw: ui.withdraw,
+        admin_adjust: 'Admin',
+      }
+      return map[t] || t || '—'
+    }
     return (
-      <section className="view-stack">
+      <section className="view-stack wallet-page">
         <div className="hero-panel profile-hero">
           <div>
             <span className="eyebrow">{ui.assets}</span>
             <h2>≈ {Number(totalAssetUsdt || user?.wallet_balance || 0).toFixed(2)} USDT</h2>
-            <p>{user?.email || user?.username || ''} · UID {user?.unique_id}</p>
+            <p className="muted">{user?.email || user?.username || ''} · UID {user?.unique_id}</p>
           </div>
           <div className="button-row">
             <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>{ui.deposit}</button>
             <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>{ui.withdraw}</button>
           </div>
         </div>
-        <div className="list-stack" style={{ marginTop: 12 }}>
-          {(tokenBalances.length ? tokenBalances : [{ symbol: 'USDT', amount: Number(user?.wallet_balance || 0), value_usdt: Number(user?.wallet_balance || 0) }]).map((a) => (
+
+        <div className="section-head" style={{ marginTop: 8 }}>
+          <div>
+            <h2 style={{ fontSize: 16 }}>{ui.assets}</h2>
+          </div>
+        </div>
+        <div className="list-stack">
+          {(tokenBalances.length
+            ? tokenBalances
+            : [{ symbol: 'USDT', amount: Number(user?.wallet_balance || 0), value_usdt: Number(user?.wallet_balance || 0) }]
+          ).map((a) => (
             <div className="list-item" key={a.symbol}>
-              <div>
-                <strong>{a.symbol}</strong>
-                <span>{Number(a.amount || 0).toFixed(6)}</span>
-              </div>
-              <strong>≈ {Number(a.value_usdt || 0).toFixed(2)} USDT</strong>
-            </div>
-          ))}
-        </div>
-
-
-        <div className="grid-cards compact">
-          {summaryCards.map((item) => (
-            <article className="info-card" key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-
-        <div className="content-grid content-grid-wide">
-          <article className="panel-card">
-            <h3>邀请好友</h3>
-            <div className="field-grid">
-              <label>
-                <span>邀请链接</span>
-                <input value={inviteLink} readOnly />
-              </label>
-              <label>
-                <span>邀请码</span>
-                <input value={user?.invite_code || user?.unique_id || ''} readOnly />
-              </label>
-            </div>
-            {inviteQr ? <img className="qr-image" src={inviteQr} alt="Invite QR" /> : <div className="empty-card inset">二维码生成中...</div>}
-          </article>
-
-          <article className="panel-card">
-            <h3>钱包概览</h3>
-            <div className="wallet-balance-row">
-              <div className="wallet-balance-item">
-                <div className="wbi-label">可交易余额</div>
-                <div className="wbi-value highlight">{formatMoney(user?.tradable_balance)}</div>
-              </div>
-              <div className="wallet-balance-item">
-                <div className="wbi-label">奖励余额</div>
-                <div className="wbi-value">{formatMoney(user?.reward_balance)}</div>
-              </div>
-            </div>
-            <div className="button-row">
-              <button className="primary-button" onClick={() => guarded({ view: 'deposit' })}>前往充值</button>
-              <button className="secondary-button" onClick={() => guarded({ view: 'withdraw' })}>前往提现</button>
-            </div>
-          </article>
-        </div>
-
-        <div className="profile-accordion">
-          <button className="profile-accordion-header" onClick={() => toggleGroup('funds')}>
-            <span>💰 资金操作</span>
-            <span className={`profile-accordion-arrow${profileOpenGroups.funds ? ' open' : ''}`}>▼</span>
-          </button>
-          <div className={`profile-accordion-body${profileOpenGroups.funds ? ' open' : ''}`}>
-            <div className="content-grid content-grid-wide">
-              <article className="panel-card">
-                <h3>最近钱包记录</h3>
-                {transactionsLoading ? <div className="empty-card inset">正在加载记录...</div> : (
-                  <div className="list-stack">
-                    {transactions.map((item) => (
-                      <div className="list-item" key={item.id}>
-                        <div>
-                          <strong>{item.type === 'deposit' ? '充值' : '提现'}</strong>
-                          <span>{item.network_display || item.order_id || '--'}</span>
-                        </div>
-                        <div>
-                          <strong>{formatMoney(item.amount)}</strong>
-                          <span>{formatDate(item.created_at)}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {!transactions.length && <div className="empty-card inset">暂无充值/提现记录。</div>}
-                  </div>
-                )}
-              </article>
-              <article className="panel-card">
-                <h3>快捷操作</h3>
-                <div className="profile-action-list">
-                  <button className="profile-action-item" onClick={() => guarded({ view: 'deposit' })}>
-                    <span className="profile-action-icon">💳</span>
-                    <span>充值</span>
-                    <span className="profile-action-arrow">›</span>
-                  </button>
-                  <button className="profile-action-item" onClick={() => guarded({ view: 'withdraw' })}>
-                    <span className="profile-action-icon">📤</span>
-                    <span>提现</span>
-                    <span className="profile-action-arrow">›</span>
-                  </button>
+              <div className="mk-left">
+                <div>
+                  <strong>{a.symbol}</strong>
+                  <span>{Number(a.amount || 0).toFixed(6)}</span>
                 </div>
-              </article>
+              </div>
+              <div className="mk-right">
+                <strong>≈ {Number(a.value_usdt || 0).toFixed(2)}</strong>
+                <span>USDT</span>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
 
-        <div className="profile-accordion">
-          <button className="profile-accordion-header" onClick={() => toggleGroup('settings')}>
-            <span>👤 账户设置</span>
-            <span className={`profile-accordion-arrow${profileOpenGroups.settings ? ' open' : ''}`}>▼</span>
-          </button>
-          <div className={`profile-accordion-body${profileOpenGroups.settings ? ' open' : ''}`}>
-            <article className="panel-card">
-              <h3>安全设置</h3>
-              <div className="field-grid">
-                <label>
-                  <span>提现密码（至少 6 位数字）</span>
-                  <input
-                    type="password"
-                    value={withdrawPasswordForm.password}
-                    onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, password: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  <span>确认提现密码</span>
-                  <input
-                    type="password"
-                    value={withdrawPasswordForm.confirmPassword}
-                    onChange={(event) => setWithdrawPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <button className="primary-button" disabled={passwordLoading} onClick={handleSaveWithdrawPassword}>
-                {hasWithdrawPassword ? '更新提现密码' : '设置提现密码'}
-              </button>
-            </article>
+        <div className="section-head" style={{ marginTop: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 16 }}>{ui.fundHistory || 'History'}</h2>
           </div>
+          <button type="button" className="trading-quick-btn" onClick={() => loadWalletLedger()}>↻</button>
         </div>
-
-        <div className="profile-accordion">
-          <button className="profile-accordion-header" onClick={() => toggleGroup('info')}>
-            <span>📢 信息中心</span>
-            <span className={`profile-accordion-arrow${profileOpenGroups.info ? ' open' : ''}`}>▼</span>
-          </button>
-          <div className={`profile-accordion-body${profileOpenGroups.info ? ' open' : ''}`}>
-            <article className="panel-card">
-              <div className="profile-action-list">
-                {contactTelegram && (
-                  <a className="profile-action-item" href={`https://t.me/${safeTelegram}`} target="_blank" rel="noreferrer">
-                    <span className="profile-action-icon">💬</span>
-                    <span>联系客服</span>
-                    <span className="profile-action-arrow">›</span>
-                  </a>
-                )}
-                <button className="profile-action-item" onClick={() => {
-                  const el = document.getElementById('announcement-section')
-                  if (el) el.scrollIntoView({ behavior: 'smooth' })
-                }}>
-                  <span className="profile-action-icon">📣</span>
-                  <span>查看公告</span>
-                  <span className="profile-action-arrow">›</span>
-                </button>
-              </div>
-            </article>
-          </div>
+        <div className="list-stack">
+          {walletLedgerLoading && <div className="empty-card">{ui.loading}</div>}
+          {!walletLedgerLoading && !walletLedger.length && (
+            <div className="empty-card">{ui.noHistory || '—'}</div>
+          )}
+          {!walletLedgerLoading &&
+            walletLedger.map((row) => {
+              const amt = Number(row.amount || 0)
+              return (
+                <div className="list-item" key={`${row.type}-${row.id}-${row.created_at}`}>
+                  <div className="mk-left">
+                    <div>
+                      <strong>{typeLabel(String(row.type || ''))}</strong>
+                      <span>{row.description || '—'}</span>
+                      <span style={{ display: 'block', fontSize: 11 }}>
+                        {row.created_at ? new Date(row.created_at).toLocaleString() : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mk-right">
+                    <strong className={amt >= 0 ? 'price-up' : 'price-down'}>
+                      {amt >= 0 ? '+' : ''}
+                      {amt.toFixed(4)}
+                    </strong>
+                    {row.balance_after != null && (
+                      <span>≈ {Number(row.balance_after).toFixed(2)}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
         </div>
-
-        {/* tips removed for cleaner DEX UI */}
       </section>
     )
   }
@@ -2195,6 +2103,8 @@ function App() {
   const [coinPicker, setCoinPicker] = useState<'from' | 'to' | null>(null)
   const [tokenBalances, setTokenBalances] = useState<Array<{ symbol: string; amount: number; price_usdt: number; value_usdt: number }>>([])
   const [totalAssetUsdt, setTotalAssetUsdt] = useState(0)
+  const [walletLedger, setWalletLedger] = useState<any[]>([])
+  const [walletLedgerLoading, setWalletLedgerLoading] = useState(false)
 
   const loadBalances = async () => {
     if (!token) return
@@ -2209,10 +2119,24 @@ function App() {
     }
   }
 
+  const loadWalletLedger = async () => {
+    if (!token) return
+    setWalletLedgerLoading(true)
+    try {
+      const r = await apiRequest<any>('/depin/web/ledger', {}, token)
+      setWalletLedger(Array.isArray(r?.items) ? r.items : [])
+    } catch {
+      setWalletLedger([])
+    } finally {
+      setWalletLedgerLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!token) return
     if (route.view === 'app' && (route.tab === 'swap' || route.tab === 'wallet')) {
       loadBalances()
+      if (route.tab === 'wallet') loadWalletLedger()
       const t = setInterval(loadBalances, 15000)
       return () => clearInterval(t)
     }
