@@ -79,15 +79,15 @@ async function getUsdtBalance(client: any, userId: string): Promise<number> {
 async function addTokenBalance(client: any, userId: string, symbol: string, delta: number) {
   const sym = symbol.toUpperCase();
   if (sym === 'USDT') {
+    // 以 wallet_balance 为准；同步 balance，避免两字段不一致导致扣款失败或前端不刷新
     if (delta < 0) {
       const r = await client.query(
         `UPDATE users
          SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
-             balance = COALESCE(balance, 0) + $1,
+             balance = COALESCE(wallet_balance, 0) + $1,
              updated_at = NOW()
          WHERE id = $2
            AND COALESCE(wallet_balance, 0) >= $3
-           AND COALESCE(balance, 0) + $1 >= 0
          RETURNING wallet_balance, balance`,
         [delta, userId, Math.abs(delta)]
       );
@@ -96,7 +96,7 @@ async function addTokenBalance(client: any, userId: string, symbol: string, delt
       await client.query(
         `UPDATE users
          SET wallet_balance = COALESCE(wallet_balance, 0) + $1,
-             balance = COALESCE(balance, 0) + $1,
+             balance = COALESCE(wallet_balance, 0) + $1,
              updated_at = NOW()
          WHERE id = $2`,
         [delta, userId]
@@ -294,13 +294,16 @@ router.post('/web/swap', authenticateWebUser, async (req: WebAuthRequest, res) =
     const toSymbol = String(req.body?.to_symbol || '').toUpperCase();
     const fromAmount = Number(req.body?.from_amount);
     if (!fromSymbol || !toSymbol) return res.status(400).json({ error: '请选择币种' });
-    if (!fromAmount || fromAmount <= 0) return res.status(400).json({ error: '金额无效' });
+    if (!fromAmount || fromAmount <= 0 || !Number.isFinite(fromAmount)) return res.status(400).json({ error: '金额无效' });
     if (fromSymbol === toSymbol) return res.status(400).json({ error: '币种不能相同' });
     if (fromSymbol !== 'USDT' && toSymbol !== 'USDT') return res.status(400).json({ error: '仅支持与 USDT 兑换' });
     const tokenSym = fromSymbol === 'USDT' ? toSymbol : fromSymbol;
     const price = await resolvePriceUsdt(tokenSym);
+    if (!price || price <= 0 || !Number.isFinite(price)) return res.status(400).json({ error: '价格无效' });
     const toAmount = fromSymbol === 'USDT' ? fromAmount / price : fromAmount * price;
-    const order = await transaction(async (client) => {
+    if (!Number.isFinite(toAmount) || toAmount <= 0) return res.status(400).json({ error: '兑换数量无效' });
+
+    const result = await transaction(async (client) => {
       await addTokenBalance(client, userId, fromSymbol, -fromAmount);
       await addTokenBalance(client, userId, toSymbol, toAmount);
       const ins = await client.query(
@@ -308,19 +311,59 @@ router.post('/web/swap', authenticateWebUser, async (req: WebAuthRequest, res) =
          VALUES ($1,$2,$3,$4,$5,$6,'done') RETURNING *`,
         [userId, fromSymbol, toSymbol, fromAmount, toAmount, price]
       );
+      const bal = await client.query(`SELECT wallet_balance, balance FROM users WHERE id = $1`, [userId]);
+      const walletAfter = parseFloat(String(bal.rows[0]?.wallet_balance ?? 0));
+      const desc = `闪兑 ${fromAmount} ${fromSymbol} → ${Number(toAmount).toFixed(8)} ${toSymbol}`;
+      let ledgerOk = false;
       try {
-        const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
         await client.query(
-          `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
-           VALUES ($1,'depin_swap',$2,$3,$4,$5)`,
-          [userId, fromSymbol === 'USDT' ? -fromAmount : toAmount, parseFloat(String(bal.rows[0]?.wallet_balance ?? 0)),
-            `闪兑 ${fromAmount} ${fromSymbol} → ${Number(toAmount).toFixed(8)} ${toSymbol}`, String(ins.rows[0].id)]
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+           VALUES ($1,'depin_swap',$2,$3,$4)`,
+          [userId, fromSymbol === 'USDT' ? -fromAmount : toAmount, walletAfter, desc]
         );
-      } catch (e: any) { console.warn('[depin] swap ledger skipped', e.message); }
-      return ins.rows[0];
+        ledgerOk = true;
+      } catch (e1: any) {
+        console.warn('[depin] swap tx v1', e1.message);
+        try {
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             VALUES ($1,'depin_swap',$2,$3,$4,$5)`,
+            [userId, fromSymbol === 'USDT' ? -fromAmount : toAmount, walletAfter, desc, String(ins.rows[0].id)]
+          );
+          ledgerOk = true;
+        } catch (e2: any) {
+          console.warn('[depin] swap tx v2', e2.message);
+        }
+      }
+      let tokenBal = 0;
+      if (toSymbol !== 'USDT') {
+        const tr = await client.query(
+          `SELECT amount FROM web_token_balances WHERE user_id = $1 AND symbol = $2`,
+          [userId, toSymbol]
+        );
+        tokenBal = parseFloat(String(tr.rows[0]?.amount ?? 0));
+      }
+      return {
+        order: ins.rows[0],
+        wallet_balance: walletAfter,
+        to_token_balance: toSymbol === 'USDT' ? walletAfter : tokenBal,
+        ledger_ok: ledgerOk,
+      };
     });
-    res.json({ success: true, item: order, price, to_amount: toAmount });
-  } catch (e: any) { res.status(400).json({ error: e.message || '兑换失败' }); }
+
+    res.json({
+      success: true,
+      item: result.order,
+      price,
+      to_amount: toAmount,
+      wallet_balance: result.wallet_balance,
+      to_token_balance: result.to_token_balance,
+      ledger_ok: result.ledger_ok,
+    });
+  } catch (e: any) {
+    console.error('[depin] swap error', e);
+    res.status(400).json({ error: e.message || '兑换失败' });
+  }
 });
 
 router.get('/web/plans', authenticateWebUser, async (_req, res) => {
