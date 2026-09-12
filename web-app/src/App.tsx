@@ -106,17 +106,6 @@ interface WalletNetwork {
   min_deposit_amount?: number
 }
 
-interface WalletTransaction {
-  id: string
-  type: string
-  amount: number
-  status: string
-  created_at: string
-  order_id?: string
-  to_address?: string
-  tx_hash?: string
-  network_display?: string
-}
 
 const WEB_TOKEN_KEY = 'enkpay_web_token'
 const API_BASE = '/api'
@@ -624,10 +613,6 @@ function formatMoney(value?: number) {
   return `${Number(value || 0).toFixed(2)} USDT`
 }
 
-function formatDate(value?: string) {
-  if (!value) return '--'
-  return new Date(value).toLocaleString()
-}
 
 function getChainIcon(chainName: string) {
   const chain = (chainName || '').toUpperCase()
@@ -708,10 +693,7 @@ function App() {
   const [pairsLoading, setPairsLoading] = useState(false)
   const [products, setProducts] = useState<ProductItem[]>([])
   const [, setProductsLoading] = useState(false)
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([])
-  const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [hasWithdrawPassword, setHasWithdrawPassword] = useState(false)
-  const [passwordLoading, setPasswordLoading] = useState(false)
 
   const [depositNetworks, setDepositNetworks] = useState<WalletNetwork[]>([])
   const [depositNetworksLoading, setDepositNetworksLoading] = useState(false)
@@ -764,7 +746,6 @@ function App() {
   const [, setTradingOrders] = useState<TradingOrder[]>([])
   const [, setTradingOrdersLoading] = useState(false)
   const [klineInterval] = useState('1m')
-  const [inviteQr, setInviteQr] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
   const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -828,16 +809,6 @@ function App() {
     }
   }, [user?.language_code])
 
-  useEffect(() => {
-    if (route.view !== 'app' || route.tab !== 'wallet' || !user?.invite_code) {
-      setInviteQr('')
-      return
-    }
-    const inviteLink = `${window.location.origin}/?invite=${encodeURIComponent(user.invite_code)}`
-    QRCode.toDataURL(inviteLink, { margin: 1, width: 220 })
-      .then(setInviteQr)
-      .catch(() => setInviteQr(''))
-  }, [route, user?.invite_code])
 
   useEffect(() => {
     if (!sendCodeCountdown) return
@@ -1001,22 +972,11 @@ function App() {
 
   useEffect(() => {
     if (!token || route.view !== 'app' || route.tab !== 'wallet') return
-
-    setTransactionsLoading(true)
-    setPasswordLoading(true)
-    Promise.all([
-      apiRequest<ApiResult<WalletTransaction[]>>('/web/wallet/transactions?limit=8', {}, token),
-      apiRequest<{ has_password: boolean }>('/web/wallet/has-withdraw-password', {}, token),
-    ])
-      .then(([txResult, passwordResult]) => {
-        setTransactions(txResult.data || [])
+    apiRequest<{ has_password: boolean }>('/web/wallet/has-withdraw-password', {}, token)
+      .then((passwordResult) => {
         setHasWithdrawPassword(Boolean(passwordResult.has_password))
       })
-      .catch((error: Error) => showToast(error.message))
-      .finally(() => {
-        setTransactionsLoading(false)
-        setPasswordLoading(false)
-      })
+      .catch(() => {})
   }, [route, token])
 
   useEffect(() => {
@@ -1480,26 +1440,6 @@ function App() {
     navigateTo({ view: 'auth', mode: 'login' })
   }
 
-  const handleSaveWithdrawPassword = async () => {
-    if (withdrawPasswordForm.password !== withdrawPasswordForm.confirmPassword) {
-      setGlobalError('两次输入的提现密码不一致')
-      return
-    }
-    try {
-      setPasswordLoading(true)
-      const result = await apiRequest<ApiResult<null>>('/web/wallet/withdraw-password', {
-        method: 'POST',
-        body: JSON.stringify({ password: withdrawPasswordForm.password }),
-      }, token)
-      setGlobalError(result.message || '提现密码设置成功')
-      setHasWithdrawPassword(true)
-      setWithdrawPasswordForm({ password: '', confirmPassword: '' })
-    } catch (error: any) {
-      setGlobalError(error.message)
-    } finally {
-      setPasswordLoading(false)
-    }
-  }
 
   const guarded = (nextRoute: Route) => {
     if (!token) {
