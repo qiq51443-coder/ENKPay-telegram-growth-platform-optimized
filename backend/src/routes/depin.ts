@@ -398,20 +398,41 @@ router.post('/web/buy-node', authenticateWebUser, async (req: WebAuthRequest, re
     const userId = req.webUser!.id;
     const planId = parseInt(String(req.body?.plan_id), 10);
     if (!planId) return res.status(400).json({ error: 'plan_id required' });
-    const item = await transaction(async (client) => {
+    const result = await transaction(async (client) => {
       const planRes = await client.query(`SELECT * FROM depin_node_plans WHERE id = $1 AND is_active = true FOR UPDATE`, [planId]);
       if (!planRes.rows.length) throw new Error('套餐不存在或已下架');
       const plan = planRes.rows[0];
       const price = parseFloat(plan.price);
       await addTokenBalance(client, userId, 'USDT', -price);
       const end = new Date(); end.setDate(end.getDate() + Number(plan.term_days || 30));
-      return (await client.query(
+      const pos = (await client.query(
         `INSERT INTO depin_positions (user_id, mode, plan_id, amount, lock_days, daily_yield_rate, status, end_at, meta)
          VALUES ($1,'node_server',$2,$3,$4,$5,'active',$6,$7) RETURNING *`,
         [userId, planId, price, plan.term_days, plan.daily_yield_rate, end.toISOString(), JSON.stringify({ plan_name: plan.name })]
       )).rows[0];
+      const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
+      const walletAfter = parseFloat(String(bal.rows[0]?.wallet_balance ?? 0));
+      const desc = `购买节点 ${plan.name} #${pos.id}`;
+      try {
+        await client.query(
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+           VALUES ($1,'depin_buy_node',$2,$3,$4)`,
+          [userId, -price, walletAfter, desc]
+        );
+      } catch (e1: any) {
+        try {
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             VALUES ($1,'depin_buy_node',$2,$3,$4,$5)`,
+            [userId, -price, walletAfter, desc, String(pos.id)]
+          );
+        } catch (e2: any) {
+          console.warn('[depin] buy-node ledger', e2.message);
+        }
+      }
+      return { item: pos, wallet_balance: walletAfter };
     });
-    res.json({ success: true, item });
+    res.json({ success: true, item: result.item, wallet_balance: result.wallet_balance });
   } catch (e: any) { res.status(400).json({ error: e.message || '购买失败' }); }
 });
 
@@ -424,20 +445,41 @@ router.post('/web/stake', authenticateWebUser, async (req: WebAuthRequest, res) 
     if (!amount || amount <= 0) return res.status(400).json({ error: '金额无效' });
     if (![30, 60, 90, 180].includes(lockDays)) return res.status(400).json({ error: '锁仓天数须为 30/60/90/180' });
     const rateMap: Record<number, number> = { 30: 0.2, 60: 0.3, 90: 0.4, 180: 0.5 };
-    const item = await transaction(async (client) => {
+    const result = await transaction(async (client) => {
       await addTokenBalance(client, userId, 'USDT', -amount);
       const end = new Date(); end.setDate(end.getDate() + lockDays);
-      return (await client.query(
+      const pos = (await client.query(
         `INSERT INTO depin_positions (user_id, mode, amount, lock_days, daily_yield_rate, status, end_at, meta)
          VALUES ($1,'asset_stake',$2,$3,$4,'active',$5,$6) RETURNING *`,
         [userId, amount, lockDays, rateMap[lockDays] || 0.2, end.toISOString(), JSON.stringify({ principal_locked: true })]
       )).rows[0];
+      const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [userId]);
+      const walletAfter = parseFloat(String(bal.rows[0]?.wallet_balance ?? 0));
+      const desc = `资产质押 ${amount} USDT / ${lockDays}天`;
+      try {
+        await client.query(
+          `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+           VALUES ($1,'depin_stake',$2,$3,$4)`,
+          [userId, -amount, walletAfter, desc]
+        );
+      } catch (e1: any) {
+        try {
+          await client.query(
+            `INSERT INTO transactions (user_id, type, amount, balance_after, description, reference_id)
+             VALUES ($1,'depin_stake',$2,$3,$4,$5)`,
+            [userId, -amount, walletAfter, desc, String(pos.id)]
+          );
+        } catch (e2: any) {
+          console.warn('[depin] stake ledger', e2.message);
+        }
+      }
+      return { item: pos, wallet_balance: walletAfter };
     });
-    res.json({ success: true, item });
+    res.json({ success: true, item: result.item, wallet_balance: result.wallet_balance });
   } catch (e: any) { res.status(400).json({ error: e.message || '质押失败' }); }
 });
 
-/** 领取可提现收益（本金锁仓期间可领收益） */
+
 router.post('/web/claim-yield', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
     await ensureWebTables();
@@ -555,6 +597,51 @@ async function fetchCoinGeckoMarkets(ids: string[]): Promise<any[]> {
     market_cap: c.market_cap,
   }));
 }
+
+
+/** 官网用户资金流水（钱包页 + 管理端可共用） */
+router.get('/web/ledger', authenticateWebUser, async (req: WebAuthRequest, res) => {
+  try {
+    await ensureWebTables();
+    const userId = req.webUser!.id;
+    const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
+    let items: any[] = [];
+    try {
+      items = (await query(
+        `SELECT id, type, amount, balance_after, description, created_at
+         FROM transactions WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT $2`,
+        [userId, limit]
+      )).rows;
+    } catch (e: any) {
+      console.warn('[depin] web ledger', e.message);
+      try {
+        items = (await query(
+          `SELECT id, type, amount, description, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+          [userId, limit]
+        )).rows;
+      } catch {}
+    }
+    // 合并闪兑订单（若 transactions 未写入）
+    try {
+      const swaps = (await query(
+        `SELECT id, 'depin_swap' AS type, from_amount AS amount,
+                (from_asset || '→' || to_asset || ' ' || to_amount::text) AS description, created_at
+         FROM depin_swap_orders WHERE user_id = $1 ORDER BY id DESC LIMIT 30`,
+        [userId]
+      )).rows;
+      const ids = new Set(items.map((x: any) => String(x.description || '')));
+      for (const s of swaps) {
+        if (![...ids].some((d) => d.includes(String(s.id)))) items.push(s);
+      }
+    } catch {}
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    res.json({ success: true, items: items.slice(0, limit) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 router.get('/web/market-overview', async (_req, res) => {
   try {
