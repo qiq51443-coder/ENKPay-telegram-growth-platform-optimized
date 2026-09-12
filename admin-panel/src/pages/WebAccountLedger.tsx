@@ -30,7 +30,6 @@ const TYPE_LABEL: Record<string, { text: string; color: string }> = {
   trade_loss: { text: '交易亏损', color: 'red' },
   product_purchase: { text: '购买产品', color: 'blue' },
   product_yield: { text: '产品收益', color: 'green' },
-  depin_yield: { text: 'DePIN收益', color: 'green' },
   nft_purchase: { text: 'NFT购买', color: 'blue' },
   nft_income: { text: 'NFT收益', color: 'green' },
   referral_reward: { text: '邀请奖励', color: 'green' },
