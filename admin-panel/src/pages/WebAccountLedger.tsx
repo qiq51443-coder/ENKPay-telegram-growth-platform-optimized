@@ -19,6 +19,9 @@ const TYPE_LABEL: Record<string, { text: string; color: string }> = {
   deposit: { text: '充值', color: 'green' },
   withdrawal: { text: '提现', color: 'orange' },
   depin_swap: { text: '闪兑', color: 'purple' },
+  depin_buy_node: { text: '购买节点', color: 'blue' },
+  depin_stake: { text: '资产质押', color: 'blue' },
+  depin_yield: { text: 'DePIN收益', color: 'green' },
   node_server: { text: '购买节点', color: 'blue' },
   asset_stake: { text: '资产质押', color: 'cyan' },
   admin_credit: { text: '管理员增加', color: 'green' },
@@ -27,6 +30,7 @@ const TYPE_LABEL: Record<string, { text: string; color: string }> = {
   trade_loss: { text: '交易亏损', color: 'red' },
   product_purchase: { text: '购买产品', color: 'blue' },
   product_yield: { text: '产品收益', color: 'green' },
+  depin_yield: { text: 'DePIN收益', color: 'green' },
   nft_purchase: { text: 'NFT购买', color: 'blue' },
   nft_income: { text: 'NFT收益', color: 'green' },
   referral_reward: { text: '邀请奖励', color: 'green' },
@@ -61,7 +65,7 @@ const WebAccountLedgerPage: React.FC = () => {
       const data = await res.json();
       const list = Array.isArray(data.items) ? data.items : [];
       setRows(list);
-      if (!list.length) setHint('暂无官网用户帐变（仅 email 注册用户）');
+      if (!list.length) setHint('暂无官网用户帐变（仅 email 注册用户：充值/提现/闪兑/节点/质押/调账/盈亏）');
     } catch (e: any) {
       console.error(e);
       setRows([]);
@@ -74,6 +78,7 @@ const WebAccountLedgerPage: React.FC = () => {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const columns = [
