@@ -17,7 +17,6 @@ const TYPE_LABELS: Record<string, string> = {
   nft_purchase: 'NFT 购买', nft_income: 'NFT 收益', referral_reward: '邀请奖励',
   depin_swap: '闪兑', depin_buy_node: '购买节点', depin_stake: '资产质押', depin_yield: 'DePIN收益', node_server: '购买节点', asset_stake: '资产质押',
   product_purchase: '购买产品', product_yield: '产品收益',
-  depin_yield: 'DePIN收益',
 };
 
 export const WebAccountDetail: React.FC = () => {
