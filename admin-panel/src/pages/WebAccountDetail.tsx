@@ -15,8 +15,9 @@ const TYPE_LABELS: Record<string, string> = {
   deposit: '充值', withdrawal: '提现', transfer_in: '转入', transfer_out: '转出',
   trade_win: '交易盈利', trade_loss: '交易亏损', admin_credit: '管理员增加', admin_debit: '管理员减少',
   nft_purchase: 'NFT 购买', nft_income: 'NFT 收益', referral_reward: '邀请奖励',
-  depin_swap: '闪兑', node_server: '购买节点', asset_stake: '资产质押',
+  depin_swap: '闪兑', depin_buy_node: '购买节点', depin_stake: '资产质押', depin_yield: 'DePIN收益', node_server: '购买节点', asset_stake: '资产质押',
   product_purchase: '购买产品', product_yield: '产品收益',
+  depin_yield: 'DePIN收益',
 };
 
 export const WebAccountDetail: React.FC = () => {
@@ -65,7 +66,7 @@ export const WebAccountDetail: React.FC = () => {
     if (!id || !adjustAmount) return;
     setSubmitting(true);
     try {
-      await (apiClient as any).adjustBalance(id, { type: adjustType, amount: adjustAmount, reason: adjustReason });
+      await apiClient.adjustBalance(id, { type: adjustType, amount: adjustAmount, reason: adjustReason });
       message.success('余额已调整');
       setAdjustOpen(false);
       fetchDetail();
@@ -88,7 +89,7 @@ export const WebAccountDetail: React.FC = () => {
   };
 
   const fmt = (v?: number) => `${Number(v || 0).toFixed(2)} USDT`;
-  const negativeTypes = ['withdrawal', 'transfer_out', 'trade_loss', 'admin_debit', 'nft_purchase', 'depin_swap', 'node_server', 'asset_stake', 'product_purchase'];
+  const negativeTypes = ['withdrawal', 'transfer_out', 'trade_loss', 'admin_debit', 'nft_purchase', 'depin_swap', 'depin_buy_node', 'depin_stake', 'node_server', 'asset_stake', 'product_purchase'];
 
   return (
     <div>
