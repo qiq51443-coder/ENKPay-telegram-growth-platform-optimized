@@ -2176,3 +2176,37 @@ textarea {
     max-width: 960px !important;
   }
 }
+
+
+/* Market detail professional layout */
+.market-detail-card {
+  max-width: 720px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  padding: 20px !important;
+}
+.market-detail-card .tv-chart,
+.market-detail-card canvas {
+  width: 100% !important;
+}
+@media (min-width: 900px) {
+  .market-detail-card {
+    max-width: 840px !important;
+    padding: 24px 28px !important;
+  }
+  .wallet-page .profile-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .wallet-page .list-stack {
+    max-width: 840px;
+  }
+}
+
+/* Hide legacy compact summary grids if any remain */
+.wallet-page .grid-cards.compact,
+.wallet-page .content-grid-wide {
+  display: none !important;
+}
