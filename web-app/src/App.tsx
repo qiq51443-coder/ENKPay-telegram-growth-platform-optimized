@@ -705,7 +705,7 @@ function App() {
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false)
   const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({
-    history: true,
+    history: false,
     settings: false,
     info: false,
   })
