@@ -121,6 +121,7 @@ const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
 
 const UI: Record<Lang, Record<string, string>> = {
   zh: {
+    accountSettings: '账户设置', securitySettings: '安全设置', withdrawPwdSet: '已设置提现密码', withdrawPwdNeed: '请先设置提现密码', withdrawPassword: '提现密码', confirmWithdrawPassword: '确认提现密码', saveWithdrawPassword: '保存提现密码', infoCenter: '信息中心', contactSupport: '联系客服', notices: '公告通知', noNotices: '暂无通知', selectNetwork: '选择网络', withdrawAddress: '提现地址', withdrawAmount: '提现金额', currentNetwork: '当前网络', confirmWithdraw: '确认提现', backToWallet: '返回钱包',
     fundHistory: '资金记录', noHistory: '暂无记录', invite: '邀请', copy: '复制',
     assets: '资产', deposit: '充值', withdraw: '提现',
     marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
@@ -133,6 +134,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
   en: {
+    accountSettings: 'Account', securitySettings: 'Security', withdrawPwdSet: 'Password is set', withdrawPwdNeed: 'Set withdraw password first', withdrawPassword: 'Withdraw password', confirmWithdrawPassword: 'Confirm password', saveWithdrawPassword: 'Save password', infoCenter: 'Notices', contactSupport: 'Support', notices: 'Announcements', noNotices: 'No notices', selectNetwork: 'Select network', withdrawAddress: 'Address', withdrawAmount: 'Amount', currentNetwork: 'Network', confirmWithdraw: 'Confirm withdraw', backToWallet: 'Back to wallet',
     fundHistory: 'History', noHistory: 'No records', invite: 'Invite', copy: 'Copy',
     assets: 'Assets', deposit: 'Deposit', withdraw: 'Withdraw',
     marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
@@ -145,6 +147,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
+    accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
     fundHistory: 'Historique', noHistory: 'Aucun', invite: 'Inviter', copy: 'Copier',
     assets: 'Actifs', deposit: 'Dépôt', withdraw: 'Retrait',
     marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
@@ -157,6 +160,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
   de: {
+    accountSettings: 'Konto', securitySettings: 'Sicherheit', withdrawPwdSet: 'Passwort gesetzt', withdrawPwdNeed: 'Zuerst Passwort setzen', withdrawPassword: 'Auszahlungspasswort', confirmWithdrawPassword: 'Bestätigen', saveWithdrawPassword: 'Speichern', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Mitteilungen', noNotices: 'Keine', selectNetwork: 'Netzwerk', withdrawAddress: 'Adresse', withdrawAmount: 'Betrag', currentNetwork: 'Netzwerk', confirmWithdraw: 'Auszahlung bestätigen', backToWallet: 'Zurück',
     fundHistory: 'Verlauf', noHistory: 'Keine', invite: 'Einladen', copy: 'Kopieren',
     assets: 'Vermögen', deposit: 'Einzahlung', withdraw: 'Auszahlung',
     marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
@@ -169,6 +173,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
   es: {
+    accountSettings: 'Cuenta', securitySettings: 'Seguridad', withdrawPwdSet: 'Contraseña configurada', withdrawPwdNeed: 'Configure la contraseña', withdrawPassword: 'Contraseña de retiro', confirmWithdrawPassword: 'Confirmar', saveWithdrawPassword: 'Guardar', infoCenter: 'Avisos', contactSupport: 'Soporte', notices: 'Anuncios', noNotices: 'Ninguno', selectNetwork: 'Red', withdrawAddress: 'Dirección', withdrawAmount: 'Cantidad', currentNetwork: 'Red actual', confirmWithdraw: 'Confirmar retiro', backToWallet: 'Volver',
     fundHistory: 'Historial', noHistory: 'Sin registros', invite: 'Invitar', copy: 'Copiar',
     assets: 'Activos', deposit: 'Depósito', withdraw: 'Retiro',
     marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
@@ -181,6 +186,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
   },
   ar: {
+    accountSettings: 'الحساب', securitySettings: 'الأمان', withdrawPwdSet: 'تم تعيين كلمة المرور', withdrawPwdNeed: 'عيّن كلمة مرور السحب أولاً', withdrawPassword: 'كلمة مرور السحب', confirmWithdrawPassword: 'تأكيد', saveWithdrawPassword: 'حفظ', infoCenter: 'الإشعارات', contactSupport: 'الدعم', notices: 'الإعلانات', noNotices: 'لا يوجد', selectNetwork: 'الشبكة', withdrawAddress: 'العنوان', withdrawAmount: 'المبلغ', currentNetwork: 'الشبكة الحالية', confirmWithdraw: 'تأكيد السحب', backToWallet: 'رجوع',
     fundHistory: 'السجل', noHistory: 'لا سجلات', invite: 'دعوة', copy: 'نسخ',
     assets: 'الأصول', deposit: 'إيداع', withdraw: 'سحب',
     marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
@@ -193,6 +199,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
   },
   ja: {
+    accountSettings: 'アカウント', securitySettings: 'セキュリティ', withdrawPwdSet: '出金パスワード設定済み', withdrawPwdNeed: '先に出金パスワードを設定', withdrawPassword: '出金パスワード', confirmWithdrawPassword: '確認', saveWithdrawPassword: '保存', infoCenter: 'お知らせ', contactSupport: 'サポート', notices: '公告', noNotices: 'なし', selectNetwork: 'ネットワーク', withdrawAddress: 'アドレス', withdrawAmount: '金額', currentNetwork: '現在のネットワーク', confirmWithdraw: '出金を確認', backToWallet: '戻る',
     fundHistory: '履歴', noHistory: '記録なし', invite: '招待', copy: 'コピー',
     assets: '資産', deposit: '入金', withdraw: '出金',
     marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
@@ -694,6 +701,15 @@ function App() {
   const [products, setProducts] = useState<ProductItem[]>([])
   const [, setProductsLoading] = useState(false)
   const [hasWithdrawPassword, setHasWithdrawPassword] = useState(false)
+  const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false)
+  const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({
+    history: true,
+    settings: false,
+    info: false,
+  })
+  const [walletNotices, setWalletNotices] = useState<Array<{ id: string; title: string; content?: string; created_at?: string }>>([])
 
   const [depositNetworks, setDepositNetworks] = useState<WalletNetwork[]>([])
   const [depositNetworksLoading, setDepositNetworksLoading] = useState(false)
@@ -1439,6 +1455,62 @@ function App() {
     navigateTo({ view: 'auth', mode: 'login' })
   }
 
+  const handleSaveWithdrawPassword = async () => {
+    if (!token) return
+    if ((withdrawPasswordForm.password || '').length < 6) {
+      setGlobalError(ui.passwordTooShort || '密码至少 6 位')
+      return
+    }
+    if (withdrawPasswordForm.password !== withdrawPasswordForm.confirmPassword) {
+      setGlobalError(ui.passwordMismatch || '两次密码不一致')
+      return
+    }
+    try {
+      setPasswordLoading(true)
+      const result = await apiRequest<ApiResult<null>>('/web/wallet/withdraw-password', {
+        method: 'POST',
+        body: JSON.stringify({ password: withdrawPasswordForm.password }),
+      }, token)
+      showToast(result.message || 'OK')
+      setHasWithdrawPassword(true)
+      setWithdrawPasswordForm({ password: '', confirmPassword: '' })
+      setGlobalError('')
+    } catch (error: any) {
+      setGlobalError(error.message)
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
+  const handleWithdrawSubmit = async () => {
+    if (!token) return
+    if (!hasWithdrawPassword) {
+      setGlobalError('请先设置提现密码')
+      return
+    }
+    try {
+      setWithdrawSubmitting(true)
+      const result = await apiRequest<ApiResult<null>>('/web/wallet/withdraw', {
+        method: 'POST',
+        body: JSON.stringify(withdrawForm),
+      }, token)
+      showToast(result.message || 'OK')
+      setWithdrawForm((current) => ({ ...current, amount: '', to_address: '', withdraw_password: '' }))
+      setGlobalError('')
+      try {
+        const me = await apiRequest<any>('/web/auth/me', {}, token)
+        if (me?.user) setUser(me.user)
+      } catch {}
+      try { await loadBalances() } catch {}
+      try { await loadWalletLedger() } catch {}
+    } catch (error: any) {
+      setGlobalError(error.message)
+    } finally {
+      setWithdrawSubmitting(false)
+    }
+  }
+
+
 
   const guarded = (nextRoute: Route) => {
     if (!token) {
@@ -1940,6 +2012,7 @@ function App() {
 
 
   const renderProfile = () => {
+    const toggleGroup = (key: string) => setProfileOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
     const typeLabel = (t: string) => {
       const map: Record<string, string> = {
         depin_swap: ui.swapTitle || 'Swap',
@@ -1950,6 +2023,8 @@ function App() {
         deposit: ui.deposit,
         withdraw: ui.withdraw,
         admin_adjust: 'Admin',
+        admin_credit: 'Admin +',
+        admin_debit: 'Admin -',
       }
       return map[t] || t || '—'
     }
@@ -1992,43 +2067,126 @@ function App() {
           ))}
         </div>
 
-        <div className="section-head" style={{ marginTop: 20 }}>
-          <div>
-            <h2 style={{ fontSize: 16 }}>{ui.fundHistory || 'History'}</h2>
-          </div>
-          <button type="button" className="trading-quick-btn" onClick={() => loadWalletLedger()}>↻</button>
-        </div>
-        <div className="list-stack">
-          {walletLedgerLoading && <div className="empty-card">{ui.loading}</div>}
-          {!walletLedgerLoading && !walletLedger.length && (
-            <div className="empty-card">{ui.noHistory || '—'}</div>
-          )}
-          {!walletLedgerLoading &&
-            walletLedger.map((row) => {
-              const amt = Number(row.amount || 0)
-              return (
-                <div className="list-item" key={`${row.type}-${row.id}-${row.created_at}`}>
-                  <div className="mk-left">
-                    <div>
-                      <strong>{typeLabel(String(row.type || ''))}</strong>
-                      <span>{row.description || '—'}</span>
-                      <span style={{ display: 'block', fontSize: 11 }}>
-                        {row.created_at ? new Date(row.created_at).toLocaleString() : ''}
-                      </span>
+        <div className="profile-accordion" style={{ marginTop: 16 }}>
+          <button type="button" className="profile-accordion-header" onClick={() => toggleGroup('history')}>
+            <span>{ui.fundHistory || 'History'}</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.history ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.history ? ' open' : ''}`}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button type="button" className="trading-quick-btn" onClick={() => loadWalletLedger()}>↻</button>
+            </div>
+            <div className="list-stack">
+              {walletLedgerLoading && <div className="empty-card">{ui.loading}</div>}
+              {!walletLedgerLoading && !walletLedger.length && (
+                <div className="empty-card">{ui.noHistory || '—'}</div>
+              )}
+              {!walletLedgerLoading &&
+                walletLedger.map((row) => {
+                  const amt = Number(row.amount || 0)
+                  return (
+                    <div className="list-item" key={`${row.type}-${row.id}-${row.created_at}`}>
+                      <div className="mk-left">
+                        <div>
+                          <strong>{typeLabel(String(row.type || ''))}</strong>
+                          <span>{row.description || '—'}</span>
+                          <span style={{ display: 'block', fontSize: 11 }}>
+                            {row.created_at ? new Date(row.created_at).toLocaleString() : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mk-right">
+                        <strong className={amt >= 0 ? 'price-up' : 'price-down'}>
+                          {amt >= 0 ? '+' : ''}
+                          {amt.toFixed(4)}
+                        </strong>
+                        {row.balance_after != null && (
+                          <span>≈ {Number(row.balance_after).toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="mk-right">
-                    <strong className={amt >= 0 ? 'price-up' : 'price-down'}>
-                      {amt >= 0 ? '+' : ''}
-                      {amt.toFixed(4)}
-                    </strong>
-                    {row.balance_after != null && (
-                      <span>≈ {Number(row.balance_after).toFixed(2)}</span>
+                  )
+                })}
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-accordion">
+          <button type="button" className="profile-accordion-header" onClick={() => toggleGroup('settings')}>
+            <span>{ui.accountSettings || 'Account'}</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.settings ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.settings ? ' open' : ''}`}>
+            <article className="panel-card">
+              <h3 style={{ marginTop: 0 }}>{ui.securitySettings || 'Security'}</h3>
+              <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                {hasWithdrawPassword ? (ui.withdrawPwdSet || 'Withdraw password is set') : (ui.withdrawPwdNeed || 'Set withdraw password first')}
+              </p>
+              <div className="field-grid">
+                <label>
+                  <span>{ui.withdrawPassword || 'Withdraw password'}</span>
+                  <input
+                    type="password"
+                    value={withdrawPasswordForm.password}
+                    onChange={(e) => setWithdrawPasswordForm((c) => ({ ...c, password: e.target.value }))}
+                    placeholder="******"
+                  />
+                </label>
+                <label>
+                  <span>{ui.confirmWithdrawPassword || 'Confirm password'}</span>
+                  <input
+                    type="password"
+                    value={withdrawPasswordForm.confirmPassword}
+                    onChange={(e) => setWithdrawPasswordForm((c) => ({ ...c, confirmPassword: e.target.value }))}
+                    placeholder="******"
+                  />
+                </label>
+              </div>
+              <button
+                className="primary-button"
+                style={{ marginTop: 12 }}
+                disabled={passwordLoading}
+                onClick={handleSaveWithdrawPassword}
+              >
+                {passwordLoading ? ui.loading : (ui.saveWithdrawPassword || 'Save')}
+              </button>
+            </article>
+          </div>
+        </div>
+
+        <div className="profile-accordion">
+          <button type="button" className="profile-accordion-header" onClick={() => toggleGroup('info')}>
+            <span>{ui.infoCenter || 'Notices'}</span>
+            <span className={`profile-accordion-arrow${profileOpenGroups.info ? ' open' : ''}`}>▼</span>
+          </button>
+          <div className={`profile-accordion-body${profileOpenGroups.info ? ' open' : ''}`}>
+            <article className="panel-card" id="announcement-section">
+              <div className="profile-action-list">
+                {contactTelegram && (
+                  <a className="profile-action-item" href={`https://t.me/${safeTelegram}`} target="_blank" rel="noreferrer">
+                    <span className="profile-action-icon">💬</span>
+                    <span>{ui.contactSupport || 'Support'}</span>
+                    <span className="profile-action-arrow">›</span>
+                  </a>
+                )}
+              </div>
+              <h3 style={{ marginTop: 12, fontSize: 14 }}>{ui.notices || 'Announcements'}</h3>
+              <div className="list-stack" style={{ marginTop: 8 }}>
+                {!walletNotices.length && <div className="empty-card inset">{ui.noNotices || '—'}</div>}
+                {walletNotices.map((n) => (
+                  <div className="list-item" key={n.id} style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <strong>{n.title}</strong>
+                    {n.content && <span className="muted" style={{ marginTop: 4 }}>{n.content}</span>}
+                    {n.created_at && (
+                      <span className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                        {new Date(n.created_at).toLocaleString()}
+                      </span>
                     )}
                   </div>
-                </div>
-              )
-            })}
+                ))}
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     )
@@ -2075,7 +2233,15 @@ function App() {
     if (!token) return
     if (route.view === 'app' && (route.tab === 'swap' || route.tab === 'wallet')) {
       loadBalances()
-      if (route.tab === 'wallet') loadWalletLedger()
+      if (route.tab === 'wallet') {
+        loadWalletLedger()
+        apiRequest<any>('/announcements?limit=10', {}, token)
+          .then((r) => {
+            const list = r?.data || r?.items || r?.announcements || []
+            setWalletNotices(Array.isArray(list) ? list : [])
+          })
+          .catch(() => setWalletNotices([]))
+      }
       const t = setInterval(loadBalances, 15000)
       return () => clearInterval(t)
     }
@@ -2614,23 +2780,25 @@ function App() {
           </article>
         </main>
       ) : route.view === 'withdraw' ? (
-        <main className="main-card">
+        <main className="main-card withdraw-page">
           <div className="section-head">
             <div>
-              <h2>提现</h2>
+              <h2>{ui.withdraw}</h2>
+              <p className="muted-text">{ui.selectNetwork || 'Select network'}</p>
             </div>
-            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>返回用户中心</button>
+            <button className="secondary-button" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>
+              {ui.backToWallet || ui.back || 'Back'}
+            </button>
           </div>
 
           {!hasWithdrawPassword && (
-            <div className="status-banner">请先在用户中心设置提现密码后再提交提现申请。</div>
+            <div className="status-banner">{ui.withdrawPwdNeed || 'Set withdraw password first'}</div>
           )}
 
-          {withdrawNetworksLoading ? <div className="empty-card inset">正在加载提现网络...</div> : (
-            <div className="field-grid">
-              <label>
-                <span>选择网络</span>
-              </label>
+          {withdrawNetworksLoading ? (
+            <div className="empty-card inset">{ui.loading}</div>
+          ) : (
+            <div className="form-stack panel-card" style={{ padding: 16 }}>
               <div className="network-card-grid">
                 {withdrawNetworks.map((network) => (
                   <div
@@ -2648,28 +2816,46 @@ function App() {
                 ))}
               </div>
               <label>
-                <span>提现地址</span>
-                <input value={withdrawForm.to_address} onChange={(event) => setWithdrawForm((current) => ({ ...current, to_address: event.target.value }))} />
+                <span>{ui.withdrawAddress || 'Address'}</span>
+                <input
+                  value={withdrawForm.to_address}
+                  onChange={(event) => setWithdrawForm((current) => ({ ...current, to_address: event.target.value }))}
+                  placeholder="0x..."
+                />
               </label>
               <label>
-                <span>提现金额</span>
-                <input value={withdrawForm.amount} onChange={(event) => setWithdrawForm((current) => ({ ...current, amount: event.target.value }))} />
+                <span>{ui.withdrawAmount || 'Amount'}</span>
+                <input
+                  value={withdrawForm.amount}
+                  onChange={(event) => setWithdrawForm((current) => ({ ...current, amount: event.target.value }))}
+                  placeholder="0.00"
+                />
               </label>
               <label>
-                <span>提现密码</span>
-                <input type="password" value={withdrawForm.withdraw_password} onChange={(event) => setWithdrawForm((current) => ({ ...current, withdraw_password: event.target.value }))} />
+                <span>{ui.withdrawPassword || 'Withdraw password'}</span>
+                <input
+                  type="password"
+                  value={withdrawForm.withdraw_password}
+                  onChange={(event) => setWithdrawForm((current) => ({ ...current, withdraw_password: event.target.value }))}
+                  placeholder="******"
+                />
               </label>
+              <div className="list-item" style={{ marginTop: 4 }}>
+                <div>
+                  <strong>{ui.currentNetwork || 'Network'}</strong>
+                  <span>{currentWithdrawNetwork?.network_display || '--'}</span>
+                </div>
+              </div>
+              <button
+                className="primary-button"
+                style={{ marginTop: 8 }}
+                disabled={withdrawSubmitting || !hasWithdrawPassword}
+                onClick={handleWithdrawSubmit}
+              >
+                {withdrawSubmitting ? ui.loading : (ui.confirmWithdraw || ui.withdraw)}
+              </button>
             </div>
           )}
-
-          <article className="panel-card">
-            <div className="list-item">
-              <div>
-                <strong>当前网络</strong>
-                <span>{currentWithdrawNetwork?.network_display || '--'}</span>
-              </div>
-            </div>
-          </article>
         </main>
       ) : (
         <main className="main-card">
