@@ -2210,3 +2210,104 @@ textarea {
 .wallet-page .content-grid-wide {
   display: none !important;
 }
+
+
+/* ===== Stability: no mobile bounce / nav jitter ===== */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+}
+.app-shell {
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.bottom-nav,
+nav.bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  transform: none !important;
+  -webkit-transform: none !important;
+  margin: 0 !important;
+  z-index: 400 !important;
+}
+.bottom-nav .nav-item,
+.bottom-nav-item {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.profile-accordion {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.profile-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-accordion-arrow {
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.profile-accordion-arrow.open {
+  transform: rotate(180deg);
+}
+.profile-accordion-body {
+  display: none;
+  padding: 0 12px 14px;
+}
+.profile-accordion-body.open {
+  display: block;
+}
+.profile-action-list {
+  display: grid;
+  gap: 8px;
+}
+.profile-action-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-card-2);
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.profile-action-arrow {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+.withdraw-page .form-stack label span,
+.withdraw-page label span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.withdraw-page input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
