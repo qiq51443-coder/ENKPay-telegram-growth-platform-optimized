@@ -1038,7 +1038,7 @@ function App() {
       .catch((error: Error) => {
         setDepositAddress('')
         setDepositQr('')
-        setDepositAddressError(error.message || '加载{ui.depositAddress || 'Address'}失败')
+        setDepositAddressError(error.message || 'Failed to load deposit address')
       })
       .finally(() => setDepositLoading(false))
   }, [route, token, selectedDepositNetwork])
