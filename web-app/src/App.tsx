@@ -121,7 +121,7 @@ const TAB_I18N: Record<Lang, Record<TabKey, string>> = {
 
 const UI: Record<Lang, Record<string, string>> = {
   zh: {
-    accountSettings: '账户设置', securitySettings: '安全设置', withdrawPwdSet: '已设置提现密码', withdrawPwdNeed: '请先设置提现密码', withdrawPassword: '提现密码', confirmWithdrawPassword: '确认提现密码', saveWithdrawPassword: '保存提现密码', infoCenter: '信息中心', contactSupport: '联系客服', notices: '公告通知', noNotices: '暂无通知', selectNetwork: '选择网络', withdrawAddress: '提现地址', withdrawAmount: '提现金额', currentNetwork: '当前网络', confirmWithdraw: '确认提现', backToWallet: '返回钱包',
+    accountSettings: '账户设置', securitySettings: '安全设置', withdrawPwdSet: '已设置提现密码', withdrawPwdNeed: '请先设置提现密码', withdrawPassword: '提现密码', confirmWithdrawPassword: '确认提现密码', saveWithdrawPassword: '保存提现密码', oldWithdrawPassword: '原提现密码', changeWithdrawPassword: '修改提现密码', withdrawPwdRule: '请输入 6 位数字', withdrawPwdSuccessSet: '提现密码设置成功', withdrawPwdSuccessChange: '提现密码修改成功', oldPwdWrong: '原密码错误', newPwdSame: '新密码不能与原密码相同', infoCenter: '信息中心', contactSupport: '联系客服', notices: '公告通知', noNotices: '暂无通知', selectNetwork: '选择网络', withdrawAddress: '提现地址', withdrawAmount: '提现金额', currentNetwork: '当前网络', confirmWithdraw: '确认提现', backToWallet: '返回钱包',
     fundHistory: '资金记录', noHistory: '暂无记录', invite: '邀请', copy: '复制',
     assets: '资产', deposit: '充值', withdraw: '提现',
     marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
@@ -134,7 +134,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
   en: {
-    accountSettings: 'Account', securitySettings: 'Security', withdrawPwdSet: 'Password is set', withdrawPwdNeed: 'Set withdraw password first', withdrawPassword: 'Withdraw password', confirmWithdrawPassword: 'Confirm password', saveWithdrawPassword: 'Save password', infoCenter: 'Notices', contactSupport: 'Support', notices: 'Announcements', noNotices: 'No notices', selectNetwork: 'Select network', withdrawAddress: 'Address', withdrawAmount: 'Amount', currentNetwork: 'Network', confirmWithdraw: 'Confirm withdraw', backToWallet: 'Back to wallet',
+    accountSettings: 'Account', securitySettings: 'Security', withdrawPwdSet: 'Password is set', withdrawPwdNeed: 'Set withdraw password first', withdrawPassword: 'Withdraw password', confirmWithdrawPassword: 'Confirm password', saveWithdrawPassword: 'Save password', oldWithdrawPassword: 'Current password', changeWithdrawPassword: 'Change password', withdrawPwdRule: 'Enter 6 digits', withdrawPwdSuccessSet: 'Password set successfully', withdrawPwdSuccessChange: 'Password changed successfully', oldPwdWrong: 'Current password is wrong', newPwdSame: 'New password must differ', infoCenter: 'Notices', contactSupport: 'Support', notices: 'Announcements', noNotices: 'No notices', selectNetwork: 'Select network', withdrawAddress: 'Address', withdrawAmount: 'Amount', currentNetwork: 'Network', confirmWithdraw: 'Confirm withdraw', backToWallet: 'Back to wallet',
     fundHistory: 'History', noHistory: 'No records', invite: 'Invite', copy: 'Copy',
     assets: 'Assets', deposit: 'Deposit', withdraw: 'Withdraw',
     marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
@@ -147,7 +147,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
-    accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
+    accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', oldWithdrawPassword: 'Mot de passe actuel', changeWithdrawPassword: 'Modifier', withdrawPwdRule: '6 chiffres', withdrawPwdSuccessSet: 'Mot de passe défini', withdrawPwdSuccessChange: 'Mot de passe modifié', oldPwdWrong: 'Mot de passe actuel incorrect', newPwdSame: 'Doit être différent', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
     fundHistory: 'Historique', noHistory: 'Aucun', invite: 'Inviter', copy: 'Copier',
     assets: 'Actifs', deposit: 'Dépôt', withdraw: 'Retrait',
     marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
@@ -160,7 +160,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
   de: {
-    accountSettings: 'Konto', securitySettings: 'Sicherheit', withdrawPwdSet: 'Passwort gesetzt', withdrawPwdNeed: 'Zuerst Passwort setzen', withdrawPassword: 'Auszahlungspasswort', confirmWithdrawPassword: 'Bestätigen', saveWithdrawPassword: 'Speichern', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Mitteilungen', noNotices: 'Keine', selectNetwork: 'Netzwerk', withdrawAddress: 'Adresse', withdrawAmount: 'Betrag', currentNetwork: 'Netzwerk', confirmWithdraw: 'Auszahlung bestätigen', backToWallet: 'Zurück',
+    accountSettings: 'Konto', securitySettings: 'Sicherheit', withdrawPwdSet: 'Passwort gesetzt', withdrawPwdNeed: 'Zuerst Passwort setzen', withdrawPassword: 'Auszahlungspasswort', confirmWithdrawPassword: 'Bestätigen', saveWithdrawPassword: 'Speichern', oldWithdrawPassword: 'Aktuelles Passwort', changeWithdrawPassword: 'Ändern', withdrawPwdRule: '6 Ziffern', withdrawPwdSuccessSet: 'Passwort gesetzt', withdrawPwdSuccessChange: 'Passwort geändert', oldPwdWrong: 'Aktuelles Passwort falsch', newPwdSame: 'Muss anders sein', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Mitteilungen', noNotices: 'Keine', selectNetwork: 'Netzwerk', withdrawAddress: 'Adresse', withdrawAmount: 'Betrag', currentNetwork: 'Netzwerk', confirmWithdraw: 'Auszahlung bestätigen', backToWallet: 'Zurück',
     fundHistory: 'Verlauf', noHistory: 'Keine', invite: 'Einladen', copy: 'Kopieren',
     assets: 'Vermögen', deposit: 'Einzahlung', withdraw: 'Auszahlung',
     marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
@@ -173,7 +173,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
   es: {
-    accountSettings: 'Cuenta', securitySettings: 'Seguridad', withdrawPwdSet: 'Contraseña configurada', withdrawPwdNeed: 'Configure la contraseña', withdrawPassword: 'Contraseña de retiro', confirmWithdrawPassword: 'Confirmar', saveWithdrawPassword: 'Guardar', infoCenter: 'Avisos', contactSupport: 'Soporte', notices: 'Anuncios', noNotices: 'Ninguno', selectNetwork: 'Red', withdrawAddress: 'Dirección', withdrawAmount: 'Cantidad', currentNetwork: 'Red actual', confirmWithdraw: 'Confirmar retiro', backToWallet: 'Volver',
+    accountSettings: 'Cuenta', securitySettings: 'Seguridad', withdrawPwdSet: 'Contraseña configurada', withdrawPwdNeed: 'Configure la contraseña', withdrawPassword: 'Contraseña de retiro', confirmWithdrawPassword: 'Confirmar', saveWithdrawPassword: 'Guardar', oldWithdrawPassword: 'Contraseña actual', changeWithdrawPassword: 'Cambiar', withdrawPwdRule: '6 dígitos', withdrawPwdSuccessSet: 'Contraseña configurada', withdrawPwdSuccessChange: 'Contraseña cambiada', oldPwdWrong: 'Contraseña actual incorrecta', newPwdSame: 'Debe ser diferente', infoCenter: 'Avisos', contactSupport: 'Soporte', notices: 'Anuncios', noNotices: 'Ninguno', selectNetwork: 'Red', withdrawAddress: 'Dirección', withdrawAmount: 'Cantidad', currentNetwork: 'Red actual', confirmWithdraw: 'Confirmar retiro', backToWallet: 'Volver',
     fundHistory: 'Historial', noHistory: 'Sin registros', invite: 'Invitar', copy: 'Copiar',
     assets: 'Activos', deposit: 'Depósito', withdraw: 'Retiro',
     marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
@@ -186,7 +186,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
   },
   ar: {
-    accountSettings: 'الحساب', securitySettings: 'الأمان', withdrawPwdSet: 'تم تعيين كلمة المرور', withdrawPwdNeed: 'عيّن كلمة مرور السحب أولاً', withdrawPassword: 'كلمة مرور السحب', confirmWithdrawPassword: 'تأكيد', saveWithdrawPassword: 'حفظ', infoCenter: 'الإشعارات', contactSupport: 'الدعم', notices: 'الإعلانات', noNotices: 'لا يوجد', selectNetwork: 'الشبكة', withdrawAddress: 'العنوان', withdrawAmount: 'المبلغ', currentNetwork: 'الشبكة الحالية', confirmWithdraw: 'تأكيد السحب', backToWallet: 'رجوع',
+    accountSettings: 'الحساب', securitySettings: 'الأمان', withdrawPwdSet: 'تم تعيين كلمة المرور', withdrawPwdNeed: 'عيّن كلمة مرور السحب أولاً', withdrawPassword: 'كلمة مرور السحب', confirmWithdrawPassword: 'تأكيد', saveWithdrawPassword: 'حفظ', oldWithdrawPassword: 'كلمة المرور الحالية', changeWithdrawPassword: 'تغيير', withdrawPwdRule: '6 أرقام', withdrawPwdSuccessSet: 'تم التعيين', withdrawPwdSuccessChange: 'تم التغيير', oldPwdWrong: 'كلمة المرور الحالية خاطئة', newPwdSame: 'يجب أن تختلف', infoCenter: 'الإشعارات', contactSupport: 'الدعم', notices: 'الإعلانات', noNotices: 'لا يوجد', selectNetwork: 'الشبكة', withdrawAddress: 'العنوان', withdrawAmount: 'المبلغ', currentNetwork: 'الشبكة الحالية', confirmWithdraw: 'تأكيد السحب', backToWallet: 'رجوع',
     fundHistory: 'السجل', noHistory: 'لا سجلات', invite: 'دعوة', copy: 'نسخ',
     assets: 'الأصول', deposit: 'إيداع', withdraw: 'سحب',
     marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
@@ -199,7 +199,7 @@ const UI: Record<Lang, Record<string, string>> = {
     matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
   },
   ja: {
-    accountSettings: 'アカウント', securitySettings: 'セキュリティ', withdrawPwdSet: '出金パスワード設定済み', withdrawPwdNeed: '先に出金パスワードを設定', withdrawPassword: '出金パスワード', confirmWithdrawPassword: '確認', saveWithdrawPassword: '保存', infoCenter: 'お知らせ', contactSupport: 'サポート', notices: '公告', noNotices: 'なし', selectNetwork: 'ネットワーク', withdrawAddress: 'アドレス', withdrawAmount: '金額', currentNetwork: '現在のネットワーク', confirmWithdraw: '出金を確認', backToWallet: '戻る',
+    accountSettings: 'アカウント', securitySettings: 'セキュリティ', withdrawPwdSet: '出金パスワード設定済み', withdrawPwdNeed: '先に出金パスワードを設定', withdrawPassword: '出金パスワード', confirmWithdrawPassword: '確認', saveWithdrawPassword: '保存', oldWithdrawPassword: '現在のパスワード', changeWithdrawPassword: '変更', withdrawPwdRule: '6桁の数字', withdrawPwdSuccessSet: '設定しました', withdrawPwdSuccessChange: '変更しました', oldPwdWrong: '現在のパスワードが違います', newPwdSame: '新しいパスワードは別にしてください', infoCenter: 'お知らせ', contactSupport: 'サポート', notices: '公告', noNotices: 'なし', selectNetwork: 'ネットワーク', withdrawAddress: 'アドレス', withdrawAmount: '金額', currentNetwork: '現在のネットワーク', confirmWithdraw: '出金を確認', backToWallet: '戻る',
     fundHistory: '履歴', noHistory: '記録なし', invite: '招待', copy: 'コピー',
     assets: '資産', deposit: '入金', withdraw: '出金',
     marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
@@ -701,7 +701,7 @@ function App() {
   const [products, setProducts] = useState<ProductItem[]>([])
   const [, setProductsLoading] = useState(false)
   const [hasWithdrawPassword, setHasWithdrawPassword] = useState(false)
-  const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ password: '', confirmPassword: '' })
+  const [withdrawPasswordForm, setWithdrawPasswordForm] = useState({ oldPassword: '', password: '', confirmPassword: '' })
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false)
   const [profileOpenGroups, setProfileOpenGroups] = useState<Record<string, boolean>>({
@@ -1457,26 +1457,58 @@ function App() {
 
   const handleSaveWithdrawPassword = async () => {
     if (!token) return
-    if ((withdrawPasswordForm.password || '').length < 6) {
-      setGlobalError(ui.passwordTooShort || '密码至少 6 位')
+    const pwd = String(withdrawPasswordForm.password || '')
+    const confirm = String(withdrawPasswordForm.confirmPassword || '')
+    const oldPwd = String(withdrawPasswordForm.oldPassword || '')
+    if (!/^\d{6}$/.test(pwd)) {
+      setGlobalError(ui.withdrawPwdRule || '请输入 6 位数字')
       return
     }
-    if (withdrawPasswordForm.password !== withdrawPasswordForm.confirmPassword) {
+    if (pwd !== confirm) {
       setGlobalError(ui.passwordMismatch || '两次密码不一致')
       return
     }
+    if (hasWithdrawPassword) {
+      if (!/^\d{6}$/.test(oldPwd)) {
+        setGlobalError(ui.oldWithdrawPassword || '请输入原密码')
+        return
+      }
+      if (oldPwd === pwd) {
+        setGlobalError(ui.newPwdSame || '新密码不能与原密码相同')
+        return
+      }
+    }
     try {
       setPasswordLoading(true)
-      const result = await apiRequest<ApiResult<null>>('/web/wallet/withdraw-password', {
+      setGlobalError('')
+      const body: any = { password: pwd }
+      if (hasWithdrawPassword) body.old_password = oldPwd
+      const result = await apiRequest<any>('/web/wallet/withdraw-password', {
         method: 'POST',
-        body: JSON.stringify({ password: withdrawPasswordForm.password }),
+        body: JSON.stringify(body),
       }, token)
-      showToast(result.message || 'OK')
+      const msgKey = result?.message
+      const successMsg =
+        msgKey === 'withdraw_password_changed'
+          ? (ui.withdrawPwdSuccessChange || 'OK')
+          : msgKey === 'withdraw_password_set'
+            ? (ui.withdrawPwdSuccessSet || 'OK')
+            : (result?.message || ui.withdrawPwdSuccessSet || 'OK')
+      showToast(successMsg)
       setHasWithdrawPassword(true)
-      setWithdrawPasswordForm({ password: '', confirmPassword: '' })
+      setWithdrawPasswordForm({ oldPassword: '', password: '', confirmPassword: '' })
       setGlobalError('')
     } catch (error: any) {
-      setGlobalError(error.message)
+      const raw = String(error?.message || '')
+      const mapped =
+        raw.includes('old_password') || raw.includes('原密码') || raw.includes('Incorrect') || raw.includes('错误')
+          ? (ui.oldPwdWrong || raw)
+          : raw.includes('6') || raw.includes('digits') || raw.includes('数字')
+            ? (ui.withdrawPwdRule || raw)
+            : raw.includes('same') || raw.includes('相同')
+              ? (ui.newPwdSame || raw)
+              : raw
+      setGlobalError(mapped)
     } finally {
       setPasswordLoading(false)
     }
@@ -2120,24 +2152,64 @@ function App() {
             <article className="panel-card">
               <h3 style={{ marginTop: 0 }}>{ui.securitySettings || 'Security'}</h3>
               <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                {hasWithdrawPassword ? (ui.withdrawPwdSet || 'Withdraw password is set') : (ui.withdrawPwdNeed || 'Set withdraw password first')}
+                {hasWithdrawPassword ? (ui.withdrawPwdSet || 'Password is set') : (ui.withdrawPwdNeed || 'Set password first')}
+                {' · '}
+                {ui.withdrawPwdRule || '6 digits'}
               </p>
               <div className="field-grid">
+                {hasWithdrawPassword && (
+                  <label>
+                    <span>{ui.oldWithdrawPassword || 'Current password'}</span>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoComplete="current-password"
+                      value={withdrawPasswordForm.oldPassword}
+                      onChange={(e) =>
+                        setWithdrawPasswordForm((c) => ({
+                          ...c,
+                          oldPassword: e.target.value.replace(/\D/g, '').slice(0, 6),
+                        }))
+                      }
+                      placeholder="******"
+                    />
+                  </label>
+                )}
                 <label>
-                  <span>{ui.withdrawPassword || 'Withdraw password'}</span>
+                  <span>{ui.withdrawPassword || 'New password'}</span>
                   <input
                     type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    autoComplete="new-password"
                     value={withdrawPasswordForm.password}
-                    onChange={(e) => setWithdrawPasswordForm((c) => ({ ...c, password: e.target.value }))}
+                    onChange={(e) =>
+                      setWithdrawPasswordForm((c) => ({
+                        ...c,
+                        password: e.target.value.replace(/\D/g, '').slice(0, 6),
+                      }))
+                    }
                     placeholder="******"
                   />
                 </label>
                 <label>
-                  <span>{ui.confirmWithdrawPassword || 'Confirm password'}</span>
+                  <span>{ui.confirmWithdrawPassword || 'Confirm'}</span>
                   <input
                     type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    autoComplete="new-password"
                     value={withdrawPasswordForm.confirmPassword}
-                    onChange={(e) => setWithdrawPasswordForm((c) => ({ ...c, confirmPassword: e.target.value }))}
+                    onChange={(e) =>
+                      setWithdrawPasswordForm((c) => ({
+                        ...c,
+                        confirmPassword: e.target.value.replace(/\D/g, '').slice(0, 6),
+                      }))
+                    }
                     placeholder="******"
                   />
                 </label>
@@ -2148,7 +2220,11 @@ function App() {
                 disabled={passwordLoading}
                 onClick={handleSaveWithdrawPassword}
               >
-                {passwordLoading ? ui.loading : (ui.saveWithdrawPassword || 'Save')}
+                {passwordLoading
+                  ? ui.loading
+                  : hasWithdrawPassword
+                    ? (ui.changeWithdrawPassword || ui.saveWithdrawPassword || 'Save')
+                    : (ui.saveWithdrawPassword || 'Save')}
               </button>
             </article>
           </div>
