@@ -330,8 +330,37 @@ router.post('/withdraw-password', async (req: WebAuthRequest, res) => {
   try {
     const userId = req.webUser?.id;
     const password = String(req.body?.password || '');
-    if (!userId || !/^\d{6,}$/.test(password)) {
-      return res.status(400).json({ error: '提现密码至少需要 6 位数字' });
+    const oldPassword = String(req.body?.old_password || '');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    // 严格 6 位数字
+    if (!/^\d{6}$/.test(password)) {
+      return res.status(400).json({ error: 'withdraw_password_must_be_6_digits' });
+    }
+
+    const userRes = await query(
+      `SELECT withdraw_password FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (!userRes.rows.length) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+    const existingHash = userRes.rows[0].withdraw_password;
+    const isChange = Boolean(existingHash);
+
+    if (isChange) {
+      if (!oldPassword) {
+        return res.status(400).json({ error: 'old_password_required' });
+      }
+      // 复用锁定/错误次数逻辑
+      const check = await verifyWithdrawPassword(userId, oldPassword);
+      if (!check.valid) {
+        return res.status(check.status || 400).json({ error: check.error || 'old_password_wrong' });
+      }
+      if (oldPassword === password) {
+        return res.status(400).json({ error: 'new_password_same_as_old' });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -349,7 +378,11 @@ router.post('/withdraw-password', async (req: WebAuthRequest, res) => {
       return res.status(404).json({ error: '用户不存在' });
     }
 
-    return res.json({ success: true, message: '提现密码设置成功' });
+    return res.json({
+      success: true,
+      message: isChange ? 'withdraw_password_changed' : 'withdraw_password_set',
+      has_password: true,
+    });
   } catch (error: any) {
     console.error('Web set withdraw password error:', error);
     return res.status(500).json({ error: error.message });
