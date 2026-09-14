@@ -608,7 +608,8 @@ router.get('/web/ledger', authenticateWebUser, async (req: WebAuthRequest, res) 
     let items: any[] = [];
     try {
       items = (await query(
-        `SELECT id, type, amount, balance_after, description, created_at
+        `SELECT id::text AS id, type, amount::numeric AS amount, balance_after::numeric AS balance_after,
+                COALESCE(description,'') AS description, created_at
          FROM transactions WHERE user_id = $1
          ORDER BY created_at DESC LIMIT $2`,
         [userId, limit]
@@ -617,24 +618,79 @@ router.get('/web/ledger', authenticateWebUser, async (req: WebAuthRequest, res) 
       console.warn('[depin] web ledger', e.message);
       try {
         items = (await query(
-          `SELECT id, type, amount, description, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+          `SELECT id::text AS id, type, amount::numeric AS amount, COALESCE(description,'') AS description, created_at
+           FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
           [userId, limit]
         )).rows;
       } catch {}
     }
-    // 合并闪兑订单（若 transactions 未写入）
+    const seen = new Set(items.map((x: any) => `${x.type}:${x.id}`));
+
+    // 闪兑订单
     try {
       const swaps = (await query(
-        `SELECT id, 'depin_swap' AS type, from_amount AS amount,
+        `SELECT id::text AS id, 'depin_swap' AS type, from_amount::numeric AS amount,
                 (from_asset || '→' || to_asset || ' ' || to_amount::text) AS description, created_at
-         FROM depin_swap_orders WHERE user_id = $1 ORDER BY id DESC LIMIT 30`,
+         FROM depin_swap_orders WHERE user_id = $1 ORDER BY id DESC LIMIT 40`,
         [userId]
       )).rows;
-      const ids = new Set(items.map((x: any) => String(x.description || '')));
       for (const s of swaps) {
-        if (![...ids].some((d) => d.includes(String(s.id)))) items.push(s);
+        const k = `depin_swap:${s.id}`;
+        if (!seen.has(k) && !items.some((x: any) => String(x.description || '').includes(String(s.id)))) {
+          items.push(s);
+          seen.add(k);
+        }
       }
     } catch {}
+
+    // 充值记录
+    try {
+      const deps = (await query(
+        `SELECT id::text AS id, 'deposit' AS type, amount::numeric AS amount,
+                COALESCE(tx_hash, network_name, '') AS description, created_at
+         FROM deposit_records
+         WHERE user_id = $1 AND status IN ('credited','confirmed','completed','success')
+         ORDER BY created_at DESC LIMIT 40`,
+        [userId]
+      )).rows;
+      for (const d of deps) {
+        const k = `deposit:${d.id}`;
+        if (!seen.has(k)) { items.push(d); seen.add(k); }
+      }
+    } catch (e: any) {
+      console.warn('[depin] ledger deposits', e.message);
+      try {
+        const deps = (await query(
+          `SELECT id::text AS id, 'deposit' AS type, amount::numeric AS amount,
+                  COALESCE(tx_hash, '') AS description, created_at
+           FROM deposit_records WHERE user_id = $1
+           ORDER BY created_at DESC LIMIT 40`,
+          [userId]
+        )).rows;
+        for (const d of deps) {
+          const k = `deposit:${d.id}`;
+          if (!seen.has(k)) { items.push(d); seen.add(k); }
+        }
+      } catch {}
+    }
+
+    // 提现记录
+    try {
+      const wds = (await query(
+        `SELECT id::text AS id, 'withdrawal' AS type, (-ABS(amount::numeric)) AS amount,
+                COALESCE(to_address, status::text, '') AS description, created_at
+         FROM withdrawal_records WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 40`,
+        [userId]
+      )).rows;
+      for (const w of wds) {
+        const k = `withdrawal:${w.id}`;
+        if (!seen.has(k)) { items.push(w); seen.add(k); }
+      }
+    } catch (e: any) {
+      console.warn('[depin] ledger withdrawals', e.message);
+    }
+
     items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     res.json({ success: true, items: items.slice(0, limit) });
   } catch (e: any) {
