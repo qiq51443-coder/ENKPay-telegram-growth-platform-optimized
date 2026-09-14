@@ -123,11 +123,11 @@ const UI: Record<Lang, Record<string, string>> = {
   zh: {
     accountSettings: '账户设置', securitySettings: '安全设置', withdrawPwdSet: '已设置提现密码', withdrawPwdNeed: '请先设置提现密码', withdrawPassword: '提现密码', confirmWithdrawPassword: '确认提现密码', saveWithdrawPassword: '保存提现密码', oldWithdrawPassword: '原提现密码', changeWithdrawPassword: '修改提现密码', withdrawPwdRule: '请输入 6 位数字', withdrawPwdSuccessSet: '提现密码设置成功', withdrawPwdSuccessChange: '提现密码修改成功', oldPwdWrong: '原密码错误', newPwdSame: '新密码不能与原密码相同', infoCenter: '信息中心', contactSupport: '联系客服', notices: '公告通知', noNotices: '暂无通知', selectNetwork: '选择网络', withdrawAddress: '提现地址', withdrawAmount: '提现金额', currentNetwork: '当前网络', confirmWithdraw: '确认提现', backToWallet: '返回钱包',
     fundHistory: '资金记录', noHistory: '暂无记录', invite: '邀请', copy: '复制',
-    assets: '资产', deposit: '充值', withdraw: '提现',
+    assets: '资产', deposit: '充值', selectNetwork: '选择网络', depositAddress: '充值地址', depositQr: '二维码', depositTips: '充值注意事项', tip1: '请务必选择正确的网络后再转账，避免资产损失。', tip2: '到账记录可在「钱包 - 资金记录」中查看。', tip3: '网页端当前不开放转账功能，请勿向其他用户地址误转。', loadingAddress: '正在加载充值地址...', retryAddress: '重新获取地址', minDeposit: '最低', backToWallet: '返回钱包', network: '网络', copyAddress: '复制地址', txDeposit: '充值', txWithdraw: '提现', txSwap: '闪兑', txClaim: '领取收益', txBuyNode: '购买节点', txStake: '质押', txAdmin: '管理员调整', withdraw: '提现',
     marketsTitle: '行情', marketsSub: '点击查看详情', back: '返回', latestPrice: '最新价', change24h: '24h涨跌', volume24h: '24h成交量',
     kline: 'K线', klineLoading: 'K线加载中...', noKline: '暂无K线数据', goSwap: '去闪兑', loading: '加载中...', noMarkets: '暂无行情',
-    swapTitle: '闪兑', swapSub: '与 USDT 兑换 · 汇率取自实时行情', pay: '支付', receive: '获得', balance: '余额', max: '最大',
-    confirmSwap: '确认闪兑', swapping: '兑换中...', needUsdt: '请保证一侧为 USDT', swapOk: '闪兑成功',
+    swapTitle: '闪兑', swapSub: '与 USDC 兑换 · 汇率取自实时行情', pay: '支付', receive: '获得', balance: '余额', max: '最大',
+    confirmSwap: '确认闪兑', swapping: '兑换中...', needUsdt: '请保证一侧为 USDC', swapOk: '闪兑成功',
     investTitle: '算力', investSub: '购买节点 · 资产质押', buyNode: '购买节点', stake: '资产质押', myPositions: '我的持仓与收益',
     noPlans: '暂无节点套餐', noPositions: '暂无持仓', buy: '购买', stakeBtn: '确认质押', dailyYield: '日收益', days: '天',
     principal: '本金', accrued: '累计收益', claimable: '可领取', claimed: '已领取', claim: '领取收益', claiming: '领取中...',
@@ -136,11 +136,11 @@ const UI: Record<Lang, Record<string, string>> = {
   en: {
     accountSettings: 'Account', securitySettings: 'Security', withdrawPwdSet: 'Password is set', withdrawPwdNeed: 'Set withdraw password first', withdrawPassword: 'Withdraw password', confirmWithdrawPassword: 'Confirm password', saveWithdrawPassword: 'Save password', oldWithdrawPassword: 'Current password', changeWithdrawPassword: 'Change password', withdrawPwdRule: 'Enter 6 digits', withdrawPwdSuccessSet: 'Password set successfully', withdrawPwdSuccessChange: 'Password changed successfully', oldPwdWrong: 'Current password is wrong', newPwdSame: 'New password must differ', infoCenter: 'Notices', contactSupport: 'Support', notices: 'Announcements', noNotices: 'No notices', selectNetwork: 'Select network', withdrawAddress: 'Address', withdrawAmount: 'Amount', currentNetwork: 'Network', confirmWithdraw: 'Confirm withdraw', backToWallet: 'Back to wallet',
     fundHistory: 'History', noHistory: 'No records', invite: 'Invite', copy: 'Copy',
-    assets: 'Assets', deposit: 'Deposit', withdraw: 'Withdraw',
+    assets: 'Assets', deposit: 'Deposit', selectNetwork: 'Select network', depositAddress: 'Deposit address', depositQr: 'QR code', depositTips: 'Deposit notes', tip1: 'Always select the correct network before transferring.', tip2: 'Credits appear under Wallet → History.', tip3: 'Do not send to other users’ addresses.', loadingAddress: 'Loading address...', retryAddress: 'Retry', minDeposit: 'Min', network: 'Network', copyAddress: 'Copy', txDeposit: 'Deposit', txWithdraw: 'Withdraw', txSwap: 'Swap', txClaim: 'Claim', txBuyNode: 'Buy node', txStake: 'Stake', txAdmin: 'Admin', withdraw: 'Withdraw',
     marketsTitle: 'Markets', marketsSub: 'Tap for details', back: 'Back', latestPrice: 'Last price', change24h: '24h change', volume24h: '24h volume',
     kline: 'Chart', klineLoading: 'Loading chart...', noKline: 'No chart data', goSwap: 'Swap', loading: 'Loading...', noMarkets: 'No markets',
-    swapTitle: 'Swap', swapSub: 'Trade vs USDT · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
-    confirmSwap: 'Confirm swap', swapping: 'Swapping...', needUsdt: 'One side must be USDT', swapOk: 'Swap success',
+    swapTitle: 'Swap', swapSub: 'Trade vs USDC · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
+    confirmSwap: 'Confirm swap', swapping: 'Swapping...', needUsdt: 'One side must be USDC', swapOk: 'Swap success',
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Buy node', stake: 'Stake', myPositions: 'Positions & yield',
     noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'days',
     principal: 'Principal', accrued: 'Accrued', claimable: 'Claimable', claimed: 'Claimed', claim: 'Claim', claiming: 'Claiming...',
@@ -149,11 +149,11 @@ const UI: Record<Lang, Record<string, string>> = {
   fr: {
     accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', oldWithdrawPassword: 'Mot de passe actuel', changeWithdrawPassword: 'Modifier', withdrawPwdRule: '6 chiffres', withdrawPwdSuccessSet: 'Mot de passe défini', withdrawPwdSuccessChange: 'Mot de passe modifié', oldPwdWrong: 'Mot de passe actuel incorrect', newPwdSame: 'Doit être différent', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
     fundHistory: 'Historique', noHistory: 'Aucun', invite: 'Inviter', copy: 'Copier',
-    assets: 'Actifs', deposit: 'Dépôt', withdraw: 'Retrait',
+    assets: 'Actifs', deposit: 'Dépôt', selectNetwork: 'Réseau', depositAddress: 'Adresse de dépôt', depositQr: 'QR', depositTips: 'Notes', tip1: 'Choisissez le bon réseau.', tip2: 'Crédit dans Portefeuille → Historique.', tip3: 'Ne pas envoyer à d’autres adresses.', loadingAddress: 'Chargement...', retryAddress: 'Réessayer', minDeposit: 'Min', network: 'Réseau', copyAddress: 'Copier', txDeposit: 'Dépôt', txWithdraw: 'Retrait', txSwap: 'Échange', txClaim: 'Réclamation', txBuyNode: 'Nœud', txStake: 'Stake', txAdmin: 'Admin', withdraw: 'Retrait',
     marketsTitle: 'Marchés', marketsSub: 'Détails', back: 'Retour', latestPrice: 'Dernier prix', change24h: '24h', volume24h: 'Volume 24h',
     kline: 'Graphique', klineLoading: 'Chargement...', noKline: 'Pas de données', goSwap: 'Échanger', loading: 'Chargement...', noMarkets: 'Aucun',
-    swapTitle: 'Échange', swapSub: 'Contre USDT', pay: 'Vous payez', receive: 'Vous recevez', balance: 'Solde', max: 'Max',
-    confirmSwap: 'Confirmer', swapping: 'Échange...', needUsdt: 'Un côté doit être USDT', swapOk: 'Succès',
+    swapTitle: 'Échange', swapSub: 'Contre USDC', pay: 'Vous payez', receive: 'Vous recevez', balance: 'Solde', max: 'Max',
+    confirmSwap: 'Confirmer', swapping: 'Échange...', needUsdt: 'Un côté doit être USDC', swapOk: 'Succès',
     investTitle: 'Compute', investSub: 'Nœuds · Staking', buyNode: 'Acheter', stake: 'Staker', myPositions: 'Positions',
     noPlans: 'Aucun plan', noPositions: 'Aucune position', buy: 'Acheter', stakeBtn: 'Staker', dailyYield: 'Rendement/j', days: 'jours',
     principal: 'Principal', accrued: 'Accumulé', claimable: 'Réclamable', claimed: 'Réclamé', claim: 'Réclamer', claiming: '...',
@@ -162,11 +162,11 @@ const UI: Record<Lang, Record<string, string>> = {
   de: {
     accountSettings: 'Konto', securitySettings: 'Sicherheit', withdrawPwdSet: 'Passwort gesetzt', withdrawPwdNeed: 'Zuerst Passwort setzen', withdrawPassword: 'Auszahlungspasswort', confirmWithdrawPassword: 'Bestätigen', saveWithdrawPassword: 'Speichern', oldWithdrawPassword: 'Aktuelles Passwort', changeWithdrawPassword: 'Ändern', withdrawPwdRule: '6 Ziffern', withdrawPwdSuccessSet: 'Passwort gesetzt', withdrawPwdSuccessChange: 'Passwort geändert', oldPwdWrong: 'Aktuelles Passwort falsch', newPwdSame: 'Muss anders sein', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Mitteilungen', noNotices: 'Keine', selectNetwork: 'Netzwerk', withdrawAddress: 'Adresse', withdrawAmount: 'Betrag', currentNetwork: 'Netzwerk', confirmWithdraw: 'Auszahlung bestätigen', backToWallet: 'Zurück',
     fundHistory: 'Verlauf', noHistory: 'Keine', invite: 'Einladen', copy: 'Kopieren',
-    assets: 'Vermögen', deposit: 'Einzahlung', withdraw: 'Auszahlung',
+    assets: 'Vermögen', deposit: 'Einzahlung', selectNetwork: 'Netzwerk', depositAddress: 'Einzahlungsadresse', depositQr: 'QR', depositTips: 'Hinweise', tip1: 'Richtiges Netzwerk wählen.', tip2: 'Gutschrift unter Wallet → Verlauf.', tip3: 'Nicht an andere Adressen senden.', loadingAddress: 'Laden...', retryAddress: 'Erneut', minDeposit: 'Min', network: 'Netzwerk', copyAddress: 'Kopieren', txDeposit: 'Einzahlung', txWithdraw: 'Auszahlung', txSwap: 'Tausch', txClaim: 'Ertrag', txBuyNode: 'Node', txStake: 'Stake', txAdmin: 'Admin', withdraw: 'Auszahlung',
     marketsTitle: 'Märkte', marketsSub: 'Details', back: 'Zurück', latestPrice: 'Preis', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Chart', klineLoading: 'Lädt...', noKline: 'Keine Daten', goSwap: 'Tausch', loading: 'Lädt...', noMarkets: 'Keine',
-    swapTitle: 'Tausch', swapSub: 'Gegen USDT', pay: 'Zahlen', receive: 'Erhalten', balance: 'Guthaben', max: 'Max',
-    confirmSwap: 'Bestätigen', swapping: '...', needUsdt: 'Eine Seite muss USDT sein', swapOk: 'Erfolg',
+    swapTitle: 'Tausch', swapSub: 'Gegen USDC', pay: 'Zahlen', receive: 'Erhalten', balance: 'Guthaben', max: 'Max',
+    confirmSwap: 'Bestätigen', swapping: '...', needUsdt: 'Eine Seite muss USDC sein', swapOk: 'Erfolg',
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node kaufen', stake: 'Staken', myPositions: 'Positionen',
     noPlans: 'Keine Pläne', noPositions: 'Keine Positionen', buy: 'Kaufen', stakeBtn: 'Staken', dailyYield: 'Tageszins', days: 'Tage',
     principal: 'Kapital', accrued: 'Aufgelaufen', claimable: 'Abrufbar', claimed: 'Abgerufen', claim: 'Abrufen', claiming: '...',
@@ -175,11 +175,11 @@ const UI: Record<Lang, Record<string, string>> = {
   es: {
     accountSettings: 'Cuenta', securitySettings: 'Seguridad', withdrawPwdSet: 'Contraseña configurada', withdrawPwdNeed: 'Configure la contraseña', withdrawPassword: 'Contraseña de retiro', confirmWithdrawPassword: 'Confirmar', saveWithdrawPassword: 'Guardar', oldWithdrawPassword: 'Contraseña actual', changeWithdrawPassword: 'Cambiar', withdrawPwdRule: '6 dígitos', withdrawPwdSuccessSet: 'Contraseña configurada', withdrawPwdSuccessChange: 'Contraseña cambiada', oldPwdWrong: 'Contraseña actual incorrecta', newPwdSame: 'Debe ser diferente', infoCenter: 'Avisos', contactSupport: 'Soporte', notices: 'Anuncios', noNotices: 'Ninguno', selectNetwork: 'Red', withdrawAddress: 'Dirección', withdrawAmount: 'Cantidad', currentNetwork: 'Red actual', confirmWithdraw: 'Confirmar retiro', backToWallet: 'Volver',
     fundHistory: 'Historial', noHistory: 'Sin registros', invite: 'Invitar', copy: 'Copiar',
-    assets: 'Activos', deposit: 'Depósito', withdraw: 'Retiro',
+    assets: 'Activos', deposit: 'Depósito', selectNetwork: 'Red', depositAddress: 'Dirección de depósito', depositQr: 'QR', depositTips: 'Notas', tip1: 'Elija la red correcta.', tip2: 'Abono en Cartera → Historial.', tip3: 'No envíe a otras direcciones.', loadingAddress: 'Cargando...', retryAddress: 'Reintentar', minDeposit: 'Mín', network: 'Red', copyAddress: 'Copiar', txDeposit: 'Depósito', txWithdraw: 'Retiro', txSwap: 'Swap', txClaim: 'Reclamar', txBuyNode: 'Nodo', txStake: 'Stake', txAdmin: 'Admin', withdraw: 'Retiro',
     marketsTitle: 'Mercados', marketsSub: 'Detalles', back: 'Volver', latestPrice: 'Precio', change24h: '24h', volume24h: 'Volumen 24h',
     kline: 'Gráfico', klineLoading: 'Cargando...', noKline: 'Sin datos', goSwap: 'Intercambiar', loading: 'Cargando...', noMarkets: 'Vacío',
-    swapTitle: 'Swap', swapSub: 'Contra USDT', pay: 'Pagas', receive: 'Recibes', balance: 'Saldo', max: 'Máx',
-    confirmSwap: 'Confirmar', swapping: '...', needUsdt: 'Un lado debe ser USDT', swapOk: 'Éxito',
+    swapTitle: 'Swap', swapSub: 'Contra USDC', pay: 'Pagas', receive: 'Recibes', balance: 'Saldo', max: 'Máx',
+    confirmSwap: 'Confirmar', swapping: '...', needUsdt: 'Un lado debe ser USDC', swapOk: 'Éxito',
     investTitle: 'Compute', investSub: 'Nodos · Staking', buyNode: 'Comprar nodo', stake: 'Stake', myPositions: 'Posiciones',
     noPlans: 'Sin planes', noPositions: 'Sin posiciones', buy: 'Comprar', stakeBtn: 'Stake', dailyYield: 'Rend. diario', days: 'días',
     principal: 'Principal', accrued: 'Acumulado', claimable: 'Reclamable', claimed: 'Reclamado', claim: 'Reclamar', claiming: '...',
@@ -188,11 +188,11 @@ const UI: Record<Lang, Record<string, string>> = {
   ar: {
     accountSettings: 'الحساب', securitySettings: 'الأمان', withdrawPwdSet: 'تم تعيين كلمة المرور', withdrawPwdNeed: 'عيّن كلمة مرور السحب أولاً', withdrawPassword: 'كلمة مرور السحب', confirmWithdrawPassword: 'تأكيد', saveWithdrawPassword: 'حفظ', oldWithdrawPassword: 'كلمة المرور الحالية', changeWithdrawPassword: 'تغيير', withdrawPwdRule: '6 أرقام', withdrawPwdSuccessSet: 'تم التعيين', withdrawPwdSuccessChange: 'تم التغيير', oldPwdWrong: 'كلمة المرور الحالية خاطئة', newPwdSame: 'يجب أن تختلف', infoCenter: 'الإشعارات', contactSupport: 'الدعم', notices: 'الإعلانات', noNotices: 'لا يوجد', selectNetwork: 'الشبكة', withdrawAddress: 'العنوان', withdrawAmount: 'المبلغ', currentNetwork: 'الشبكة الحالية', confirmWithdraw: 'تأكيد السحب', backToWallet: 'رجوع',
     fundHistory: 'السجل', noHistory: 'لا سجلات', invite: 'دعوة', copy: 'نسخ',
-    assets: 'الأصول', deposit: 'إيداع', withdraw: 'سحب',
+    assets: 'الأصول', deposit: 'إيداع', selectNetwork: 'الشبكة', depositAddress: 'عنوان الإيداع', depositQr: 'QR', depositTips: 'ملاحظات', tip1: 'اختر الشبكة الصحيحة.', tip2: 'تظهر في المحفظة → السجل.', tip3: 'لا ترسل إلى عناوين أخرى.', loadingAddress: 'جاري التحميل...', retryAddress: 'إعادة', minDeposit: 'الحد', network: 'الشبكة', copyAddress: 'نسخ', txDeposit: 'إيداع', txWithdraw: 'سحب', txSwap: 'تبديل', txClaim: 'مطالبة', txBuyNode: 'عقدة', txStake: 'رهن', txAdmin: 'إدارة', withdraw: 'سحب',
     marketsTitle: 'الأسواق', marketsSub: 'التفاصيل', back: 'رجوع', latestPrice: 'السعر', change24h: '24س', volume24h: 'الحجم',
     kline: 'الرسم', klineLoading: 'جاري التحميل...', noKline: 'لا بيانات', goSwap: 'تبديل', loading: 'جاري...', noMarkets: 'لا يوجد',
-    swapTitle: 'تبديل', swapSub: 'مقابل USDT', pay: 'تدفع', receive: 'تستلم', balance: 'الرصيد', max: 'الكل',
-    confirmSwap: 'تأكيد', swapping: '...', needUsdt: 'يجب أن يكون أحد الجانبين USDT', swapOk: 'تم',
+    swapTitle: 'تبديل', swapSub: 'مقابل USDC', pay: 'تدفع', receive: 'تستلم', balance: 'الرصيد', max: 'الكل',
+    confirmSwap: 'تأكيد', swapping: '...', needUsdt: 'يجب أن يكون أحد الجانبين USDC', swapOk: 'تم',
     investTitle: 'الحوسبة', investSub: 'عقد · رهن', buyNode: 'شراء عقدة', stake: 'رهن', myPositions: 'المراكز',
     noPlans: 'لا خطط', noPositions: 'لا مراكز', buy: 'شراء', stakeBtn: 'رهن', dailyYield: 'عائد يومي', days: 'يوم',
     principal: 'الأصل', accrued: 'المتراكم', claimable: 'قابل للسحب', claimed: 'تم السحب', claim: 'سحب', claiming: '...',
@@ -201,11 +201,11 @@ const UI: Record<Lang, Record<string, string>> = {
   ja: {
     accountSettings: 'アカウント', securitySettings: 'セキュリティ', withdrawPwdSet: '出金パスワード設定済み', withdrawPwdNeed: '先に出金パスワードを設定', withdrawPassword: '出金パスワード', confirmWithdrawPassword: '確認', saveWithdrawPassword: '保存', oldWithdrawPassword: '現在のパスワード', changeWithdrawPassword: '変更', withdrawPwdRule: '6桁の数字', withdrawPwdSuccessSet: '設定しました', withdrawPwdSuccessChange: '変更しました', oldPwdWrong: '現在のパスワードが違います', newPwdSame: '新しいパスワードは別にしてください', infoCenter: 'お知らせ', contactSupport: 'サポート', notices: '公告', noNotices: 'なし', selectNetwork: 'ネットワーク', withdrawAddress: 'アドレス', withdrawAmount: '金額', currentNetwork: '現在のネットワーク', confirmWithdraw: '出金を確認', backToWallet: '戻る',
     fundHistory: '履歴', noHistory: '記録なし', invite: '招待', copy: 'コピー',
-    assets: '資産', deposit: '入金', withdraw: '出金',
+    assets: '資産', deposit: '入金', selectNetwork: 'ネットワーク', depositAddress: '入金アドレス', depositQr: 'QR', depositTips: '注意事項', tip1: '正しいネットワークを選んでください。', tip2: '入金はウォレット→履歴で確認。', tip3: '他のアドレスに送らないでください。', loadingAddress: '読み込み中...', retryAddress: '再取得', minDeposit: '最低', network: 'ネットワーク', copyAddress: 'コピー', txDeposit: '入金', txWithdraw: '出金', txSwap: 'スワップ', txClaim: '受取', txBuyNode: 'ノード', txStake: 'ステーク', txAdmin: '管理', withdraw: '出金',
     marketsTitle: '相場', marketsSub: '詳細を表示', back: '戻る', latestPrice: '最新価格', change24h: '24h', volume24h: '24h出来高',
     kline: 'チャート', klineLoading: '読込中...', noKline: 'データなし', goSwap: 'スワップへ', loading: '読込中...', noMarkets: 'なし',
-    swapTitle: 'スワップ', swapSub: 'USDTとの交換', pay: '支払', receive: '受取', balance: '残高', max: '最大',
-    confirmSwap: '確定', swapping: '処理中...', needUsdt: '片側はUSDTにしてください', swapOk: '成功',
+    swapTitle: 'スワップ', swapSub: 'USDCとの交換', pay: '支払', receive: '受取', balance: '残高', max: '最大',
+    confirmSwap: '確定', swapping: '処理中...', needUsdt: '片側はUSDCにしてください', swapOk: '成功',
     investTitle: '演算力', investSub: 'ノード · ステーキング', buyNode: 'ノード購入', stake: 'ステーク', myPositions: '保有と収益',
     noPlans: 'プランなし', noPositions: '保有なし', buy: '購入', stakeBtn: 'ステーク', dailyYield: '日次利回り', days: '日',
     principal: '元本', accrued: '累計収益', claimable: '受取可能', claimed: '受取済', claim: '受取', claiming: '処理中...',
@@ -616,9 +616,16 @@ function renderTabIcon(tab: TabKey, active: boolean) {
   return <TradingIcon active={active} />
 }
 
-function formatMoney(value?: number) {
-  return `${Number(value || 0).toFixed(2)} USDT`
+/** 登录后展示单位：平台计价显示为 USDC；充值/提现网络名称仍用后端返回的 USDT 文案 */
+const DISPLAY_UNIT = 'USDC'
+function formatMoney(value?: number, unit: string = DISPLAY_UNIT) {
+  return `${Number(value || 0).toFixed(2)} ${unit}`
 }
+function displayAssetSymbol(symbol?: string) {
+  const s = String(symbol || '').toUpperCase()
+  return s === 'USDT' ? DISPLAY_UNIT : (symbol || '')
+}
+
 
 
 function getChainIcon(chainName: string) {
@@ -1031,7 +1038,7 @@ function App() {
       .catch((error: Error) => {
         setDepositAddress('')
         setDepositQr('')
-        setDepositAddressError(error.message || '加载充值地址失败')
+        setDepositAddressError(error.message || '加载{ui.depositAddress || 'Address'}失败')
       })
       .finally(() => setDepositLoading(false))
   }, [route, token, selectedDepositNetwork])
@@ -1862,7 +1869,7 @@ function App() {
       }, token)
       if (r?.error) throw new Error(r.error)
       const claimed = Number(r.claimed || 0)
-      setDepinMsg(`${ui.claim} +${claimed.toFixed(4)} USDT`)
+      setDepinMsg(`${ui.claim} +${claimed.toFixed(4)} ${DISPLAY_UNIT}`)
       // 立即用接口返回的余额更新 UI，避免 /me 缓存或字段不一致
       if (r.wallet_balance != null || r.balance != null) {
         setUser((prev: any) =>
@@ -1947,7 +1954,7 @@ function App() {
       <div className="section-head">
         <div>
           <h2>{ui.investTitle}</h2>
-          <p className="muted">{ui.balance} {Number(user?.wallet_balance || 0).toFixed(2)} USDT</p>
+          <p className="muted">{ui.balance} {Number(user?.wallet_balance || 0).toFixed(2)} {DISPLAY_UNIT}</p>
         </div>
       </div>
       <div className="trading-quick-amounts" style={{ marginBottom: 16 }}>
@@ -1967,7 +1974,7 @@ function App() {
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 12 }}>
                 <div>
                   <strong>{p.name}</strong>
-                  <span>{Number(p.price).toFixed(2)} USDT · {ui.dailyYield} {Number(p.daily_yield_rate).toFixed(2)}% · {p.term_days}{ui.days}</span>
+                  <span>{Number(p.price).toFixed(2)} {DISPLAY_UNIT} · {ui.dailyYield} {Number(p.daily_yield_rate).toFixed(2)}% · {p.term_days}{ui.days}</span>
                   {desc ? <span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>{desc}</span> : null}
                 </div>
                 <button className="primary-button" style={{ width: 'auto', padding: '8px 14px', flexShrink: 0 }} onClick={() => buyNode(Number(p.id))}>{ui.buy}</button>
@@ -1981,7 +1988,7 @@ function App() {
 
       {depinTab === 'stake' && (
         <div className="panel-card" style={{ maxWidth: 480 }}>
-          <input className="trading-amount-input" type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder="质押金额 USDT" />
+          <input className="trading-amount-input" type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder={ui.stakeAmountPh || `Amount (${DISPLAY_UNIT})`} />
           <div className="trading-quick-amounts" style={{ marginTop: 8 }}>
             {[30, 60, 90, 180].map((d) => (
               <button key={d} type="button" className={`trading-quick-btn${stakeDays === d ? ' active' : ''}`} onClick={() => setStakeDays(d)}>{d}天</button>
@@ -1996,7 +2003,7 @@ function App() {
           <h3>{ui.myPositions}</h3>
           {depinSummary && (
             <p className="muted">
-              {ui.totalClaimable}: {Number(depinSummary.total_claimable || 0).toFixed(4)} USDT
+              {ui.totalClaimable}: {Number(depinSummary.total_claimable || 0).toFixed(4)} {DISPLAY_UNIT}
             </p>
           )}
         </div>
@@ -2017,7 +2024,7 @@ function App() {
                     {item.daily_yield_rate != null ? ` · ${ui.dailyYield} ${Number(item.daily_yield_rate).toFixed(2)}%` : ''}
                   </span>
                 </div>
-                <strong>{Number(item.amount || 0).toFixed(2)} USDT</strong>
+                <strong>{Number(item.amount || 0).toFixed(2)} {DISPLAY_UNIT}</strong>
               </div>
               <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <span>{ui.accrued}: {accrued.toFixed(4)}</span>
@@ -2047,25 +2054,31 @@ function App() {
     const toggleGroup = (key: string) => setProfileOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
     const typeLabel = (t: string) => {
       const map: Record<string, string> = {
-        depin_swap: ui.swapTitle || 'Swap',
-        depin_buy_node: ui.buyNode || 'Buy node',
-        depin_stake: ui.stake || 'Stake',
-        depin_yield: ui.claim || 'Yield',
-        product_yield: ui.claim || 'Yield',
-        deposit: ui.deposit,
-        withdraw: ui.withdraw,
-        admin_adjust: 'Admin',
-        admin_credit: 'Admin +',
-        admin_debit: 'Admin -',
+        depin_swap: ui.txSwap || ui.swapTitle || 'Swap',
+        depin_buy_node: ui.txBuyNode || ui.buyNode || 'Buy node',
+        depin_stake: ui.txStake || ui.stake || 'Stake',
+        depin_yield: ui.txClaim || ui.claim || 'Claim',
+        product_yield: ui.txClaim || ui.claim || 'Claim',
+        deposit: ui.txDeposit || ui.deposit,
+        withdrawal: ui.txWithdraw || ui.withdraw,
+        withdraw: ui.txWithdraw || ui.withdraw,
+        admin_adjust: ui.txAdmin || 'Admin',
+        admin_credit: ui.txAdmin || 'Admin',
+        admin_debit: ui.txAdmin || 'Admin',
       }
       return map[t] || t || '—'
+    }
+    const describeLedger = (row: any) => {
+      const d = String(row.description || '')
+      // 展示资产符号时 USDT → USDC（网络名不在此列）
+      return d.replace(/\bUSDT\b/g, DISPLAY_UNIT)
     }
     return (
       <section className="view-stack wallet-page">
         <div className="hero-panel profile-hero">
           <div>
             <span className="eyebrow">{ui.assets}</span>
-            <h2>≈ {Number(totalAssetUsdt || user?.wallet_balance || 0).toFixed(2)} USDT</h2>
+            <h2>≈ {Number(totalAssetUsdt || user?.wallet_balance || 0).toFixed(2)} {DISPLAY_UNIT}</h2>
             <p className="muted">{user?.email || user?.username || ''} · UID {user?.unique_id}</p>
           </div>
           <div className="button-row">
@@ -2087,13 +2100,13 @@ function App() {
             <div className="list-item" key={a.symbol}>
               <div className="mk-left">
                 <div>
-                  <strong>{a.symbol}</strong>
+                  <strong>{displayAssetSymbol(a.symbol)}</strong>
                   <span>{Number(a.amount || 0).toFixed(6)}</span>
                 </div>
               </div>
               <div className="mk-right">
                 <strong>≈ {Number(a.value_usdt || 0).toFixed(2)}</strong>
-                <span>USDT</span>
+                <span>{DISPLAY_UNIT}</span>
               </div>
             </div>
           ))}
@@ -2121,7 +2134,7 @@ function App() {
                       <div className="mk-left">
                         <div>
                           <strong>{typeLabel(String(row.type || ''))}</strong>
-                          <span>{row.description || '—'}</span>
+                          <span>{describeLedger(row) || '—'}</span>
                           <span style={{ display: 'block', fontSize: 11 }}>
                             {row.created_at ? new Date(row.created_at).toLocaleString() : ''}
                           </span>
@@ -2394,7 +2407,7 @@ function App() {
       if (!result?.success) throw new Error(result?.error || '兑换失败')
       const got = Number(result?.to_amount ?? result?.item?.to_amount)
       if (!Number.isFinite(got) || got <= 0) throw new Error('兑换结果无效，请重试')
-      setSwapMsg(`${ui.swapOk}: ${amt} ${swapFrom} → ${got.toFixed(6)} ${swapTo}`)
+      setSwapMsg(`${ui.swapOk}: ${amt} ${displayAssetSymbol(swapFrom)} → ${got.toFixed(6)} ${displayAssetSymbol(swapTo)}`)
       setSwapAmount('')
       if (result.wallet_balance != null) {
         setUser((prev: any) =>
@@ -2447,7 +2460,7 @@ function App() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input className="trading-amount-input" style={{ flex: 1 }} type="number" min="0" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} placeholder="0" />
             <button type="button" className="coin-select-btn" onClick={() => setCoinPicker('from')}>
-              {swapFrom} ▾
+              {displayAssetSymbol(swapFrom)} ▾
             </button>
           </div>
         </div>
@@ -2462,7 +2475,7 @@ function App() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input className="trading-amount-input" style={{ flex: 1 }} type="number" readOnly value={estimatedOut ? estimatedOut.toFixed(6) : ''} placeholder="0" />
             <button type="button" className="coin-select-btn" onClick={() => setCoinPicker('to')}>
-              {swapTo} ▾
+              {displayAssetSymbol(swapTo)} ▾
             </button>
           </div>
         </div>
@@ -2759,13 +2772,13 @@ function App() {
         <main className="main-card">
           <div className="section-head">
             <div>
-              <h2>充值</h2>
+              <h2>{ui.deposit}</h2>
             </div>
-            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>返回用户中心</button>
+            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>{ui.backToWallet || ui.back || 'Back'}</button>
           </div>
 
           {depositNetworksLoading ? (
-            <div className="empty-card inset">正在加载充值网络...</div>
+            <div className="empty-card inset">{ui.loading}</div>
           ) : depositNetworksError ? (
             <div className="deposit-error-state">
               <div className="hint-box error">{depositNetworksError}</div>
@@ -2774,13 +2787,13 @@ function App() {
                 setDepositNetworks([])
                 setSelectedDepositNetwork('')
               }}>
-                点击重试
+                {ui.retryAddress || 'Retry'}
               </button>
             </div>
           ) : (
             <div className="field-grid">
               <label>
-                <span>选择网络</span>
+                <span>{ui.selectNetwork}</span>
               </label>
               <div className="network-card-grid">
                 {depositNetworks.map((network) => (
@@ -2794,7 +2807,7 @@ function App() {
                       <div className="network-card-name">{network.network_display}</div>
                       <div className="network-card-chain">{network.chain_name}</div>
                       {network.min_deposit_amount != null && (
-                        <div className="network-card-min">最低 {formatMoney(network.min_deposit_amount)}</div>
+                        <div className="network-card-min">{ui.minDeposit || 'Min'} {formatMoney(network.min_deposit_amount, 'USDT')}</div>
                       )}
                     </div>
                     {String(network.id) === selectedDepositNetwork && <span className="network-card-check">✓</span>}
@@ -2806,7 +2819,7 @@ function App() {
 
           {!depositNetworksLoading && !depositNetworksError && (
             depositLoading ? (
-              <div className="empty-card inset">正在加载充值地址...</div>
+              <div className="empty-card inset">{ui.loadingAddress || ui.loading}</div>
             ) : depositAddressError ? (
               <div className="deposit-error-state">
                 <div className="hint-box error">{depositAddressError}</div>
@@ -2815,13 +2828,13 @@ function App() {
                   setDepositAddress('')
                   setDepositQr('')
                 }}>
-                  重新获取地址
+                  {ui.retryAddress || 'Retry'}
                 </button>
               </div>
             ) : (
               <div className="content-grid">
                 <article className="panel-card">
-                  <h3>充值地址</h3>
+                  <h3>{ui.depositAddress || 'Address'}</h3>
                   <div
                     className="address-box"
                     title="点击复制"
@@ -2835,23 +2848,23 @@ function App() {
                   >
                     {depositAddress || '暂无地址'}
                   </div>
-                  <div className="muted-text">网络：{currentDepositNetwork?.network_display || '--'} · 最低充值：{formatMoney(currentDepositNetwork?.min_deposit_amount)}</div>
+                  <div className="muted-text">{ui.network || 'Network'}：{currentDepositNetwork?.network_display || '--'} · {ui.minDeposit}：{formatMoney(currentDepositNetwork?.min_deposit_amount, 'USDT')}</div>
                 </article>
 
                 <article className="panel-card center">
-                  <h3>二维码</h3>
-                  {depositQr ? <img className="qr-image" src={depositQr} alt="Deposit QR Code" /> : <div className="empty-card inset">暂无二维码</div>}
+                  <h3>{ui.depositQr || 'QR'}</h3>
+                  {depositQr ? <img className="qr-image" src={depositQr} alt="Deposit QR Code" /> : <div className="empty-card inset">{ui.noNotices || '—'}</div>}
                 </article>
               </div>
             )
           )}
 
           <article className="panel-card">
-            <h3>充值注意事项</h3>
+            <h3>{ui.depositTips || ''}</h3>
             <ul className="bullet-list">
-              <li>请务必选择正确的网络后再转账，避免资产损失。</li>
-              <li>到账记录可在“个人中心 - 最近钱包记录”中查看。</li>
-              <li>网页端当前不开放转账功能，请勿向其他用户地址误转。</li>
+              <li>{ui.tip1}</li>
+              <li>{ui.tip2}</li>
+              <li>{ui.tip3}</li>
             </ul>
           </article>
         </main>
