@@ -131,7 +131,7 @@ const UI: Record<Lang, Record<string, string>> = {
     investTitle: '算力', investSub: '购买节点 · 资产质押', buyNode: '购买节点', stake: '资产质押', myPositions: '我的持仓与收益',
     noPlans: '暂无节点套餐', noPositions: '暂无持仓', buy: '购买', stakeBtn: '确认质押', dailyYield: '日收益', days: '天',
     principal: '本金', accrued: '累计收益', claimable: '可领取', claimed: '已领取', claim: '领取收益', claiming: '领取中...',
-    matured: '已到期', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
+    matured: '已到期', progress: '进度', daysLeft: '剩余天数', principalReturned: '本金已返还', matureReturn: '到期返还', confirmStake: '确认质押', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
   en: {
     accountSettings: 'Account', securitySettings: 'Security', withdrawPwdSet: 'Password is set', withdrawPwdNeed: 'Set withdraw password first', withdrawPassword: 'Withdraw password', confirmWithdrawPassword: 'Confirm password', saveWithdrawPassword: 'Save password', oldWithdrawPassword: 'Current password', changeWithdrawPassword: 'Change password', withdrawPwdRule: 'Enter 6 digits', withdrawPwdSuccessSet: 'Password set successfully', withdrawPwdSuccessChange: 'Password changed successfully', oldPwdWrong: 'Current password is wrong', newPwdSame: 'New password must differ', infoCenter: 'Notices', contactSupport: 'Support', notices: 'Announcements', noNotices: 'No notices', selectNetwork: 'Select network', withdrawAddress: 'Address', withdrawAmount: 'Amount', currentNetwork: 'Network', confirmWithdraw: 'Confirm withdraw', backToWallet: 'Back to wallet',
@@ -144,7 +144,7 @@ const UI: Record<Lang, Record<string, string>> = {
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Buy node', stake: 'Stake', myPositions: 'Positions & yield',
     noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'days',
     principal: 'Principal', accrued: 'Accrued', claimable: 'Claimable', claimed: 'Claimed', claim: 'Claim', claiming: 'Claiming...',
-    matured: 'Matured', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
+    matured: 'Matured', progress: 'Progress', daysLeft: 'Days left', principalReturned: 'Principal returned', matureReturn: 'Matured return', confirmStake: 'Confirm stake', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
     accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', oldWithdrawPassword: 'Mot de passe actuel', changeWithdrawPassword: 'Modifier', withdrawPwdRule: '6 chiffres', withdrawPwdSuccessSet: 'Mot de passe défini', withdrawPwdSuccessChange: 'Mot de passe modifié', oldPwdWrong: 'Mot de passe actuel incorrect', newPwdSame: 'Doit être différent', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
@@ -157,7 +157,7 @@ const UI: Record<Lang, Record<string, string>> = {
     investTitle: 'Compute', investSub: 'Nœuds · Staking', buyNode: 'Acheter', stake: 'Staker', myPositions: 'Positions',
     noPlans: 'Aucun plan', noPositions: 'Aucune position', buy: 'Acheter', stakeBtn: 'Staker', dailyYield: 'Rendement/j', days: 'jours',
     principal: 'Principal', accrued: 'Accumulé', claimable: 'Réclamable', claimed: 'Réclamé', claim: 'Réclamer', claiming: '...',
-    matured: 'Échu', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
+    matured: 'Échu', progress: 'Progression', daysLeft: 'Jours restants', principalReturned: 'Principal rendu', matureReturn: 'Échéance', confirmStake: 'Confirmer', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
   de: {
     accountSettings: 'Konto', securitySettings: 'Sicherheit', withdrawPwdSet: 'Passwort gesetzt', withdrawPwdNeed: 'Zuerst Passwort setzen', withdrawPassword: 'Auszahlungspasswort', confirmWithdrawPassword: 'Bestätigen', saveWithdrawPassword: 'Speichern', oldWithdrawPassword: 'Aktuelles Passwort', changeWithdrawPassword: 'Ändern', withdrawPwdRule: '6 Ziffern', withdrawPwdSuccessSet: 'Passwort gesetzt', withdrawPwdSuccessChange: 'Passwort geändert', oldPwdWrong: 'Aktuelles Passwort falsch', newPwdSame: 'Muss anders sein', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Mitteilungen', noNotices: 'Keine', selectNetwork: 'Netzwerk', withdrawAddress: 'Adresse', withdrawAmount: 'Betrag', currentNetwork: 'Netzwerk', confirmWithdraw: 'Auszahlung bestätigen', backToWallet: 'Zurück',
@@ -170,7 +170,7 @@ const UI: Record<Lang, Record<string, string>> = {
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node kaufen', stake: 'Staken', myPositions: 'Positionen',
     noPlans: 'Keine Pläne', noPositions: 'Keine Positionen', buy: 'Kaufen', stakeBtn: 'Staken', dailyYield: 'Tageszins', days: 'Tage',
     principal: 'Kapital', accrued: 'Aufgelaufen', claimable: 'Abrufbar', claimed: 'Abgerufen', claim: 'Abrufen', claiming: '...',
-    matured: 'Fällig', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
+    matured: 'Fällig', progress: 'Fortschritt', daysLeft: 'Verbleibend', principalReturned: 'Kapital zurück', matureReturn: 'Fälligkeit', confirmStake: 'Bestätigen', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
   es: {
     accountSettings: 'Cuenta', securitySettings: 'Seguridad', withdrawPwdSet: 'Contraseña configurada', withdrawPwdNeed: 'Configure la contraseña', withdrawPassword: 'Contraseña de retiro', confirmWithdrawPassword: 'Confirmar', saveWithdrawPassword: 'Guardar', oldWithdrawPassword: 'Contraseña actual', changeWithdrawPassword: 'Cambiar', withdrawPwdRule: '6 dígitos', withdrawPwdSuccessSet: 'Contraseña configurada', withdrawPwdSuccessChange: 'Contraseña cambiada', oldPwdWrong: 'Contraseña actual incorrecta', newPwdSame: 'Debe ser diferente', infoCenter: 'Avisos', contactSupport: 'Soporte', notices: 'Anuncios', noNotices: 'Ninguno', selectNetwork: 'Red', withdrawAddress: 'Dirección', withdrawAmount: 'Cantidad', currentNetwork: 'Red actual', confirmWithdraw: 'Confirmar retiro', backToWallet: 'Volver',
@@ -1994,7 +1994,7 @@ function App() {
               <button key={d} type="button" className={`trading-quick-btn${stakeDays === d ? ' active' : ''}`} onClick={() => setStakeDays(d)}>{d}天</button>
             ))}
           </div>
-          <button className="primary-button" style={{ marginTop: 12 }} onClick={doStake}>确认质押</button>
+          <button className="primary-button" style={{ marginTop: 12 }} onClick={doStake}>{ui.confirmStake || 'Confirm'}</button>
         </div>
       )}
 
@@ -2013,25 +2013,39 @@ function App() {
           const claimable = Number(item.claimable_yield || 0)
           const accrued = Number(item.accrued_yield || 0)
           const claimed = Number(item.claimed_yield || item.total_yield || 0)
+          const pct = Math.min(100, Math.max(0, Number(item.progress_pct || 0)))
+          const totalDays = Number(item.total_days || item.lock_days || 0)
+          const remain = Number(item.remaining_days || 0)
+          const done = item.status === 'completed' || item.principal_returned
           return (
             <div className="list-item" key={item.id} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                 <div>
                   <strong>{item.mode === 'node_server' ? ui.buyNode : item.mode === 'asset_stake' ? ui.stake : item.mode}</strong>
                   <span>
-                    {item.is_matured ? ui.matured : ui.active}
+                    {done ? (ui.principalReturned || ui.matured) : item.is_matured ? ui.matured : ui.active}
                     {item.lock_days ? ` · ${item.lock_days}${ui.days}` : ''}
                     {item.daily_yield_rate != null ? ` · ${ui.dailyYield} ${Number(item.daily_yield_rate).toFixed(2)}%` : ''}
                   </span>
                 </div>
                 <strong>{Number(item.amount || 0).toFixed(2)} {DISPLAY_UNIT}</strong>
               </div>
+              <div className="progress-wrap" title={`${ui.progress || 'Progress'} ${pct}%`}>
+                <div className="progress-bar" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <span>{ui.progress || 'Progress'}: {pct.toFixed(0)}%</span>
+                <span>
+                  {Number(item.elapsed_days || 0).toFixed(1)}/{totalDays || '—'}{ui.days}
+                  {!done && totalDays > 0 ? ` · ${ui.daysLeft || 'Left'} ${remain.toFixed(1)}` : ''}
+                </span>
+              </div>
               <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <span>{ui.accrued}: {accrued.toFixed(4)}</span>
                 <span>{ui.claimable}: {claimable.toFixed(4)}</span>
                 <span>{ui.claimed}: {claimed.toFixed(4)}</span>
               </div>
-              {claimable > 0 && (
+              {claimable > 0 && !done && (
                 <button
                   className="primary-button"
                   style={{ width: 'auto', alignSelf: 'flex-end', padding: '6px 12px' }}
@@ -2065,13 +2079,22 @@ function App() {
         admin_adjust: ui.txAdmin || 'Admin',
         admin_credit: ui.txAdmin || 'Admin',
         admin_debit: ui.txAdmin || 'Admin',
+        depin_mature_return: ui.matureReturn || 'Matured return',
       }
       return map[t] || t || '—'
     }
     const describeLedger = (row: any) => {
-      const d = String(row.description || '')
-      // 展示资产符号时 USDT → USDC（网络名不在此列）
-      return d.replace(/\bUSDT\b/g, DISPLAY_UNIT)
+      let d = String(row.description || '')
+      d = d.replace(/\bUSDT\b/g, DISPLAY_UNIT)
+      // 常见中文流水 → 当前语言
+      d = d.replace(/DePIN\s*收益领取\s*#(\d+)/gi, (_, id) => `${ui.txClaim || ui.claim || 'Claim'} #${id}`)
+      d = d.replace(/DePIN\s*到期返还\s*#(\d+)/gi, (_, id) => `${ui.matureReturn || 'Matured'} #${id}`)
+      d = d.replace(/本金/g, DISPLAY_UNIT)
+      d = d.replace(/\+收益/g, `+${ui.txClaim || 'yield'}`)
+      d = d.replace(/闪兑/g, ui.txSwap || ui.swapTitle || 'Swap')
+      d = d.replace(/购买节点/g, ui.txBuyNode || 'Node')
+      d = d.replace(/资产质押/g, ui.txStake || 'Stake')
+      return d
     }
     return (
       <section className="view-stack wallet-page">
@@ -2121,7 +2144,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
               <button type="button" className="trading-quick-btn" onClick={() => loadWalletLedger()}>↻</button>
             </div>
-            <div className="list-stack">
+            <div className="list-stack ledger-scroll">
               {walletLedgerLoading && <div className="empty-card">{ui.loading}</div>}
               {!walletLedgerLoading && !walletLedger.length && (
                 <div className="empty-card">{ui.noHistory || '—'}</div>
