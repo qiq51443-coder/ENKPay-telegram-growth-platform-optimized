@@ -13,19 +13,112 @@ function enrichPosition(row: any) {
   const start = row.start_at ? new Date(row.start_at).getTime() : Date.now();
   const end = row.end_at ? new Date(row.end_at).getTime() : null;
   const now = Date.now();
+  const lockDays = Number(row.lock_days || 0);
+  const totalDays =
+    lockDays > 0
+      ? lockDays
+      : end
+        ? Math.max(1, (end - start) / (24 * 3600 * 1000))
+        : 0;
   const effectiveEnd = end && end < now ? end : now;
-  const days = Math.max(0, (effectiveEnd - start) / (24 * 3600 * 1000));
+  const elapsedRaw = Math.max(0, (effectiveEnd - start) / (24 * 3600 * 1000));
+  const days = totalDays > 0 ? Math.min(elapsedRaw, totalDays) : elapsedRaw;
   const accrued = amount * (rate / 100) * days;
   const claimable = Math.max(0, accrued - claimed);
-  const is_matured = !!(end && end <= now);
+  const is_matured = !!(end && end <= now) || (totalDays > 0 && elapsedRaw >= totalDays);
+  const progress_pct =
+    totalDays > 0 ? Math.min(100, Number(((elapsedRaw / totalDays) * 100).toFixed(2))) : is_matured ? 100 : 0;
+  const remaining_days = totalDays > 0 ? Math.max(0, Number((totalDays - elapsedRaw).toFixed(2))) : 0;
   return {
     ...row,
     accrued_yield: Number(accrued.toFixed(8)),
     claimable_yield: Number(claimable.toFixed(8)),
     claimed_yield: claimed,
-    elapsed_days: Number(days.toFixed(4)),
+    elapsed_days: Number(elapsedRaw.toFixed(4)),
+    total_days: Number(totalDays.toFixed(4)),
+    remaining_days,
+    progress_pct,
     is_matured,
+    principal_returned: row.status === 'completed' || row.status === 'matured_returned',
   };
+}
+
+/** 到期自动返还本金（+未领收益），幂等：仅处理 status=active 且已到期 */
+async function settleMaturedPositions(userId?: string) {
+  try {
+    const params: any[] = [];
+    let sql = `SELECT * FROM depin_positions
+      WHERE status = 'active'
+        AND end_at IS NOT NULL
+        AND end_at <= NOW()`;
+    if (userId) {
+      params.push(userId);
+      sql += ` AND user_id = $1`;
+    }
+    sql += ` ORDER BY id ASC LIMIT 50`;
+    const rows = (await query(sql, params)).rows;
+    for (const raw of rows) {
+      try {
+        await transaction(async (client) => {
+          const locked = await client.query(
+            `SELECT * FROM depin_positions WHERE id = $1 AND status = 'active' FOR UPDATE`,
+            [raw.id]
+          );
+          if (!locked.rows.length) return;
+          const pos = enrichPosition(locked.rows[0]);
+          if (!pos.is_matured) return;
+          const uid = String(pos.user_id);
+          const principal = parseFloat(String(pos.amount || 0));
+          const claimable = Number(pos.claimable_yield || 0);
+          let totalCredit = 0;
+          if (claimable > 0.00000001) {
+            await addTokenBalance(client, uid, 'USDT', claimable);
+            totalCredit += claimable;
+            await client.query(
+              `UPDATE depin_positions SET total_yield = COALESCE(total_yield, 0) + $1 WHERE id = $2`,
+              [claimable, pos.id]
+            );
+          }
+          if (principal > 0) {
+            await addTokenBalance(client, uid, 'USDT', principal);
+            totalCredit += principal;
+          }
+          try {
+            await client.query(
+              `UPDATE depin_positions SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+              [pos.id]
+            );
+          } catch {
+            await client.query(`UPDATE depin_positions SET status = 'completed' WHERE id = $1`, [pos.id]);
+          }
+          const bal = await client.query(`SELECT wallet_balance FROM users WHERE id = $1`, [uid]);
+          const walletAfter = parseFloat(String(bal.rows[0]?.wallet_balance ?? 0));
+          const desc = `DePIN 到期返还 #${pos.id} 本金 ${principal}` + (claimable > 0 ? ` +收益 ${claimable}` : '');
+          try {
+            await client.query(
+              `INSERT INTO transactions (user_id, type, amount, balance_after, description)
+               VALUES ($1,'depin_mature_return',$2,$3,$4)`,
+              [uid, totalCredit, walletAfter, desc]
+            );
+          } catch {
+            try {
+              await client.query(
+                `INSERT INTO transactions (user_id, type, amount, description)
+                 VALUES ($1,'depin_mature_return',$2,$3)`,
+                [uid, totalCredit, desc]
+              );
+            } catch (e: any) {
+              console.warn('[depin] mature ledger', e.message);
+            }
+          }
+        });
+      } catch (e: any) {
+        console.warn('[depin] settle position', raw.id, e.message);
+      }
+    }
+  } catch (e: any) {
+    console.warn('[depin] settleMaturedPositions', e.message);
+  }
 }
 
 
@@ -188,6 +281,7 @@ router.delete('/admin/plans/:id', authenticateAdmin, async (req: AuthRequest, re
 router.get('/admin/investments', authenticateAdmin, async (req: AuthRequest, res) => {
   try {
     await ensureWebTables();
+    await settleMaturedPositions();
     const { search, mode, limit } = req.query as any;
     const params: any[] = [];
     let sql = `SELECT p.*, u.email AS user_email FROM depin_positions p LEFT JOIN users u ON u.id = p.user_id WHERE 1=1`;
@@ -376,6 +470,7 @@ router.get('/web/plans', authenticateWebUser, async (_req, res) => {
 router.get('/web/positions', authenticateWebUser, async (req: WebAuthRequest, res) => {
   try {
     await ensureWebTables();
+    await settleMaturedPositions(req.webUser!.id);
     const rows = (await query(`SELECT * FROM depin_positions WHERE user_id = $1 ORDER BY id DESC LIMIT 100`, [req.webUser!.id])).rows;
     const items = rows.map(enrichPosition);
     const summary = {
