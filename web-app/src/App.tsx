@@ -141,10 +141,10 @@ const UI: Record<Lang, Record<string, string>> = {
     kline: 'Chart', klineLoading: 'Loading chart...', noKline: 'No chart data', goSwap: 'Swap', loading: 'Loading...', noMarkets: 'No markets',
     swapTitle: 'Swap', swapSub: 'Trade vs USDC · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
     confirmSwap: 'Confirm swap', swapping: 'Swapping...', needUsdt: 'One side must be USDC', swapOk: 'Swap success',
-    investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Buy node', stake: 'Stake', myPositions: 'Positions & yield',
+    investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node', stake: 'Stake', myPositions: 'Positions',
     noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'days',
     principal: 'Principal', accrued: 'Accrued', claimable: 'Claimable', claimed: 'Claimed', claim: 'Claim', claiming: 'Claiming...',
-    matured: 'Matured', progress: 'Progress', daysLeft: 'Days left', principalReturned: 'Principal returned', matureReturn: 'Matured return', confirmStake: 'Confirm stake', active: 'Active', totalClaimable: 'Claimable total', wallet: 'Wallet', totalAssets: 'Total assets',
+    matured: 'Matured', progress: 'Progress', daysLeft: 'Days left', principalReturned: 'Returned', matureReturn: 'Matured return', confirmStake: 'Confirm stake', active: 'Active', totalClaimable: 'Claimable', wallet: 'Wallet', totalAssets: 'Total assets',
   },
   fr: {
     accountSettings: 'Compte', securitySettings: 'Sécurité', withdrawPwdSet: 'Mot de passe défini', withdrawPwdNeed: 'Définir le mot de passe', withdrawPassword: 'Mot de passe retrait', confirmWithdrawPassword: 'Confirmer', saveWithdrawPassword: 'Enregistrer', oldWithdrawPassword: 'Mot de passe actuel', changeWithdrawPassword: 'Modifier', withdrawPwdRule: '6 chiffres', withdrawPwdSuccessSet: 'Mot de passe défini', withdrawPwdSuccessChange: 'Mot de passe modifié', oldPwdWrong: 'Mot de passe actuel incorrect', newPwdSame: 'Doit être différent', infoCenter: 'Infos', contactSupport: 'Support', notices: 'Annonces', noNotices: 'Aucune', selectNetwork: 'Réseau', withdrawAddress: 'Adresse', withdrawAmount: 'Montant', currentNetwork: 'Réseau actuel', confirmWithdraw: 'Confirmer le retrait', backToWallet: 'Retour',
@@ -2017,42 +2017,65 @@ function App() {
           const totalDays = Number(item.total_days || item.lock_days || 0)
           const remain = Number(item.remaining_days || 0)
           const done = item.status === 'completed' || item.principal_returned
+          const modeLabel = item.mode === 'node_server' ? ui.buyNode : item.mode === 'asset_stake' ? ui.stake : item.mode
+          const statusLabel = done ? (ui.principalReturned || ui.matured) : item.is_matured ? ui.matured : ui.active
           return (
-            <div className="list-item" key={item.id} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                <div>
-                  <strong>{item.mode === 'node_server' ? ui.buyNode : item.mode === 'asset_stake' ? ui.stake : item.mode}</strong>
-                  <span>
-                    {done ? (ui.principalReturned || ui.matured) : item.is_matured ? ui.matured : ui.active}
+            <div className="depin-pos-card" key={item.id}>
+              <div className="depin-pos-top">
+                <div className="depin-pos-title">
+                  <strong>{modeLabel}</strong>
+                  <span className="depin-pos-meta">
+                    {statusLabel}
                     {item.lock_days ? ` · ${item.lock_days}${ui.days}` : ''}
-                    {item.daily_yield_rate != null ? ` · ${ui.dailyYield} ${Number(item.daily_yield_rate).toFixed(2)}%` : ''}
                   </span>
+                  {item.daily_yield_rate != null && (
+                    <span className="depin-pos-meta">{ui.dailyYield} {Number(item.daily_yield_rate).toFixed(2)}%</span>
+                  )}
                 </div>
-                <strong>{Number(item.amount || 0).toFixed(2)} {DISPLAY_UNIT}</strong>
+                <div className="depin-pos-amount">
+                  <strong>{Number(item.amount || 0).toFixed(2)}</strong>
+                  <span>{DISPLAY_UNIT}</span>
+                </div>
               </div>
-              <div className="progress-wrap" title={`${ui.progress || 'Progress'} ${pct}%`}>
+              <div className="progress-wrap" title={`${pct}%`}>
                 <div className="progress-bar" style={{ width: `${pct}%` }} />
               </div>
-              <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <span>{ui.progress || 'Progress'}: {pct.toFixed(0)}%</span>
-                <span>
-                  {Number(item.elapsed_days || 0).toFixed(1)}/{totalDays || '—'}{ui.days}
-                  {!done && totalDays > 0 ? ` · ${ui.daysLeft || 'Left'} ${remain.toFixed(1)}` : ''}
-                </span>
+              <div className="depin-pos-stats">
+                <div className="depin-pos-stat">
+                  <span className="depin-pos-stat-label">{ui.progress}</span>
+                  <span className="depin-pos-stat-value">{pct.toFixed(0)}%</span>
+                </div>
+                <div className="depin-pos-stat">
+                  <span className="depin-pos-stat-label">{ui.days}</span>
+                  <span className="depin-pos-stat-value">{Number(item.elapsed_days || 0).toFixed(0)}/{totalDays || '—'}</span>
+                </div>
+                {!done && (
+                  <div className="depin-pos-stat">
+                    <span className="depin-pos-stat-label">{ui.daysLeft}</span>
+                    <span className="depin-pos-stat-value">{remain.toFixed(0)}</span>
+                  </div>
+                )}
+                <div className="depin-pos-stat">
+                  <span className="depin-pos-stat-label">{ui.accrued}</span>
+                  <span className="depin-pos-stat-value">{accrued.toFixed(4)}</span>
+                </div>
+                <div className="depin-pos-stat">
+                  <span className="depin-pos-stat-label">{ui.claimable}</span>
+                  <span className="depin-pos-stat-value price-up">{claimable.toFixed(4)}</span>
+                </div>
+                <div className="depin-pos-stat">
+                  <span className="depin-pos-stat-label">{ui.claimed}</span>
+                  <span className="depin-pos-stat-value">{claimed.toFixed(4)}</span>
+                </div>
               </div>
-              <div className="muted" style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <span>{ui.accrued}: {accrued.toFixed(4)}</span>
-                <span>{ui.claimable}: {claimable.toFixed(4)}</span>
-                <span>{ui.claimed}: {claimed.toFixed(4)}</span>
-              </div>
-              {claimable > 0 && !done && (
+              {!done && claimable > 0.00000001 && (
                 <button
-                  className="primary-button"
-                  style={{ width: 'auto', alignSelf: 'flex-end', padding: '6px 12px' }}
-                  disabled={claimingId === Number(item.id)}
+                  type="button"
+                  className="primary-button depin-claim-btn"
+                  disabled={claimingId === item.id}
                   onClick={() => handleClaimYield(Number(item.id))}
                 >
-                  {claimingId === Number(item.id) ? ui.claiming : ui.claim}
+                  {claimingId === item.id ? ui.claiming : ui.claim}
                 </button>
               )}
             </div>
@@ -2529,7 +2552,7 @@ function App() {
                   setCoinPicker(null)
                 }}
               >
-                <span>{s}</span>
+                <span>{displayAssetSymbol(s)}</span>
                 {(coinPicker === 'from' ? swapFrom : swapTo) === s ? <span>✓</span> : null}
               </button>
             ))}
