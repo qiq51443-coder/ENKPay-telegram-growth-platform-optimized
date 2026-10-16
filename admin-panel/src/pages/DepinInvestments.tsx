@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Input, Select, Space, Button, Typography, Alert, message, Progress } from 'antd';
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Tag, Input, Select, Space, Button, Typography, Alert, message, Progress, Popconfirm } from 'antd';
+import { ReloadOutlined, SearchOutlined, UndoOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -55,6 +55,7 @@ const DepinInvestmentsPage: React.FC = () => {
   const [mode, setMode] = useState<string>('');
   const [hint, setHint] = useState('');
   const [summary, setSummary] = useState<any>(null);
+  const [returningId, setReturningId] = useState<string | number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -64,21 +65,16 @@ const DepinInvestmentsPage: React.FC = () => {
       if (search.trim()) q.set('search', search.trim());
       if (mode) q.set('mode', mode);
       q.set('limit', '100');
-      const res = await fetch(`/api/depin/admin/investments?${q.toString()}`, {
-        headers: authHeaders(),
-      });
-      // 兼容旧路径
       let data: any = {};
+      const res = await fetch(`/api/depin/admin/investments?${q.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         data = await res.json().catch(() => ({}));
       } else {
-        const res2 = await fetch(`/api/admin/depin/investments?${q.toString()}`, {
-          headers: authHeaders(),
-        });
+        const res2 = await fetch(`/api/admin/depin/investments?${q.toString()}`, { headers: authHeaders() });
         if (res2.ok) data = await res2.json().catch(() => ({}));
         else {
           setRows([]);
-          setHint('DePIN 投资接口加载失败，请确认后端 /api/depin/admin/investments 已部署。');
+          setHint('DePIN 投资接口加载失败，请确认后端已部署。');
           return;
         }
       }
@@ -93,13 +89,37 @@ const DepinInvestmentsPage: React.FC = () => {
     }
   };
 
+  const handleReturnPrincipal = async (id: string | number) => {
+    setReturningId(id);
+    try {
+      const res = await fetch(`/api/depin/admin/positions/${id}/return-principal`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        message.error(data?.error || '退还失败');
+        return;
+      }
+      message.success(
+        `已退还本金 ${Number(data.principal || 0).toFixed(2)} USDC` +
+          (Number(data.claimable || 0) > 0 ? ` + 收益 ${Number(data.claimable).toFixed(4)}` : '')
+      );
+      await load();
+    } catch (e: any) {
+      message.error(e?.message || '退还失败');
+    } finally {
+      setReturningId(null);
+    }
+  };
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
     {
       title: '官网邮箱',
       dataIndex: 'user_email',
@@ -135,10 +155,16 @@ const DepinInvestmentsPage: React.FC = () => {
         const elapsed = Number(r.elapsed_days || 0);
         return (
           <div>
-            <Progress percent={Number(pct.toFixed(0))} size="small" status={r.is_matured || r.status === 'completed' ? 'success' : 'active'} />
+            <Progress
+              percent={Number(pct.toFixed(0))}
+              size="small"
+              status={r.is_matured || r.status === 'completed' ? 'success' : 'active'}
+            />
             <Text type="secondary" style={{ fontSize: 12 }}>
               {elapsed.toFixed(1)}/{total || '—'} 天
-              {r.remaining_days != null && r.status === 'active' ? ` · 剩 ${Number(r.remaining_days).toFixed(1)}` : ''}
+              {r.remaining_days != null && r.status === 'active'
+                ? ` · 剩 ${Number(r.remaining_days).toFixed(1)}`
+                : ''}
             </Text>
           </div>
         );
@@ -170,15 +196,38 @@ const DepinInvestmentsPage: React.FC = () => {
       title: '到期时间',
       dataIndex: 'end_at',
       key: 'end_at',
-      width: 170,
+      width: 160,
       render: (d: string) => (d ? new Date(d).toLocaleString('zh-CN') : '—'),
     },
     {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 170,
-      render: (d: string) => (d ? new Date(d).toLocaleString('zh-CN') : '—'),
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: any, r: DepinRow) => {
+        const done = r.status === 'completed' || r.principal_returned;
+        if (done) return <Text type="secondary">已退还</Text>;
+        return (
+          <Popconfirm
+            title="确认退还本金？"
+            description="将本金（及未领收益）退回用户余额，仓位标记为已完成。"
+            onConfirm={() => handleReturnPrincipal(r.id)}
+            okText="确认退还"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<UndoOutlined />}
+              loading={returningId === r.id}
+            >
+              退还本金
+            </Button>
+          </Popconfirm>
+        );
+      },
     },
   ];
 
@@ -191,8 +240,8 @@ const DepinInvestmentsPage: React.FC = () => {
         style={{ marginBottom: 16 }}
         type="info"
         showIcon
-        message="到期自动返还"
-        description="打开本页或用户打开算力页时，系统会结算已到期仓位：返还本金并补发未领收益，状态变为 completed。"
+        message="到期自动返还 + 手动退还"
+        description="打开本页或用户打开算力页时，系统会尝试自动结算已到期仓位。若自动失败，可在操作列点击「退还本金」手动处理。"
       />
       {summary ? (
         <Alert
@@ -235,7 +284,7 @@ const DepinInvestmentsPage: React.FC = () => {
         columns={columns}
         dataSource={Array.isArray(rows) ? rows : []}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1200 }}
         locale={{ emptyText: '暂无数据' }}
       />
     </div>
