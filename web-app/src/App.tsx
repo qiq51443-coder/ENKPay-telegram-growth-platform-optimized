@@ -129,7 +129,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: '闪兑', swapSub: '与 USDC 兑换 · 汇率取自实时行情', pay: '支付', receive: '获得', balance: '余额', max: '最大',
     confirmSwap: '确认闪兑', swapping: '兑换中...', needUsdt: '请保证一侧为 USDC', swapOk: '闪兑成功',
     investTitle: '算力', investSub: '购买节点 · 资产质押', buyNode: '购买节点', stake: '资产质押', myPositions: '我的持仓与收益',
-    noPlans: '暂无节点套餐', noPositions: '暂无持仓', buy: '购买', stakeBtn: '确认质押', dailyYield: '日收益', days: '天',
+    noPlans: '暂无节点套餐', noPositions: '暂无持仓', buy: '购买', stakeBtn: '确认质押', dailyYield: '日收益', days: '天', depinMarket: 'DePIN 行情', dataFromCg: '数据来自 CoinGecko',
     principal: '本金', accrued: '累计收益', claimable: '可领取', claimed: '已领取', claim: '领取收益', claiming: '领取中...',
     matured: '已到期', progress: '进度', daysLeft: '剩余天数', principalReturned: '本金已返还', matureReturn: '到期返还', confirmStake: '确认质押', active: '进行中', totalClaimable: '可领合计', wallet: '钱包', totalAssets: '总资产估值',
   },
@@ -142,7 +142,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'Swap', swapSub: 'Trade vs USDC · live rates', pay: 'You pay', receive: 'You receive', balance: 'Balance', max: 'Max',
     confirmSwap: 'Confirm swap', swapping: 'Swapping...', needUsdt: 'One side must be USDC', swapOk: 'Swap success',
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node', stake: 'Stake', myPositions: 'Positions',
-    noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'days',
+    noPlans: 'No plans', noPositions: 'No positions', buy: 'Buy', stakeBtn: 'Stake', dailyYield: 'Daily yield', days: 'd', depinMarket: 'DePIN Market', dataFromCg: 'CoinGecko',
     principal: 'Principal', accrued: 'Accrued', claimable: 'Claimable', claimed: 'Claimed', claim: 'Claim', claiming: 'Claiming...',
     matured: 'Matured', progress: 'Progress', daysLeft: 'Days left', principalReturned: 'Returned', matureReturn: 'Matured return', confirmStake: 'Confirm stake', active: 'Active', totalClaimable: 'Claimable', wallet: 'Wallet', totalAssets: 'Total assets',
   },
@@ -155,7 +155,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'Échange', swapSub: 'Contre USDC', pay: 'Vous payez', receive: 'Vous recevez', balance: 'Solde', max: 'Max',
     confirmSwap: 'Confirmer', swapping: 'Échange...', needUsdt: 'Un côté doit être USDC', swapOk: 'Succès',
     investTitle: 'Compute', investSub: 'Nœuds · Staking', buyNode: 'Acheter', stake: 'Staker', myPositions: 'Positions',
-    noPlans: 'Aucun plan', noPositions: 'Aucune position', buy: 'Acheter', stakeBtn: 'Staker', dailyYield: 'Rendement/j', days: 'jours',
+    noPlans: 'Aucun plan', noPositions: 'Aucune position', buy: 'Acheter', stakeBtn: 'Staker', dailyYield: 'Rendement/j', days: 'j', depinMarket: 'Marché DePIN', dataFromCg: 'CoinGecko',
     principal: 'Principal', accrued: 'Accumulé', claimable: 'Réclamable', claimed: 'Réclamé', claim: 'Réclamer', claiming: '...',
     matured: 'Échu', progress: 'Progression', daysLeft: 'Jours restants', principalReturned: 'Principal rendu', matureReturn: 'Échéance', confirmStake: 'Confirmer', active: 'Actif', totalClaimable: 'Total réclamable', wallet: 'Portefeuille', totalAssets: 'Actifs',
   },
@@ -168,7 +168,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'Tausch', swapSub: 'Gegen USDC', pay: 'Zahlen', receive: 'Erhalten', balance: 'Guthaben', max: 'Max',
     confirmSwap: 'Bestätigen', swapping: '...', needUsdt: 'Eine Seite muss USDC sein', swapOk: 'Erfolg',
     investTitle: 'Compute', investSub: 'Nodes · Staking', buyNode: 'Node kaufen', stake: 'Staken', myPositions: 'Positionen',
-    noPlans: 'Keine Pläne', noPositions: 'Keine Positionen', buy: 'Kaufen', stakeBtn: 'Staken', dailyYield: 'Tageszins', days: 'Tage',
+    noPlans: 'Keine Pläne', noPositions: 'Keine Positionen', buy: 'Kaufen', stakeBtn: 'Staken', dailyYield: 'Tageszins', days: 'T', depinMarket: 'DePIN Markt', dataFromCg: 'CoinGecko',
     principal: 'Kapital', accrued: 'Aufgelaufen', claimable: 'Abrufbar', claimed: 'Abgerufen', claim: 'Abrufen', claiming: '...',
     matured: 'Fällig', progress: 'Fortschritt', daysLeft: 'Verbleibend', principalReturned: 'Kapital zurück', matureReturn: 'Fälligkeit', confirmStake: 'Bestätigen', active: 'Aktiv', totalClaimable: 'Abrufbar gesamt', wallet: 'Wallet', totalAssets: 'Gesamt',
   },
@@ -181,7 +181,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'Swap', swapSub: 'Contra USDC', pay: 'Pagas', receive: 'Recibes', balance: 'Saldo', max: 'Máx',
     confirmSwap: 'Confirmar', swapping: '...', needUsdt: 'Un lado debe ser USDC', swapOk: 'Éxito',
     investTitle: 'Compute', investSub: 'Nodos · Staking', buyNode: 'Comprar nodo', stake: 'Stake', myPositions: 'Posiciones',
-    noPlans: 'Sin planes', noPositions: 'Sin posiciones', buy: 'Comprar', stakeBtn: 'Stake', dailyYield: 'Rend. diario', days: 'días',
+    noPlans: 'Sin planes', noPositions: 'Sin posiciones', buy: 'Comprar', stakeBtn: 'Stake', dailyYield: 'Rend. diario', days: 'd', depinMarket: 'Mercado DePIN', dataFromCg: 'CoinGecko',
     principal: 'Principal', accrued: 'Acumulado', claimable: 'Reclamable', claimed: 'Reclamado', claim: 'Reclamar', claiming: '...',
     matured: 'Vencido', active: 'Activo', totalClaimable: 'Total reclamable', wallet: 'Billetera', totalAssets: 'Total',
   },
@@ -194,7 +194,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'تبديل', swapSub: 'مقابل USDC', pay: 'تدفع', receive: 'تستلم', balance: 'الرصيد', max: 'الكل',
     confirmSwap: 'تأكيد', swapping: '...', needUsdt: 'يجب أن يكون أحد الجانبين USDC', swapOk: 'تم',
     investTitle: 'الحوسبة', investSub: 'عقد · رهن', buyNode: 'شراء عقدة', stake: 'رهن', myPositions: 'المراكز',
-    noPlans: 'لا خطط', noPositions: 'لا مراكز', buy: 'شراء', stakeBtn: 'رهن', dailyYield: 'عائد يومي', days: 'يوم',
+    noPlans: 'لا خطط', noPositions: 'لا مراكز', buy: 'شراء', stakeBtn: 'رهن', dailyYield: 'عائد يومي', days: 'ي', depinMarket: 'سوق DePIN', dataFromCg: 'CoinGecko',
     principal: 'الأصل', accrued: 'المتراكم', claimable: 'قابل للسحب', claimed: 'تم السحب', claim: 'سحب', claiming: '...',
     matured: 'منتهي', active: 'نشط', totalClaimable: 'الإجمالي القابل', wallet: 'المحفظة', totalAssets: 'الإجمالي',
   },
@@ -207,7 +207,7 @@ const UI: Record<Lang, Record<string, string>> = {
     swapTitle: 'スワップ', swapSub: 'USDCとの交換', pay: '支払', receive: '受取', balance: '残高', max: '最大',
     confirmSwap: '確定', swapping: '処理中...', needUsdt: '片側はUSDCにしてください', swapOk: '成功',
     investTitle: '演算力', investSub: 'ノード · ステーキング', buyNode: 'ノード購入', stake: 'ステーク', myPositions: '保有と収益',
-    noPlans: 'プランなし', noPositions: '保有なし', buy: '購入', stakeBtn: 'ステーク', dailyYield: '日次利回り', days: '日',
+    noPlans: 'プランなし', noPositions: '保有なし', buy: '購入', stakeBtn: 'ステーク', dailyYield: '日次利回り', days: '日', depinMarket: 'DePIN相場', dataFromCg: 'CoinGecko',
     principal: '元本', accrued: '累計収益', claimable: '受取可能', claimed: '受取済', claim: '受取', claiming: '処理中...',
     matured: '満期', active: '運用中', totalClaimable: '受取可能合計', wallet: 'ウォレット', totalAssets: '総資産',
   },
@@ -1784,10 +1784,14 @@ function App() {
 
 
   const loadMarketOverview = async () => {
+    if (!token) {
+      setMarketOverview([])
+      return
+    }
     setMarketLoading(true)
     try {
-      const r = await apiRequest<any>('/depin/web/market-overview')
-      setMarketOverview(Array.isArray(r?.items) ? r.items : [])
+      const r = await apiRequest<any>('/depin/web/market-overview', {}, token)
+      setMarketOverview(Array.isArray(r?.items) ? r.items : Array.isArray(r) ? r : [])
     } catch {
       setMarketOverview([])
     } finally {
@@ -1913,8 +1917,8 @@ function App() {
           }}
         >
           <div style={{ textAlign: 'left' }}>
-            <strong>DePIN Market</strong>
-            <span className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>CoinGecko</span>
+            <strong>{ui.depinMarket || 'DePIN Market'}</strong>
+            <span className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>{ui.dataFromCg || 'CoinGecko'}</span>
           </div>
           <span className="muted" style={{ fontSize: 18 }}>{marketOpen ? '▾' : '▸'}</span>
         </button>
@@ -1991,7 +1995,7 @@ function App() {
           <input className="trading-amount-input" type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder={ui.stakeAmountPh || `Amount (${DISPLAY_UNIT})`} />
           <div className="trading-quick-amounts" style={{ marginTop: 8 }}>
             {[30, 60, 90, 180].map((d) => (
-              <button key={d} type="button" className={`trading-quick-btn${stakeDays === d ? ' active' : ''}`} onClick={() => setStakeDays(d)}>{d}天</button>
+              <button key={d} type="button" className={`trading-quick-btn${stakeDays === d ? ' active' : ''}`} onClick={() => setStakeDays(d)}>{d}{ui.days || 'd'}</button>
             ))}
           </div>
           <button className="primary-button" style={{ marginTop: 12 }} onClick={doStake}>{ui.confirmStake || 'Confirm'}</button>
@@ -2820,7 +2824,10 @@ function App() {
             <div>
               <h2>{ui.deposit}</h2>
             </div>
-            <button className="secondary-button small" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>{ui.backToWallet || ui.back || 'Back'}</button>
+            <button type="button" className="back-wallet-btn" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>
+              <span className="back-wallet-arrow">←</span>
+              <span>{ui.backToWallet || ui.back || 'Back'}</span>
+            </button>
           </div>
 
           {depositNetworksLoading ? (
@@ -2921,8 +2928,9 @@ function App() {
               <h2>{ui.withdraw}</h2>
               <p className="muted-text">{ui.selectNetwork || 'Select network'}</p>
             </div>
-            <button className="secondary-button" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>
-              {ui.backToWallet || ui.back || 'Back'}
+            <button type="button" className="back-wallet-btn" onClick={() => guarded({ view: 'app', tab: 'wallet' })}>
+              <span className="back-wallet-arrow">←</span>
+              <span>{ui.backToWallet || ui.back || 'Back'}</span>
             </button>
           </div>
 
